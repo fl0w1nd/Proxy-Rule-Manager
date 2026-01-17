@@ -9,7 +9,7 @@ import { Dashboard } from "@/components/dashboard";
 import { Loader2 } from "lucide-react";
 
 function AppContent() {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, authRequired } = useAuth();
   // 从 URL hash 读取初始状态
   const [showAdmin, setShowAdmin] = useState(() => {
     if (typeof window !== "undefined") {
@@ -49,7 +49,7 @@ function AppContent() {
 
   // 如果要进入管理后台
   if (showAdmin) {
-    if (!isAuthenticated) {
+    if (authRequired && !isAuthenticated) {
       return <LoginForm onBack={exitAdmin} />;
     }
     return <Dashboard onBack={exitAdmin} />;

@@ -36,7 +36,7 @@ interface DashboardProps {
 }
 
 export function Dashboard({ onBack }: DashboardProps) {
-  const { logout } = useAuth();
+  const { logout, authRequired } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
@@ -188,7 +188,13 @@ export function Dashboard({ onBack }: DashboardProps) {
             <Button
               variant="ghost"
               size="icon"
-              onClick={logout}
+              onClick={() => {
+                if (!authRequired) {
+                  onBack?.();
+                  return;
+                }
+                logout();
+              }}
               className="text-gray-500"
             >
               <LogOut className="w-5 h-5" />

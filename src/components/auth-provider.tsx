@@ -6,6 +6,7 @@ import { verifyToken, setToken as saveToken, clearToken, checkAuthRequired } fro
 interface AuthContextType {
   isAuthenticated: boolean;
   isLoading: boolean;
+  authRequired: boolean;
   login: (token: string) => Promise<boolean>;
   logout: () => void;
 }
@@ -15,11 +16,13 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const [authRequired, setAuthRequired] = useState(true);
 
   useEffect(() => {
     async function checkAuth() {
       // 首先检查后端是否需要认证
       const authStatus = await checkAuthRequired();
+      setAuthRequired(authStatus.required);
 
       if (!authStatus.required) {
         // 后端未设置 ADMIN_TOKEN，无需认证
@@ -54,11 +57,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const logout = () => {
     clearToken();
-    setIsAuthenticated(false);
+    if (authRequired) {
+      setIsAuthenticated(false);
+    } else {
+      setIsAuthenticated(true);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ isAuthenticated, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ isAuthenticated, isLoading, authRequired, login, logout }}>
       {children}
     </AuthContext.Provider>
   );
