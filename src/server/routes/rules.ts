@@ -2,11 +2,16 @@ import type { Hono } from "hono";
 import {
   deleteArtifactMeta,
   deleteRuleContent,
+  getArtifactMeta,
   getConfig,
+  getRuleContent,
   saveConfig,
   renameRule,
 } from "../../lib/storage-adapter";
 import { executePartialSync } from "../../lib/sync-engine";
+import { recordRuleFileChanges, type ChangeRecordInput } from "../../lib/activity-store";
+import { createLineDiff } from "../../lib/diff";
+import { randomUUID } from "node:crypto";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
@@ -49,14 +54,36 @@ export function registerRuleRoutes(app: Hono) {
 
       const rule = config.rules[ruleIndex];
       const clients = rule.output.clients;
+      const changeRecords: ChangeRecordInput[] = [];
 
       for (const client of clients) {
+        const [previousContent, meta] = await Promise.all([
+          getRuleContent(ruleName, client),
+          getArtifactMeta(ruleName, client),
+        ]);
         await deleteRuleContent(ruleName, client);
         await deleteArtifactMeta(ruleName, client);
+
+        if (previousContent || meta) {
+          const diff = createLineDiff(previousContent, "");
+          const sizeBytes = previousContent
+            ? new TextEncoder().encode(previousContent).length
+            : undefined;
+          changeRecords.push({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ruleName,
+            client,
+            changeType: "deleted",
+            diff,
+            sizeBytes,
+          });
+        }
       }
 
       config.rules.splice(ruleIndex, 1);
       await saveConfig(config);
+      await recordRuleFileChanges(changeRecords);
 
       return c.json({ success: true, deletedRule: ruleName, deletedClients: clients });
     } catch (error) {
