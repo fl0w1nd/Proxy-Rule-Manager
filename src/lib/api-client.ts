@@ -82,13 +82,13 @@ export async function saveConfig(config: RulesConfig): Promise<{ success: boolea
   });
 }
 
-export async function exportConfigBundle(): Promise<Blob> {
+export async function backupDatabase(): Promise<Blob> {
   const token = getToken();
   const headers: HeadersInit = {};
   if (token) {
     (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
   }
-  const response = await fetch(`${API_BASE}/config/export`, { headers });
+  const response = await fetch(`${API_BASE}/database/backup`, { headers });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     const message =
@@ -100,7 +100,7 @@ export async function exportConfigBundle(): Promise<Blob> {
   return response.blob();
 }
 
-export async function importConfigBundle(file: File): Promise<{ success: boolean }> {
+export async function restoreDatabase(file: File): Promise<{ success: boolean }> {
   const token = getToken();
   const headers: HeadersInit = {};
   if (token) {
@@ -108,7 +108,49 @@ export async function importConfigBundle(file: File): Promise<{ success: boolean
   }
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_BASE}/config/import`, {
+  const response = await fetch(`${API_BASE}/database/restore`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+export async function exportConfigTemplate(): Promise<Blob> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE}/config/template/export`, { headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
+export async function importConfigTemplate(file: File): Promise<{ success: boolean; rev: number }> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/config/template/import`, {
     method: "POST",
     headers,
     body: formData,

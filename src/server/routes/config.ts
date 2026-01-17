@@ -2,14 +2,41 @@ import type { Hono } from "hono";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import AdmZip from "adm-zip";
-import { getConfig, getConfigRaw, getConfigRev, invalidateCache, saveConfig } from "../../lib/storage-adapter";
+import YAML from "yaml";
+import {
+  getConfig,
+  getConfigRaw,
+  getConfigRev,
+  invalidateCache,
+  resetDatabaseWithConfig,
+  saveConfig,
+} from "../../lib/storage-adapter";
 import { detectCircularDependency } from "../../lib/sync-engine";
-import { validateConfig } from "../../lib/schema";
+import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 import { getDbFilePath, getSourcesDir } from "../../lib/data-paths";
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+function buildClientsForConfig(config: ReturnType<typeof validateConfig>): ClientConfig[] {
+  const clients = new Map<string, ClientConfig>();
+  for (const client of DEFAULT_CLIENTS) {
+    clients.set(client.id, { ...client });
+  }
+  for (const rule of config.rules) {
+    for (const clientId of rule.output.clients) {
+      if (!clients.has(clientId)) {
+        clients.set(clientId, {
+          id: clientId,
+          displayName: clientId,
+          pathName: clientId,
+        });
+      }
+    }
+  }
+  return Array.from(clients.values());
+}
 
 async function atomicWriteFile(filePath: string, content: Buffer): Promise<void> {
   const dir = path.dirname(filePath);
@@ -76,7 +103,7 @@ export function registerConfigRoutes(app: Hono) {
     }
   });
 
-  app.get("/api/config/export", async (c) => {
+  app.get("/api/database/backup", async (c) => {
     if (!verifyAdmin(c.req.header("authorization"))) {
       return c.json({ error: "Unauthorized" }, 401);
     }
@@ -111,12 +138,12 @@ export function registerConfigRoutes(app: Hono) {
         "Content-Disposition": `attachment; filename="proxy-rule-manager-${dateTag}.zip"`,
       });
     } catch (error) {
-      console.error("Failed to export config:", error);
-      return jsonError(c, error, "Failed to export config");
+      console.error("Failed to backup database:", error);
+      return jsonError(c, error, "Failed to backup database");
     }
   });
 
-  app.post("/api/config/import", async (c) => {
+  app.post("/api/database/restore", async (c) => {
     if (!verifyAdmin(c.req.header("authorization"))) {
       return c.json({ error: "Unauthorized" }, 401);
     }
@@ -171,8 +198,59 @@ export function registerConfigRoutes(app: Hono) {
 
       return c.json({ success: true });
     } catch (error) {
-      console.error("Failed to import config:", error);
-      return jsonError(c, error, "Failed to import config");
+      console.error("Failed to restore database:", error);
+      return jsonError(c, error, "Failed to restore database");
+    }
+  });
+
+  app.get("/api/config/template/export", async (c) => {
+    if (!verifyAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    try {
+      const config = await getConfig();
+      const dateTag = new Date().toISOString().split("T")[0];
+      const payload = JSON.stringify(config, null, 2);
+      return c.body(payload, 200, {
+        "Content-Type": "application/json",
+        "Content-Disposition": `attachment; filename="proxy-rule-template-${dateTag}.json"`,
+      });
+    } catch (error) {
+      console.error("Failed to export template:", error);
+      return jsonError(c, error, "Failed to export template");
+    }
+  });
+
+  app.post("/api/config/template/import", async (c) => {
+    if (!verifyAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    try {
+      const form = await c.req.formData();
+      const file = form.get("file");
+      if (!file || typeof (file as { arrayBuffer?: unknown }).arrayBuffer !== "function") {
+        return c.json({ error: "Missing import file" }, 400);
+      }
+
+      const buffer = Buffer.from(await (file as Blob).arrayBuffer());
+      const rawText = buffer.toString("utf-8");
+      const parsed =
+        rawText.trim().startsWith("{") || rawText.trim().startsWith("[")
+          ? JSON.parse(rawText)
+          : YAML.parse(rawText);
+      const validated = validateConfig(parsed);
+      const clients = buildClientsForConfig(validated);
+      const { rev } = await resetDatabaseWithConfig(validated, clients);
+      invalidateCache();
+
+      return c.json({ success: true, rev });
+    } catch (error) {
+      console.error("Failed to import template:", error);
+      return jsonError(c, error, "Failed to import template", 500, {
+        validationMessage: "Invalid config format",
+      });
     }
   });
 }

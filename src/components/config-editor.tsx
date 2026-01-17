@@ -4,9 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Code, Save, Loader2, AlertCircle, CheckCircle, Maximize2, X, Download, Upload } from "lucide-react";
-import { exportConfigBundle, getConfigRaw, importConfigBundle, saveConfig } from "@/lib/api-client";
-import { RulesConfig, validateConfig } from "@/lib/schema";
+import { Code, Loader2, Maximize2, X, Download, Upload, Database, FileText } from "lucide-react";
+import {
+  backupDatabase,
+  exportConfigTemplate,
+  getConfigRaw,
+  importConfigTemplate,
+  restoreDatabase,
+} from "@/lib/api-client";
+import { RulesConfig } from "@/lib/schema";
 import { toast } from "sonner";
 import Editor from "@monaco-editor/react";
 import YAML from "yaml";
@@ -21,19 +27,19 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [yamlContent, setYamlContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isImporting, setIsImporting] = useState(false);
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const [isDirty, setIsDirty] = useState(false);
+  const [isExportingTemplate, setIsExportingTemplate] = useState(false);
+  const [isImportingTemplate, setIsImportingTemplate] = useState(false);
+  const [isBackingUp, setIsBackingUp] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
-  const importInputRef = useRef<HTMLInputElement | null>(null);
+  const importTemplateRef = useRef<HTMLInputElement | null>(null);
+  const restoreDbRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchConfig();
   }, []);
 
-  // ESC 键退出全屏
+  // ESC key exits fullscreen
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Escape" && isFullscreen) {
@@ -49,7 +55,6 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
       const { config } = await getConfigRaw();
       setConfig(config);
       setYamlContent(YAML.stringify(config, { indent: 2 }));
-      setIsDirty(false);
     } catch (error) {
       console.error("Failed to fetch config:", error);
       toast.error("获取配置失败");
@@ -58,80 +63,73 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
     }
   };
 
-  const handleYamlChange = (value: string | undefined) => {
-    const newValue = value || "";
-    setYamlContent(newValue);
-    setIsDirty(true);
-
+  const handleExportTemplate = async () => {
+    setIsExportingTemplate(true);
     try {
-      const parsed = YAML.parse(newValue);
-      validateConfig(parsed);
-      setValidationError(null);
-    } catch (error) {
-      if (error instanceof Error) {
-        setValidationError(error.message);
-      }
-    }
-  };
-
-  const handleSave = async () => {
-    try {
-      const parsed = YAML.parse(yamlContent);
-      const validated = validateConfig(parsed);
-
-      setIsSaving(true);
-      await saveConfig(validated);
-      setConfig(validated);
-      setIsDirty(false);
-      toast.success("配置保存成功");
-      onSave();
-    } catch (error) {
-      toast.error("保存失败: " + String(error));
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const handleExport = async () => {
-    setIsExporting(true);
-    try {
-      const blob = await exportConfigBundle();
+      const blob = await exportConfigTemplate();
       const url = window.URL.createObjectURL(blob);
       const link = document.createElement("a");
       const dateTag = new Date().toISOString().split("T")[0];
       link.href = url;
-      link.download = `proxy-rule-manager-${dateTag}.zip`;
+      link.download = `proxy-rule-template-${dateTag}.json`;
       document.body.appendChild(link);
       link.click();
       link.remove();
       window.URL.revokeObjectURL(url);
-      toast.success("导出成功");
+      toast.success("模板导出成功");
     } catch (error) {
-      toast.error("导出失败: " + String(error));
+      toast.error("模板导出失败: " + String(error));
     } finally {
-      setIsExporting(false);
+      setIsExportingTemplate(false);
     }
   };
 
-  const handleImport = async (file: File) => {
-    setIsImporting(true);
+  const handleImportTemplate = async (file: File) => {
+    setIsImportingTemplate(true);
     try {
-      await importConfigBundle(file);
-      toast.success("导入成功");
+      await importConfigTemplate(file);
+      toast.success("模板导入成功，数据库已重置");
       await fetchConfig();
       onSave();
     } catch (error) {
-      toast.error("导入失败: " + String(error));
+      toast.error("模板导入失败: " + String(error));
     } finally {
-      setIsImporting(false);
+      setIsImportingTemplate(false);
     }
   };
 
-  const handleReset = () => {
-    if (config) {
-      setYamlContent(YAML.stringify(config, { indent: 2 }));
-      setIsDirty(false);
-      setValidationError(null);
+  const handleBackup = async () => {
+    setIsBackingUp(true);
+    try {
+      const blob = await backupDatabase();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateTag = new Date().toISOString().split("T")[0];
+      link.href = url;
+      link.download = `proxy-rule-manager-backup-${dateTag}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("数据库备份成功");
+    } catch (error) {
+      toast.error("数据库备份失败: " + String(error));
+    } finally {
+      setIsBackingUp(false);
+    }
+  };
+
+  const handleRestore = async (file: File) => {
+    setIsRestoring(true);
+    try {
+      await restoreDatabase(file);
+      toast.success("数据库恢复成功");
+      await fetchConfig();
+      onSave();
+    } catch (error) {
+      toast.error("数据库恢复失败: " + String(error));
+    } finally {
+      setIsRestoring(false);
     }
   };
 
@@ -145,81 +143,45 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
     );
   }
 
-  // 全屏模式
+  // Fullscreen mode
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
         <input
-          ref={importInputRef}
+          ref={importTemplateRef}
+          type="file"
+          accept=".json,.yaml,.yml"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleImportTemplate(file);
+            }
+            e.currentTarget.value = "";
+          }}
+        />
+        <input
+          ref={restoreDbRef}
           type="file"
           accept=".zip"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
             if (file) {
-              handleImport(file);
+              handleRestore(file);
             }
             e.currentTarget.value = "";
           }}
         />
-        {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-3">
             <Code className="w-5 h-5 text-blue-500" />
             <span className="font-semibold text-gray-900 dark:text-white">YAML 配置编辑器</span>
-            {isDirty && (
-              <Badge variant="outline" className="border-amber-500 text-amber-500">
-                未保存
-              </Badge>
-            )}
-            {validationError ? (
-              <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                格式错误
-              </Badge>
-            ) : (
-              <Badge className="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                格式正确
-              </Badge>
-            )}
+            <Badge variant="outline" className="border-gray-300 text-gray-500">
+              只读
+            </Badge>
           </div>
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => importInputRef.current?.click()}
-              disabled={isImporting}
-            >
-              {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
-              导入
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleExport}
-              disabled={isExporting}
-            >
-              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
-              导出
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleReset}
-              disabled={!isDirty}
-            >
-              重置
-            </Button>
-            <Button
-              size="sm"
-              onClick={handleSave}
-              disabled={isSaving || !!validationError}
-              className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
-            >
-              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
-              保存
-            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -231,23 +193,14 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </div>
         </div>
 
-        {/* 错误提示 */}
-        {validationError && (
-          <div className="px-4 py-2 bg-red-50 dark:bg-red-500/10 border-b border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm">
-            <span className="font-medium">验证错误: </span>
-            <span className="font-mono text-xs">{validationError}</span>
-          </div>
-        )}
-
-        {/* 编辑器 */}
         <div className="flex-1">
           <Editor
             height="100%"
             defaultLanguage="yaml"
             value={yamlContent}
-            onChange={handleYamlChange}
             theme={editorTheme}
             options={{
+              readOnly: true,
               minimap: { enabled: true },
               fontSize: 14,
               lineNumbers: "on",
@@ -272,19 +225,31 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   return (
     <div className="space-y-6">
       <input
-        ref={importInputRef}
+        ref={importTemplateRef}
+        type="file"
+        accept=".json,.yaml,.yml"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleImportTemplate(file);
+          }
+          e.currentTarget.value = "";
+        }}
+      />
+      <input
+        ref={restoreDbRef}
         type="file"
         accept=".zip"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) {
-            handleImport(file);
+            handleRestore(file);
           }
           e.currentTarget.value = "";
         }}
       />
-      {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
           <CardHeader className="pb-2">
@@ -314,7 +279,6 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         </Card>
       </div>
 
-      {/* Editor */}
       <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
         <CardHeader>
           <div className="flex items-center justify-between">
@@ -323,45 +287,23 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                 <Code className="w-5 h-5 text-blue-500" />
                 YAML 配置编辑器
               </CardTitle>
-              {isDirty && (
-                <Badge variant="outline" className="border-amber-500 text-amber-500">
-                  未保存
-                </Badge>
-              )}
+              <Badge variant="outline" className="border-gray-300 text-gray-500">
+                只读
+              </Badge>
             </div>
-            {validationError ? (
-              <Badge variant="destructive" className="flex items-center gap-1">
-                <AlertCircle className="w-3 h-3" />
-                格式错误
-              </Badge>
-            ) : (
-              <Badge className="bg-green-100 dark:bg-green-500/20 text-green-700 dark:text-green-400 flex items-center gap-1">
-                <CheckCircle className="w-3 h-3" />
-                格式正确
-              </Badge>
-            )}
           </div>
           <CardDescription className="text-gray-500 dark:text-gray-400">
-            直接编辑 YAML 配置文件。支持语法高亮和实时验证。
+            只读查看当前配置模版。请使用下方导入模版或数据库恢复来变更配置。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          {validationError && (
-            <div className="p-3 rounded-lg bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30 text-red-700 dark:text-red-400 text-sm">
-              <p className="font-medium">验证错误:</p>
-              <p className="mt-1 font-mono text-xs">{validationError}</p>
-            </div>
-          )}
-
-          {/* 编辑器容器 - 相对定位用于放置全屏按钮 */}
           <div className="relative border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
-            {/* 全屏按钮 - 编辑器右上角 */}
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(true)}
               className="absolute top-2 right-2 z-10 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
-              title="全屏编辑 (ESC 退出)"
+              title="全屏查看 (ESC 退出)"
             >
               <Maximize2 className="w-4 h-4" />
             </Button>
@@ -369,9 +311,9 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               height="600px"
               defaultLanguage="yaml"
               value={yamlContent}
-              onChange={handleYamlChange}
               theme={editorTheme}
               options={{
+                readOnly: true,
                 minimap: { enabled: false },
                 fontSize: 13,
                 lineNumbers: "on",
@@ -389,79 +331,74 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               }}
             />
           </div>
-
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-gray-500 dark:text-gray-400">
-              提示: 保存后需要手动刷新规则才能生效
-            </div>
-            <div className="flex items-center gap-3">
-              <Button
-                variant="outline"
-                onClick={() => importInputRef.current?.click()}
-                disabled={isImporting}
-                className="border-gray-300 dark:border-slate-600"
-              >
-                {isImporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    导入中
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-4 h-4 mr-2" />
-                    导入配置
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleExport}
-                disabled={isExporting}
-                className="border-gray-300 dark:border-slate-600"
-              >
-                {isExporting ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    导出中
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-4 h-4 mr-2" />
-                    导出配置
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={handleReset}
-                disabled={!isDirty}
-                className="border-gray-300 dark:border-slate-600"
-              >
-                重置
-              </Button>
-              <Button
-                onClick={handleSave}
-                disabled={isSaving || !!validationError}
-                className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
-              >
-                {isSaving ? (
-                  <>
-                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                    保存中...
-                  </>
-                ) : (
-                  <>
-                    <Save className="w-4 h-4 mr-2" />
-                    保存配置
-                  </>
-                )}
-              </Button>
-            </div>
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            提示: 配置编辑为只读，需通过导入模版或恢复数据库来变更。
           </div>
         </CardContent>
       </Card>
 
-      {/* Help Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <FileText className="w-5 h-5 text-blue-500" />
+              配置模板
+            </CardTitle>
+            <CardDescription className="text-gray-500 dark:text-gray-400">
+              分享/导入规则模板，仅包含配置内容，不含运行元数据。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={() => importTemplateRef.current?.click()}
+              disabled={isImportingTemplate}
+            >
+              {isImportingTemplate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              导入模板
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleExportTemplate}
+              disabled={isExportingTemplate}
+            >
+              {isExportingTemplate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              导出模板
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+          <CardHeader>
+            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <Database className="w-5 h-5 text-amber-500" />
+              数据库备份与恢复
+            </CardTitle>
+            <CardDescription className="text-gray-500 dark:text-gray-400">
+              备份/恢复完整数据库（含元数据）。恢复将覆盖当前数据。
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="flex flex-wrap gap-3">
+            <Button
+              variant="outline"
+              onClick={() => restoreDbRef.current?.click()}
+              disabled={isRestoring}
+            >
+              {isRestoring ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
+              恢复数据库
+            </Button>
+            <Button
+              variant="outline"
+              onClick={handleBackup}
+              disabled={isBackingUp}
+            >
+              {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+              备份数据库
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+
       <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
         <CardHeader>
           <CardTitle className="text-gray-900 dark:text-white text-lg">配置说明</CardTitle>

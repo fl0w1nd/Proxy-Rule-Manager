@@ -24,6 +24,7 @@ import {
     getDataDir as getDataDirPath,
     getDbFilePath,
     getRulesDir as getRulesDirPath,
+    getSourcesDir,
 } from "./data-paths";
 import {
     externalizeConfigLocalSources,
@@ -34,6 +35,8 @@ import {
 // --- Configuration ---
 const DATA_DIR = getDataDirPath();
 const RULES_DIR = getRulesDirPath();
+const RECORDS_DIR = path.join(DATA_DIR, "records");
+const SOURCES_DIR = getSourcesDir();
 const DB_FILE = getDbFilePath();
 
 // --- Database Schema ---
@@ -199,6 +202,34 @@ export async function saveConfig(config: RulesConfig): Promise<{ rev: number }> 
     db.configRev += 1;
     await saveDb(db);
     return { rev: db.configRev };
+}
+
+export async function resetDatabaseWithConfig(
+    config: RulesConfig,
+    clients: ClientConfig[] = DEFAULT_CLIENTS
+): Promise<{ rev: number }> {
+    const validated = validateConfig(config);
+    await ensureDataDir();
+    await Promise.all([
+        fs.rm(RULES_DIR, { recursive: true, force: true }),
+        fs.rm(RECORDS_DIR, { recursive: true, force: true }),
+        fs.rm(SOURCES_DIR, { recursive: true, force: true }),
+    ]);
+
+    const { config: externalized, refs } = await externalizeConfigLocalSources(validated);
+    await pruneLocalSources(refs);
+
+    const newDb: Database = {
+        ...DEFAULT_DB,
+        config: externalized,
+        configRev: 1,
+        clients,
+    };
+
+    dbCache = newDb;
+    updateClientMappings(newDb.clients);
+    await saveDb(newDb);
+    return { rev: newDb.configRev };
 }
 
 export async function getConfigRev(): Promise<number> {
