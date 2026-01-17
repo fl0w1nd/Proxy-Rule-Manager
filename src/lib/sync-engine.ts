@@ -1,4 +1,9 @@
-import { RuleConfig, ClientType, ArtifactMeta, TransformersConfig } from "./schema";
+import {
+  RuleConfig,
+  ClientType,
+  ArtifactMeta,
+  TransformersConfig,
+} from "./schema";
 import {
   getConfig,
   getArtifactMeta,
@@ -12,13 +17,79 @@ import {
   incrementDailyStats,
   updateLastSyncInfo,
   uploadRuleContent,
+  getRuleContent,
 } from "./storage-adapter";
+import {
+  ChangeRecordInput,
+  FailureRecord,
+  recordRuleFileChanges,
+  recordFailureRecords,
+} from "./activity-store";
 import { computeHash } from "./transformer";
 import { fetchSource } from "./sync-engine/fetcher";
 import { processRule } from "./sync-engine/processor";
 import { extractDependencies, topologicalSort } from "./sync-engine/dependency-graph";
+import { createLineDiff } from "./diff";
+import { randomUUID } from "node:crypto";
 
 export { detectCircularDependency } from "./sync-engine/dependency-graph";
+
+function parseFailureDetails(message: string): { client?: ClientType; source?: string } {
+  let source: string | undefined;
+  const sourceMatch = message.match(/^Source (.+?):/);
+  if (sourceMatch) {
+    source = sourceMatch[1];
+  }
+  const refMatch = message.match(/^Ref "(.+?)"/);
+  if (refMatch) {
+    source = `ref:${refMatch[1]}`;
+  }
+  const refRuleMatch = message.match(/^Ref rule "(.+?)"/);
+  if (refRuleMatch) {
+    source = `ref:${refRuleMatch[1]}`;
+  }
+  const depMatch = message.match(/^Dependency rule "(.+?)"/);
+  if (depMatch) {
+    source = `dependency:${depMatch[1]}`;
+  }
+
+  const clientMatch = message.match(/client ([^ )]+)\b/);
+  const client = clientMatch ? (clientMatch[1] as ClientType) : undefined;
+
+  return { client, source };
+}
+
+function buildFailureRecords(
+  ruleName: string,
+  errors: string[],
+  jobId: string,
+  stage: string = "process_rule"
+): FailureRecord[] {
+  const timestamp = new Date().toISOString();
+  return errors.map((message) => {
+    const { client, source } = parseFailureDetails(message);
+    return {
+      id: randomUUID(),
+      timestamp,
+      ruleName,
+      client,
+      source,
+      message,
+      stage,
+      jobId,
+    };
+  });
+}
+
+function normalizeRuleContent(content: string | null): string {
+  if (!content) return "";
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .filter((line) => !line.startsWith("# UPDATED:"))
+    .join("\n");
+}
 
 // 执行全量同步
 export async function executeFullSync(): Promise<{
@@ -40,6 +111,8 @@ export async function executeFullSync(): Promise<{
   const job = await createJob("full_sync");
   const changedRules: string[] = [];
   const failedRules: { name: string; error: string }[] = [];
+  const ruleFileChanges: ChangeRecordInput[] = [];
+  const failureRecords: FailureRecord[] = [];
   let blobWriteCount = 0;
 
   try {
@@ -56,6 +129,9 @@ export async function executeFullSync(): Promise<{
       );
 
       if (processResult.errors.length > 0) {
+        failureRecords.push(
+          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
+        );
         failedRules.push({
           name: rule.name,
           error: processResult.errors.join("; "),
@@ -66,27 +142,62 @@ export async function executeFullSync(): Promise<{
       ruleContentsCache.set(rule.name, processResult.contents);
 
       for (const [client, content] of processResult.contents) {
-        const hash = await computeHash(content);
         const existingMeta = await getArtifactMeta(rule.name, client);
+        const normalizedContent = normalizeRuleContent(content);
+        const hash = await computeHash(normalizedContent);
 
-        if (!existingMeta || existingMeta.lastHash !== hash) {
-          const { url, path } = await uploadRuleContent(rule.name, client, content);
-          blobWriteCount++;
+        if (existingMeta && existingMeta.lastHash === hash) {
+          continue;
+        }
 
-          const meta: ArtifactMeta = {
+        let previousContent: string | null | undefined = undefined;
+        if (existingMeta) {
+          previousContent = await getRuleContent(rule.name, client);
+          if (previousContent) {
+            const previousNormalizedHash = await computeHash(
+              normalizeRuleContent(previousContent)
+            );
+            if (previousNormalizedHash === hash) {
+              if (existingMeta.lastHash !== hash) {
+                await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+              }
+              continue;
+            }
+          }
+        }
+
+        if (previousContent === undefined) {
+          previousContent = await getRuleContent(rule.name, client);
+        }
+
+        const diff = createLineDiff(previousContent, content);
+        const sizeBytes = new TextEncoder().encode(content).length;
+        const { url, path } = await uploadRuleContent(rule.name, client, content);
+        blobWriteCount += 1;
+        const meta: ArtifactMeta = {
+          ruleName: rule.name,
+          client,
+          lastHash: hash,
+          lastUpdatedAt: new Date().toISOString(),
+          blobPath: path,
+          blobUrl: url,
+          sizeBytes,
+        };
+        await saveArtifactMeta(meta);
+
+          const changeRecord: ChangeRecordInput = {
+            id: randomUUID(),
+            timestamp: meta.lastUpdatedAt,
             ruleName: rule.name,
             client,
-            lastHash: hash,
-            lastUpdatedAt: new Date().toISOString(),
-            blobPath: path,
-            blobUrl: url,
-            sizeBytes: new TextEncoder().encode(content).length,
+            changeType: existingMeta ? "updated" : "created",
+            diff,
+            sizeBytes,
           };
-          await saveArtifactMeta(meta);
+        ruleFileChanges.push(changeRecord);
 
-          if (!changedRules.includes(rule.name)) {
-            changedRules.push(rule.name);
-          }
+        if (!changedRules.includes(rule.name)) {
+          changedRules.push(rule.name);
         }
       }
     }
@@ -97,7 +208,7 @@ export async function executeFullSync(): Promise<{
       blobWriteCount,
       rulesChanged: changedRules.length,
       totalRulesProcessed: sortedRules.length,
-      failedSources: failedRules.length,
+      failedSources: failureRecords.length,
     });
 
     const syncInfo: Parameters<typeof updateLastSyncInfo>[0] = {
@@ -110,6 +221,9 @@ export async function executeFullSync(): Promise<{
       syncInfo.lastSuccessfulSyncAt = new Date().toISOString();
     }
     await updateLastSyncInfo(syncInfo);
+
+    await recordRuleFileChanges(ruleFileChanges);
+    await recordFailureRecords(failureRecords);
 
     await completeJob(job.jobId, changedRules, failedRules);
 
@@ -167,6 +281,8 @@ export async function executePartialSync(ruleName: string): Promise<{
     const job = await createJob("partial_sync", Array.from(affectedRules));
     const changedRules: string[] = [];
     const failedRules: { name: string; error: string }[] = [];
+    const ruleFileChanges: ChangeRecordInput[] = [];
+    const failureRecords: FailureRecord[] = [];
     let blobWriteCount = 0;
 
     const ruleContentsCache = new Map<string, Map<ClientType, string>>();
@@ -214,6 +330,9 @@ export async function executePartialSync(ruleName: string): Promise<{
       );
 
       if (processResult.errors.length > 0) {
+        failureRecords.push(
+          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
+        );
         failedRules.push({
           name: rule.name,
           error: processResult.errors.join("; "),
@@ -224,27 +343,62 @@ export async function executePartialSync(ruleName: string): Promise<{
       ruleContentsCache.set(rule.name, processResult.contents);
 
       for (const [client, content] of processResult.contents) {
-        const hash = await computeHash(content);
         const existingMeta = await getArtifactMeta(rule.name, client);
+        const normalizedContent = normalizeRuleContent(content);
+        const hash = await computeHash(normalizedContent);
 
-        if (!existingMeta || existingMeta.lastHash !== hash) {
-          const { url, path } = await uploadRuleContent(rule.name, client, content);
-          blobWriteCount++;
+        if (existingMeta && existingMeta.lastHash === hash) {
+          continue;
+        }
 
-          const meta: ArtifactMeta = {
-            ruleName: rule.name,
-            client,
-            lastHash: hash,
-            lastUpdatedAt: new Date().toISOString(),
-            blobPath: path,
-            blobUrl: url,
-            sizeBytes: new TextEncoder().encode(content).length,
-          };
-          await saveArtifactMeta(meta);
-
-          if (!changedRules.includes(rule.name)) {
-            changedRules.push(rule.name);
+        let previousContent: string | null | undefined = undefined;
+        if (existingMeta) {
+          previousContent = await getRuleContent(rule.name, client);
+          if (previousContent) {
+            const previousNormalizedHash = await computeHash(
+              normalizeRuleContent(previousContent)
+            );
+            if (previousNormalizedHash === hash) {
+              if (existingMeta.lastHash !== hash) {
+                await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+              }
+              continue;
+            }
           }
+        }
+
+        if (previousContent === undefined) {
+          previousContent = await getRuleContent(rule.name, client);
+        }
+
+        const diff = createLineDiff(previousContent, content);
+        const sizeBytes = new TextEncoder().encode(content).length;
+        const { url, path } = await uploadRuleContent(rule.name, client, content);
+        blobWriteCount += 1;
+        const meta: ArtifactMeta = {
+          ruleName: rule.name,
+          client,
+          lastHash: hash,
+          lastUpdatedAt: new Date().toISOString(),
+          blobPath: path,
+          blobUrl: url,
+          sizeBytes,
+        };
+        await saveArtifactMeta(meta);
+
+        const changeRecord: ChangeRecordInput = {
+          id: randomUUID(),
+          timestamp: meta.lastUpdatedAt,
+          ruleName: rule.name,
+          client,
+          changeType: existingMeta ? "updated" : "created",
+          diff,
+          sizeBytes,
+        };
+        ruleFileChanges.push(changeRecord);
+
+        if (!changedRules.includes(rule.name)) {
+          changedRules.push(rule.name);
         }
       }
     }
@@ -254,11 +408,15 @@ export async function executePartialSync(ruleName: string): Promise<{
       blobWriteCount,
       rulesChanged: changedRules.length,
       totalRulesProcessed: sortedRules.length,
+      failedSources: failureRecords.length,
     });
 
     await updateLastSyncInfo({
       lastPartialSyncAt: new Date().toISOString(),
     });
+
+    await recordRuleFileChanges(ruleFileChanges);
+    await recordFailureRecords(failureRecords);
 
     await completeJob(job.jobId, changedRules, failedRules);
 

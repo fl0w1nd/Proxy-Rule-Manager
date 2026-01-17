@@ -6,8 +6,18 @@ import {
   getLastSyncInfo,
   getClients,
 } from "../../lib/storage-adapter";
+import { RulesConfig } from "../../lib/schema";
+import { countChangeRecords, countFailureRecords } from "../../lib/activity-store";
 import { checkAuth } from "../auth";
 import { jsonError } from "../errors";
+
+function countRuleFiles(config: RulesConfig): number {
+  let count = 0;
+  for (const rule of config.rules) {
+    count += rule.output.clients.length;
+  }
+  return count;
+}
 
 export function registerStatusRoutes(app: Hono) {
   app.get("/api/status", async (c) => {
@@ -21,6 +31,7 @@ export function registerStatusRoutes(app: Hono) {
     try {
       const config = await getConfig();
       const artifactMetas = await getAllArtifactMetas();
+      const ruleFilesCount = countRuleFiles(config);
 
       const rulesStatus = config.rules.map((rule) => {
         const metas = artifactMetas.filter((m) => m.ruleName === rule.name);
@@ -59,6 +70,8 @@ export function registerStatusRoutes(app: Hono) {
       const lastSyncInfo = await getLastSyncInfo();
       const today = new Date().toISOString().split("T")[0];
       const todayStats = await getDailyStats(today);
+      const todayChangeCount = await countChangeRecords(today);
+      const todayFailureCount = await countFailureRecords(today);
 
       const clientsConfig = await getClients();
       const clientsList = clientsConfig.map((c) => ({
@@ -69,8 +82,13 @@ export function registerStatusRoutes(app: Hono) {
 
       return c.json({
         rulesCount: config.rules.length,
+        ruleFilesCount,
         lastSync: lastSyncInfo,
-        todayStats,
+        todayStats: {
+          ...todayStats,
+          ruleFilesChanged: todayChangeCount,
+          failureRecords: todayFailureCount,
+        },
         rules: rulesStatus,
         clients: clientsList,
       });

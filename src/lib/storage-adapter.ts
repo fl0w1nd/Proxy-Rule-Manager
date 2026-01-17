@@ -107,6 +107,24 @@ async function loadDb(): Promise<Database> {
         if (!dbCache.clients) {
             dbCache.clients = DEFAULT_CLIENTS;
         }
+        const dbRecord = dbCache as unknown as Record<string, unknown>;
+        if ("ruleFileChanges" in dbRecord) {
+            delete dbRecord.ruleFileChanges;
+        }
+        if ("failureRecords" in dbRecord) {
+            delete dbRecord.failureRecords;
+        }
+        if (dbCache.dailyStats) {
+            for (const stats of Object.values(dbCache.dailyStats)) {
+                const record = stats as Record<string, unknown>;
+                if ("ruleFilesChanged" in record) {
+                    delete record.ruleFilesChanged;
+                }
+                if ("failureRecords" in record) {
+                    delete record.failureRecords;
+                }
+            }
+        }
         // 初始化客户端映射
         updateClientMappings(dbCache.clients);
         return dbCache;
@@ -556,16 +574,25 @@ export async function completeJob(
 // --- Daily Stats ---
 export async function getDailyStats(date: string): Promise<DailyStats> {
     const db = await loadDb();
-    return (
-        db.dailyStats[date] || {
+    const stats = db.dailyStats[date];
+    if (!stats) {
+        return {
             date,
             syncCount: 0,
             blobWriteCount: 0,
             rulesChanged: 0,
             totalRulesProcessed: 0,
             failedSources: 0,
-        }
-    );
+        };
+    }
+    return {
+        date: stats.date,
+        syncCount: stats.syncCount || 0,
+        blobWriteCount: stats.blobWriteCount || 0,
+        rulesChanged: stats.rulesChanged || 0,
+        totalRulesProcessed: stats.totalRulesProcessed || 0,
+        failedSources: stats.failedSources || 0,
+    };
 }
 
 export async function incrementDailyStats(
@@ -592,7 +619,6 @@ export async function incrementDailyStats(
     db.dailyStats[date] = stats;
     await saveDb(db);
 }
-
 // --- Last Sync Info ---
 export async function getLastSyncInfo(): Promise<LastSyncInfo> {
     const db = await loadDb();

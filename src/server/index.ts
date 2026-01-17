@@ -21,6 +21,7 @@ import { registerRuleRoutes } from "./routes/rules";
 import { registerRuleFileRoutes } from "./routes/rule-files";
 import { registerStatusRoutes } from "./routes/status";
 import { registerSyncRoutes } from "./routes/sync";
+import { registerActivityRoutes } from "./routes/activity";
 
 const app = new Hono();
 
@@ -30,6 +31,7 @@ app.use("*", cors());
 // --- API Routes ---
 registerConfigRoutes(app);
 registerStatusRoutes(app);
+registerActivityRoutes(app);
 registerSyncRoutes(app);
 registerRuleRoutes(app);
 registerClientRoutes(app);

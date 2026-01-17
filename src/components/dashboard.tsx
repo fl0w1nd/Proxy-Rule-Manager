@@ -20,16 +20,42 @@ import {
   Sun,
   Moon,
   Code2,
+  History,
+  AlertTriangle,
+  Zap,
+  Monitor,
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
 import { useTheme } from "./theme-provider";
-import { getStatus, executeFullSync, executeInit, getClients, getSyncSchedule, updateSyncSchedule, StatusResponse, ClientConfig, SyncSchedule } from "@/lib/api-client";
+import {
+  getStatus,
+  executeFullSync,
+  executeInit,
+  getClients,
+  getSyncSchedule,
+  updateSyncSchedule,
+  StatusResponse,
+  ClientConfig,
+  SyncSchedule,
+  ChangeRecordSummary,
+  FailureRecord,
+  ActivityList,
+  getChangeRecords,
+  getChangeDiff,
+  getFailureRecords,
+  getActivityDates,
+} from "@/lib/api-client";
 import { RulesManager } from "./rules-manager";
 import { ConfigEditor } from "./config-editor";
 import { TransformersManager } from "./transformers-manager";
 import { ClientsManager } from "./clients-manager";
 import { toast } from "sonner";
-import { AlertTriangle, Zap, Monitor } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface DashboardProps {
   onBack?: () => void;
@@ -48,6 +74,19 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [syncSchedule, setSyncSchedule] = useState<SyncSchedule | null>(null);
   const [isUpdatingSchedule, setIsUpdatingSchedule] = useState(false);
   const [needsFirstSync, setNeedsFirstSync] = useState(false); // 初始化后未同步提醒
+  const [activityDate, setActivityDate] = useState<string>("all");
+  const [changePage, setChangePage] = useState(1);
+  const [failurePage, setFailurePage] = useState(1);
+  const [changeData, setChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
+  const [failureData, setFailureData] = useState<ActivityList<FailureRecord> | null>(null);
+  const [isActivityLoading, setIsActivityLoading] = useState(false);
+  const [selectedChange, setSelectedChange] = useState<ChangeRecordSummary | null>(null);
+  const [selectedFailure, setSelectedFailure] = useState<FailureRecord | null>(null);
+  const [diffContent, setDiffContent] = useState("");
+  const [isDiffLoading, setIsDiffLoading] = useState(false);
+  const activityPageSize = 20;
+  const [activityDates, setActivityDates] = useState<string[]>([]);
+  const [activityClient, setActivityClient] = useState<string>("all");
 
   const fetchStatus = async () => {
     try {
@@ -81,6 +120,32 @@ export function Dashboard({ onBack }: DashboardProps) {
   const getClientDisplayName = (clientId: string): string => {
     const client = clients.find(c => c.id === clientId);
     return client?.displayName || clientId;
+  };
+
+  const formatTimestamp = (value: string) =>
+    new Date(value).toLocaleString("zh-CN");
+
+  const formatBytes = (value?: number): string => {
+    if (!value && value !== 0) return "-";
+    if (value < 1024) return `${value} B`;
+    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getChangeLabel = (changeType: ChangeRecordSummary["changeType"]) => {
+    if (changeType === "created") return "新增";
+    if (changeType === "deleted") return "删除";
+    return "更新";
+  };
+
+  const getChangeBadgeClass = (changeType: ChangeRecordSummary["changeType"]) => {
+    if (changeType === "created") {
+      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
+    }
+    if (changeType === "deleted") {
+      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
+    }
+    return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
   };
 
   const handleInit = async () => {
@@ -125,6 +190,66 @@ export function Dashboard({ onBack }: DashboardProps) {
       setIsSyncing(false);
     }
   };
+
+  const fetchActivity = async () => {
+    if (activeTab !== "activity") return;
+    setIsActivityLoading(true);
+    try {
+      const dateParam = activityDate === "all" ? undefined : activityDate;
+      const clientParam = activityClient === "all" ? undefined : activityClient;
+      const [changes, failures, dates] = await Promise.all([
+        getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
+        getFailureRecords(dateParam, failurePage, activityPageSize, clientParam),
+        getActivityDates(),
+      ]);
+      setChangeData(changes);
+      setFailureData(failures);
+      setActivityDates(dates.dates);
+    } catch (error) {
+      console.error("Failed to fetch activity:", error);
+      toast.error("获取活动记录失败");
+    } finally {
+      setIsActivityLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchActivity();
+  }, [activeTab, activityDate, changePage, failurePage, activityClient]);
+
+  useEffect(() => {
+    if (activityDate !== "all" && !activityDates.includes(activityDate)) {
+      setActivityDate("all");
+    }
+  }, [activityDate, activityDates]);
+
+  const openChangeDiff = async (change: ChangeRecordSummary) => {
+    setSelectedChange(change);
+    setDiffContent("");
+    setIsDiffLoading(true);
+    try {
+      const result = await getChangeDiff(change.date, change.fileName);
+      setDiffContent(result.diff);
+    } catch (error) {
+      console.error("Failed to fetch diff:", error);
+      setDiffContent("diff 已过期或不可用");
+    } finally {
+      setIsDiffLoading(false);
+    }
+  };
+
+  const recentDateOptions = activityDates;
+
+  const changeItems = changeData?.items || [];
+  const failureItems = failureData?.items || [];
+  const changeTotalPages = Math.max(
+    1,
+    Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize))
+  );
+  const failureTotalPages = Math.max(
+    1,
+    Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize))
+  );
 
   if (isLoading) {
     return (
@@ -287,6 +412,10 @@ export function Dashboard({ onBack }: DashboardProps) {
               <Activity className="w-4 h-4 mr-2" />
               概览
             </TabsTrigger>
+            <TabsTrigger value="activity" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+              <History className="w-4 h-4 mr-2" />
+              活动
+            </TabsTrigger>
             <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
               <FileText className="w-4 h-4 mr-2" />
               规则管理
@@ -320,33 +449,33 @@ export function Dashboard({ onBack }: DashboardProps) {
 
               <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">今日更新</CardDescription>
+                  <CardDescription className="text-gray-500 dark:text-gray-400">今日变更</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-blue-500">
-                    {status?.todayStats?.rulesChanged || 0}
+                    {status?.todayStats?.ruleFilesChanged || 0}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">Blob 写入</CardDescription>
+                  <CardDescription className="text-gray-500 dark:text-gray-400">规则文件</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-amber-500">
-                    {status?.todayStats?.blobWriteCount || 0}
+                    {status?.ruleFilesCount || 0}
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">失败来源</CardDescription>
+                  <CardDescription className="text-gray-500 dark:text-gray-400">失败记录</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-red-500">
-                    {status?.todayStats?.failedSources || 0}
+                    {status?.todayStats?.failureRecords || 0}
                   </div>
                 </CardContent>
               </Card>
@@ -503,6 +632,222 @@ export function Dashboard({ onBack }: DashboardProps) {
             </Card>
           </TabsContent>
 
+          <TabsContent value="activity" className="mt-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+              <div>
+                <h2 className="text-base font-semibold text-gray-900 dark:text-white">最近 7 天活动</h2>
+                <p className="text-xs text-gray-500 dark:text-gray-400">
+                  记录规则文件变更与失败详情（保留 7 天）
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-xs text-gray-500 dark:text-gray-400">日期</span>
+                <select
+                  value={activityDate}
+                  onChange={(e) => {
+                    setActivityDate(e.target.value);
+                    setChangePage(1);
+                    setFailurePage(1);
+                  }}
+                  className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="all">最近 7 天</option>
+                  {recentDateOptions.map((date) => (
+                    <option key={date} value={date}>
+                      {date}
+                    </option>
+                  ))}
+                </select>
+                <span className="text-xs text-gray-500 dark:text-gray-400">客户端</span>
+                <select
+                  value={activityClient}
+                  onChange={(e) => {
+                    setActivityClient(e.target.value);
+                    setChangePage(1);
+                    setFailurePage(1);
+                  }}
+                  className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
+                >
+                  <option value="all">全部</option>
+                  {clients.map((client) => (
+                    <option key={client.id} value={client.id}>
+                      {client.displayName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 dark:text-white">变更记录</CardTitle>
+                  <CardDescription className="text-gray-500 dark:text-gray-400">
+                    规则文件的新增与更新
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isActivityLoading && changeItems.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      加载中...
+                    </div>
+                  ) : changeItems.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      暂无变更记录
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+                      {changeItems.map((change) => (
+                        <div
+                          key={change.id}
+                          className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {change.ruleName}
+                              </span>
+                              <Badge variant="secondary">
+                                {getClientDisplayName(change.client)}
+                              </Badge>
+                              <Badge className={getChangeBadgeClass(change.changeType)}>
+                                {getChangeLabel(change.changeType)}
+                              </Badge>
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                              {formatTimestamp(change.timestamp)} · {formatBytes(change.sizeBytes)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => openChangeDiff(change)}
+                          >
+                            查看 diff
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {changeItems.length > 0 && (
+                    <div className="flex items-center justify-between pt-3 text-xs text-gray-500 dark:text-gray-400">
+                      <span>
+                        第 {changeData?.page || 1} / {changeTotalPages} 页
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(changeData?.page || 1) <= 1}
+                          onClick={() => setChangePage((prev) => Math.max(1, prev - 1))}
+                        >
+                          上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(changeData?.page || 1) >= changeTotalPages}
+                          onClick={() =>
+                            setChangePage((prev) => Math.min(changeTotalPages, prev + 1))
+                          }
+                        >
+                          下一页
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+                <CardHeader>
+                  <CardTitle className="text-gray-900 dark:text-white">失败记录</CardTitle>
+                  <CardDescription className="text-gray-500 dark:text-gray-400">
+                    规则处理或来源异常
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isActivityLoading && failureItems.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      加载中...
+                    </div>
+                  ) : failureItems.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      暂无失败记录
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+                      {failureItems.map((failure) => (
+                        <div
+                          key={failure.id}
+                          className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-medium text-gray-900 dark:text-white">
+                                {failure.ruleName}
+                              </span>
+                              {failure.client && (
+                                <Badge variant="secondary">
+                                  {getClientDisplayName(failure.client)}
+                                </Badge>
+                              )}
+                              {failure.source && (
+                                <Badge variant="secondary">{failure.source}</Badge>
+                              )}
+                            </div>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                              {failure.message}
+                            </p>
+                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                              {formatTimestamp(failure.timestamp)}
+                            </p>
+                          </div>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setSelectedFailure(failure)}
+                          >
+                            查看
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  {failureItems.length > 0 && (
+                    <div className="flex items-center justify-between pt-3 text-xs text-gray-500 dark:text-gray-400">
+                      <span>
+                        第 {failureData?.page || 1} / {failureTotalPages} 页
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(failureData?.page || 1) <= 1}
+                          onClick={() => setFailurePage((prev) => Math.max(1, prev - 1))}
+                        >
+                          上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(failureData?.page || 1) >= failureTotalPages}
+                          onClick={() =>
+                            setFailurePage((prev) =>
+                              Math.min(failureTotalPages, prev + 1)
+                            )
+                          }
+                        >
+                          下一页
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
           <TabsContent value="rules" className="mt-6">
             <RulesManager onRefresh={fetchStatus} />
           </TabsContent>
@@ -520,6 +865,102 @@ export function Dashboard({ onBack }: DashboardProps) {
           </TabsContent>
         </Tabs>
       </main>
+
+      <Dialog
+        open={!!selectedChange}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelectedChange(null);
+            setDiffContent("");
+            setIsDiffLoading(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-5xl h-[80vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              变更记录
+              {selectedChange && (
+                <Badge className={getChangeBadgeClass(selectedChange.changeType)}>
+                  {getChangeLabel(selectedChange.changeType)}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedChange && (
+            <div className="text-sm text-gray-500 dark:text-gray-400">
+              {selectedChange.ruleName} · {getClientDisplayName(selectedChange.client)} ·{" "}
+              {formatTimestamp(selectedChange.timestamp)} · {formatBytes(selectedChange.sizeBytes)}
+            </div>
+          )}
+          <div className="flex-1 overflow-auto rounded-md border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+            {isDiffLoading ? (
+              <div className="flex items-center justify-center h-full text-sm text-gray-500 dark:text-gray-400">
+                加载中...
+              </div>
+            ) : (
+              <div className="min-w-max p-4 font-mono text-xs whitespace-pre">
+                {(diffContent || "").split("\n").map((line, index) => {
+                  let className = "text-gray-700 dark:text-gray-200";
+                  if (line.startsWith("+") && !line.startsWith("+++")) {
+                    className = "text-green-600 dark:text-green-400";
+                  } else if (line.startsWith("-") && !line.startsWith("---")) {
+                    className = "text-red-600 dark:text-red-400";
+                  } else if (
+                    line.startsWith("@@") ||
+                    line.startsWith("---") ||
+                    line.startsWith("+++")
+                  ) {
+                    className = "text-gray-500 dark:text-gray-400";
+                  }
+                  return (
+                    <div key={index} className={className}>
+                      {line.length === 0 ? " " : line}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!selectedFailure}
+        onOpenChange={(open) => {
+          if (!open) setSelectedFailure(null);
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>失败记录详情</DialogTitle>
+          </DialogHeader>
+          {selectedFailure && (
+            <div className="space-y-3 text-sm">
+              <div className="text-gray-900 dark:text-white font-medium">
+                {selectedFailure.ruleName}
+              </div>
+              <div className="text-gray-500 dark:text-gray-400">
+                {formatTimestamp(selectedFailure.timestamp)}
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selectedFailure.client && (
+                  <Badge variant="secondary">
+                    {getClientDisplayName(selectedFailure.client)}
+                  </Badge>
+                )}
+                {selectedFailure.source && (
+                  <Badge variant="secondary">{selectedFailure.source}</Badge>
+                )}
+                <Badge variant="secondary">{selectedFailure.stage}</Badge>
+              </div>
+              <div className="rounded-md border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900 p-3 text-gray-700 dark:text-gray-200 whitespace-pre-wrap">
+                {selectedFailure.message}
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

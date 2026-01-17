@@ -79,8 +79,38 @@ export async function saveConfig(config: RulesConfig): Promise<{ success: boolea
 }
 
 // 状态 API
+export interface ChangeRecordSummary {
+  id: string;
+  timestamp: string;
+  ruleName: string;
+  client: ClientType;
+  changeType: "created" | "updated" | "deleted";
+  sizeBytes?: number;
+  date: string;
+  fileName: string;
+}
+
+export interface FailureRecord {
+  id: string;
+  timestamp: string;
+  ruleName: string;
+  client?: ClientType;
+  source?: string;
+  message: string;
+  stage: string;
+  jobId?: string;
+}
+
+export interface ActivityList<T> {
+  items: T[];
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
 export interface StatusResponse {
   rulesCount: number;
+  ruleFilesCount: number;
   lastSync: {
     lastFullSyncAt: string | null;
     lastPartialSyncAt: string | null;
@@ -96,6 +126,8 @@ export interface StatusResponse {
     rulesChanged: number;
     totalRulesProcessed: number;
     failedSources: number;
+    ruleFilesChanged: number;
+    failureRecords: number;
   };
   rules: {
     name: string;
@@ -108,6 +140,45 @@ export interface StatusResponse {
 
 export async function getStatus(): Promise<StatusResponse> {
   return apiRequest<StatusResponse>("/status");
+}
+
+export async function getChangeRecords(
+  date?: string,
+  page: number = 1,
+  pageSize: number = 20,
+  client?: string
+): Promise<ActivityList<ChangeRecordSummary>> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  if (client) params.set("client", client);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  return apiRequest<ActivityList<ChangeRecordSummary>>(`/activity/changes?${params.toString()}`);
+}
+
+export async function getChangeDiff(
+  date: string,
+  fileName: string
+): Promise<{ diff: string }> {
+  return apiRequest<{ diff: string }>(`/activity/changes/${encodeURIComponent(date)}/${encodeURIComponent(fileName)}`);
+}
+
+export async function getFailureRecords(
+  date?: string,
+  page: number = 1,
+  pageSize: number = 20,
+  client?: string
+): Promise<ActivityList<FailureRecord>> {
+  const params = new URLSearchParams();
+  if (date) params.set("date", date);
+  if (client) params.set("client", client);
+  params.set("page", String(page));
+  params.set("pageSize", String(pageSize));
+  return apiRequest<ActivityList<FailureRecord>>(`/activity/failures?${params.toString()}`);
+}
+
+export async function getActivityDates(): Promise<{ dates: string[] }> {
+  return apiRequest<{ dates: string[] }>("/activity/dates");
 }
 
 // 同步 API
