@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Code, Save, Loader2, AlertCircle, CheckCircle, Maximize2, X } from "lucide-react";
-import { getConfig, saveConfig } from "@/lib/api-client";
+import { Code, Save, Loader2, AlertCircle, CheckCircle, Maximize2, X, Download, Upload } from "lucide-react";
+import { exportConfigBundle, getConfigRaw, importConfigBundle, saveConfig } from "@/lib/api-client";
 import { RulesConfig, validateConfig } from "@/lib/schema";
 import { toast } from "sonner";
 import Editor from "@monaco-editor/react";
@@ -22,9 +22,12 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   const [yamlContent, setYamlContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchConfig();
@@ -43,7 +46,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
 
   const fetchConfig = async () => {
     try {
-      const { config } = await getConfig();
+      const { config } = await getConfigRaw();
       setConfig(config);
       setYamlContent(YAML.stringify(config, { indent: 2 }));
       setIsDirty(false);
@@ -89,6 +92,41 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
     }
   };
 
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const blob = await exportConfigBundle();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      const dateTag = new Date().toISOString().split("T")[0];
+      link.href = url;
+      link.download = `proxy-rule-manager-${dateTag}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      toast.success("导出成功");
+    } catch (error) {
+      toast.error("导出失败: " + String(error));
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleImport = async (file: File) => {
+    setIsImporting(true);
+    try {
+      await importConfigBundle(file);
+      toast.success("导入成功");
+      await fetchConfig();
+      onSave();
+    } catch (error) {
+      toast.error("导入失败: " + String(error));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleReset = () => {
     if (config) {
       setYamlContent(YAML.stringify(config, { indent: 2 }));
@@ -111,6 +149,19 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   if (isFullscreen) {
     return (
       <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".zip"
+          className="hidden"
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              handleImport(file);
+            }
+            e.currentTarget.value = "";
+          }}
+        />
         {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-3">
@@ -134,6 +185,24 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             )}
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => importInputRef.current?.click()}
+              disabled={isImporting}
+            >
+              {isImporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Upload className="w-4 h-4 mr-1" />}
+              导入
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleExport}
+              disabled={isExporting}
+            >
+              {isExporting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-1" />}
+              导出
+            </Button>
             <Button
               variant="outline"
               size="sm"
@@ -202,6 +271,19 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
 
   return (
     <div className="space-y-6">
+      <input
+        ref={importInputRef}
+        type="file"
+        accept=".zip"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) {
+            handleImport(file);
+          }
+          e.currentTarget.value = "";
+        }}
+      />
       {/* Info Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
@@ -313,6 +395,42 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               提示: 保存后需要手动刷新规则才能生效
             </div>
             <div className="flex items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={() => importInputRef.current?.click()}
+                disabled={isImporting}
+                className="border-gray-300 dark:border-slate-600"
+              >
+                {isImporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    导入中
+                  </>
+                ) : (
+                  <>
+                    <Upload className="w-4 h-4 mr-2" />
+                    导入配置
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={handleExport}
+                disabled={isExporting}
+                className="border-gray-300 dark:border-slate-600"
+              >
+                {isExporting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    导出中
+                  </>
+                ) : (
+                  <>
+                    <Download className="w-4 h-4 mr-2" />
+                    导出配置
+                  </>
+                )}
+              </Button>
               <Button
                 variant="outline"
                 onClick={handleReset}

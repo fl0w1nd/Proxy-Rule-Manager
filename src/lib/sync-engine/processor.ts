@@ -6,6 +6,7 @@ import {
   addRuleHeader,
 } from "../transformer";
 import { fetchSource } from "./fetcher";
+import { readLocalSourceContent } from "../local-source-store";
 
 interface RuleProcessResult {
   ruleName: string;
@@ -38,8 +39,15 @@ export async function processRule(
         } else {
           staticContents.set(i, content);
         }
-      } else if (sourceType === "local" && source.content) {
-        staticContents.set(i, source.content);
+      } else if (sourceType === "local") {
+        if (source.content) {
+          staticContents.set(i, source.content);
+        } else if (source.contentRef) {
+          const content = await readLocalSourceContent(source.contentRef);
+          if (content !== null) {
+            staticContents.set(i, content);
+          }
+        }
       }
     }
   }

@@ -71,11 +71,57 @@ export async function getConfig(): Promise<ConfigResponse> {
   return apiRequest<ConfigResponse>("/config");
 }
 
+export async function getConfigRaw(): Promise<ConfigResponse> {
+  return apiRequest<ConfigResponse>("/config?raw=1");
+}
+
 export async function saveConfig(config: RulesConfig): Promise<{ success: boolean; rev: number; affectedRules: string[] }> {
   return apiRequest("/config", {
     method: "PUT",
     body: JSON.stringify({ config }),
   });
+}
+
+export async function exportConfigBundle(): Promise<Blob> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const response = await fetch(`${API_BASE}/config/export`, { headers });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    throw new Error(message);
+  }
+  return response.blob();
+}
+
+export async function importConfigBundle(file: File): Promise<{ success: boolean }> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const formData = new FormData();
+  formData.append("file", file);
+  const response = await fetch(`${API_BASE}/config/import`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    throw new Error(message);
+  }
+  return response.json();
 }
 
 // 状态 API

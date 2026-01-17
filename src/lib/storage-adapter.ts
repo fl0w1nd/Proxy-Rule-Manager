@@ -20,11 +20,21 @@ import {
     SyncSchedule,
     DEFAULT_SYNC_SCHEDULE,
 } from "./schema";
+import {
+    getDataDir as getDataDirPath,
+    getDbFilePath,
+    getRulesDir as getRulesDirPath,
+} from "./data-paths";
+import {
+    externalizeConfigLocalSources,
+    hydrateConfigLocalSources,
+    pruneLocalSources,
+} from "./local-source-store";
 
 // --- Configuration ---
-const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), "data");
-const RULES_DIR = path.join(DATA_DIR, "rules");
-const DB_FILE = path.join(DATA_DIR, "db.json");
+const DATA_DIR = getDataDirPath();
+const RULES_DIR = getRulesDirPath();
+const DB_FILE = getDbFilePath();
 
 // --- Database Schema ---
 interface Database {
@@ -127,6 +137,12 @@ async function loadDb(): Promise<Database> {
         }
         // 初始化客户端映射
         updateClientMappings(dbCache.clients);
+        if (hasInlineLocalSources(dbCache.config)) {
+            const { config: externalized, refs } = await externalizeConfigLocalSources(dbCache.config);
+            await pruneLocalSources(refs);
+            dbCache.config = externalized;
+            await saveDb(dbCache);
+        }
         return dbCache;
     } catch {
         // File doesn't exist or is invalid, use default
@@ -134,6 +150,18 @@ async function loadDb(): Promise<Database> {
         updateClientMappings(dbCache.clients);
         return dbCache;
     }
+}
+
+function hasInlineLocalSources(config: RulesConfig): boolean {
+    for (const rule of config.rules) {
+        if (!rule.sources) continue;
+        for (const source of rule.sources) {
+            if (source.type === "local" && typeof source.content === "string") {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 async function saveDb(db: Database): Promise<void> {
@@ -146,6 +174,16 @@ async function saveDb(db: Database): Promise<void> {
 export async function getConfig(): Promise<RulesConfig> {
     const db = await loadDb();
     try {
+        const validated = validateConfig(db.config);
+        return await hydrateConfigLocalSources(validated);
+    } catch {
+        return DEFAULT_CONFIG;
+    }
+}
+
+export async function getConfigRaw(): Promise<RulesConfig> {
+    const db = await loadDb();
+    try {
         return validateConfig(db.config);
     } catch {
         return DEFAULT_CONFIG;
@@ -155,7 +193,9 @@ export async function getConfig(): Promise<RulesConfig> {
 export async function saveConfig(config: RulesConfig): Promise<{ rev: number }> {
     const db = await loadDb();
     const validated = validateConfig(config);
-    db.config = validated;
+    const { config: externalized, refs } = await externalizeConfigLocalSources(validated);
+    await pruneLocalSources(refs);
+    db.config = externalized;
     db.configRev += 1;
     await saveDb(db);
     return { rev: db.configRev };

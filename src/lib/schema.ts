@@ -53,6 +53,8 @@ export const SourceConfigSchema = z.object({
   ref: z.string().optional(),
   // 本地内容
   content: z.string().optional(),
+  // 本地内容引用（外部文件）
+  contentRef: z.string().optional(),
   // 来源名称/备注
   name: z.string().optional(),
 });

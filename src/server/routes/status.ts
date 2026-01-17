@@ -1,7 +1,7 @@
 import type { Hono } from "hono";
 import {
   getAllArtifactMetas,
-  getConfig,
+  getConfigRaw,
   getDailyStats,
   getLastSyncInfo,
   getClients,
@@ -29,7 +29,7 @@ export function registerStatusRoutes(app: Hono) {
     const isAdmin = authResult === "admin";
 
     try {
-      const config = await getConfig();
+      const config = await getConfigRaw();
       const artifactMetas = await getAllArtifactMetas();
       const ruleFilesCount = countRuleFiles(config);
 

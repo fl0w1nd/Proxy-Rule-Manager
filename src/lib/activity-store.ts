@@ -1,7 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { ClientType } from "./schema";
-import { getDataDir } from "./storage-adapter";
+import { getDataDir } from "./data-paths";
 
 const RECORDS_DIR = path.join(getDataDir(), "records");
 const CHANGES_DIR = path.join(RECORDS_DIR, "changes");
