@@ -1,0 +1,34 @@
+# Dependencies
+node_modules/
+npm-debug.log*
+
+# Build outputs
+.next/
+out/
+dist/
+
+# Data (should be mounted as volume)
+data/
+
+# IDE/Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Git
+.git/
+.gitignore
+
+# Misc
+*.md
+LICENSE

@@ -1,0 +1,76 @@
+{
+  "version": 1,
+  "transformers": {
+    "cleanup": {
+      "name": "cleanup",
+      "description": "清理空行和首尾空白",
+      "script": "function transform(content) {\n  return content\n    .split('\\n')\n    .map(line => line.trim())\n    .filter(line => line.length > 0)\n    .join('\\n');\n}"
+    }
+  },
+  "rules": [
+    {
+      "name": "LocalAreaNetwork",
+      "description": "本地局域网地址",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "ChinaDomain",
+      "description": "中国大陆常用域名",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "ProxyGFWlist",
+      "description": "GFW 代理列表",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ProxyGFWlist.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "Google",
+      "description": "Google 服务",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Google.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "YouTube",
+      "description": "YouTube 视频",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/YouTube.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "Telegram",
+      "description": "Telegram 通讯",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Telegram.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "Netflix",
+      "description": "Netflix 流媒体",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Netflix.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    },
+    {
+      "name": "Microsoft",
+      "description": "Microsoft 服务",
+      "sources": [
+        { "type": "url", "url": "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Microsoft.list" }
+      ],
+      "output": { "clients": ["clash_meta", "shadowrocket"] }
+    }
+  ]
+}

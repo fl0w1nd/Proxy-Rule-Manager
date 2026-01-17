@@ -1,0 +1,21 @@
+services:
+  proxy-rule-manager:
+    build: .
+    container_name: proxy-rule-manager
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # 持久化数据目录 - 包含 db.json 和 rules/
+      - ./data:/app/data
+    environment:
+      - PORT=3000
+      - NODE_ENV=production
+      # 管理员 Token（建议设置强密码，留空则无需认证）
+      # - ADMIN_TOKEN=your-secure-token-here
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/status"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s

@@ -1,0 +1,285 @@
+import { RulesConfig, RuleConfig, ClientType } from "./schema";
+
+// API 客户端 - 用于前端调用后端 API
+
+const API_BASE = "/api";
+
+// 获取存储的 token
+function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("admin_token");
+}
+
+// 设置 token
+export function setToken(token: string): void {
+  localStorage.setItem("admin_token", token);
+}
+
+// 清除 token
+export function clearToken(): void {
+  localStorage.removeItem("admin_token");
+}
+
+// 通用请求函数
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const token = getToken();
+
+  const headers: HeadersInit = {
+    "Content-Type": "application/json",
+    ...(options.headers || {}),
+  };
+
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_BASE}${endpoint}`, {
+    ...options,
+    headers,
+  });
+
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    const code =
+      typeof error.error === "object" && error.error
+        ? error.error.code
+        : error.code;
+    const err = new Error(message);
+    if (code) {
+      (err as Error & { code?: string }).code = code;
+    }
+    throw err;
+  }
+
+  return response.json();
+}
+
+// 配置 API
+export interface ConfigResponse {
+  config: RulesConfig;
+  rev: number;
+}
+
+export async function getConfig(): Promise<ConfigResponse> {
+  return apiRequest<ConfigResponse>("/config");
+}
+
+export async function saveConfig(config: RulesConfig): Promise<{ success: boolean; rev: number; affectedRules: string[] }> {
+  return apiRequest("/config", {
+    method: "PUT",
+    body: JSON.stringify({ config }),
+  });
+}
+
+// 状态 API
+export interface StatusResponse {
+  rulesCount: number;
+  lastSync: {
+    lastFullSyncAt: string | null;
+    lastPartialSyncAt: string | null;
+    lastSuccessfulSyncAt: string | null;
+    totalRulesCount: number;
+    changedRulesCount: number;
+    failedRulesCount: number;
+  };
+  todayStats: {
+    date: string;
+    syncCount: number;
+    blobWriteCount: number;
+    rulesChanged: number;
+    totalRulesProcessed: number;
+    failedSources: number;
+  };
+  rules: {
+    name: string;
+    description?: string;
+    clients: ClientType[];
+    lastUpdated: string | null;
+    hasError: boolean;
+  }[];
+}
+
+export async function getStatus(): Promise<StatusResponse> {
+  return apiRequest<StatusResponse>("/status");
+}
+
+// 同步 API
+export interface SyncResult {
+  success: boolean;
+  changedRules: string[];
+  failedRules: { name: string; error: string }[];
+  jobId: string;
+}
+
+export async function executeFullSync(): Promise<SyncResult> {
+  return apiRequest<SyncResult>("/sync/full", { method: "POST" });
+}
+
+// 定时同步配置
+export interface SyncSchedule {
+  intervalHours: number;
+  lastScheduledSyncAt?: string;
+  nextSyncAt?: string;
+}
+
+export async function getSyncSchedule(): Promise<{ schedule: SyncSchedule }> {
+  return apiRequest<{ schedule: SyncSchedule }>("/sync/schedule");
+}
+
+export async function updateSyncSchedule(intervalHours: number): Promise<{ success: boolean; schedule: SyncSchedule }> {
+  return apiRequest<{ success: boolean; schedule: SyncSchedule }>("/sync/schedule", {
+    method: "PUT",
+    body: JSON.stringify({ intervalHours }),
+  });
+}
+
+export async function refreshRule(ruleName: string): Promise<SyncResult> {
+  return apiRequest<SyncResult>(`/rules/${encodeURIComponent(ruleName)}/refresh`, {
+    method: "POST",
+  });
+}
+
+// 删除规则
+export interface DeleteRuleResult {
+  success: boolean;
+  deletedRule: string;
+  deletedClients: ClientType[];
+}
+
+export async function deleteRule(ruleName: string): Promise<DeleteRuleResult> {
+  return apiRequest<DeleteRuleResult>(`/rules/${encodeURIComponent(ruleName)}`, {
+    method: "DELETE",
+  });
+}
+
+// 预览 API
+export interface PreviewResponse {
+  contents: Record<ClientType, string>;
+  diagnostics: {
+    sourceResults: { url: string; success: boolean; error?: string; size?: number }[];
+    truncated: boolean;
+    totalLines: number;
+  };
+}
+
+export async function previewRule(
+  ruleName?: string,
+  rule?: RuleConfig,
+  limitLines?: number
+): Promise<PreviewResponse> {
+  return apiRequest<PreviewResponse>("/preview", {
+    method: "POST",
+    body: JSON.stringify({ ruleName, rule, limitLines }),
+  });
+}
+
+// 验证 token（也检查是否需要认证）
+export async function verifyToken(token: string): Promise<boolean> {
+  try {
+    const response = await fetch(`${API_BASE}/status`, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+    return response.ok;
+  } catch {
+    return false;
+  }
+}
+
+// 检查后端是否需要认证
+// 如果不需要认证（未设置 ADMIN_TOKEN），直接返回 true
+export async function checkAuthRequired(): Promise<{ required: boolean; authenticated: boolean }> {
+  try {
+    // 尝试无 token 请求
+    const response = await fetch(`${API_BASE}/config`);
+    if (response.ok) {
+      // 无需认证，且已认证（开发模式）
+      return { required: false, authenticated: true };
+    }
+    if (response.status === 401) {
+      // 需要认证
+      return { required: true, authenticated: false };
+    }
+    return { required: true, authenticated: false };
+  } catch {
+    return { required: true, authenticated: false };
+  }
+}
+
+// 检查是否已初始化
+export interface InitStatusResponse {
+  initialized: boolean;
+  rulesCount: number;
+}
+
+export async function checkInitStatus(): Promise<InitStatusResponse> {
+  return apiRequest<InitStatusResponse>("/init");
+}
+
+// 执行初始化
+export interface InitResult {
+  success: boolean;
+  message: string;
+  rulesCount?: number;
+}
+
+export async function executeInit(): Promise<InitResult> {
+  return apiRequest<InitResult>("/init", { method: "POST" });
+}
+
+// --- Rule Rename ---
+export interface RenameResult {
+  success: boolean;
+  oldName: string;
+  newName: string;
+  renamedFiles: string[];
+}
+
+export async function renameRule(oldName: string, newName: string): Promise<RenameResult> {
+  return apiRequest<RenameResult>(`/rules/${encodeURIComponent(oldName)}`, {
+    method: "PUT",
+    body: JSON.stringify({ newName }),
+  });
+}
+
+// --- Client Management ---
+export interface ClientConfig {
+  id: string;
+  displayName: string;
+  pathName: string;
+}
+
+export async function getClients(): Promise<{ clients: ClientConfig[] }> {
+  return apiRequest<{ clients: ClientConfig[] }>("/clients");
+}
+
+export async function addClient(client: ClientConfig): Promise<{ success: boolean; client: ClientConfig }> {
+  return apiRequest("/clients", {
+    method: "POST",
+    body: JSON.stringify(client),
+  });
+}
+
+export async function updateClient(
+  clientId: string,
+  updates: Partial<ClientConfig>
+): Promise<{ success: boolean; renamedPath?: { from: string; to: string } }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteClient(clientId: string): Promise<{ success: boolean; deletedClient: string }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}`, {
+    method: "DELETE",
+  });
+}
