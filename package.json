@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
+    "dev:server": "PORT=3001 npx tsx watch src/server/index.ts",
     "build": "next build",
     "build:server": "tsc src/server/index.ts --outDir dist/server --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck",
     "start": "node dist/server/server/index.js",
