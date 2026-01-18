@@ -1,4 +1,4 @@
-import { RuleConfig, ClientType, TransformersConfig } from "../schema";
+import { RuleConfig, ClientType, TransformersConfig, ClientConfig } from "../schema";
 import {
   applyTransforms,
   applyNewTransforms,
@@ -17,7 +17,8 @@ interface RuleProcessResult {
 export async function processRule(
   rule: RuleConfig,
   transformersConfig: TransformersConfig,
-  ruleContentsCache: Map<string, Map<ClientType, string>>
+  ruleContentsCache: Map<string, Map<ClientType, string>>,
+  clientsConfig?: ClientConfig[]
 ): Promise<RuleProcessResult> {
   const result: RuleProcessResult = {
     ruleName: rule.name,
@@ -133,18 +134,35 @@ export async function processRule(
       baseContent = applyTransforms(baseContent, rule.post_transforms, transformersConfig);
     }
 
+    // 应用客户端差异化配置的转换器
     const clientOverride = rule.output.client_overrides?.[client];
-    if (
-      clientOverride?.enabled !== false &&
-      clientOverride?.transforms &&
-      clientOverride.transforms.length > 0
-    ) {
-      const transformedContents = applyNewTransforms(
-        [baseContent],
-        clientOverride.transforms,
-        transformersConfig
-      );
-      baseContent = transformedContents[0] || baseContent;
+    if (clientOverride?.enabled !== false) {
+      // 检查是否使用客户端全局转换器（默认为 true）
+      const useGlobalTransforms = clientOverride?.useGlobalTransforms ?? true;
+      
+      // 获取客户端全局转换器
+      const clientConfig = clientsConfig?.find(c => c.id === client);
+      const globalTransforms = clientConfig?.transforms || [];
+      
+      // 先应用客户端全局转换器
+      if (useGlobalTransforms && globalTransforms.length > 0) {
+        const transformedContents = applyNewTransforms(
+          [baseContent],
+          globalTransforms,
+          transformersConfig
+        );
+        baseContent = transformedContents[0] || baseContent;
+      }
+      
+      // 再应用规则级别的额外转换器
+      if (clientOverride?.transforms && clientOverride.transforms.length > 0) {
+        const transformedContents = applyNewTransforms(
+          [baseContent],
+          clientOverride.transforms,
+          transformersConfig
+        );
+        baseContent = transformedContents[0] || baseContent;
+      }
     }
 
     const finalContent = addRuleHeader(baseContent, rule.name, rule.description);

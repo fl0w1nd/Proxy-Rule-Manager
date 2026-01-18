@@ -508,6 +508,27 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
             ...prev.output.client_overrides,
             [client]: {
               enabled,
+              useGlobalTransforms: currentOverride?.useGlobalTransforms ?? true,
+              transforms: currentOverride?.transforms || [],
+            },
+          },
+        },
+      };
+    });
+  };
+
+  const toggleUseGlobalTransforms = (client: ClientType, useGlobal: boolean) => {
+    setFormData((prev) => {
+      const currentOverride = prev.output.client_overrides?.[client];
+      return {
+        ...prev,
+        output: {
+          ...prev.output,
+          client_overrides: {
+            ...prev.output.client_overrides,
+            [client]: {
+              enabled: currentOverride?.enabled ?? true,
+              useGlobalTransforms: useGlobal,
               transforms: currentOverride?.transforms || [],
             },
           },
@@ -526,22 +547,26 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
       newTransform.pattern = "";
     }
 
-    setFormData((prev) => ({
-      ...prev,
-      output: {
-        ...prev.output,
-        client_overrides: {
-          ...prev.output.client_overrides,
-          [client]: {
-            enabled: prev.output.client_overrides?.[client]?.enabled ?? true,
-            transforms: [
-              ...(prev.output.client_overrides?.[client]?.transforms || []),
-              newTransform,
-            ],
+    setFormData((prev) => {
+      const currentOverride = prev.output.client_overrides?.[client];
+      return {
+        ...prev,
+        output: {
+          ...prev.output,
+          client_overrides: {
+            ...prev.output.client_overrides,
+            [client]: {
+              enabled: currentOverride?.enabled ?? true,
+              useGlobalTransforms: currentOverride?.useGlobalTransforms ?? true,
+              transforms: [
+                ...(currentOverride?.transforms || []),
+                newTransform,
+              ],
+            },
           },
         },
-      },
-    }));
+      };
+    });
   };
 
   const updateClientTransform = (client: ClientType, index: number, updates: Partial<Transform>) => {
@@ -556,6 +581,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
             ...prev.output.client_overrides,
             [client]: {
               enabled: currentOverride?.enabled ?? true,
+              useGlobalTransforms: currentOverride?.useGlobalTransforms ?? true,
               transforms: currentTransforms.map((t, i) =>
                 i === index ? { ...t, ...updates } : t
               ),
@@ -578,6 +604,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
             ...prev.output.client_overrides,
             [client]: {
               enabled: currentOverride?.enabled ?? true,
+              useGlobalTransforms: currentOverride?.useGlobalTransforms ?? true,
               transforms: currentTransforms.filter((_, i) => i !== index),
             },
           },
@@ -938,19 +965,24 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                   客户端差异化配置
                   <HelpIcon text={HELP_TEXTS.clientOverrides} />
                 </Label>
-                {formData.output.clients.map((client) => (
-                  <ClientOverrideSection
-                    key={client}
-                    client={client}
-                    clientsList={clientsList}
-                    config={formData.output.client_overrides?.[client]}
-                    transformers={transformers}
-                    onToggle={(enabled) => toggleClientOverride(client, enabled)}
-                    onAddTransform={(type) => addClientTransform(client, type)}
-                    onUpdateTransform={(index, updates) => updateClientTransform(client, index, updates)}
-                    onRemoveTransform={(index) => removeClientTransform(client, index)}
-                  />
-                ))}
+                {formData.output.clients.map((client) => {
+                  const clientConfig = clientsList.find(c => c.id === client);
+                  return (
+                    <ClientOverrideSection
+                      key={client}
+                      client={client}
+                      clientsList={clientsList}
+                      clientGlobalTransforms={clientConfig?.transforms || []}
+                      config={formData.output.client_overrides?.[client]}
+                      transformers={transformers}
+                      onToggle={(enabled) => toggleClientOverride(client, enabled)}
+                      onToggleUseGlobal={(useGlobal) => toggleUseGlobalTransforms(client, useGlobal)}
+                      onAddTransform={(type) => addClientTransform(client, type)}
+                      onUpdateTransform={(index, updates) => updateClientTransform(client, index, updates)}
+                      onRemoveTransform={(index) => removeClientTransform(client, index)}
+                    />
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1380,9 +1412,11 @@ function TransformCard({
 interface ClientOverrideSectionProps {
   client: ClientType;
   clientsList: ClientConfig[];
-  config?: { enabled?: boolean; transforms?: Transform[] };
+  clientGlobalTransforms: Transform[];
+  config?: { enabled?: boolean; useGlobalTransforms?: boolean; transforms?: Transform[] };
   transformers: Record<string, ScriptTransformer>;
   onToggle: (enabled: boolean) => void;
+  onToggleUseGlobal: (useGlobal: boolean) => void;
   onAddTransform: (type: "use" | "replace" | "remove_lines") => void;
   onUpdateTransform: (index: number, updates: Partial<Transform>) => void;
   onRemoveTransform: (index: number) => void;
@@ -1391,54 +1425,95 @@ interface ClientOverrideSectionProps {
 function ClientOverrideSection({
   client,
   clientsList,
+  clientGlobalTransforms,
   config,
   transformers,
   onToggle,
+  onToggleUseGlobal,
   onAddTransform,
   onUpdateTransform,
   onRemoveTransform,
 }: ClientOverrideSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const isEnabled = config?.enabled ?? false;
+  const useGlobalTransforms = config?.useGlobalTransforms ?? true;
   const transforms = config?.transforms || [];
+  const hasGlobalTransforms = clientGlobalTransforms.length > 0;
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+      {/* 标题栏 */}
       <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 flex-1"
+          className="flex items-center gap-2 flex-1 min-w-0"
         >
           {expanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight className="w-4 h-4 text-gray-500 shrink-0" />
           )}
-          <Monitor className="w-4 h-4" />
-          <span className="font-medium text-gray-900 dark:text-white">
+          <Monitor className="w-4 h-4 shrink-0" />
+          <span className="font-medium text-gray-900 dark:text-white truncate">
             {clientsList.find(c => c.id === client)?.displayName || client}
           </span>
           {transforms.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
-              {transforms.length} 个操作
+            <Badge variant="secondary" className="text-xs shrink-0">
+              +{transforms.length} 额外
             </Badge>
           )}
         </button>
-        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-          <Switch
-            checked={isEnabled}
-            onCheckedChange={onToggle}
-          />
-          <span className={`text-sm ${isEnabled ? "text-green-600" : "text-gray-400"}`}>
-            {isEnabled ? "启用" : "禁用"}
+        
+        {/* 使用全局转换器开关 - 直接在标题栏可见 */}
+        <div className="flex items-center gap-2 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
+          <span className="text-xs text-gray-500 dark:text-gray-400">
+            全局转换器
+            {hasGlobalTransforms && (
+              <span className="text-blue-500 ml-1">({clientGlobalTransforms.length})</span>
+            )}
           </span>
+          <Switch
+            checked={useGlobalTransforms}
+            onCheckedChange={onToggleUseGlobal}
+          />
         </div>
       </div>
 
       {expanded && (
         <div className="p-3 space-y-3 bg-white dark:bg-slate-900">
-          {transforms.map((transform, index) => (
+          {/* 全局转换器预览（只读） */}
+          {hasGlobalTransforms && (
+            <div className="space-y-2">
+              <p className="text-xs text-gray-500 dark:text-gray-400">
+                全局转换器（来自客户端配置）
+                {!useGlobalTransforms && <span className="text-orange-500 ml-1">- 已禁用</span>}
+              </p>
+              {clientGlobalTransforms.map((transform, index) => (
+                <div
+                  key={`global-${index}`}
+                  className={`p-2 rounded border border-dashed text-sm ${
+                    useGlobalTransforms 
+                      ? "border-gray-300 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50 text-gray-600 dark:text-gray-400"
+                      : "border-gray-200 dark:border-slate-700 bg-gray-50/30 dark:bg-slate-800/30 text-gray-400 dark:text-gray-500 line-through"
+                  }`}
+                >
+                  <span className="font-medium">#{index + 1}</span>
+                  {" "}
+                  {transform.type === "use" && `预定义: ${transform.use}`}
+                  {transform.type === "replace" && `替换: ${transform.pattern} → ${transform.replacement || "(空)"}`}
+                  {transform.type === "remove_lines" && `删除: ${transform.pattern}`}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* 规则级别的额外转换器 */}
+          <div className="space-y-2">
+            {transforms.length > 0 && (
+              <p className="text-xs text-gray-500 dark:text-gray-400">规则额外转换器:</p>
+            )}
+              {transforms.map((transform, index) => (
             <div
               key={index}
               className="p-3 rounded border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-2"
@@ -1527,7 +1602,9 @@ function ClientOverrideSection({
               )}
             </div>
           ))}
+          </div>
 
+          {/* 添加规则转换器按钮 */}
           <div className="flex flex-wrap gap-2">
             {Object.keys(transformers).length > 0 && (
               <Button

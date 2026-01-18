@@ -10,16 +10,16 @@ import { Loader2 } from "lucide-react";
 
 function AppContent() {
   const { isAuthenticated, isLoading, authRequired } = useAuth();
-  // 从 URL hash 读取初始状态
-  const [showAdmin, setShowAdmin] = useState(() => {
-    if (typeof window !== "undefined") {
-      return window.location.hash === "#admin";
-    }
-    return false;
-  });
+  // 初始状态设为 false，避免 hydration 不匹配
+  const [showAdmin, setShowAdmin] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
-  // 监听 hash 变化
+  // 客户端挂载后读取 hash 并监听变化
   useEffect(() => {
+    setMounted(true);
+    // 初始化时读取 hash
+    setShowAdmin(window.location.hash === "#admin");
+    
     const handleHashChange = () => {
       setShowAdmin(window.location.hash === "#admin");
     };
@@ -38,8 +38,8 @@ function AppContent() {
     setShowAdmin(false);
   };
 
-  // 如果正在检查认证状态，且用户要进入管理后台
-  if (showAdmin && isLoading) {
+  // 客户端挂载前或检查认证状态时显示加载
+  if (!mounted || (showAdmin && isLoading)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />

@@ -6,6 +6,7 @@ import {
 } from "./schema";
 import {
   getConfig,
+  getClients,
   getArtifactMeta,
   saveArtifactMeta,
   acquireRuleLock,
@@ -117,6 +118,7 @@ export async function executeFullSync(): Promise<{
 
   try {
     const config = await getConfig();
+    const clients = await getClients();
     const sortedRules = topologicalSort(config.rules);
 
     const ruleContentsCache = new Map<string, Map<ClientType, string>>();
@@ -125,7 +127,8 @@ export async function executeFullSync(): Promise<{
       const processResult = await processRule(
         rule,
         config.transformers || {},
-        ruleContentsCache
+        ruleContentsCache,
+        clients
       );
 
       if (processResult.errors.length > 0) {
@@ -257,6 +260,7 @@ export async function executePartialSync(ruleName: string): Promise<{
 
   try {
     const config = await getConfig();
+    const clients = await getClients();
 
     const affectedRules = new Set<string>([ruleName]);
 
@@ -315,7 +319,7 @@ export async function executePartialSync(ruleName: string): Promise<{
       const sortedDepRules = topologicalSort(depRules, true);
 
       for (const depRule of sortedDepRules) {
-        const result = await processRule(depRule, config.transformers || {}, ruleContentsCache);
+        const result = await processRule(depRule, config.transformers || {}, ruleContentsCache, clients);
         if (result.contents.size > 0) {
           ruleContentsCache.set(depRule.name, result.contents);
         }
@@ -326,7 +330,8 @@ export async function executePartialSync(ruleName: string): Promise<{
       const processResult = await processRule(
         rule,
         config.transformers || {},
-        ruleContentsCache
+        ruleContentsCache,
+        clients
       );
 
       if (processResult.errors.length > 0) {
@@ -462,6 +467,9 @@ export async function previewRule(
     }
   }
 
+  // 获取客户端配置用于全局转换器
+  const clients = await getClients();
+
   if (allDependencies.size > 0) {
     const config = await getConfig();
 
@@ -490,7 +498,7 @@ export async function previewRule(
 
     for (const depRule of sortedDeps) {
       if (!processed.has(depRule.name)) {
-        const result = await processRule(depRule, transformersConfig, ruleContentsCache);
+        const result = await processRule(depRule, transformersConfig, ruleContentsCache, clients);
         if (result.contents.size > 0) {
           ruleContentsCache.set(depRule.name, result.contents);
         }
@@ -536,7 +544,7 @@ export async function previewRule(
     }
   }
 
-  const result = await processRule(rule, transformersConfig, ruleContentsCache);
+  const result = await processRule(rule, transformersConfig, ruleContentsCache, clients);
 
   let truncated = false;
   let totalLines = 0;

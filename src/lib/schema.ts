@@ -9,6 +9,7 @@ export const ClientConfigSchema = z.object({
   id: z.string(), // 客户端标识符（用于内部引用）
   displayName: z.string(), // 显示名称
   pathName: z.string(), // 路径名称（用于文件系统目录和 URL）
+  transforms: z.array(z.lazy(() => TransformSchema)).optional(), // 客户端全局转换器
 });
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
 
@@ -134,7 +135,8 @@ export type MergeConfig = z.infer<typeof MergeConfigSchema>;
 // 客户端输出配置
 export const ClientOutputConfigSchema = z.object({
   enabled: z.boolean().default(true),
-  transforms: z.array(TransformSchema).optional().default([]),
+  useGlobalTransforms: z.boolean().optional().default(true), // 是否使用客户端全局转换器
+  transforms: z.array(TransformSchema).optional().default([]), // 规则级别的额外转换器
 });
 export type ClientOutputConfig = z.infer<typeof ClientOutputConfigSchema>;
 

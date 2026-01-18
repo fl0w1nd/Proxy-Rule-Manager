@@ -1,4 +1,4 @@
-import { RulesConfig, RuleConfig, ClientType } from "./schema";
+import { RulesConfig, RuleConfig, ClientType, Transform } from "./schema";
 
 // API 客户端 - 用于前端调用后端 API
 
@@ -414,6 +414,7 @@ export interface ClientConfig {
   id: string;
   displayName: string;
   pathName: string;
+  transforms?: Transform[]; // 客户端全局转换器
 }
 
 export async function getClients(): Promise<{ clients: ClientConfig[] }> {
