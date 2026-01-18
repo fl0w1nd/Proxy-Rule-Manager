@@ -48,6 +48,7 @@ import {
   Monitor,
   Eye,
   CheckCircle,
+  XCircle,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -1055,12 +1056,13 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                         {source.success ? (
                           <CheckCircle className="w-4 h-4 text-green-500" />
                         ) : (
-                          <span className="text-red-500">✗</span>
+                          <XCircle className="w-4 h-4 text-red-500" />
                         )}
+                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">#{i + 1}</span>
                         <span className="text-gray-700 dark:text-gray-300 truncate max-w-xs">
                           {source.url}
                         </span>
-                        {source.size && (
+                        {source.size !== undefined && source.size > 0 && (
                           <span className="text-gray-500">({(source.size / 1024).toFixed(1)} KB)</span>
                         )}
                       </div>

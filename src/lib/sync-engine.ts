@@ -513,10 +513,18 @@ export async function previewRule(
           size: content.length,
         });
       } else if (sourceType === "ref" && source.ref) {
+        // Get the cached content size for the referenced rule
+        const refContents = ruleContentsCache.get(source.ref);
+        let refSize = 0;
+        if (refContents && refContents.size > 0) {
+          // Use the first client's content size as reference
+          const firstContent = refContents.values().next().value;
+          refSize = firstContent?.length || 0;
+        }
         sourceResults.push({
           url: `ref:${source.ref}`,
           success: true,
-          size: 0,
+          size: refSize,
         });
       } else if (sourceType === "local") {
         sourceResults.push({
