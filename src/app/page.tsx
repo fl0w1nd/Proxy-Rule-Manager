@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useSyncExternalStore, useCallback } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
 import { PublicRulesPage } from "@/components/public-rules-page";
@@ -8,34 +8,41 @@ import { LoginForm } from "@/components/login-form";
 import { Dashboard } from "@/components/dashboard";
 import { Loader2 } from "lucide-react";
 
+// 使用 useSyncExternalStore 订阅 hash 变化
+function useHash() {
+  const subscribe = useCallback((callback: () => void) => {
+    window.addEventListener("hashchange", callback);
+    return () => window.removeEventListener("hashchange", callback);
+  }, []);
+
+  const getSnapshot = useCallback(() => {
+    return typeof window !== "undefined" ? window.location.hash : "";
+  }, []);
+
+  const getServerSnapshot = useCallback(() => "", []);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
+}
+
 function AppContent() {
   const { isAuthenticated, isLoading, authRequired } = useAuth();
-  // 初始状态设为 false，避免 hydration 不匹配
-  const [showAdmin, setShowAdmin] = useState(false);
+  const hash = useHash();
+  const showAdmin = hash === "#admin";
   const [mounted, setMounted] = useState(false);
 
-  // 客户端挂载后读取 hash 并监听变化
   useEffect(() => {
+    // 检测客户端挂载 - 这是标准的 hydration 检测模式
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
-    // 初始化时读取 hash
-    setShowAdmin(window.location.hash === "#admin");
-    
-    const handleHashChange = () => {
-      setShowAdmin(window.location.hash === "#admin");
-    };
-    window.addEventListener("hashchange", handleHashChange);
-    return () => window.removeEventListener("hashchange", handleHashChange);
   }, []);
 
   // 更新 hash
   const enterAdmin = () => {
     window.location.hash = "#admin";
-    setShowAdmin(true);
   };
 
   const exitAdmin = () => {
     window.location.hash = "";
-    setShowAdmin(false);
   };
 
   // 客户端挂载前或检查认证状态时显示加载

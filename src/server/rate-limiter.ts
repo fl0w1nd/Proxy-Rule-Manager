@@ -5,7 +5,7 @@
  * blockDuration = count^exponent + baseDelay (秒)
  */
 
-import { checkBan, upsertBan, removeBan, type BanRecord } from "../lib/ban-store";
+import { checkBan, upsertBan, removeBan } from "../lib/ban-store";
 
 // 内存中的临时失败计数（重启后清除）
 const failureRecords = new Map<

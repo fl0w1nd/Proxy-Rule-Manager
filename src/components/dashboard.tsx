@@ -217,6 +217,7 @@ export function Dashboard({ onBack }: DashboardProps) {
 
   useEffect(() => {
     fetchActivity();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activityDate, changePage, failurePage, activityClient]);
 
   useEffect(() => {

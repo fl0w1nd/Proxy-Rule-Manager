@@ -15,7 +15,6 @@ import {
 } from "../../lib/ban-store";
 import {
     getAllFailureRecords,
-    getFailureStats,
     calculateBlockDuration,
 } from "../rate-limiter";
 import { jsonError } from "../errors";

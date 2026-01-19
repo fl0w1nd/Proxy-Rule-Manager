@@ -283,10 +283,10 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
             : formData.output.clients,
           client_overrides: validClientIds && formData.output.client_overrides
             ? Object.fromEntries(
-                Object.entries(formData.output.client_overrides).filter(([id]) =>
-                  validClientIds.has(id)
-                )
+              Object.entries(formData.output.client_overrides).filter(([id]) =>
+                validClientIds.has(id)
               )
+            )
             : formData.output.client_overrides,
         },
         sources: formData.sources?.filter((s) =>
@@ -1428,14 +1428,12 @@ function ClientOverrideSection({
   clientGlobalTransforms,
   config,
   transformers,
-  onToggle,
   onToggleUseGlobal,
   onAddTransform,
   onUpdateTransform,
   onRemoveTransform,
 }: ClientOverrideSectionProps) {
   const [expanded, setExpanded] = useState(false);
-  const isEnabled = config?.enabled ?? false;
   const useGlobalTransforms = config?.useGlobalTransforms ?? true;
   const transforms = config?.transforms || [];
   const hasGlobalTransforms = clientGlobalTransforms.length > 0;
@@ -1464,7 +1462,7 @@ function ClientOverrideSection({
             </Badge>
           )}
         </button>
-        
+
         {/* 使用全局转换器开关 - 直接在标题栏可见 */}
         <div className="flex items-center gap-2 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
           <span className="text-xs text-gray-500 dark:text-gray-400">
@@ -1492,11 +1490,10 @@ function ClientOverrideSection({
               {clientGlobalTransforms.map((transform, index) => (
                 <div
                   key={`global-${index}`}
-                  className={`p-2 rounded border border-dashed text-sm ${
-                    useGlobalTransforms 
+                  className={`p-2 rounded border border-dashed text-sm ${useGlobalTransforms
                       ? "border-gray-300 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50 text-gray-600 dark:text-gray-400"
                       : "border-gray-200 dark:border-slate-700 bg-gray-50/30 dark:bg-slate-800/30 text-gray-400 dark:text-gray-500 line-through"
-                  }`}
+                    }`}
                 >
                   <span className="font-medium">#{index + 1}</span>
                   {" "}
@@ -1513,95 +1510,95 @@ function ClientOverrideSection({
             {transforms.length > 0 && (
               <p className="text-xs text-gray-500 dark:text-gray-400">规则额外转换器:</p>
             )}
-              {transforms.map((transform, index) => (
-            <div
-              key={index}
-              className="p-3 rounded border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">操作 {index + 1}</span>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => onRemoveTransform(index)}
-                  className="w-6 h-6 text-gray-400 hover:text-red-500"
-                >
-                  <Trash2 className="w-3 h-3" />
-                </Button>
-              </div>
-
-              <Select
-                value={transform.type}
-                onValueChange={(type: "use" | "replace" | "remove_lines") => {
-                  const newTransform: Partial<Transform> = { type };
-                  if (type === "replace") {
-                    newTransform.pattern = "";
-                    newTransform.replacement = "";
-                  }
-                  if (type === "remove_lines") {
-                    newTransform.pattern = "";
-                  }
-                  onUpdateTransform(index, newTransform);
-                }}
+            {transforms.map((transform, index) => (
+              <div
+                key={index}
+                className="p-3 rounded border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-2"
               >
-                <SelectTrigger className="h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.keys(transformers).length > 0 && (
-                    <SelectItem value="use">预定义转换器</SelectItem>
-                  )}
-                  <SelectItem value="replace">正则替换</SelectItem>
-                  <SelectItem value="remove_lines">正则删除</SelectItem>
-                </SelectContent>
-              </Select>
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium">操作 {index + 1}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => onRemoveTransform(index)}
+                    className="w-6 h-6 text-gray-400 hover:text-red-500"
+                  >
+                    <Trash2 className="w-3 h-3" />
+                  </Button>
+                </div>
 
-              {transform.type === "use" && (
                 <Select
-                  value={transform.use || ""}
-                  onValueChange={(value) => onUpdateTransform(index, { use: value })}
+                  value={transform.type}
+                  onValueChange={(type: "use" | "replace" | "remove_lines") => {
+                    const newTransform: Partial<Transform> = { type };
+                    if (type === "replace") {
+                      newTransform.pattern = "";
+                      newTransform.replacement = "";
+                    }
+                    if (type === "remove_lines") {
+                      newTransform.pattern = "";
+                    }
+                    onUpdateTransform(index, newTransform);
+                  }}
                 >
                   <SelectTrigger className="h-8">
-                    <SelectValue placeholder="选择转换器" />
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(transformers).map(([name]) => (
-                      <SelectItem key={name} value={name}>
-                        {name}
-                      </SelectItem>
-                    ))}
+                    {Object.keys(transformers).length > 0 && (
+                      <SelectItem value="use">预定义转换器</SelectItem>
+                    )}
+                    <SelectItem value="replace">正则替换</SelectItem>
+                    <SelectItem value="remove_lines">正则删除</SelectItem>
                   </SelectContent>
                 </Select>
-              )}
 
-              {transform.type === "replace" && (
-                <div className="grid grid-cols-2 gap-2">
+                {transform.type === "use" && (
+                  <Select
+                    value={transform.use || ""}
+                    onValueChange={(value) => onUpdateTransform(index, { use: value })}
+                  >
+                    <SelectTrigger className="h-8">
+                      <SelectValue placeholder="选择转换器" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(transformers).map(([name]) => (
+                        <SelectItem key={name} value={name}>
+                          {name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {transform.type === "replace" && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      value={transform.pattern || ""}
+                      onChange={(e) => onUpdateTransform(index, { pattern: e.target.value })}
+                      placeholder="正则表达式"
+                      className="h-8 text-sm"
+                    />
+                    <Input
+                      value={transform.replacement || ""}
+                      onChange={(e) => onUpdateTransform(index, { replacement: e.target.value })}
+                      placeholder="替换为"
+                      className="h-8 text-sm"
+                    />
+                  </div>
+                )}
+
+                {transform.type === "remove_lines" && (
                   <Input
                     value={transform.pattern || ""}
                     onChange={(e) => onUpdateTransform(index, { pattern: e.target.value })}
                     placeholder="正则表达式"
                     className="h-8 text-sm"
                   />
-                  <Input
-                    value={transform.replacement || ""}
-                    onChange={(e) => onUpdateTransform(index, { replacement: e.target.value })}
-                    placeholder="替换为"
-                    className="h-8 text-sm"
-                  />
-                </div>
-              )}
-
-              {transform.type === "remove_lines" && (
-                <Input
-                  value={transform.pattern || ""}
-                  onChange={(e) => onUpdateTransform(index, { pattern: e.target.value })}
-                  placeholder="正则表达式"
-                  className="h-8 text-sm"
-                />
-              )}
-            </div>
-          ))}
+                )}
+              </div>
+            ))}
           </div>
 
           {/* 添加规则转换器按钮 */}
