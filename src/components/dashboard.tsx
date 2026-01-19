@@ -421,7 +421,7 @@ export function Dashboard({ onBack }: DashboardProps) {
             </TabsTrigger>
             <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
               <FileText className="w-4 h-4 mr-2" />
-              规则管理
+              规则
             </TabsTrigger>
             <TabsTrigger value="transformers" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
               <Code2 className="w-4 h-4 mr-2" />
@@ -431,13 +431,13 @@ export function Dashboard({ onBack }: DashboardProps) {
               <Monitor className="w-4 h-4 mr-2" />
               客户端
             </TabsTrigger>
-            <TabsTrigger value="config" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-              <Settings className="w-4 h-4 mr-2" />
-              配置编辑
-            </TabsTrigger>
             <TabsTrigger value="security" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
               <Shield className="w-4 h-4 mr-2" />
               安全
+            </TabsTrigger>
+            <TabsTrigger value="config" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+              <Settings className="w-4 h-4 mr-2" />
+              配置
             </TabsTrigger>
           </TabsList>
 
