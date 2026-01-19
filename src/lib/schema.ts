@@ -243,8 +243,12 @@ export type DailyStats = z.infer<typeof DailyStatsSchema>;
 
 // 定时同步配置（强制开启，不可禁用）
 export const SyncScheduleSchema = z.object({
+  // 同步模式：interval 或 cron
+  mode: z.enum(["interval", "cron"]).default("interval"),
   // 同步间隔（小时），最小 1 小时，默认 24 小时
   intervalHours: z.number().min(1).default(24),
+  // cron 表达式（支持 5/6 段）
+  cronExpression: z.string().optional(),
   // 上次定时同步时间
   lastScheduledSyncAt: z.string().optional(),
   // 下次同步时间
@@ -254,7 +258,9 @@ export type SyncSchedule = z.infer<typeof SyncScheduleSchema>;
 
 // 默认定时同步配置
 export const DEFAULT_SYNC_SCHEDULE: SyncSchedule = {
+  mode: "interval",
   intervalHours: 24,
+  cronExpression: "0 0 * * *",
 };
 
 // 默认的空配置

@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { getConfig, getSyncSchedule, saveConfig, updateSyncSchedule } from "../../lib/storage-adapter";
+import { getNextSyncAt } from "../../lib/sync-schedule";
 import { validateConfig } from "../../lib/schema";
 import { verifyAdmin } from "../auth";
 import { AppError, jsonError } from "../errors";
@@ -70,11 +71,11 @@ export function registerInitRoutes(app: Hono) {
       const { rev } = await saveConfig(initialConfig);
 
       const currentSchedule = await getSyncSchedule();
-      const intervalHours = currentSchedule.intervalHours || 24;
+      const now = new Date();
 
       await updateSyncSchedule({
-        lastScheduledSyncAt: new Date().toISOString(),
-        nextSyncAt: new Date(Date.now() + intervalHours * 60 * 60 * 1000).toISOString(),
+        lastScheduledSyncAt: now.toISOString(),
+        nextSyncAt: getNextSyncAt(currentSchedule, now),
       });
 
       return c.json({

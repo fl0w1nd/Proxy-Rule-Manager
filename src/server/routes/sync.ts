@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { executeFullSync } from "../../lib/sync-engine";
 import { getSyncSchedule, updateSyncSchedule } from "../../lib/storage-adapter";
+import { getNextSyncAt, validateCronExpression } from "../../lib/sync-schedule";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
@@ -40,20 +41,32 @@ export function registerSyncRoutes(app: Hono) {
 
     try {
       const body = await c.req.json();
-      const { intervalHours } = body;
+      const { mode, intervalHours, cronExpression } = body;
 
-      if (typeof intervalHours !== "number" || intervalHours < 1) {
-        return c.json({ error: "intervalHours must be a number >= 1" }, 400);
+      const resolvedMode = mode === "cron" ? "cron" : "interval";
+      if (resolvedMode === "interval") {
+        if (typeof intervalHours !== "number" || intervalHours < 1) {
+          return c.json({ error: "intervalHours must be a number >= 1" }, 400);
+        }
+      } else {
+        if (typeof cronExpression !== "string" || !cronExpression.trim()) {
+          return c.json({ error: "cronExpression must be a non-empty string" }, 400);
+        }
+        try {
+          validateCronExpression(cronExpression.trim());
+        } catch (error) {
+          return c.json({ error: "Invalid cron expression", detail: String(error) }, 400);
+        }
       }
 
-      await updateSyncSchedule({ intervalHours });
+      await updateSyncSchedule({
+        mode: resolvedMode,
+        intervalHours: resolvedMode === "interval" ? intervalHours : undefined,
+        cronExpression: resolvedMode === "cron" ? cronExpression.trim() : undefined,
+      });
+
       const currentSchedule = await getSyncSchedule();
-      const lastSync = currentSchedule.lastScheduledSyncAt
-        ? new Date(currentSchedule.lastScheduledSyncAt)
-        : new Date();
-      const nextSyncAt = new Date(
-        lastSync.getTime() + intervalHours * 60 * 60 * 1000
-      ).toISOString();
+      const nextSyncAt = getNextSyncAt(currentSchedule, new Date());
       await updateSyncSchedule({ nextSyncAt });
       const schedule = await getSyncSchedule();
       return c.json({ success: true, schedule });

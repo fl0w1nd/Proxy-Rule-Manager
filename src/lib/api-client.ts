@@ -283,7 +283,9 @@ export async function executeFullSync(): Promise<SyncResult> {
 
 // 定时同步配置
 export interface SyncSchedule {
+  mode: "interval" | "cron";
   intervalHours: number;
+  cronExpression?: string;
   lastScheduledSyncAt?: string;
   nextSyncAt?: string;
 }
@@ -292,10 +294,14 @@ export async function getSyncSchedule(): Promise<{ schedule: SyncSchedule }> {
   return apiRequest<{ schedule: SyncSchedule }>("/sync/schedule");
 }
 
-export async function updateSyncSchedule(intervalHours: number): Promise<{ success: boolean; schedule: SyncSchedule }> {
+export async function updateSyncSchedule(payload: {
+  mode: "interval" | "cron";
+  intervalHours?: number;
+  cronExpression?: string;
+}): Promise<{ success: boolean; schedule: SyncSchedule }> {
   return apiRequest<{ success: boolean; schedule: SyncSchedule }>("/sync/schedule", {
     method: "PUT",
-    body: JSON.stringify({ intervalHours }),
+    body: JSON.stringify(payload),
   });
 }
 

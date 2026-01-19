@@ -20,6 +20,7 @@ import {
     SyncSchedule,
     DEFAULT_SYNC_SCHEDULE,
 } from "./schema";
+import { normalizeSyncSchedule } from "./sync-schedule";
 import {
     getDataDir as getDataDirPath,
     getDbFilePath,
@@ -708,14 +709,15 @@ export async function updateLastSyncInfo(
 export async function getSyncSchedule(): Promise<SyncSchedule> {
     const db = await loadDb();
     // 兼容旧数据：如果没有 syncSchedule 字段，返回默认值
-    return db.syncSchedule || DEFAULT_SYNC_SCHEDULE;
+    return normalizeSyncSchedule(db.syncSchedule || DEFAULT_SYNC_SCHEDULE);
 }
 
 export async function updateSyncSchedule(
     updates: Partial<SyncSchedule>
 ): Promise<void> {
     const db = await loadDb();
-    db.syncSchedule = { ...db.syncSchedule, ...updates };
+    const current = normalizeSyncSchedule(db.syncSchedule || DEFAULT_SYNC_SCHEDULE);
+    db.syncSchedule = normalizeSyncSchedule({ ...current, ...updates });
     await saveDb(db);
 }
 

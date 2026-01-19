@@ -4,13 +4,15 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Code, Loader2, Maximize2, X, Download, Upload, Database, FileText } from "lucide-react";
+import { Code, Loader2, Maximize2, X, Download, Upload, Database, FileText, Clock } from "lucide-react";
 import {
   backupDatabase,
   exportConfigTemplate,
   getConfigRaw,
+  getSyncSchedule,
   importConfigTemplate,
   restoreDatabase,
+  updateSyncSchedule,
 } from "@/lib/api-client";
 import { RulesConfig } from "@/lib/schema";
 import { toast } from "sonner";
@@ -31,12 +33,19 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   const [isImportingTemplate, setIsImportingTemplate] = useState(false);
   const [isBackingUp, setIsBackingUp] = useState(false);
   const [isRestoring, setIsRestoring] = useState(false);
+  const [isScheduleLoading, setIsScheduleLoading] = useState(true);
+  const [isScheduleUpdating, setIsScheduleUpdating] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState<"interval" | "cron">("interval");
+  const [intervalHours, setIntervalHours] = useState(24);
+  const [cronExpression, setCronExpression] = useState("0 0 * * *");
+  const [syncScheduleNextAt, setSyncScheduleNextAt] = useState<string | null>(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const importTemplateRef = useRef<HTMLInputElement | null>(null);
   const restoreDbRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     fetchConfig();
+    fetchSchedule();
   }, []);
 
   // ESC key exits fullscreen
@@ -130,6 +139,41 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
       toast.error("数据库恢复失败: " + String(error));
     } finally {
       setIsRestoring(false);
+    }
+  };
+
+  const fetchSchedule = async () => {
+    try {
+      const { schedule } = await getSyncSchedule();
+      setScheduleMode(schedule.mode || "interval");
+      setIntervalHours(schedule.intervalHours || 24);
+      setCronExpression(schedule.cronExpression || "0 0 * * *");
+      setSyncScheduleNextAt(schedule.nextSyncAt || null);
+    } catch (error) {
+      console.error("Failed to fetch schedule:", error);
+      toast.error("获取定时同步配置失败");
+    } finally {
+      setIsScheduleLoading(false);
+    }
+  };
+
+  const handleSaveSchedule = async () => {
+    setIsScheduleUpdating(true);
+    try {
+      const payload =
+        scheduleMode === "interval"
+          ? { mode: "interval" as const, intervalHours }
+          : { mode: "cron" as const, cronExpression: cronExpression.trim() };
+      const result = await updateSyncSchedule(payload);
+      setScheduleMode(result.schedule.mode || "interval");
+      setIntervalHours(result.schedule.intervalHours || 24);
+      setCronExpression(result.schedule.cronExpression || "0 0 * * *");
+      setSyncScheduleNextAt(result.schedule.nextSyncAt || null);
+      toast.success("定时同步配置已更新");
+    } catch (error) {
+      toast.error("更新定时同步失败: " + String(error));
+    } finally {
+      setIsScheduleUpdating(false);
     }
   };
 
@@ -278,6 +322,101 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+        <CardHeader>
+          <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+            <Clock className="w-5 h-5 text-blue-500" />
+            定时同步
+          </CardTitle>
+          <CardDescription className="text-gray-500 dark:text-gray-400">
+            支持 interval 与 cron 两种模式，系统将按配置自动同步规则。
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {isScheduleLoading ? (
+            <div className="flex items-center gap-2 text-gray-500">
+              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+              正在加载定时配置...
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">模式</span>
+                  <select
+                    value={scheduleMode}
+                    onChange={(e) => setScheduleMode(e.target.value as "interval" | "cron")}
+                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
+                  >
+                    <option value="interval">Interval</option>
+                    <option value="cron">Cron</option>
+                  </select>
+                </div>
+                {syncScheduleNextAt && (
+                  <span className="text-xs text-blue-500">
+                    下次同步: {new Date(syncScheduleNextAt).toLocaleString("zh-CN")}
+                  </span>
+                )}
+              </div>
+
+              {scheduleMode === "interval" ? (
+                <div className="flex flex-col gap-2 md:flex-row md:items-center">
+                  <span className="text-sm text-gray-600 dark:text-gray-300">同步间隔</span>
+                  <select
+                    value={intervalHours}
+                    onChange={(e) => setIntervalHours(parseInt(e.target.value, 10))}
+                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm w-40"
+                  >
+                    <option value={1}>1 小时</option>
+                    <option value={2}>2 小时</option>
+                    <option value={6}>6 小时</option>
+                    <option value={12}>12 小时</option>
+                    <option value={24}>24 小时</option>
+                    <option value={48}>48 小时</option>
+                    <option value={72}>72 小时</option>
+                  </select>
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  <label className="text-sm text-gray-600 dark:text-gray-300">
+                    Cron 表达式（支持 5/6 段）
+                  </label>
+                  <input
+                    value={cronExpression}
+                    onChange={(e) => setCronExpression(e.target.value)}
+                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm font-mono"
+                    placeholder="0 0 * * *"
+                  />
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    示例: <span className="font-mono">0 */6 * * *</span> 表示每 6 小时执行一次
+                  </p>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  onClick={handleSaveSchedule}
+                  disabled={
+                    isScheduleUpdating ||
+                    (scheduleMode === "cron" && !cronExpression.trim())
+                  }
+                >
+                  {isScheduleUpdating ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    "保存定时配置"
+                  )}
+                </Button>
+                <span className="text-xs text-gray-500 dark:text-gray-400">
+                  Cron 模式变更后将重新计算下次同步时间。
+                </span>
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
         <CardHeader>

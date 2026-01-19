@@ -12,6 +12,7 @@ import * as path from "node:path";
 
 import { executeFullSync } from "../lib/sync-engine";
 import { getConfig, getSyncSchedule, updateSyncSchedule } from "../lib/storage-adapter";
+import { getNextSyncAt } from "../lib/sync-schedule";
 import { jsonError } from "./errors";
 import { registerClientRoutes } from "./routes/clients";
 import { registerConfigRoutes } from "./routes/config";
@@ -79,16 +80,29 @@ async function checkAndExecuteScheduledSync() {
     const now = new Date();
 
     let needsSync = false;
+    let nextSyncAt = schedule.nextSyncAt ? new Date(schedule.nextSyncAt) : null;
+    const hasValidNextSyncAt = nextSyncAt && !Number.isNaN(nextSyncAt.getTime());
 
-    if (schedule.lastScheduledSyncAt) {
-      const lastSync = new Date(schedule.lastScheduledSyncAt);
-      const nextSync = new Date(lastSync.getTime() + schedule.intervalHours * 60 * 60 * 1000);
+    if (!hasValidNextSyncAt && !schedule.lastScheduledSyncAt) {
+      if (schedule.mode === "cron") {
+        const initialNextSyncAt = getNextSyncAt(schedule, now);
+        await updateSyncSchedule({ nextSyncAt: initialNextSyncAt });
+        return;
+      }
 
-      if (now >= nextSync) {
+      needsSync = true;
+    } else {
+      if (!hasValidNextSyncAt) {
+        const baseDate = schedule.lastScheduledSyncAt
+          ? new Date(schedule.lastScheduledSyncAt)
+          : now;
+        nextSyncAt = new Date(getNextSyncAt(schedule, baseDate));
+        await updateSyncSchedule({ nextSyncAt: nextSyncAt.toISOString() });
+      }
+
+      if (nextSyncAt && now >= nextSyncAt) {
         needsSync = true;
       }
-    } else {
-      needsSync = true;
     }
 
     if (needsSync) {
@@ -96,7 +110,7 @@ async function checkAndExecuteScheduledSync() {
 
       const result = await executeFullSync();
 
-      const nextSyncAt = new Date(now.getTime() + schedule.intervalHours * 60 * 60 * 1000).toISOString();
+      const nextSyncAt = getNextSyncAt(schedule, now);
       await updateSyncSchedule({
         lastScheduledSyncAt: now.toISOString(),
         nextSyncAt,

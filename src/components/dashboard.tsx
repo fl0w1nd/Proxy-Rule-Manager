@@ -33,11 +33,8 @@ import {
   executeFullSync,
   executeInit,
   getClients,
-  getSyncSchedule,
-  updateSyncSchedule,
   StatusResponse,
   ClientConfig,
-  SyncSchedule,
   ChangeRecordSummary,
   FailureRecord,
   ActivityList,
@@ -73,8 +70,6 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [activeTab, setActiveTab] = useState("overview");
   const [needsInit, setNeedsInit] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
-  const [syncSchedule, setSyncSchedule] = useState<SyncSchedule | null>(null);
-  const [isUpdatingSchedule, setIsUpdatingSchedule] = useState(false);
   const [needsFirstSync, setNeedsFirstSync] = useState(false); // 初始化后未同步提醒
   const [activityDate, setActivityDate] = useState<string>("all");
   const [changePage, setChangePage] = useState(1);
@@ -92,14 +87,12 @@ export function Dashboard({ onBack }: DashboardProps) {
 
   const fetchStatus = async () => {
     try {
-      const [data, { clients: clientList }, { schedule }] = await Promise.all([
+      const [data, { clients: clientList }] = await Promise.all([
         getStatus(),
         getClients(),
-        getSyncSchedule(),
       ]);
       setStatus(data);
       setClients(clientList);
-      setSyncSchedule(schedule);
       // 检查是否需要初始化
       if (data.rulesCount === 0) {
         setNeedsInit(true);
@@ -524,53 +517,6 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </div>
                 </div>
 
-                {/* 定时同步设置 */}
-                <div className="mt-4 pt-4 border-t border-gray-200 dark:border-slate-700">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-900 dark:text-white">定时同步</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        系统将每隔指定时间自动同步所有规则
-                      </p>
-                      {syncSchedule?.nextSyncAt && (
-                        <p className="text-xs text-blue-500 mt-1">
-                          下次同步: {new Date(syncSchedule.nextSyncAt).toLocaleString("zh-CN")}
-                        </p>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <select
-                        value={syncSchedule?.intervalHours || 24}
-                        onChange={async (e) => {
-                          const hours = parseInt(e.target.value, 10);
-                          setIsUpdatingSchedule(true);
-                          try {
-                            const result = await updateSyncSchedule(hours);
-                            setSyncSchedule(result.schedule);
-                            toast.success(`定时同步已设置为每 ${hours} 小时`);
-                          } catch (error) {
-                            toast.error("更新失败: " + String(error));
-                          } finally {
-                            setIsUpdatingSchedule(false);
-                          }
-                        }}
-                        disabled={isUpdatingSchedule}
-                        className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
-                      >
-                        <option value={1}>1 小时</option>
-                        <option value={2}>2 小时</option>
-                        <option value={6}>6 小时</option>
-                        <option value={12}>12 小时</option>
-                        <option value={24}>24 小时</option>
-                        <option value={48}>48 小时</option>
-                        <option value={72}>72 小时</option>
-                      </select>
-                      {isUpdatingSchedule && (
-                        <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
-                      )}
-                    </div>
-                  </div>
-                </div>
               </CardContent>
             </Card>
 
