@@ -443,3 +443,71 @@ export async function deleteClient(clientId: string): Promise<{ success: boolean
     method: "DELETE",
   });
 }
+
+// --- WAF Management ---
+export interface BanRecord {
+  ip: string;
+  reason: string;
+  bannedAt: string;
+  expiresAt: string | null;
+  failCount: number;
+}
+
+export interface WafStats {
+  bans: {
+    total: number;
+    permanent: number;
+    temporary: number;
+  };
+  temporary: {
+    totalTracked: number;
+    currentlyBlocked: number;
+  };
+}
+
+export interface FailureInfo {
+  ip: string;
+  failCount: number;
+  lastFailedAt: string;
+  blockDuration: number;
+  isBlocked: boolean;
+  blockedUntil: string | null;
+}
+
+export async function getWafBans(): Promise<{ bans: BanRecord[] }> {
+  return apiRequest<{ bans: BanRecord[] }>("/waf/bans");
+}
+
+export async function addWafBan(
+  ip: string,
+  reason?: string,
+  permanent?: boolean,
+  durationSeconds?: number
+): Promise<{ success: boolean; message: string }> {
+  return apiRequest("/waf/bans", {
+    method: "POST",
+    body: JSON.stringify({ ip, reason, permanent, durationSeconds }),
+  });
+}
+
+export async function removeWafBan(ip: string): Promise<{ success: boolean; message: string }> {
+  return apiRequest(`/waf/bans/${encodeURIComponent(ip)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getWafStats(): Promise<WafStats> {
+  return apiRequest<WafStats>("/waf/stats");
+}
+
+export async function getWafFailures(): Promise<{ failures: FailureInfo[] }> {
+  return apiRequest<{ failures: FailureInfo[] }>("/waf/failures");
+}
+
+export async function cleanupWafBans(): Promise<{ success: boolean; message: string }> {
+  return apiRequest("/waf/cleanup", { method: "POST" });
+}
+
+export async function getMyIp(): Promise<{ ip: string }> {
+  return apiRequest<{ ip: string }>("/waf/my-ip");
+}

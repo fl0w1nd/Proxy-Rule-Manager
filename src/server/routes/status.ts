@@ -8,7 +8,7 @@ import {
 } from "../../lib/storage-adapter";
 import { RulesConfig } from "../../lib/schema";
 import { countChangeRecords, countFailureRecords } from "../../lib/activity-store";
-import { checkAuth } from "../auth";
+import { checkAuth, getClientIp, verifyAdminWithRateLimit } from "../auth";
 import { jsonError } from "../errors";
 
 function countRuleFiles(config: RulesConfig): number {
@@ -21,11 +21,28 @@ function countRuleFiles(config: RulesConfig): number {
 
 export function registerStatusRoutes(app: Hono) {
   app.get("/api/status", async (c) => {
-    const authResult = checkAuth(c.req.header("authorization"));
-    if (authResult === "invalid") {
-      return c.json({ error: "Unauthorized" }, 401);
+    const ip = getClientIp((name) => c.req.header(name));
+    const authHeader = c.req.header("authorization");
+
+    // 如果提供了 token，使用带 Rate Limit 的验证
+    if (authHeader) {
+      const result = await verifyAdminWithRateLimit(authHeader, ip);
+      if (!result.success) {
+        if (result.error === "blocked") {
+          c.header("Retry-After", String(result.retryAfter || 60));
+          return c.json(
+            {
+              error: "Too many failed attempts",
+              retryAfter: result.retryAfter,
+            },
+            429
+          );
+        }
+        return c.json({ error: "Unauthorized" }, 401);
+      }
     }
 
+    const authResult = checkAuth(authHeader);
     const isAdmin = authResult === "admin";
 
     try {
@@ -42,10 +59,10 @@ export function registerStatusRoutes(app: Hono) {
           lastUpdated:
             metas.length > 0
               ? metas.reduce((latest, m) => {
-                  return new Date(m.lastUpdatedAt) > new Date(latest)
-                    ? m.lastUpdatedAt
-                    : latest;
-                }, metas[0].lastUpdatedAt)
+                return new Date(m.lastUpdatedAt) > new Date(latest)
+                  ? m.lastUpdatedAt
+                  : latest;
+              }, metas[0].lastUpdatedAt)
               : null,
           hasError: false,
         };

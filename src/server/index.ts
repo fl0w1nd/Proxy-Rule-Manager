@@ -22,6 +22,7 @@ import { registerRuleFileRoutes } from "./routes/rule-files";
 import { registerStatusRoutes } from "./routes/status";
 import { registerSyncRoutes } from "./routes/sync";
 import { registerActivityRoutes } from "./routes/activity";
+import { registerWafRoutes } from "./routes/waf";
 
 const app = new Hono();
 
@@ -37,6 +38,7 @@ registerRuleRoutes(app);
 registerClientRoutes(app);
 registerPreviewRoutes(app);
 registerInitRoutes(app);
+registerWafRoutes(app);
 
 // --- Rule File Serving (Real-time, no cache) ---
 registerRuleFileRoutes(app);

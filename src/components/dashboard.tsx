@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Zap,
   Monitor,
+  Shield,
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
 import { useTheme } from "./theme-provider";
@@ -49,6 +50,7 @@ import { RulesManager } from "./rules-manager";
 import { ConfigEditor } from "./config-editor";
 import { TransformersManager } from "./transformers-manager";
 import { ClientsManager } from "./clients-manager";
+import { WafManager } from "./waf-manager";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -431,6 +433,10 @@ export function Dashboard({ onBack }: DashboardProps) {
             <TabsTrigger value="config" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
               <Settings className="w-4 h-4 mr-2" />
               配置编辑
+            </TabsTrigger>
+            <TabsTrigger value="security" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+              <Shield className="w-4 h-4 mr-2" />
+              安全
             </TabsTrigger>
           </TabsList>
 
@@ -862,6 +868,10 @@ export function Dashboard({ onBack }: DashboardProps) {
 
           <TabsContent value="config" className="mt-6">
             <ConfigEditor onSave={fetchStatus} />
+          </TabsContent>
+
+          <TabsContent value="security" className="mt-6">
+            <WafManager />
           </TabsContent>
         </Tabs>
       </main>
