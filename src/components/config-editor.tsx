@@ -4,6 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Code, Loader2, Maximize2, X, Download, Upload, Database, FileText, Clock } from "lucide-react";
 import {
   backupDatabase,
@@ -344,14 +351,18 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
                   <span className="text-sm text-gray-600 dark:text-gray-300">模式</span>
-                  <select
+                  <Select
                     value={scheduleMode}
-                    onChange={(e) => setScheduleMode(e.target.value as "interval" | "cron")}
-                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
+                    onValueChange={(value) => setScheduleMode(value as "interval" | "cron")}
                   >
-                    <option value="interval">Interval</option>
-                    <option value="cron">Cron</option>
-                  </select>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="选择模式" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="interval">Interval</SelectItem>
+                      <SelectItem value="cron">Cron</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
                 {syncScheduleNextAt && (
                   <span className="text-xs text-blue-500">
@@ -363,19 +374,23 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               {scheduleMode === "interval" ? (
                 <div className="flex flex-col gap-2 md:flex-row md:items-center">
                   <span className="text-sm text-gray-600 dark:text-gray-300">同步间隔</span>
-                  <select
-                    value={intervalHours}
-                    onChange={(e) => setIntervalHours(parseInt(e.target.value, 10))}
-                    className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm w-40"
+                  <Select
+                    value={String(intervalHours)}
+                    onValueChange={(value) => setIntervalHours(parseInt(value, 10))}
                   >
-                    <option value={1}>1 小时</option>
-                    <option value={2}>2 小时</option>
-                    <option value={6}>6 小时</option>
-                    <option value={12}>12 小时</option>
-                    <option value={24}>24 小时</option>
-                    <option value={48}>48 小时</option>
-                    <option value={72}>72 小时</option>
-                  </select>
+                    <SelectTrigger className="w-40">
+                      <SelectValue placeholder="选择间隔" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">1 小时</SelectItem>
+                      <SelectItem value="2">2 小时</SelectItem>
+                      <SelectItem value="6">6 小时</SelectItem>
+                      <SelectItem value="12">12 小时</SelectItem>
+                      <SelectItem value="24">24 小时</SelectItem>
+                      <SelectItem value="48">48 小时</SelectItem>
+                      <SelectItem value="72">72 小时</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
               ) : (
                 <div className="space-y-1">

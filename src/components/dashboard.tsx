@@ -6,6 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   RefreshCw,
   Settings,
   FileText,
@@ -595,39 +602,47 @@ export function Dashboard({ onBack }: DashboardProps) {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-xs text-gray-500 dark:text-gray-400">日期</span>
-                <select
+                <Select
                   value={activityDate}
-                  onChange={(e) => {
-                    setActivityDate(e.target.value);
+                  onValueChange={(value) => {
+                    setActivityDate(value);
                     setChangePage(1);
                     setFailurePage(1);
                   }}
-                  className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
                 >
-                  <option value="all">最近 7 天</option>
-                  {recentDateOptions.map((date) => (
-                    <option key={date} value={date}>
-                      {date}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-36">
+                    <SelectValue placeholder="最近 7 天" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">最近 7 天</SelectItem>
+                    {recentDateOptions.map((date) => (
+                      <SelectItem key={date} value={date}>
+                        {date}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <span className="text-xs text-gray-500 dark:text-gray-400">客户端</span>
-                <select
+                <Select
                   value={activityClient}
-                  onChange={(e) => {
-                    setActivityClient(e.target.value);
+                  onValueChange={(value) => {
+                    setActivityClient(value);
                     setChangePage(1);
                     setFailurePage(1);
                   }}
-                  className="px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm"
                 >
-                  <option value="all">全部</option>
-                  {clients.map((client) => (
-                    <option key={client.id} value={client.id}>
-                      {client.displayName}
-                    </option>
-                  ))}
-                </select>
+                  <SelectTrigger className="w-40">
+                    <SelectValue placeholder="全部" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">全部</SelectItem>
+                    {clients.map((client) => (
+                      <SelectItem key={client.id} value={client.id}>
+                        {client.displayName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
