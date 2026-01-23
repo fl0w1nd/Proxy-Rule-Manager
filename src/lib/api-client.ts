@@ -199,6 +199,7 @@ export interface ActivityList<T> {
 export interface StatusResponse {
   rulesCount: number;
   ruleFilesCount: number;
+  needsInit?: boolean;
   lastSync: {
     lastFullSyncAt: string | null;
     lastPartialSyncAt: string | null;

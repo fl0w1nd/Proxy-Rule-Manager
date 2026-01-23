@@ -21,6 +21,21 @@ const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
 const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf"]);
 
+async function addDirToZip(zip: AdmZip, sourceDir: string, prefix: string): Promise<void> {
+  const entries = await fs.readdir(sourceDir, { withFileTypes: true });
+  for (const entry of entries) {
+    const entryPath = path.join(sourceDir, entry.name);
+    const zipPath = `${prefix}/${entry.name}`;
+    if (entry.isDirectory()) {
+      await addDirToZip(zip, entryPath, zipPath);
+      continue;
+    }
+    if (!entry.isFile()) continue;
+    const content = await fs.readFile(entryPath);
+    zip.addFile(zipPath, content);
+  }
+}
+
 function buildClientsForConfig(config: ReturnType<typeof validateConfig>): ClientConfig[] {
   const clients = new Map<string, ClientConfig>();
   for (const client of DEFAULT_CLIENTS) {
@@ -149,15 +164,16 @@ export function registerConfigRoutes(app: Hono) {
 
       const sourcesDir = getSourcesDir();
       try {
-        const entries = await fs.readdir(sourcesDir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isFile()) continue;
-          const filePath = path.join(sourcesDir, entry.name);
-          const content = await fs.readFile(filePath);
-          zip.addFile(`sources/${entry.name}`, content);
-        }
+        await addDirToZip(zip, sourcesDir, "sources");
       } catch {
         // No sources directory yet.
+      }
+
+      const wafDir = path.join(getDataDir(), "waf");
+      try {
+        await addDirToZip(zip, wafDir, "waf");
+      } catch {
+        // No waf directory yet.
       }
 
       const dateTag = new Date().toISOString().split("T")[0];
@@ -193,8 +209,9 @@ export function registerConfigRoutes(app: Hono) {
       const entries = zip.getEntries();
 
       let dbPayload: Buffer | null = null;
-      const sourceFiles: { name: string; data: Buffer }[] = [];
+      const sourceFiles: { path: string; data: Buffer }[] = [];
       const clientFileEntries: { clientId: string; fileName: string; data: Buffer }[] = [];
+      const wafFiles: { path: string; data: Buffer }[] = [];
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
@@ -207,9 +224,11 @@ export function registerConfigRoutes(app: Hono) {
           continue;
         }
         if (normalized.startsWith("sources/")) {
-          const fileName = normalized.slice("sources/".length);
-          if (!fileName || fileName.includes("/") || !SOURCE_FILE_PATTERN.test(fileName)) continue;
-          sourceFiles.push({ name: fileName, data: entry.getData() });
+          const sourcePath = normalized.slice("sources/".length);
+          if (!sourcePath || sourcePath.includes("..")) continue;
+          const fileName = path.posix.basename(sourcePath);
+          if (!SOURCE_FILE_PATTERN.test(fileName)) continue;
+          sourceFiles.push({ path: sourcePath, data: entry.getData() });
         }
         if (normalized.startsWith("client-files/")) {
           const rest = normalized.slice("client-files/".length);
@@ -219,6 +238,11 @@ export function registerConfigRoutes(app: Hono) {
           if (!CLIENT_FILE_NAME_PATTERN.test(fileName)) continue;
           clientFileEntries.push({ clientId, fileName, data: entry.getData() });
         }
+        if (normalized.startsWith("waf/")) {
+          const wafPath = normalized.slice("waf/".length);
+          if (!wafPath || wafPath.includes("..")) continue;
+          wafFiles.push({ path: wafPath, data: entry.getData() });
+        }
       }
 
       if (!dbPayload) {
@@ -226,12 +250,10 @@ export function registerConfigRoutes(app: Hono) {
       }
 
       const dataDir = getDataDir();
-      // clean all client file dirs (non-reserved)
+      // clean all data contents
       try {
         const entries = await fs.readdir(dataDir, { withFileTypes: true });
         for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          if (RESERVED_CLIENT_DIRS.has(entry.name)) continue;
           await fs.rm(path.join(dataDir, entry.name), { recursive: true, force: true });
         }
       } catch {
@@ -239,13 +261,14 @@ export function registerConfigRoutes(app: Hono) {
       }
 
       const sourcesDir = getSourcesDir();
-      await fs.rm(sourcesDir, { recursive: true, force: true });
       await fs.mkdir(sourcesDir, { recursive: true });
 
       await Promise.all(
-        sourceFiles.map((source) =>
-          fs.writeFile(path.join(sourcesDir, source.name), source.data)
-        )
+        sourceFiles.map((source) => {
+          const targetPath = path.join(sourcesDir, source.path);
+          return fs.mkdir(path.dirname(targetPath), { recursive: true })
+            .then(() => fs.writeFile(targetPath, source.data));
+        })
       );
 
       for (const entry of clientFileEntries) {
@@ -254,7 +277,27 @@ export function registerConfigRoutes(app: Hono) {
         await fs.writeFile(path.join(targetDir, entry.fileName), entry.data);
       }
 
-      await atomicWriteFile(getDbFilePath(), dbPayload);
+      if (wafFiles.length > 0) {
+        const wafDir = path.join(dataDir, "waf");
+        await fs.mkdir(wafDir, { recursive: true });
+        for (const entry of wafFiles) {
+          const targetPath = path.join(wafDir, entry.path);
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.writeFile(targetPath, entry.data);
+        }
+      }
+
+      const dbJson = JSON.parse(dbPayload.toString("utf-8")) as Record<string, unknown>;
+      dbJson.artifacts = {};
+      dbJson.lastSyncInfo = {
+        lastFullSyncAt: null,
+        lastPartialSyncAt: null,
+        lastSuccessfulSyncAt: null,
+        totalRulesCount: 0,
+        changedRulesCount: 0,
+        failedRulesCount: 0,
+      };
+      await atomicWriteFile(getDbFilePath(), Buffer.from(JSON.stringify(dbJson, null, 2)));
       invalidateCache();
 
       return c.json({ success: true });

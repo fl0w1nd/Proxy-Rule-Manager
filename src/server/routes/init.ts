@@ -77,7 +77,6 @@ export function registerInitRoutes(app: Hono) {
         lastScheduledSyncAt: now.toISOString(),
         nextSyncAt: getNextSyncAt(currentSchedule, now),
       });
-
       return c.json({
         success: true,
         message: `Initialized with ${initialConfig.rules.length} rules`,

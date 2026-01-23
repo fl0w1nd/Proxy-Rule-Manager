@@ -101,6 +101,7 @@ export function registerStatusRoutes(app: Hono) {
         rulesCount: config.rules.length,
         ruleFilesCount,
         lastSync: lastSyncInfo,
+        needsInit: config.rules.length === 0,
         todayStats: {
           ...todayStats,
           ruleFilesChanged: todayChangeCount,

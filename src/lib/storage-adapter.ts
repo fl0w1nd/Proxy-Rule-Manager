@@ -182,6 +182,7 @@ async function saveDb(db: Database): Promise<void> {
     await atomicWriteFile(DB_FILE, JSON.stringify(db, null, 2));
 }
 
+
 // --- Config Management ---
 export async function getConfig(): Promise<RulesConfig> {
     const db = await loadDb();

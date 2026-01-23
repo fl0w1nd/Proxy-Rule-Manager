@@ -94,9 +94,7 @@ export function Dashboard({ onBack }: DashboardProps) {
       ]);
       setStatus(data);
       setClients(clientList);
-      if (data.rulesCount === 0) {
-        setNeedsInit(true);
-      }
+      setNeedsInit((data.needsInit ?? false) || data.rulesCount === 0);
       const hasNeverSynced = !data.lastSync?.lastFullSyncAt && !data.lastSync?.lastSuccessfulSyncAt;
       setNeedsFirstSync(data.rulesCount > 0 && hasNeverSynced);
     } catch (error) {
