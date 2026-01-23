@@ -15,9 +15,11 @@ import { detectCircularDependency } from "../../lib/sync-engine";
 import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
-import { getDbFilePath, getSourcesDir } from "../../lib/data-paths";
+import { getDataDir, getDbFilePath, getSourcesDir } from "../../lib/data-paths";
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
+const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
+const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf"]);
 
 function buildClientsForConfig(config: ReturnType<typeof validateConfig>): ClientConfig[] {
   const clients = new Map<string, ClientConfig>();
@@ -114,6 +116,37 @@ export function registerConfigRoutes(app: Hono) {
       const dbBuffer = await fs.readFile(dbPath);
       zip.addFile("db.json", dbBuffer);
 
+      // client files (package all client directories)
+      try {
+        const dataDir = getDataDir();
+        const entries = await fs.readdir(dataDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          const clientId = entry.name;
+          if (RESERVED_CLIENT_DIRS.has(clientId)) continue;
+          const clientDir = path.join(dataDir, clientId);
+          try {
+            const files = await fs.readdir(clientDir, { withFileTypes: true });
+            for (const file of files) {
+              if (!file.isFile()) continue;
+              const fileName = file.name;
+              if (!CLIENT_FILE_NAME_PATTERN.test(fileName)) continue;
+              const filePath = path.join(clientDir, fileName);
+              try {
+                const content = await fs.readFile(filePath);
+                zip.addFile(`client-files/${clientId}/${fileName}`, content);
+              } catch {
+                // missing file; skip
+              }
+            }
+          } catch {
+            // ignore client dir read errors
+          }
+        }
+      } catch {
+        // ignore data dir read errors
+      }
+
       const sourcesDir = getSourcesDir();
       try {
         const entries = await fs.readdir(sourcesDir, { withFileTypes: true });
@@ -161,6 +194,7 @@ export function registerConfigRoutes(app: Hono) {
 
       let dbPayload: Buffer | null = null;
       const sourceFiles: { name: string; data: Buffer }[] = [];
+      const clientFileEntries: { clientId: string; fileName: string; data: Buffer }[] = [];
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
@@ -177,10 +211,31 @@ export function registerConfigRoutes(app: Hono) {
           if (!fileName || fileName.includes("/") || !SOURCE_FILE_PATTERN.test(fileName)) continue;
           sourceFiles.push({ name: fileName, data: entry.getData() });
         }
+        if (normalized.startsWith("client-files/")) {
+          const rest = normalized.slice("client-files/".length);
+          const [clientId, fileName] = rest.split("/");
+          if (!clientId || !fileName) continue;
+          if (RESERVED_CLIENT_DIRS.has(clientId)) continue;
+          if (!CLIENT_FILE_NAME_PATTERN.test(fileName)) continue;
+          clientFileEntries.push({ clientId, fileName, data: entry.getData() });
+        }
       }
 
       if (!dbPayload) {
         return c.json({ error: "Import file missing db.json" }, 400);
+      }
+
+      const dataDir = getDataDir();
+      // clean all client file dirs (non-reserved)
+      try {
+        const entries = await fs.readdir(dataDir, { withFileTypes: true });
+        for (const entry of entries) {
+          if (!entry.isDirectory()) continue;
+          if (RESERVED_CLIENT_DIRS.has(entry.name)) continue;
+          await fs.rm(path.join(dataDir, entry.name), { recursive: true, force: true });
+        }
+      } catch {
+        // ignore
       }
 
       const sourcesDir = getSourcesDir();
@@ -192,6 +247,12 @@ export function registerConfigRoutes(app: Hono) {
           fs.writeFile(path.join(sourcesDir, source.name), source.data)
         )
       );
+
+      for (const entry of clientFileEntries) {
+        const targetDir = path.join(dataDir, entry.clientId);
+        await fs.mkdir(targetDir, { recursive: true });
+        await fs.writeFile(path.join(targetDir, entry.fileName), entry.data);
+      }
 
       await atomicWriteFile(getDbFilePath(), dbPayload);
       invalidateCache();

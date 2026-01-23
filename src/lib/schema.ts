@@ -13,6 +13,18 @@ export const ClientConfigSchema = z.object({
 });
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
 
+// 客户端配置文件元数据
+export const ClientFileMetaSchema = z.object({
+  id: z.string(),
+  clientId: z.string(),
+  name: z.string(),
+  ext: z.string(),
+  isPublic: z.boolean().default(false),
+  createdAt: z.string(),
+  updatedAt: z.string(),
+});
+export type ClientFileMeta = z.infer<typeof ClientFileMetaSchema>;
+
 // 默认客户端配置
 export const DEFAULT_CLIENTS: ClientConfig[] = [
   { id: "clash_meta", displayName: "Clash Meta / Stash", pathName: "Clash Meta" },

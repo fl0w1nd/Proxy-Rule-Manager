@@ -15,6 +15,7 @@ import { getConfig, getSyncSchedule, updateSyncSchedule } from "../lib/storage-a
 import { getNextSyncAt } from "../lib/sync-schedule";
 import { jsonError } from "./errors";
 import { registerClientRoutes } from "./routes/clients";
+import { registerClientFileRoutes } from "./routes/client-files";
 import { registerConfigRoutes } from "./routes/config";
 import { registerInitRoutes } from "./routes/init";
 import { registerPreviewRoutes } from "./routes/preview";
@@ -37,6 +38,7 @@ registerActivityRoutes(app);
 registerSyncRoutes(app);
 registerRuleRoutes(app);
 registerClientRoutes(app);
+registerClientFileRoutes(app);
 registerPreviewRoutes(app);
 registerInitRoutes(app);
 registerWafRoutes(app);

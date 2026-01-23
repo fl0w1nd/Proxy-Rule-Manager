@@ -5,6 +5,7 @@
 
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
+import * as crypto from "node:crypto";
 import {
     RulesConfig,
     ArtifactMeta,
@@ -19,6 +20,7 @@ import {
     updateClientMappings,
     SyncSchedule,
     DEFAULT_SYNC_SCHEDULE,
+    ClientFileMeta,
 } from "./schema";
 import { normalizeSyncSchedule } from "./sync-schedule";
 import {
@@ -39,12 +41,14 @@ const RULES_DIR = getRulesDirPath();
 const RECORDS_DIR = path.join(DATA_DIR, "records");
 const SOURCES_DIR = getSourcesDir();
 const DB_FILE = getDbFilePath();
+const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "db.json"]);
 
 // --- Database Schema ---
 interface Database {
     config: RulesConfig;
     configRev: number;
     clients: ClientConfig[]; // 动态客户端列表
+    clientFiles: Record<string, ClientFileMeta>; // key: fileId
     artifacts: Record<string, ArtifactMeta>; // key: "ruleName:client"
     jobs: Record<string, JobRecord>;
     dailyStats: Record<string, DailyStats>;
@@ -66,6 +70,7 @@ const DEFAULT_DB: Database = {
     config: DEFAULT_CONFIG,
     configRev: 0,
     clients: DEFAULT_CLIENTS,
+    clientFiles: {},
     artifacts: {},
     jobs: {},
     dailyStats: {},
@@ -120,6 +125,9 @@ async function loadDb(): Promise<Database> {
         // 兼容旧数据：如果没有 clients 字段，使用默认值
         if (!dbCache.clients) {
             dbCache.clients = DEFAULT_CLIENTS;
+        }
+        if (!dbCache.clientFiles) {
+            dbCache.clientFiles = {};
         }
         const dbRecord = dbCache as unknown as Record<string, unknown>;
         if ("ruleFileChanges" in dbRecord) {
@@ -253,6 +261,9 @@ export async function saveClients(clients: ClientConfig[]): Promise<void> {
 
 export async function addClient(client: ClientConfig): Promise<void> {
     const db = await loadDb();
+    if (RESERVED_CLIENT_DIRS.has(client.id)) {
+        throw new Error(`Client id "${client.id}" is reserved`);
+    }
     if (db.clients.find(c => c.id === client.id)) {
         throw new Error(`Client with id "${client.id}" already exists`);
     }
@@ -312,6 +323,9 @@ export async function updateClient(
         if (db.clients.find(c => c.id === updates.id)) {
             throw new Error(`Client with id "${updates.id}" already exists`);
         }
+        if (RESERVED_CLIENT_DIRS.has(updates.id)) {
+            throw new Error(`Client id "${updates.id}" is reserved`);
+        }
 
         // 更新 artifacts 的 key 和 client 字段
         const newArtifacts: Record<string, ArtifactMeta> = {};
@@ -324,6 +338,25 @@ export async function updateClient(
             }
         }
         db.artifacts = newArtifacts;
+
+        // 更新客户端配置文件的 clientId 和目录
+        try {
+            const oldDir = getClientFilesDir(clientId);
+            const newDir = getClientFilesDir(updates.id);
+            await fs.access(oldDir);
+            await fs.rename(oldDir, newDir);
+        } catch (err: unknown) {
+            const isNotFound = err && typeof err === "object" && "code" in err && err.code === "ENOENT";
+            if (!isNotFound) {
+                throw new Error(`重命名客户端文件目录失败: ${err}`);
+            }
+        }
+
+        for (const file of Object.values(db.clientFiles)) {
+            if (file.clientId === clientId) {
+                file.clientId = updates.id;
+            }
+        }
 
         // 更新配置中的 clients 引用和 client_overrides
         for (const rule of db.config.rules) {
@@ -369,6 +402,27 @@ export async function deleteClient(clientId: string): Promise<void> {
         delete db.artifacts[key];
     }
 
+    // 删除客户端配置文件元数据与文件
+    const clientFileIds = Object.keys(db.clientFiles).filter(
+        (id) => db.clientFiles[id]?.clientId === clientId
+    );
+    for (const id of clientFileIds) {
+        const file = db.clientFiles[id];
+        if (file) {
+            const filePath = getClientFilePath(file.clientId, file.name, file.ext);
+            await fs.unlink(filePath).catch(() => undefined);
+            delete db.clientFiles[id];
+        }
+    }
+    try {
+        const clientFilesDir = getClientFilesDir(clientId);
+        if (clientFilesDir !== RULES_DIR && clientFilesDir !== SOURCES_DIR && clientFilesDir !== DATA_DIR) {
+            await fs.rm(clientFilesDir, { recursive: true, force: true });
+        }
+    } catch {
+        // ignore
+    }
+
     // 从配置中移除该客户端引用和 client_overrides
     for (const rule of db.config.rules) {
         rule.output.clients = rule.output.clients.filter(c => c !== clientId);
@@ -381,6 +435,177 @@ export async function deleteClient(clientId: string): Promise<void> {
     db.clients.splice(index, 1);
     updateClientMappings(db.clients);
     await saveDb(db);
+}
+
+// --- Client File Management ---
+
+function getClientFilesDir(clientId: string): string {
+    if (RESERVED_CLIENT_DIRS.has(clientId)) {
+        throw new Error(`Client id "${clientId}" is reserved and cannot store files`);
+    }
+    return path.join(DATA_DIR, clientId);
+}
+
+function getClientFilePath(clientId: string, name: string, ext: string): string {
+    if (name.includes("/") || name.includes("\\") || name.includes("..")) {
+        throw new Error("Invalid file name");
+    }
+    if (ext.includes("/") || ext.includes("\\") || ext.includes("..")) {
+        throw new Error("Invalid file extension");
+    }
+    const safeName = `${name}.${ext}`;
+    return path.join(getClientFilesDir(clientId), safeName);
+}
+
+async function ensureClientFilesDir(clientId: string): Promise<string> {
+    const dir = getClientFilesDir(clientId);
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
+}
+
+function findClientFileByName(db: Database, clientId: string, name: string, ext: string): ClientFileMeta | undefined {
+    return Object.values(db.clientFiles).find(
+        (file) => file.clientId === clientId && file.name === name && file.ext === ext
+    );
+}
+
+export async function listClientFiles(clientId: string): Promise<ClientFileMeta[]> {
+    const db = await loadDb();
+    return Object.values(db.clientFiles).filter((file) => file.clientId === clientId);
+}
+
+export async function listPublicClientFiles(): Promise<ClientFileMeta[]> {
+    const db = await loadDb();
+    return Object.values(db.clientFiles).filter((file) => file.isPublic);
+}
+
+export async function getClientFileMeta(fileId: string): Promise<ClientFileMeta | null> {
+    const db = await loadDb();
+    return db.clientFiles[fileId] || null;
+}
+
+export async function getClientFileContent(fileId: string): Promise<string | null> {
+    const db = await loadDb();
+    const meta = db.clientFiles[fileId];
+    if (!meta) return null;
+    try {
+        const filePath = getClientFilePath(meta.clientId, meta.name, meta.ext);
+        return await fs.readFile(filePath, "utf-8");
+    } catch {
+        return null;
+    }
+}
+
+export async function createClientFile(
+    clientId: string,
+    input: { name: string; ext: string; isPublic: boolean; content: string }
+): Promise<ClientFileMeta> {
+    const db = await loadDb();
+    if (findClientFileByName(db, clientId, input.name, input.ext)) {
+        throw new Error(`File "${input.name}.${input.ext}" already exists`);
+    }
+    await ensureClientFilesDir(clientId);
+    const filePath = getClientFilePath(clientId, input.name, input.ext);
+    await fs.writeFile(filePath, input.content ?? "", "utf-8");
+
+    const now = new Date().toISOString();
+    const meta: ClientFileMeta = {
+        id: crypto.randomUUID(),
+        clientId,
+        name: input.name,
+        ext: input.ext,
+        isPublic: !!input.isPublic,
+        createdAt: now,
+        updatedAt: now,
+    };
+    db.clientFiles[meta.id] = meta;
+    await saveDb(db);
+    return meta;
+}
+
+export async function updateClientFile(
+    fileId: string,
+    updates: Partial<{ name: string; ext: string; isPublic: boolean; content: string }>
+): Promise<ClientFileMeta> {
+    const db = await loadDb();
+    const meta = db.clientFiles[fileId];
+    if (!meta) {
+        throw new Error(`Client file "${fileId}" not found`);
+    }
+
+    const nextName = updates.name ?? meta.name;
+    const nextExt = updates.ext ?? meta.ext;
+    const nameChanged = nextName !== meta.name || nextExt !== meta.ext;
+
+    if (nameChanged) {
+        const existing = findClientFileByName(db, meta.clientId, nextName, nextExt);
+        if (existing && existing.id !== fileId) {
+            throw new Error(`File "${nextName}.${nextExt}" already exists`);
+        }
+    }
+
+    const oldPath = getClientFilePath(meta.clientId, meta.name, meta.ext);
+    const newPath = getClientFilePath(meta.clientId, nextName, nextExt);
+
+    if (nameChanged) {
+        await ensureClientFilesDir(meta.clientId);
+        try {
+            await fs.rename(oldPath, newPath);
+        } catch {
+            // 如果旧文件不存在，尝试直接写入新路径
+            await fs.writeFile(newPath, updates.content ?? "", "utf-8");
+        }
+    }
+
+    if (typeof updates.content === "string") {
+        await ensureClientFilesDir(meta.clientId);
+        await fs.writeFile(newPath, updates.content, "utf-8");
+    }
+
+    const updated: ClientFileMeta = {
+        ...meta,
+        name: nextName,
+        ext: nextExt,
+        isPublic: typeof updates.isPublic === "boolean" ? updates.isPublic : meta.isPublic,
+        updatedAt: new Date().toISOString(),
+    };
+
+    db.clientFiles[fileId] = updated;
+    await saveDb(db);
+    return updated;
+}
+
+export async function deleteClientFile(fileId: string): Promise<void> {
+    const db = await loadDb();
+    const meta = db.clientFiles[fileId];
+    if (!meta) {
+        throw new Error(`Client file "${fileId}" not found`);
+    }
+    const filePath = getClientFilePath(meta.clientId, meta.name, meta.ext);
+    try {
+        await fs.unlink(filePath);
+    } catch {
+        // ignore
+    }
+    delete db.clientFiles[fileId];
+    await saveDb(db);
+}
+
+export async function getPublicClientFile(
+    clientId: string,
+    name: string,
+    ext: string
+): Promise<{ meta: ClientFileMeta; content: string } | null> {
+    const db = await loadDb();
+    const meta = findClientFileByName(db, clientId, name, ext);
+    if (!meta || !meta.isPublic) return null;
+    try {
+        const filePath = getClientFilePath(clientId, name, ext);
+        const content = await fs.readFile(filePath, "utf-8");
+        return { meta, content };
+    } catch {
+        return null;
+    }
 }
 
 // --- Artifact Metadata ---

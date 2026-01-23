@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import {
     Dialog,
     DialogContent,
@@ -21,17 +23,22 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe } from "lucide-react";
 import { toast } from "sonner";
 import {
     getClients,
     addClient,
     updateClient,
     deleteClient,
+    listClientFiles,
+    createClientFile,
+    updateClientFile,
+    deleteClientFile,
+    getClientFile,
     getConfig,
     ClientConfig,
 } from "@/lib/api-client";
-import { Transform, ScriptTransformer } from "@/lib/schema";
+import { Transform, ScriptTransformer, ClientFileMeta } from "@/lib/schema";
 
 interface ClientsManagerProps {
     onRefresh?: () => void;
@@ -52,6 +59,15 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", pathName: "", transforms: [] });
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
+    const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+    const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
+    const [isFilesLoading, setIsFilesLoading] = useState(false);
+    const [isFileDialogOpen, setIsFileDialogOpen] = useState(false);
+    const [editingFile, setEditingFile] = useState<ClientFileMeta | null>(null);
+    const [fileForm, setFileForm] = useState({ name: "", ext: "", isPublic: false });
+    const [fileContent, setFileContent] = useState("");
+    const [isFileSaving, setIsFileSaving] = useState(false);
+    const [isFileLoading, setIsFileLoading] = useState(false);
 
     const fetchClients = async () => {
         try {
@@ -68,9 +84,39 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         }
     };
 
+    const fetchClientFiles = async (clientId: string) => {
+        setIsFilesLoading(true);
+        try {
+            const result = await listClientFiles(clientId);
+            setClientFiles(result.files);
+        } catch (error) {
+            toast.error("获取配置文件失败: " + String(error));
+        } finally {
+            setIsFilesLoading(false);
+        }
+    };
+
     useEffect(() => {
         fetchClients();
     }, []);
+
+    useEffect(() => {
+        if (clients.length === 0) {
+            setSelectedClientId(null);
+            return;
+        }
+        if (!selectedClientId || !clients.some((c) => c.id === selectedClientId)) {
+            setSelectedClientId(clients[0].id);
+        }
+    }, [clients, selectedClientId]);
+
+    useEffect(() => {
+        if (selectedClientId) {
+            fetchClientFiles(selectedClientId);
+        } else {
+            setClientFiles([]);
+        }
+    }, [selectedClientId]);
 
     const openAddDialog = () => {
         setEditingClient(null);
@@ -87,6 +133,32 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             transforms: client.transforms || [],
         });
         setIsDialogOpen(true);
+    };
+
+    const openCreateFileDialog = () => {
+        if (!selectedClientId) return;
+        setEditingFile(null);
+        setFileForm({ name: "", ext: "", isPublic: false });
+        setFileContent("");
+        setIsFileLoading(false);
+        setIsFileDialogOpen(true);
+    };
+
+    const openEditFileDialog = async (file: ClientFileMeta) => {
+        if (!selectedClientId) return;
+        setEditingFile(file);
+        setFileForm({ name: file.name, ext: file.ext, isPublic: file.isPublic });
+        setFileContent("");
+        setIsFileDialogOpen(true);
+        setIsFileLoading(true);
+        try {
+            const result = await getClientFile(selectedClientId, file.id);
+            setFileContent(result.content || "");
+        } catch (error) {
+            toast.error("读取配置文件失败: " + String(error));
+        } finally {
+            setIsFileLoading(false);
+        }
     };
 
     const addTransform = (type: "use" | "replace" | "remove_lines") => {
@@ -129,6 +201,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 } else {
                     toast.success("客户端已更新");
                 }
+                if (editingClient.id !== formData.id) {
+                    setSelectedClientId(formData.id);
+                }
             } else {
                 await addClient(formData);
                 toast.success("客户端已添加");
@@ -143,6 +218,55 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         }
     };
 
+    const handleSaveFile = async () => {
+        if (!selectedClientId) return;
+        if (!fileForm.name || !fileForm.ext) {
+            toast.error("请填写文件名称和后缀");
+            return;
+        }
+
+        setIsFileSaving(true);
+        try {
+            if (editingFile) {
+                await updateClientFile(selectedClientId, editingFile.id, {
+                    name: fileForm.name,
+                    ext: fileForm.ext,
+                    isPublic: fileForm.isPublic,
+                    content: fileContent,
+                });
+                toast.success("配置文件已更新");
+            } else {
+                await createClientFile(selectedClientId, {
+                    name: fileForm.name,
+                    ext: fileForm.ext,
+                    isPublic: fileForm.isPublic,
+                    content: fileContent,
+                });
+                toast.success("配置文件已创建");
+            }
+            setIsFileDialogOpen(false);
+            await fetchClientFiles(selectedClientId);
+        } catch (error) {
+            toast.error(String(error));
+        } finally {
+            setIsFileSaving(false);
+        }
+    };
+
+    const handleDeleteFile = async (file: ClientFileMeta) => {
+        if (!selectedClientId) return;
+        if (!confirm(`确定要删除配置文件 "${file.name}.${file.ext}" 吗？`)) {
+            return;
+        }
+        try {
+            await deleteClientFile(selectedClientId, file.id);
+            toast.success("配置文件已删除");
+            await fetchClientFiles(selectedClientId);
+        } catch (error) {
+            toast.error(String(error));
+        }
+    };
+
     const handleDelete = async (client: ClientConfig) => {
         if (!confirm(`确定要删除客户端 "${client.displayName}" 吗？这将删除所有相关规则文件！`)) {
             return;
@@ -152,6 +276,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             await deleteClient(client.id);
             toast.success("客户端已删除");
             await fetchClients();
+            if (selectedClientId === client.id) {
+                setSelectedClientId(null);
+            }
             onRefresh?.();
         } catch (error) {
             toast.error(String(error));
@@ -167,6 +294,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             </Card>
         );
     }
+
+    const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
 
     return (
         <>
@@ -189,67 +318,169 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                        {clients.map((client) => (
-                            <div
-                                key={client.id}
-                                className="group flex flex-col justify-between p-4 rounded-lg border border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border transition-all duration-200"
-                            >
-                                <div className="space-y-4">
-                                    <div className="flex items-center justify-between">
-                                        <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center group-hover:scale-105 transition-transform">
-                                            <Monitor className="w-5 h-5 text-primary" />
-                                        </div>
-                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 hover:bg-background/80"
-                                                onClick={() => openEditDialog(client)}
-                                            >
-                                                <Pencil className="w-3.5 h-3.5" />
-                                            </Button>
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
-                                                onClick={() => handleDelete(client)}
-                                            >
-                                                <Trash2 className="w-3.5 h-3.5" />
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex items-center gap-2 mb-1">
-                                            <p className="font-medium text-foreground">
-                                                {client.displayName}
-                                            </p>
-                                            {client.transforms && client.transforms.length > 0 && (
-                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
-                                                    <Settings2 className="w-3 h-3 mr-1" />
-                                                    {client.transforms.length}
-                                                </Badge>
-                                            )}
-                                        </div>
-                                        <p className="text-xs text-muted-foreground font-mono">
-                                            ID: {client.id}
-                                        </p>
-                                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" title={`/Rules/${client.pathName}/`}>
-                                            /Rules/{client.pathName}/
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))}
-                    </div>
-                    {clients.length === 0 && (
+                    {clients.length === 0 ? (
                         <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
                             <Monitor className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
                             <p>暂无客户端配置</p>
                             <Button variant="link" onClick={openAddDialog} className="mt-2 text-primary">
                                 立即添加
                             </Button>
+                        </div>
+                    ) : (
+                        <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+                            <div className="space-y-2">
+                                {clients.map((client) => {
+                                    const isActive = selectedClientId === client.id;
+                                    return (
+                                        <button
+                                            key={client.id}
+                                            type="button"
+                                            onClick={() => setSelectedClientId(client.id)}
+                                            className={`w-full text-left p-3 rounded-lg border transition-all ${isActive
+                                                ? "border-primary/50 bg-primary/5 shadow-sm"
+                                                : "border-transparent bg-muted/30 hover:bg-muted/50"
+                                                }`}
+                                        >
+                                            <div className="flex items-start justify-between">
+                                                <div>
+                                                    <p className="font-medium text-foreground">{client.displayName}</p>
+                                                    <p className="text-xs text-muted-foreground font-mono mt-0.5">
+                                                        ID: {client.id}
+                                                    </p>
+                                                </div>
+                                                {client.transforms && client.transforms.length > 0 && (
+                                                    <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
+                                                        <Settings2 className="w-3 h-3 mr-1" />
+                                                        {client.transforms.length}
+                                                    </Badge>
+                                                )}
+                                            </div>
+                                            <p className="text-xs text-muted-foreground font-mono mt-2 truncate" title={`/Rules/${client.pathName}/`}>
+                                                /Rules/{client.pathName}/
+                                            </p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <div className="space-y-4">
+                                {selectedClient ? (
+                                    <>
+                                        <div className="rounded-lg border bg-muted/20 p-4 flex flex-col gap-4">
+                                            <div className="flex items-start justify-between gap-4">
+                                                <div>
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
+                                                            <Monitor className="w-5 h-5 text-primary" />
+                                                        </div>
+                                                        <div>
+                                                            <p className="text-lg font-semibold text-foreground">{selectedClient.displayName}</p>
+                                                            <p className="text-xs text-muted-foreground font-mono">ID: {selectedClient.id}</p>
+                                                        </div>
+                                                    </div>
+                                                    <div className="mt-3 space-y-1 text-xs text-muted-foreground font-mono">
+                                                        <p title={`/Rules/${selectedClient.pathName}/`}>规则目录：/Rules/{selectedClient.pathName}/</p>
+                                                        <p title={`/${selectedClient.id}/`}>配置文件：/{selectedClient.id}/</p>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <Button variant="outline" size="sm" onClick={() => openEditDialog(selectedClient)}>
+                                                        <Pencil className="w-4 h-4 mr-1" />
+                                                        编辑
+                                                    </Button>
+                                                    <Button
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="text-destructive hover:text-destructive"
+                                                        onClick={() => handleDelete(selectedClient)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4 mr-1" />
+                                                        删除
+                                                    </Button>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        <div className="rounded-lg border bg-card p-4">
+                                            <div className="flex items-center justify-between">
+                                                <div>
+                                                    <p className="font-medium text-foreground flex items-center gap-2">
+                                                        <FileText className="w-4 h-4 text-primary" />
+                                                        配置文件
+                                                    </p>
+                                                    <p className="text-xs text-muted-foreground mt-1">
+                                                        为该客户端创建可编辑的配置文件，可选择是否公开
+                                                    </p>
+                                                </div>
+                                                <Button size="sm" onClick={openCreateFileDialog}>
+                                                    <Plus className="w-4 h-4 mr-1" />
+                                                    新建配置文件
+                                                </Button>
+                                            </div>
+
+                                            <div className="mt-4 space-y-2">
+                                                {isFilesLoading ? (
+                                                    <div className="flex items-center justify-center py-6">
+                                                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                                                    </div>
+                                                ) : clientFiles.length === 0 ? (
+                                                    <div className="text-center py-8 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
+                                                        <FileText className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
+                                                        <p>暂无配置文件</p>
+                                                        <Button variant="link" onClick={openCreateFileDialog} className="mt-2 text-primary">
+                                                            立即创建
+                                                        </Button>
+                                                    </div>
+                                                ) : (
+                                                    clientFiles.map((file) => (
+                                                        <div
+                                                            key={file.id}
+                                                            className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/20"
+                                                        >
+                                                            <div className="min-w-0">
+                                                                <div className="flex items-center gap-2">
+                                                                    <p className="font-medium text-foreground truncate">
+                                                                        {file.name}.{file.ext}
+                                                                    </p>
+                                                                    {file.isPublic && (
+                                                                        <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
+                                                                            <Globe className="w-3 h-3 mr-1" />
+                                                                            公开
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                                <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                                                                    /{file.clientId}/{file.name}.{file.ext}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted-foreground mt-1">
+                                                                    更新于 {new Date(file.updatedAt).toLocaleString("zh-CN")}
+                                                                </p>
+                                                            </div>
+                                                            <div className="flex items-center gap-2">
+                                                                <Button variant="ghost" size="icon" onClick={() => openEditFileDialog(file)}>
+                                                                    <Pencil className="w-4 h-4" />
+                                                                </Button>
+                                                                <Button
+                                                                    variant="ghost"
+                                                                    size="icon"
+                                                                    className="text-destructive hover:text-destructive"
+                                                                    onClick={() => handleDeleteFile(file)}
+                                                                >
+                                                                    <Trash2 className="w-4 h-4" />
+                                                                </Button>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                )}
+                                            </div>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
+                                        <Monitor className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+                                        <p>请选择一个客户端</p>
+                                    </div>
+                                )}
+                            </div>
                         </div>
                     )}
                 </CardContent>
@@ -452,6 +683,80 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                         </Button>
                         <Button onClick={handleSave} disabled={isSaving}>
                             {isSaving ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    保存中...
+                                </>
+                            ) : (
+                                "保存"
+                            )}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            <Dialog open={isFileDialogOpen} onOpenChange={setIsFileDialogOpen}>
+                <DialogContent className="max-h-[85vh] flex flex-col p-0">
+                    <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
+                        <DialogTitle>
+                            {editingFile ? "编辑配置文件" : "新建配置文件"}
+                        </DialogTitle>
+                        <DialogDescription>
+                            {selectedClient ? `客户端：${selectedClient.displayName}` : "请选择客户端"}
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 px-6 overflow-y-auto flex-1 min-h-0">
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-2">
+                                <Label htmlFor="file-name">文件名称</Label>
+                                <Input
+                                    id="file-name"
+                                    value={fileForm.name}
+                                    onChange={(e) => setFileForm({ ...fileForm, name: e.target.value })}
+                                    placeholder="例如: proxy"
+                                    disabled={isFileLoading || isFileSaving}
+                                />
+                            </div>
+                            <div className="space-y-2">
+                                <Label htmlFor="file-ext">文件后缀</Label>
+                                <Input
+                                    id="file-ext"
+                                    value={fileForm.ext}
+                                    onChange={(e) => setFileForm({ ...fileForm, ext: e.target.value })}
+                                    placeholder="例如: yaml"
+                                    disabled={isFileLoading || isFileSaving}
+                                />
+                            </div>
+                        </div>
+                        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                            <div className="space-y-0.5">
+                                <p className="text-sm font-medium text-foreground">公开访问</p>
+                                <p className="text-xs text-muted-foreground">开启后可通过公开 URL 访问</p>
+                            </div>
+                            <Switch
+                                checked={fileForm.isPublic}
+                                onCheckedChange={(checked) => setFileForm({ ...fileForm, isPublic: checked })}
+                                disabled={isFileLoading || isFileSaving}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="file-content">内容</Label>
+                            <Textarea
+                                id="file-content"
+                                value={fileContent}
+                                onChange={(e) => setFileContent(e.target.value)}
+                                placeholder="输入配置文件内容..."
+                                className="min-h-[240px] font-mono text-sm"
+                                disabled={isFileLoading || isFileSaving}
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter className="shrink-0 px-6 pb-6 pt-4">
+                        <Button variant="outline" onClick={() => setIsFileDialogOpen(false)}>
+                            取消
+                        </Button>
+                        <Button onClick={handleSaveFile} disabled={isFileSaving}>
+                            {isFileSaving ? (
                                 <>
                                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
                                     保存中...

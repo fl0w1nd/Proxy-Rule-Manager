@@ -1,4 +1,4 @@
-import { RulesConfig, RuleConfig, ClientType, Transform } from "./schema";
+import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta } from "./schema";
 
 // API 客户端 - 用于前端调用后端 API
 
@@ -448,6 +448,57 @@ export async function deleteClient(clientId: string): Promise<{ success: boolean
   return apiRequest(`/clients/${encodeURIComponent(clientId)}`, {
     method: "DELETE",
   });
+}
+
+// --- Client File Management ---
+export interface ClientFileDetail {
+  file: ClientFileMeta;
+  content: string;
+}
+
+export async function listClientFiles(clientId: string): Promise<{ files: ClientFileMeta[] }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}/files`);
+}
+
+export async function createClientFile(
+  clientId: string,
+  input: { name: string; ext: string; isPublic: boolean; content: string }
+): Promise<{ success: boolean; file: ClientFileMeta }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}/files`, {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function getClientFile(
+  clientId: string,
+  fileId: string
+): Promise<ClientFileDetail> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}/files/${encodeURIComponent(fileId)}`);
+}
+
+export async function updateClientFile(
+  clientId: string,
+  fileId: string,
+  updates: Partial<{ name: string; ext: string; isPublic: boolean; content: string }>
+): Promise<{ success: boolean; file: ClientFileMeta }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}/files/${encodeURIComponent(fileId)}`, {
+    method: "PUT",
+    body: JSON.stringify(updates),
+  });
+}
+
+export async function deleteClientFile(
+  clientId: string,
+  fileId: string
+): Promise<{ success: boolean; deletedFile: string }> {
+  return apiRequest(`/clients/${encodeURIComponent(clientId)}/files/${encodeURIComponent(fileId)}`, {
+    method: "DELETE",
+  });
+}
+
+export async function getPublicClientFiles(): Promise<{ files: ClientFileMeta[] }> {
+  return apiRequest("/client-files/public");
 }
 
 // --- WAF Management ---
