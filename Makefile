@@ -296,9 +296,22 @@ release: ## Create GitHub Release with auto-generated notes
 	@if [ -n "$(PREV_TAG)" ]; then \
 		echo "$(YELLOW)Changes since $(PREV_TAG):$(NC)"; \
 		echo ""; \
-		git log $(PREV_TAG)..HEAD --pretty=format:"  %C(yellow)%h%Creset %s %C(dim)(%cr)%Creset" | head -20; \
-		echo ""; \
-		echo ""; \
+		FEAT=$$(git log $(PREV_TAG)..HEAD --pretty=format:"%h %s" | grep -iE "^[a-f0-9]+ feat" || true); \
+		FIX=$$(git log $(PREV_TAG)..HEAD --pretty=format:"%h %s" | grep -iE "^[a-f0-9]+ fix" || true); \
+		if [ -n "$$FEAT" ]; then \
+			echo "$(GREEN)Features:$(NC)"; \
+			echo "$$FEAT" | while read line; do echo "  $$line"; done; \
+			echo ""; \
+		fi; \
+		if [ -n "$$FIX" ]; then \
+			echo "$(RED)Bug Fixes:$(NC)"; \
+			echo "$$FIX" | while read line; do echo "  $$line"; done; \
+			echo ""; \
+		fi; \
+		if [ -z "$$FEAT" ] && [ -z "$$FIX" ]; then \
+			echo "  (No feature or fix commits)"; \
+			echo ""; \
+		fi; \
 	else \
 		echo "$(YELLOW)This is the first release.$(NC)"; \
 		echo ""; \
@@ -311,11 +324,25 @@ release: ## Create GitHub Release with auto-generated notes
 	fi; \
 	echo ""; \
 	echo "$(CYAN)Creating release v$(VERSION)...$(NC)"; \
+	NOTES=""; \
 	if [ -n "$(PREV_TAG)" ]; then \
-		gh release create "v$(VERSION)" --generate-notes --notes-start-tag "$(PREV_TAG)" --title "v$(VERSION)"; \
+		FEAT=$$(git log $(PREV_TAG)..HEAD --pretty=format:"- %s (%h)" | grep -iE "^- feat" || true); \
+		FIX=$$(git log $(PREV_TAG)..HEAD --pretty=format:"- %s (%h)" | grep -iE "^- fix" || true); \
+		if [ -n "$$FEAT" ]; then \
+			NOTES="## Features\n$$FEAT"; \
+		fi; \
+		if [ -n "$$FIX" ]; then \
+			if [ -n "$$NOTES" ]; then NOTES="$$NOTES\n\n"; fi; \
+			NOTES="$${NOTES}## Bug Fixes\n$$FIX"; \
+		fi; \
+		if [ -z "$$NOTES" ]; then \
+			NOTES="Maintenance release."; \
+		fi; \
+		NOTES="$$NOTES\n\n**Full Changelog**: https://github.com/$(GITHUB_USER)/Proxy-Rule-Manager/compare/$(PREV_TAG)...v$(VERSION)"; \
 	else \
-		gh release create "v$(VERSION)" --generate-notes --title "v$(VERSION)"; \
+		NOTES="Initial release."; \
 	fi; \
+	echo -e "$$NOTES" | gh release create "v$(VERSION)" --title "v$(VERSION)" --notes-file -; \
 	echo ""; \
 	echo "$(GREEN)✓ Release v$(VERSION) created!$(NC)"; \
 	echo ""; \
