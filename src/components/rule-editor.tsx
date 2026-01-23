@@ -452,14 +452,6 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
     }));
   };
 
-  const duplicateTransform = (index: number) => {
-    setFormData((prev) => {
-      const transforms = [...(prev.transforms || [])];
-      transforms.splice(index + 1, 0, { ...transforms[index] });
-      return { ...prev, transforms };
-    });
-  };
-
   // 拖动排序
   const handleDragStart = (index: number) => setDraggedIndex(index);
   const handleDragEnd = () => setDraggedIndex(null);
@@ -834,7 +826,6 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                   transformers={transformers}
                   onChange={(updates) => updateTransform(index, updates)}
                   onRemove={() => removeTransform(index)}
-                  onDuplicate={() => duplicateTransform(index)}
                   onDragStart={() => handleDragStart(index)}
                   onDragOver={(e) => handleDragOver(e, index)}
                   onDragEnd={handleDragEnd}
@@ -1152,11 +1143,12 @@ interface TransformCardProps {
   transformers: Record<string, ScriptTransformer>;
   onChange: (updates: Partial<Transform>) => void;
   onRemove: () => void;
-  onDuplicate: () => void;
-  onDragStart: () => void;
-  onDragOver: (e: React.DragEvent) => void;
-  onDragEnd: () => void;
+  onDragStart?: () => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDragEnd?: () => void;
   isDragging: boolean;
+  draggable?: boolean;
+  showTarget?: boolean;
 }
 
 function TransformCard({
@@ -1165,11 +1157,12 @@ function TransformCard({
   transformers,
   onChange,
   onRemove,
-  onDuplicate,
   onDragStart,
   onDragOver,
   onDragEnd,
   isDragging,
+  draggable = true,
+  showTarget = true,
 }: TransformCardProps) {
   const [expanded, setExpanded] = useState(true);
 
@@ -1209,16 +1202,18 @@ function TransformCard({
     >
       <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            draggable
-            onDragStart={onDragStart}
-            onDragEnd={onDragEnd}
-            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
-            title="拖动排序"
-          >
-            <GripVertical className="w-4 h-4" />
-          </button>
+          {draggable && (
+            <button
+              type="button"
+              draggable
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+              title="拖动排序"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
@@ -1232,21 +1227,13 @@ function TransformCard({
             <Icon className="w-4 h-4 text-blue-500" />
             <span className="font-medium text-gray-900 dark:text-white">{getTypeLabel()}</span>
           </button>
-          <Badge variant="outline" className="text-xs">
-            {getTargetLabel()}
-          </Badge>
+          {showTarget && (
+            <Badge variant="outline" className="text-xs">
+              {getTargetLabel()}
+            </Badge>
+          )}
         </div>
         <div className="flex items-center gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={onDuplicate}
-            className="w-8 h-8 text-gray-400 hover:text-gray-600"
-            title="复制"
-          >
-            <Copy className="w-4 h-4" />
-          </Button>
           <Button
             type="button"
             variant="ghost"
@@ -1263,63 +1250,65 @@ function TransformCard({
       {expanded && (
         <div className="p-3 space-y-3">
           {/* 目标来源选择 */}
-          <div className="space-y-2">
-            <Label className="text-sm text-gray-500 flex items-center gap-2">
-              处理目标
-              <HelpIcon text={HELP_TEXTS.transformTarget} />
-            </Label>
-            <Select
-              value={transform.target === "all" ? "all" : "custom"}
-              onValueChange={(value) => {
-                if (value === "all") {
-                  onChange({ target: "all" });
-                } else {
-                  onChange({ target: [] });
-                }
-              }}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">全部来源</SelectItem>
-                <SelectItem value="custom">指定来源</SelectItem>
-              </SelectContent>
-            </Select>
+          {showTarget && (
+            <div className="space-y-2">
+              <Label className="text-sm text-gray-500 flex items-center gap-2">
+                处理目标
+                <HelpIcon text={HELP_TEXTS.transformTarget} />
+              </Label>
+              <Select
+                value={transform.target === "all" ? "all" : "custom"}
+                onValueChange={(value) => {
+                  if (value === "all") {
+                    onChange({ target: "all" });
+                  } else {
+                    onChange({ target: [] });
+                  }
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">全部来源</SelectItem>
+                  <SelectItem value="custom">指定来源</SelectItem>
+                </SelectContent>
+              </Select>
 
-            {Array.isArray(transform.target) && sources.length > 0 && (
-              <div className="flex flex-wrap gap-2 mt-2">
-                {sources.map((source, idx) => {
-                  const targetArray = transform.target as number[];
-                  const isSelected = targetArray.includes(idx);
-                  const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
-                  return (
-                    <label
-                      key={idx}
-                      className={`flex items-center gap-1 px-2 py-1 rounded border cursor-pointer text-sm ${isSelected
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
-                        : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700"
-                        }`}
-                    >
-                      <Checkbox
-                        checked={isSelected}
-                        onCheckedChange={(checked) => {
-                          const current = Array.isArray(transform.target) ? transform.target : [];
-                          if (checked) {
-                            onChange({ target: [...current, idx] });
-                          } else {
-                            onChange({ target: current.filter((i) => i !== idx) });
-                          }
-                        }}
-                      />
-                      <Icon className="w-3 h-3" />
-                      <span>{idx + 1}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+              {Array.isArray(transform.target) && sources.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {sources.map((source, idx) => {
+                    const targetArray = transform.target as number[];
+                    const isSelected = targetArray.includes(idx);
+                    const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
+                    return (
+                      <label
+                        key={idx}
+                        className={`flex items-center gap-1 px-2 py-1 rounded border cursor-pointer text-sm ${isSelected
+                          ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
+                          : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700"
+                          }`}
+                      >
+                        <Checkbox
+                          checked={isSelected}
+                          onCheckedChange={(checked) => {
+                            const current = Array.isArray(transform.target) ? transform.target : [];
+                            if (checked) {
+                              onChange({ target: [...current, idx] });
+                            } else {
+                              onChange({ target: current.filter((i) => i !== idx) });
+                            }
+                          }}
+                        />
+                        <Icon className="w-3 h-3" />
+                        <span>{idx + 1}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 类型特定字段 */}
           {transform.type === "use" && (
@@ -1508,11 +1497,12 @@ function ClientOverrideSection({
                 transformers={transformers}
                 onChange={(updates) => onUpdateTransform(index, updates)}
                 onRemove={() => onRemoveTransform(index)}
-                onDuplicate={() => { }} // 暂时不支持 duplicating client specific transforms easy way
                 isDragging={false}
                 onDragStart={() => { }}
                 onDragOver={() => { }}
                 onDragEnd={() => { }}
+                draggable={false}
+                showTarget={false}
               />
             ))}
 
