@@ -1,7 +1,7 @@
 name: Build and Push Docker Image
 
 on:
-  # Manual trigger
+  # Manual trigger only
   workflow_dispatch:
     inputs:
       tag:
@@ -17,10 +17,6 @@ on:
           - 'release'   # version + latest
           - 'dev'       # dev + git hash
           - 'isolated'  # tag only, no overwrite
-  
-  # Auto trigger on release
-  release:
-    types: [published]
 
 env:
   REGISTRY: ghcr.io
@@ -67,67 +63,57 @@ jobs:
       - name: Determine tags
         id: tags
         run: |
-          TAGS=""
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           # Convert to lowercase (ghcr requires lowercase)
           IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
           
-          # GitHub Release event
-          if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-            TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
-            echo "Build type: GitHub Release"
-            echo "Tags: ${VERSION}, latest"
+          TAG="${{ github.event.inputs.tag }}"
+          TAG_TYPE="${{ github.event.inputs.tag_type }}"
+          PKG_VERSION="${{ steps.pkg.outputs.version }}"
+          GIT_HASH="${{ steps.git.outputs.hash }}"
           
-          # Manual trigger
-          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TAG="${{ github.event.inputs.tag }}"
-            TAG_TYPE="${{ github.event.inputs.tag_type }}"
-            PKG_VERSION="${{ steps.pkg.outputs.version }}"
-            GIT_HASH="${{ steps.git.outputs.hash }}"
-            
-            case "$TAG_TYPE" in
-              "release")
-                # Use provided tag or package.json version
-                VERSION="${TAG:-$PKG_VERSION}"
-                TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
-                echo "Build type: Release"
-                echo "Tags: ${VERSION}, latest"
-                ;;
-              "dev")
-                # Dev: dev + git hash
-                TAGS="${IMAGE}:dev,${IMAGE}:${GIT_HASH}"
-                echo "Build type: Dev"
-                echo "Tags: dev, ${GIT_HASH}"
-                ;;
-              "isolated")
-                # Isolated: single tag only
-                if [ -z "$TAG" ]; then
-                  echo "Error: Tag is required for isolated builds"
-                  exit 1
-                fi
-                TAGS="${IMAGE}:${TAG}"
-                echo "Build type: Isolated"
-                echo "Tags: ${TAG}"
-                ;;
-            esac
-          fi
+          case "$TAG_TYPE" in
+            "release")
+              # Use provided tag or package.json version
+              VERSION="${TAG:-$PKG_VERSION}"
+              TAGS="${IMAGE}:${VERSION}
+          ${IMAGE}:latest"
+              echo "Build type: Release"
+              echo "Tags: ${VERSION}, latest"
+              ;;
+            "dev")
+              # Dev: dev + git hash
+              TAGS="${IMAGE}:dev
+          ${IMAGE}:${GIT_HASH}"
+              echo "Build type: Dev"
+              echo "Tags: dev, ${GIT_HASH}"
+              ;;
+            "isolated")
+              # Isolated: single tag only
+              if [ -z "$TAG" ]; then
+                echo "Error: Tag is required for isolated builds"
+                exit 1
+              fi
+              TAGS="${IMAGE}:${TAG}"
+              echo "Build type: Isolated"
+              echo "Tags: ${TAG}"
+              ;;
+          esac
           
-          echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+          # Use EOF delimiter for multiline output
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
 
       - name: Check if release version exists
-        if: github.event.inputs.tag_type == 'release' || github.event_name == 'release'
+        if: github.event.inputs.tag_type == 'release'
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
           IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
           
-          if [ "${{ github.event_name }}" = "release" ]; then
-            VERSION="${{ github.event.release.tag_name }}"
-          else
-            VERSION="${{ github.event.inputs.tag }}"
-            if [ -z "$VERSION" ]; then
-              VERSION="${{ steps.pkg.outputs.version }}"
-            fi
+          VERSION="${{ github.event.inputs.tag }}"
+          if [ -z "$VERSION" ]; then
+            VERSION="${{ steps.pkg.outputs.version }}"
           fi
           
           echo "Checking if ${VERSION} exists..."
@@ -171,11 +157,12 @@ jobs:
           echo "✓ Tag ${TAG} is available"
 
       - name: Build and push
-        uses: docker/bake-action@v5
+        uses: docker/build-push-action@v6
         with:
-          files: ./docker-bake.hcl
-          targets: app
+          context: .
+          file: ./Dockerfile
+          platforms: linux/amd64,linux/arm64
           push: true
-          set: |
-            app.tags=${{ steps.tags.outputs.tags }}
-          provenance: false
+          tags: ${{ steps.tags.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
