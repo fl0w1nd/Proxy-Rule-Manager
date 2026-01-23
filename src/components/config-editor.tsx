@@ -301,56 +301,56 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           e.currentTarget.value = "";
         }}
       />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <Card className="shadow-minimal border-none bg-card hover-lift">
           <CardHeader className="pb-2">
-            <CardDescription className="text-gray-500 dark:text-gray-400">配置版本</CardDescription>
+            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">配置版本</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900 dark:text-white">v{config?.version || 1}</div>
+            <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+        <Card className="shadow-minimal border-none bg-card hover-lift">
           <CardHeader className="pb-2">
-            <CardDescription className="text-gray-500 dark:text-gray-400">规则数量</CardDescription>
+            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">规则数量</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-blue-500">{config?.rules?.length || 0}</div>
+            <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
           </CardContent>
         </Card>
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+        <Card className="shadow-minimal border-none bg-card hover-lift">
           <CardHeader className="pb-2">
-            <CardDescription className="text-gray-500 dark:text-gray-400">预定义转换器</CardDescription>
+            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">预定义转换器</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-amber-500">
+            <div className="text-3xl font-mono font-bold tracking-tight text-orange-500">
               {Object.keys(config?.transformers || {}).length}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+      <Card className="shadow-minimal border-none bg-card">
         <CardHeader>
-          <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-            <Clock className="w-5 h-5 text-blue-500" />
+          <CardTitle className="text-foreground flex items-center gap-2 text-base font-medium">
+            <Clock className="w-5 h-5 text-primary" />
             定时同步
           </CardTitle>
-          <CardDescription className="text-gray-500 dark:text-gray-400">
+          <CardDescription className="text-muted-foreground">
             支持 interval 与 cron 两种模式，系统将按配置自动同步规则。
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {isScheduleLoading ? (
-            <div className="flex items-center gap-2 text-gray-500">
-              <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
               正在加载定时配置...
             </div>
           ) : (
             <>
               <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-gray-600 dark:text-gray-300">模式</span>
+                  <span className="text-sm font-medium text-foreground">模式</span>
                   <Select
                     value={scheduleMode}
                     onValueChange={(value) => setScheduleMode(value as "interval" | "cron")}
@@ -365,7 +365,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                   </Select>
                 </div>
                 {syncScheduleNextAt && (
-                  <span className="text-xs text-blue-500">
+                  <span className="text-xs font-mono text-primary">
                     下次同步: {new Date(syncScheduleNextAt).toLocaleString("zh-CN")}
                   </span>
                 )}
@@ -373,7 +373,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
 
               {scheduleMode === "interval" ? (
                 <div className="flex flex-col gap-2 md:flex-row md:items-center">
-                  <span className="text-sm text-gray-600 dark:text-gray-300">同步间隔</span>
+                  <span className="text-sm font-medium text-foreground">同步间隔</span>
                   <Select
                     value={String(intervalHours)}
                     onValueChange={(value) => setIntervalHours(parseInt(value, 10))}
@@ -394,17 +394,17 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <label className="text-sm text-gray-600 dark:text-gray-300">
+                  <label className="text-sm font-medium text-foreground">
                     Cron 表达式（支持 5/6 段）
                   </label>
                   <input
                     value={cronExpression}
                     onChange={(e) => setCronExpression(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border border-gray-300 dark:border-slate-600 bg-white dark:bg-slate-900 text-gray-900 dark:text-white text-sm font-mono"
+                    className="w-full px-3 py-2 rounded-md border border-input bg-background/50 text-foreground text-sm font-mono focus:ring-2 focus:ring-ring"
                     placeholder="0 0 * * *"
                   />
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    示例: <span className="font-mono">0 */6 * * *</span> 表示每 6 小时执行一次
+                  <p className="text-xs text-muted-foreground">
+                    示例: <span className="font-mono bg-muted px-1 rounded">0 */6 * * *</span> 表示每 6 小时执行一次
                   </p>
                 </div>
               )}
@@ -417,6 +417,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                     isScheduleUpdating ||
                     (scheduleMode === "cron" && !cronExpression.trim())
                   }
+                  className="bg-background hover:bg-muted font-medium"
                 >
                   {isScheduleUpdating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -424,7 +425,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                     "保存定时配置"
                   )}
                 </Button>
-                <span className="text-xs text-gray-500 dark:text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   Cron 模式变更后将重新计算下次同步时间。
                 </span>
               </div>

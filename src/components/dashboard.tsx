@@ -263,9 +263,9 @@ export function Dashboard({ onBack }: DashboardProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
+    <div className="min-h-screen transition-colors">
       {/* Header */}
-      <header className="border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm sticky top-0 z-50">
+      <header className="border-b bg-background/80 backdrop-blur-md sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             {onBack && (
@@ -410,78 +410,78 @@ export function Dashboard({ onBack }: DashboardProps) {
         )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
-            <TabsTrigger value="overview" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+          <TabsList className="bg-muted/50 p-1 border shadow-sm">
+            <TabsTrigger value="overview" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Activity className="w-4 h-4 mr-2" />
               概览
             </TabsTrigger>
-            <TabsTrigger value="activity" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="activity" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <History className="w-4 h-4 mr-2" />
               活动
             </TabsTrigger>
-            <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="rules" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <FileText className="w-4 h-4 mr-2" />
               规则
             </TabsTrigger>
-            <TabsTrigger value="transformers" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="transformers" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Code2 className="w-4 h-4 mr-2" />
               转换器
             </TabsTrigger>
-            <TabsTrigger value="clients" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="clients" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Monitor className="w-4 h-4 mr-2" />
               客户端
             </TabsTrigger>
-            <TabsTrigger value="security" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="security" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Shield className="w-4 h-4 mr-2" />
               安全
             </TabsTrigger>
-            <TabsTrigger value="config" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+            <TabsTrigger value="config" className="data-[state=active]:bg-background data-[state=active]:shadow-sm">
               <Settings className="w-4 h-4 mr-2" />
               配置
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="overview" className="mt-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+          <TabsContent value="overview" className="mt-6 space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <Card className="shadow-minimal border-none hover-lift bg-card">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">规则总数</CardDescription>
+                  <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">规则总数</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-gray-900 dark:text-white">
+                  <div className="text-3xl font-mono font-bold tracking-tight">
                     {status?.rulesCount || 0}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+              <Card className="shadow-minimal border-none hover-lift bg-card">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">今日变更</CardDescription>
+                  <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">今日变更</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-blue-500">
+                  <div className="text-3xl font-mono font-bold tracking-tight text-primary">
                     {status?.todayStats?.ruleFilesChanged || 0}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+              <Card className="shadow-minimal border-none hover-lift bg-card">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">规则文件</CardDescription>
+                  <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">规则文件</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-amber-500">
+                  <div className="text-3xl font-mono font-bold tracking-tight text-orange-500">
                     {status?.ruleFilesCount || 0}
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+              <Card className="shadow-minimal border-none hover-lift bg-card">
                 <CardHeader className="pb-2">
-                  <CardDescription className="text-gray-500 dark:text-gray-400">失败记录</CardDescription>
+                  <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">失败记录</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-red-500">
+                  <div className="text-3xl font-mono font-bold tracking-tight text-destructive">
                     {status?.todayStats?.failureRecords || 0}
                   </div>
                 </CardContent>
@@ -489,34 +489,34 @@ export function Dashboard({ onBack }: DashboardProps) {
             </div>
 
             {/* Last Sync Info */}
-            <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 mb-6">
+            <Card className="shadow-minimal border-none bg-card mb-6">
               <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-blue-500" />
+                <CardTitle className="flex items-center gap-2 text-base font-medium">
+                  <Clock className="w-5 h-5 text-primary" />
                   同步状态
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">上次同步</p>
-                    <p className="text-gray-900 dark:text-white">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">上次同步</p>
+                    <p className="text-sm font-mono">
                       {status?.lastSync?.lastFullSyncAt
                         ? new Date(status.lastSync.lastFullSyncAt).toLocaleString("zh-CN")
                         : "从未同步"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">上次单规则刷新</p>
-                    <p className="text-gray-900 dark:text-white">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">上次单规则刷新</p>
+                    <p className="text-sm font-mono">
                       {status?.lastSync?.lastPartialSyncAt
                         ? new Date(status.lastSync.lastPartialSyncAt).toLocaleString("zh-CN")
                         : "从未同步"}
                     </p>
                   </div>
                   <div>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">上次成功同步</p>
-                    <p className="text-gray-900 dark:text-white">
+                    <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">上次成功同步</p>
+                    <p className="text-sm font-mono">
                       {status?.lastSync?.lastSuccessfulSyncAt
                         ? new Date(status.lastSync.lastSuccessfulSyncAt).toLocaleString("zh-CN")
                         : "从未成功"}
@@ -528,18 +528,18 @@ export function Dashboard({ onBack }: DashboardProps) {
             </Card>
 
             {/* Rules Overview */}
-            <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+            <Card className="shadow-minimal border-none bg-card">
               <CardHeader>
-                <CardTitle className="text-gray-900 dark:text-white flex items-center justify-between">
-                  <span className="flex items-center gap-2">
-                    <FileText className="w-5 h-5 text-blue-500" />
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-base font-medium">
+                    <FileText className="w-5 h-5 text-primary" />
                     规则列表
                   </span>
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => setActiveTab("rules")}
-                    className="text-blue-500"
+                    className="text-primary hover:text-primary/80 hover:bg-primary/5"
                   >
                     <Plus className="w-4 h-4 mr-1" />
                     管理规则
@@ -547,19 +547,19 @@ export function Dashboard({ onBack }: DashboardProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="space-y-2 max-h-96 overflow-y-auto">
+                <div className="space-y-2 max-h-96 overflow-y-auto pr-2">
                   {status?.rules?.map((rule) => (
                     <div
                       key={rule.name}
-                      className="flex items-center justify-between p-3 rounded-lg bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                      className="flex items-center justify-between p-3 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all duration-200 group"
                     >
                       <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center">
-                          <FileText className="w-4 h-4 text-blue-500" />
+                        <div className="w-8 h-8 rounded-md bg-primary/10 flex items-center justify-center group-hover:scale-105 transition-transform">
+                          <FileText className="w-4 h-4 text-primary" />
                         </div>
                         <div>
-                          <p className="font-medium text-gray-900 dark:text-white">{rule.name}</p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                          <p className="font-medium text-sm text-foreground">{rule.name}</p>
+                          <p className="text-xs text-muted-foreground">
                             {rule.description || "无描述"}
                           </p>
                         </div>
@@ -569,13 +569,13 @@ export function Dashboard({ onBack }: DashboardProps) {
                           <Badge
                             key={client}
                             variant="secondary"
-                            className="bg-gray-200 dark:bg-slate-700 text-gray-700 dark:text-gray-300 whitespace-nowrap"
+                            className="bg-secondary text-secondary-foreground shadow-sm whitespace-nowrap text-[10px]"
                           >
                             {getClientDisplayName(client)}
                           </Badge>
                         ))}
                         {rule.hasError ? (
-                          <XCircle className="w-5 h-5 text-red-500" />
+                          <XCircle className="w-5 h-5 text-destructive" />
                         ) : (
                           <CheckCircle className="w-5 h-5 text-green-500" />
                         )}
@@ -583,7 +583,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </div>
                   ))}
                   {(!status?.rules || status.rules.length === 0) && (
-                    <div className="text-center py-8 text-gray-500 dark:text-gray-400">
+                    <div className="text-center py-8 text-muted-foreground text-sm">
                       暂无规则，请先添加规则配置
                     </div>
                   )}
@@ -595,8 +595,8 @@ export function Dashboard({ onBack }: DashboardProps) {
           <TabsContent value="activity" className="mt-6">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
               <div>
-                <h2 className="text-base font-semibold text-gray-900 dark:text-white">最近 7 天活动</h2>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <h2 className="text-base font-semibold">最近 7 天活动</h2>
+                <p className="text-xs text-muted-foreground">
                   记录规则文件变更与失败详情（保留 7 天）
                 </p>
               </div>
@@ -647,48 +647,49 @@ export function Dashboard({ onBack }: DashboardProps) {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+              <Card className="shadow-minimal border-none bg-card">
                 <CardHeader>
-                  <CardTitle className="text-gray-900 dark:text-white">变更记录</CardTitle>
-                  <CardDescription className="text-gray-500 dark:text-gray-400">
+                  <CardTitle>变更记录</CardTitle>
+                  <CardDescription>
                     规则文件的新增与更新
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isActivityLoading && changeItems.length === 0 ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-muted-foreground">
                       加载中...
                     </div>
                   ) : changeItems.length === 0 ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-muted-foreground">
                       暂无变更记录
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-2">
                       {changeItems.map((change) => (
                         <div
                           key={change.id}
-                          className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                          className="flex items-start justify-between gap-3 p-3 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all"
                         >
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium text-gray-900 dark:text-white">
+                              <span className="font-medium text-sm">
                                 {change.ruleName}
                               </span>
-                              <Badge variant="secondary">
+                              <Badge variant="secondary" className="text-[10px]">
                                 {getClientDisplayName(change.client)}
                               </Badge>
-                              <Badge className={getChangeBadgeClass(change.changeType)}>
+                              <Badge className={`${getChangeBadgeClass(change.changeType)} text-[10px]`}>
                                 {getChangeLabel(change.changeType)}
                               </Badge>
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                            <p className="text-xs text-muted-foreground mt-1">
                               {formatTimestamp(change.timestamp)} · {formatBytes(change.sizeBytes)}
                             </p>
                           </div>
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-7 text-xs"
                             onClick={() => openChangeDiff(change)}
                           >
                             查看 diff
@@ -698,13 +699,13 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </div>
                   )}
                   {changeItems.length > 0 && (
-                    <div className="flex items-center justify-between pt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-between pt-3 text-xs text-muted-foreground">
                       <span>
                         第 {changeData?.page || 1} / {changeTotalPages} 页
                       </span>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           disabled={(changeData?.page || 1) <= 1}
                           onClick={() => setChangePage((prev) => Math.max(1, prev - 1))}
@@ -712,7 +713,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                           上一页
                         </Button>
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           disabled={(changeData?.page || 1) >= changeTotalPages}
                           onClick={() =>
@@ -727,53 +728,54 @@ export function Dashboard({ onBack }: DashboardProps) {
                 </CardContent>
               </Card>
 
-              <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+              <Card className="shadow-minimal border-none bg-card">
                 <CardHeader>
-                  <CardTitle className="text-gray-900 dark:text-white">失败记录</CardTitle>
-                  <CardDescription className="text-gray-500 dark:text-gray-400">
+                  <CardTitle>失败记录</CardTitle>
+                  <CardDescription>
                     规则处理或来源异常
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {isActivityLoading && failureItems.length === 0 ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-muted-foreground">
                       加载中...
                     </div>
                   ) : failureItems.length === 0 ? (
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                    <div className="text-sm text-muted-foreground">
                       暂无失败记录
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-[28rem] overflow-y-auto">
+                    <div className="space-y-2 max-h-[28rem] overflow-y-auto pr-2">
                       {failureItems.map((failure) => (
                         <div
                           key={failure.id}
-                          className="flex items-start justify-between gap-3 p-3 rounded-lg bg-gray-50 dark:bg-slate-900 hover:bg-gray-100 dark:hover:bg-slate-800 transition-colors"
+                          className="flex items-start justify-between gap-3 p-3 rounded-lg border border-transparent hover:border-border hover:bg-muted/30 transition-all"
                         >
                           <div className="min-w-0">
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium text-gray-900 dark:text-white">
+                              <span className="font-medium text-sm">
                                 {failure.ruleName}
                               </span>
                               {failure.client && (
-                                <Badge variant="secondary">
+                                <Badge variant="secondary" className="text-[10px]">
                                   {getClientDisplayName(failure.client)}
                                 </Badge>
                               )}
                               {failure.source && (
-                                <Badge variant="secondary">{failure.source}</Badge>
+                                <Badge variant="secondary" className="text-[10px]">{failure.source}</Badge>
                               )}
                             </div>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2">
+                            <p className="text-xs text-muted-foreground mt-1 line-clamp-2">
                               {failure.message}
                             </p>
-                            <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
+                            <p className="text-xs text-muted-foreground/60 mt-1">
                               {formatTimestamp(failure.timestamp)}
                             </p>
                           </div>
                           <Button
                             variant="outline"
                             size="sm"
+                            className="h-7 text-xs"
                             onClick={() => setSelectedFailure(failure)}
                           >
                             查看
@@ -783,13 +785,13 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </div>
                   )}
                   {failureItems.length > 0 && (
-                    <div className="flex items-center justify-between pt-3 text-xs text-gray-500 dark:text-gray-400">
+                    <div className="flex items-center justify-between pt-3 text-xs text-muted-foreground">
                       <span>
                         第 {failureData?.page || 1} / {failureTotalPages} 页
                       </span>
                       <div className="flex items-center gap-2">
                         <Button
-                          variant="outline"
+                          variant="ghost"
                           size="sm"
                           disabled={(failureData?.page || 1) <= 1}
                           onClick={() => setFailurePage((prev) => Math.max(1, prev - 1))}

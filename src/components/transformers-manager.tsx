@@ -317,63 +317,65 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-          <CardContent className="py-12 text-center">
-            <Code2 className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-4" />
-            <p className="text-gray-500 dark:text-gray-400 mb-4">
-              暂无预定义转换器
-            </p>
-            <Button onClick={handleCreate}>
+        <Card className="shadow-minimal border-none bg-card">
+          <CardContent className="py-16 text-center text-muted-foreground flex flex-col items-center">
+            <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
+              <Code2 className="w-8 h-8 text-muted-foreground/50" />
+            </div>
+            <p className="mb-6 font-medium">暂无预定义转换器</p>
+            <Button onClick={handleCreate} className="shadow-sm">
               <Plus className="w-4 h-4 mr-1" />
               创建第一个转换器
             </Button>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {transformerList.map(([name, transformer]) => (
             <Card
               key={name}
-              className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
+              className="shadow-minimal border-none bg-card hover-lift group relative overflow-hidden"
             >
-              <CardHeader className="pb-2">
+              <CardHeader className="pb-3 z-10 relative">
                 <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-purple-100 to-blue-100 dark:from-purple-900/30 dark:to-blue-900/30 flex items-center justify-center">
-                      <Code2 className="w-5 h-5 text-purple-500" />
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-md bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                      <Code2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-base">{name}</CardTitle>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                      <CardTitle className="text-base font-semibold">{name}</CardTitle>
+                      <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={transformer.description}>
                         {transformer.description || "无描述"}
                       </p>
                     </div>
                   </div>
                 </div>
               </CardHeader>
-              <CardContent>
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-400">
+              <CardContent className="z-10 relative">
+                <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-1">
+                  <span className="text-xs text-muted-foreground font-mono">
                     {transformer.updatedAt
                       ? new Date(transformer.updatedAt).toLocaleDateString("zh-CN")
-                      : ""}
+                      : "未更新"}
                   </span>
-                  <div className="flex gap-1">
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 bottom-4 bg-card shadow-sm border rounded-md p-0.5">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleEdit(name)}
-                      className="w-8 h-8"
+                      className="w-7 h-7 hover:bg-muted"
+                      title="编辑"
                     >
-                      <Edit3 className="w-4 h-4" />
+                      <Edit3 className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => setDeletingTransformer(name)}
-                      className="w-8 h-8 text-gray-400 hover:text-red-500"
+                      className="w-7 h-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                      title="删除"
                     >
-                      <Trash2 className="w-4 h-4" />
+                      <Trash2 className="w-3.5 h-3.5" />
                     </Button>
                   </div>
                 </div>

@@ -165,20 +165,20 @@ function SectionHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between py-3 px-4 bg-gray-100 dark:bg-slate-800 rounded-t-lg border-b border-gray-200 dark:border-slate-700">
+    <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-t-lg border-b hover:bg-muted/50 transition-colors">
       <button
         type="button"
         onClick={onToggle}
         className="flex items-center gap-2 flex-1 min-w-0"
       >
-        <span className="flex-shrink-0">
+        <span className="flex-shrink-0 text-muted-foreground">
           {expanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500" />
+            <ChevronDown className="w-4 h-4" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500" />
+            <ChevronRight className="w-4 h-4" />
           )}
         </span>
-        <span className="font-medium text-gray-900 dark:text-white truncate">{title}</span>
+        <span className="font-medium text-sm text-foreground truncate">{title}</span>
         {help && <HelpIcon text={help} />}
         {badge}
       </button>
@@ -627,32 +627,33 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
           onToggle={() => toggleSection("basic")}
         />
         {expandedSections.has("basic") && (
-          <div className="p-4 space-y-4 bg-white dark:bg-slate-900">
+          <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  规则 ID <span className="text-red-500">*</span>
+                <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  规则 ID <span className="text-destructive">*</span>
                   <HelpIcon text="规则的唯一标识符，决定 URL 路径。例如：YouTube 会生成 /Rules/Clash Meta/YouTube.list" />
                 </Label>
                 <Input
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="例如: YouTube"
+                  className="font-mono"
                 />
-                <p className="text-xs text-gray-500">修改后将同时重命名规则文件</p>
+                <p className="text-[10px] text-muted-foreground">修改后将同时重命名规则文件</p>
               </div>
               <div className="space-y-2">
-                <Label>显示名称（可选）</Label>
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">显示名称（可选）</Label>
                 <Input
                   value={formData.displayName || ""}
                   onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
                   placeholder="例如: YouTube视频"
                 />
-                <p className="text-xs text-gray-500">界面显示的名称，留空则使用规则 ID</p>
+                <p className="text-[10px] text-muted-foreground">界面显示的名称，留空则使用规则 ID</p>
               </div>
             </div>
             <div className="space-y-2">
-              <Label className="flex items-center gap-2">
+              <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                 描述
                 <HelpIcon text={HELP_TEXTS.description} />
               </Label>
@@ -661,6 +662,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                 onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                 placeholder="规则描述..."
                 rows={2}
+                className="resize-none"
               />
             </div>
           </div>
@@ -668,7 +670,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
       </div>
 
       {/* 数据来源 */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+      <div className="rounded-lg border shadow-sm bg-card overflow-hidden">
         <SectionHeader
           title="数据来源"
           help={HELP_TEXTS.sources}
@@ -683,17 +685,17 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
           }
         />
         {expandedSections.has("sources") && (
-          <div className="p-4 space-y-3 bg-white dark:bg-slate-900">
+          <div className="p-4 space-y-3">
             {/* 来源列表 */}
             {formData.sources?.map((source, index) => {
               const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
               return (
                 <div
                   key={index}
-                  className="flex items-start gap-3 p-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800"
+                  className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
                 >
                   <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Badge variant="outline" className="shrink-0 gap-1">
+                    <Badge variant="outline" className="shrink-0 gap-1 bg-background">
                       <Icon className="w-3 h-3" />
                       {index + 1}
                     </Badge>
@@ -703,7 +705,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                         value={source.url || ""}
                         onChange={(e) => updateSource(index, { url: e.target.value })}
                         placeholder="https://example.com/rules.list"
-                        className="flex-1"
+                        className="flex-1 h-8 text-sm"
                       />
                     )}
 
@@ -712,7 +714,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                         value={source.ref || ""}
                         onValueChange={(value) => updateSource(index, { ref: value })}
                       >
-                        <SelectTrigger className="flex-1 min-w-0">
+                        <SelectTrigger className="flex-1 min-w-0 h-8">
                           <SelectValue placeholder="选择引用规则" className="truncate" />
                         </SelectTrigger>
                         <SelectContent className="max-w-[300px]">
@@ -727,19 +729,20 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
 
                     {source.type === "local" && (
                       <div className="flex-1 flex items-center gap-2">
-                        <span className="text-sm text-gray-500 truncate flex-1">
+                        <span className="text-sm text-muted-foreground truncate flex-1 font-mono">
                           {source.content ? `${source.content.split('\n').length} 行内容` : "未编辑"}
                         </span>
                         <Button
                           type="button"
                           variant="outline"
                           size="sm"
+                          className="h-8"
                           onClick={() => {
                             setLocalContentDraft(source.content || "");
                             setEditingLocalContent(index);
                           }}
                         >
-                          <Edit3 className="w-4 h-4 mr-1" />
+                          <Edit3 className="w-3 h-3 mr-1" />
                           编辑
                         </Button>
                       </div>
@@ -750,7 +753,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                     variant="ghost"
                     size="icon"
                     onClick={() => removeSource(index)}
-                    className="shrink-0 text-gray-400 hover:text-red-500"
+                    className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
                   >
                     <Trash2 className="w-4 h-4" />
                   </Button>
@@ -765,8 +768,9 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                 variant="outline"
                 size="sm"
                 onClick={() => addSource("url")}
+                className="bg-background shadow-xs hover:bg-muted"
               >
-                <Link2 className="w-4 h-4 mr-1" />
+                <Link2 className="w-3 h-3 mr-1" />
                 URL 来源
               </Button>
               <Button
@@ -774,8 +778,9 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                 variant="outline"
                 size="sm"
                 onClick={() => addSource("ref")}
+                className="bg-background shadow-xs hover:bg-muted"
               >
-                <FolderInput className="w-4 h-4 mr-1" />
+                <FolderInput className="w-3 h-3 mr-1" />
                 引用规则
               </Button>
               <Button
@@ -783,8 +788,9 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                 variant="outline"
                 size="sm"
                 onClick={() => addSource("local")}
+                className="bg-background shadow-xs hover:bg-muted"
               >
-                <FileText className="w-4 h-4 mr-1" />
+                <FileText className="w-3 h-3 mr-1" />
                 本地内容
               </Button>
             </div>
@@ -1491,8 +1497,8 @@ function ClientOverrideSection({
                 <div
                   key={`global-${index}`}
                   className={`p-2 rounded border border-dashed text-sm ${useGlobalTransforms
-                      ? "border-gray-300 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50 text-gray-600 dark:text-gray-400"
-                      : "border-gray-200 dark:border-slate-700 bg-gray-50/30 dark:bg-slate-800/30 text-gray-400 dark:text-gray-500 line-through"
+                    ? "border-gray-300 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50 text-gray-600 dark:text-gray-400"
+                    : "border-gray-200 dark:border-slate-700 bg-gray-50/30 dark:bg-slate-800/30 text-gray-400 dark:text-gray-500 line-through"
                     }`}
                 >
                   <span className="font-medium">#{index + 1}</span>

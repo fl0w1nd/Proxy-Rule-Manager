@@ -170,77 +170,88 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     return (
         <>
-            <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+            <Card className="shadow-minimal border-none bg-card">
                 <CardHeader>
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-                                <Monitor className="w-5 h-5 text-blue-500" />
+                            <CardTitle className="text-foreground flex items-center gap-2 text-base font-medium">
+                                <Monitor className="w-5 h-5 text-primary" />
                                 客户端管理
                             </CardTitle>
-                            <CardDescription className="text-gray-500 dark:text-gray-400">
+                            <CardDescription className="text-muted-foreground">
                                 管理代理客户端类型，添加新客户端或修改现有客户端
                             </CardDescription>
                         </div>
-                        <Button onClick={openAddDialog} size="sm">
+                        <Button onClick={openAddDialog} size="sm" className="shadow-sm">
                             <Plus className="w-4 h-4 mr-2" />
                             添加客户端
                         </Button>
                     </div>
                 </CardHeader>
                 <CardContent>
-                    <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                         {clients.map((client) => (
                             <div
                                 key={client.id}
-                                className="flex items-center justify-between p-4 rounded-lg bg-gray-50 dark:bg-slate-900"
+                                className="group flex flex-col justify-between p-4 rounded-lg border border-transparent bg-muted/30 hover:bg-muted/50 hover:border-border transition-all duration-200"
                             >
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                                        <Monitor className="w-5 h-5 text-blue-500" />
+                                <div className="space-y-4">
+                                    <div className="flex items-center justify-between">
+                                        <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                            <Monitor className="w-5 h-5 text-primary" />
+                                        </div>
+                                        <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 hover:bg-background/80"
+                                                onClick={() => openEditDialog(client)}
+                                            >
+                                                <Pencil className="w-3.5 h-3.5" />
+                                            </Button>
+                                            <Button
+                                                variant="ghost"
+                                                size="icon"
+                                                className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                onClick={() => handleDelete(client)}
+                                            >
+                                                <Trash2 className="w-3.5 h-3.5" />
+                                            </Button>
+                                        </div>
                                     </div>
+
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <p className="font-medium text-gray-900 dark:text-white">
+                                        <div className="flex items-center gap-2 mb-1">
+                                            <p className="font-medium text-foreground">
                                                 {client.displayName}
                                             </p>
                                             {client.transforms && client.transforms.length > 0 && (
-                                                <Badge variant="secondary" className="text-xs">
+                                                <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
                                                     <Settings2 className="w-3 h-3 mr-1" />
-                                                    {client.transforms.length} 个转换器
+                                                    {client.transforms.length}
                                                 </Badge>
                                             )}
                                         </div>
-                                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                                            ID: {client.id} | 路径: /Rules/{client.pathName}/
+                                        <p className="text-xs text-muted-foreground font-mono">
+                                            ID: {client.id}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate" title={`/Rules/${client.pathName}/`}>
+                                            /Rules/{client.pathName}/
                                         </p>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => openEditDialog(client)}
-                                    >
-                                        <Pencil className="w-4 h-4" />
-                                    </Button>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        onClick={() => handleDelete(client)}
-                                        className="text-red-500 hover:text-red-600"
-                                    >
-                                        <Trash2 className="w-4 h-4" />
-                                    </Button>
-                                </div>
                             </div>
                         ))}
-                        {clients.length === 0 && (
-                            <div className="text-center py-8 text-gray-500 dark:text-gray-400">
-                                暂无客户端配置
-                            </div>
-                        )}
                     </div>
+                    {clients.length === 0 && (
+                        <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
+                            <Monitor className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
+                            <p>暂无客户端配置</p>
+                            <Button variant="link" onClick={openAddDialog} className="mt-2 text-primary">
+                                立即添加
+                            </Button>
+                        </div>
+                    )}
                 </CardContent>
             </Card>
 
