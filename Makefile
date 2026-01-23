@@ -342,7 +342,7 @@ release: ## Create GitHub Release with auto-generated notes
 	else \
 		NOTES="Initial release."; \
 	fi; \
-	echo -e "$$NOTES" | gh release create "v$(VERSION)" --title "v$(VERSION)" --notes-file -; \
+	printf "%b" "$$NOTES" | gh release create "v$(VERSION)" --title "v$(VERSION)" --notes-file -; \
 	echo ""; \
 	echo "$(GREEN)✓ Release v$(VERSION) created!$(NC)"; \
 	echo ""; \
