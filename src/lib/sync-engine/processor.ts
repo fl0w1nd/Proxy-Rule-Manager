@@ -1,10 +1,5 @@
 import { RuleConfig, ClientType, TransformersConfig, ClientConfig } from "../schema";
-import {
-  applyTransforms,
-  applyNewTransforms,
-  mergeContents,
-  addRuleHeader,
-} from "../transformer";
+import { applyNewTransforms, mergeContents, addRuleHeader } from "../transformer";
 import { fetchSource } from "./fetcher";
 import { readLocalSourceContent } from "../local-source-store";
 
@@ -93,45 +88,9 @@ export async function processRule(
       const strategy = rule.merge?.strategy || "concat";
       const dedupe = rule.merge?.dedupe || false;
       baseContent = mergeContents(processedContents, strategy, dedupe);
-    } else if (rule.compose_from && rule.compose_from.length > 0) {
-      const composeContents: string[] = [];
-
-      for (const depRuleName of rule.compose_from) {
-        const depContents = ruleContentsCache.get(depRuleName);
-        if (depContents) {
-          const depContent = depContents.get(client) || depContents.values().next().value;
-          if (depContent) {
-            composeContents.push(depContent);
-          }
-        } else {
-          result.errors.push(`Dependency rule "${depRuleName}" not found in cache`);
-        }
-      }
-
-      if (composeContents.length === 0) {
-        result.errors.push(`No compose sources available for client ${client}`);
-        continue;
-      }
-
-      let processedContents = composeContents;
-      if (rule.transforms && rule.transforms.length > 0) {
-        processedContents = applyNewTransforms(
-          composeContents,
-          rule.transforms,
-          transformersConfig
-        );
-      }
-
-      const composeStrategy = rule.merge?.strategy || "concat";
-      const composeDedupe = rule.merge?.dedupe ?? true;
-      baseContent = mergeContents(processedContents, composeStrategy, composeDedupe);
     } else {
-      result.errors.push("Rule has no sources or compose_from");
+      result.errors.push("Rule has no sources");
       return result;
-    }
-
-    if (rule.post_transforms && rule.post_transforms.length > 0) {
-      baseContent = applyTransforms(baseContent, rule.post_transforms, transformersConfig);
     }
 
     // 应用客户端差异化配置的转换器

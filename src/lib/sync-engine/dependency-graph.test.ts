@@ -10,7 +10,6 @@ import type { RuleConfig } from "../schema";
 function createRule(
     name: string,
     options: {
-        compose_from?: string[];
         refs?: string[];
         clients?: string[];
     } = {}
@@ -18,7 +17,6 @@ function createRule(
     const sources = options.refs?.map((ref) => ({ type: "ref" as const, ref }));
     return {
         name,
-        compose_from: options.compose_from,
         sources,
         output: {
             clients: options.clients || ["clash_meta"],
@@ -27,22 +25,10 @@ function createRule(
 }
 
 describe("extractDependencies", () => {
-    it("should extract dependencies from compose_from", () => {
-        const rule = createRule("A", { compose_from: ["B", "C"] });
-        const deps = extractDependencies(rule);
-        expect(deps).toEqual(new Set(["B", "C"]));
-    });
-
     it("should extract dependencies from sources with ref type", () => {
         const rule = createRule("A", { refs: ["D", "E"] });
         const deps = extractDependencies(rule);
         expect(deps).toEqual(new Set(["D", "E"]));
-    });
-
-    it("should extract dependencies from both compose_from and sources", () => {
-        const rule = createRule("A", { compose_from: ["B"], refs: ["C"] });
-        const deps = extractDependencies(rule);
-        expect(deps).toEqual(new Set(["B", "C"]));
     });
 
     it("should return empty set for rule with no dependencies", () => {
@@ -52,7 +38,7 @@ describe("extractDependencies", () => {
     });
 
     it("should handle duplicate dependencies", () => {
-        const rule = createRule("A", { compose_from: ["B", "B"], refs: ["B"] });
+        const rule = createRule("A", { refs: ["B", "B"] });
         const deps = extractDependencies(rule);
         expect(deps).toEqual(new Set(["B"]));
         expect(deps.size).toBe(1);

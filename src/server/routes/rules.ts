@@ -33,10 +33,6 @@ export function registerRuleRoutes(app: Hono) {
       const dependentRules: string[] = [];
       for (const r of config.rules) {
         if (r.name === ruleName) continue;
-        if (r.compose_from?.includes(ruleName)) {
-          dependentRules.push(r.name);
-          continue;
-        }
         if (r.sources?.some((s) => s.type === "ref" && s.ref === ruleName)) {
           dependentRules.push(r.name);
         }

@@ -1,5 +1,4 @@
 import {
-  Transformer,
   TransformersConfig,
   Transform,
 } from "./schema";
@@ -17,97 +16,6 @@ function executeScript(content: string, script: string): string {
   }
 }
 
-// 执行旧版转换步骤（用于兼容旧配置）
-function executeLegacyStep(content: string, step: Transformer): string {
-  if ("use" in step) {
-    // 这是引用，需要在外层处理
-    return content;
-  }
-  
-  const typedStep = step as { type: string; [key: string]: unknown };
-  
-  switch (typedStep.type) {
-    case "replace": {
-      const regex = new RegExp(typedStep.pattern as string, (typedStep.flags as string) || "g");
-      return content.replace(regex, typedStep.replacement as string);
-    }
-    
-    case "remove_lines": {
-      const regex = new RegExp(typedStep.pattern as string);
-      return content
-        .split("\n")
-        .filter((line) => !regex.test(line))
-        .join("\n");
-    }
-    
-    case "regex_extract": {
-      const regex = new RegExp(typedStep.pattern as string, "gm");
-      const results: string[] = [];
-      let match;
-      while ((match = regex.exec(content)) !== null) {
-        let output = typedStep.template as string;
-        for (let i = 0; i < match.length; i++) {
-          output = output.replace(new RegExp(`\\$${i}`, "g"), match[i] || "");
-        }
-        results.push(output);
-      }
-      return results.join("\n");
-    }
-    
-    case "dedupe": {
-      const lines = content.split("\n");
-      const seen = new Set<string>();
-      const result: string[] = [];
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed && !seen.has(trimmed)) {
-          seen.add(trimmed);
-          result.push(line);
-        } else if (!trimmed) {
-          result.push(line);
-        }
-      }
-      return result.join("\n");
-    }
-    
-    case "sort": {
-      const lines = content.split("\n");
-      const comments: string[] = [];
-      const rules: string[] = [];
-      
-      for (const line of lines) {
-        if (line.trim().startsWith("#") || line.trim() === "") {
-          comments.push(line);
-        } else {
-          rules.push(line);
-        }
-      }
-      
-      rules.sort((a, b) => {
-        if (typedStep.order === "desc") {
-          return b.localeCompare(a);
-        }
-        return a.localeCompare(b);
-      });
-      
-      return [...comments, ...rules].join("\n");
-    }
-    
-    case "trim": {
-      return content
-        .split("\n")
-        .map((line) => line.trim())
-        .join("\n");
-    }
-    
-    case "normalize_eol": {
-      return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-    }
-    
-    default:
-      return content;
-  }
-}
 
 // 执行新版转换（支持指定目标来源）
 function executeNewTransform(
@@ -152,29 +60,6 @@ function executeNewTransform(
         return content;
     }
   });
-}
-
-// 执行一系列旧版转换
-export function applyTransforms(
-  content: string,
-  transformers: Transformer[],
-  transformersConfig: TransformersConfig = {}
-): string {
-  let result = content;
-  
-  for (const transformer of transformers) {
-    if ("use" in transformer) {
-      // 引用预定义转换器
-      const scriptTransformer = transformersConfig[transformer.use];
-      if (scriptTransformer && scriptTransformer.script) {
-        result = executeScript(result, scriptTransformer.script);
-      }
-    } else {
-      result = executeLegacyStep(result, transformer);
-    }
-  }
-  
-  return result;
 }
 
 // 执行新版转换（对多个来源内容）

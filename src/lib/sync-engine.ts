@@ -266,10 +266,9 @@ export async function executePartialSync(ruleName: string): Promise<{
 
     function findDependents(name: string) {
       for (const rule of config.rules) {
-        const dependsViaCompose = rule.compose_from?.includes(name);
         const dependsViaRef = rule.sources?.some((s) => s.type === "ref" && s.ref === name);
 
-        if (dependsViaCompose || dependsViaRef) {
+        if (dependsViaRef) {
           if (!affectedRules.has(rule.name)) {
             affectedRules.add(rule.name);
             findDependents(rule.name);
@@ -452,12 +451,6 @@ export async function previewRule(
   const ruleContentsCache = new Map<string, Map<ClientType, string>>();
 
   const allDependencies = new Set<string>();
-
-  if (rule.compose_from) {
-    for (const dep of rule.compose_from) {
-      allDependencies.add(dep);
-    }
-  }
 
   if (rule.sources) {
     for (const source of rule.sources) {

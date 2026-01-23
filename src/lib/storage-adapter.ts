@@ -122,31 +122,6 @@ async function loadDb(): Promise<Database> {
         await ensureDataDir();
         const content = await fs.readFile(DB_FILE, "utf-8");
         dbCache = JSON.parse(content) as Database;
-        // 兼容旧数据：如果没有 clients 字段，使用默认值
-        if (!dbCache.clients) {
-            dbCache.clients = DEFAULT_CLIENTS;
-        }
-        if (!dbCache.clientFiles) {
-            dbCache.clientFiles = {};
-        }
-        const dbRecord = dbCache as unknown as Record<string, unknown>;
-        if ("ruleFileChanges" in dbRecord) {
-            delete dbRecord.ruleFileChanges;
-        }
-        if ("failureRecords" in dbRecord) {
-            delete dbRecord.failureRecords;
-        }
-        if (dbCache.dailyStats) {
-            for (const stats of Object.values(dbCache.dailyStats)) {
-                const record = stats as Record<string, unknown>;
-                if ("ruleFilesChanged" in record) {
-                    delete record.ruleFilesChanged;
-                }
-                if ("failureRecords" in record) {
-                    delete record.failureRecords;
-                }
-            }
-        }
         // 初始化客户端映射
         updateClientMappings(dbCache.clients);
         if (hasInlineLocalSources(dbCache.config)) {
@@ -694,11 +669,8 @@ export async function renameRule(
     // 更新规则配置
     db.config.rules[ruleIndex].name = newName;
 
-    // 更新其他规则中对该规则的引用 (compose_from / ref)
+    // 更新其他规则中对该规则的引用 (ref)
     for (const r of db.config.rules) {
-        if (r.compose_from) {
-            r.compose_from = r.compose_from.map(ref => ref === oldName ? newName : ref);
-        }
         if (r.sources) {
             for (const source of r.sources) {
                 if (source.ref === oldName) {
@@ -934,15 +906,20 @@ export async function updateLastSyncInfo(
 // --- Sync Schedule ---
 export async function getSyncSchedule(): Promise<SyncSchedule> {
     const db = await loadDb();
-    // 兼容旧数据：如果没有 syncSchedule 字段，返回默认值
-    return normalizeSyncSchedule(db.syncSchedule || DEFAULT_SYNC_SCHEDULE);
+    if (!db.syncSchedule) {
+        throw new Error("Sync schedule missing in database");
+    }
+    return normalizeSyncSchedule(db.syncSchedule);
 }
 
 export async function updateSyncSchedule(
     updates: Partial<SyncSchedule>
 ): Promise<void> {
     const db = await loadDb();
-    const current = normalizeSyncSchedule(db.syncSchedule || DEFAULT_SYNC_SCHEDULE);
+    if (!db.syncSchedule) {
+        throw new Error("Sync schedule missing in database");
+    }
+    const current = normalizeSyncSchedule(db.syncSchedule);
     db.syncSchedule = normalizeSyncSchedule({ ...current, ...updates });
     await saveDb(db);
 }

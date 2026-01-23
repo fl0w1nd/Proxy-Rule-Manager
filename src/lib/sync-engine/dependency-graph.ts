@@ -3,12 +3,6 @@ import { RuleConfig } from "../schema";
 export function extractDependencies(rule: RuleConfig): Set<string> {
   const deps = new Set<string>();
 
-  if (rule.compose_from) {
-    for (const ref of rule.compose_from) {
-      deps.add(ref);
-    }
-  }
-
   if (rule.sources) {
     for (const source of rule.sources) {
       if (source.type === "ref" && source.ref) {

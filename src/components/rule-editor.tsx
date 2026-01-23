@@ -95,18 +95,9 @@ const SOURCE_TYPE_ICONS = {
   local: FileText,
 };
 
-// 转换旧格式到新格式
+// 规范化规则数据
 function migrateRule(rule: RuleConfig): RuleConfig {
   const newRule = { ...rule };
-
-  // 迁移 compose_from 到 sources
-  if (rule.compose_from && rule.compose_from.length > 0 && (!rule.sources || rule.sources.length === 0)) {
-    newRule.sources = rule.compose_from.map((ref) => ({
-      type: "ref" as SourceType,
-      ref,
-    }));
-    newRule.compose_from = undefined;
-  }
 
   // 确保 sources 中有 type 字段
   if (newRule.sources) {

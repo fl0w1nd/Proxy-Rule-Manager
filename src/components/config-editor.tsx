@@ -598,23 +598,21 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             <ul className="space-y-1 list-disc list-inside text-gray-600 dark:text-gray-400">
               <li><code className="text-blue-600 dark:text-blue-400">replace</code> - 正则替换</li>
               <li><code className="text-blue-600 dark:text-blue-400">remove_lines</code> - 删除匹配行</li>
-              <li><code className="text-blue-600 dark:text-blue-400">regex_extract</code> - 正则提取并模板化</li>
-              <li><code className="text-blue-600 dark:text-blue-400">dedupe</code> - 去重</li>
-              <li><code className="text-blue-600 dark:text-blue-400">sort</code> - 排序</li>
-              <li><code className="text-blue-600 dark:text-blue-400">trim</code> - 去空白</li>
-              <li><code className="text-blue-600 dark:text-blue-400">normalize_eol</code> - 规范换行符</li>
             </ul>
           </div>
 
           <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-2">聚合规则</h4>
+            <h4 className="font-medium text-gray-900 dark:text-white mb-2">引用规则</h4>
             <pre className="p-3 rounded bg-gray-100 dark:bg-slate-900 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
               {`rules:
   - name: ProxyMedia
-    compose_from:         # 聚合其他规则
-      - YouTube
-      - Netflix
-      - Spotify
+    sources:
+      - type: ref
+        ref: YouTube
+      - type: ref
+        ref: Netflix
+      - type: ref
+        ref: Spotify
     merge:
       strategy: union
     output:

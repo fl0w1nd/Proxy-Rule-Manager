@@ -31,13 +31,13 @@ export const DEFAULT_CLIENTS: ClientConfig[] = [
   { id: "shadowrocket", displayName: "Shadowrocket", pathName: "Shadowrocket" },
 ];
 
-// 兼容旧代码的显示名称映射（运行时动态生成）
+// 显示名称映射（运行时动态生成）
 export let CLIENT_DISPLAY_NAMES: Record<string, string> = {
   clash_meta: "Clash Meta / Stash",
   shadowrocket: "Shadowrocket",
 };
 
-// 兼容旧代码的路径名称映射（运行时动态生成）
+// 路径名称映射（运行时动态生成）
 export let CLIENT_PATH_NAMES: Record<string, string> = {
   clash_meta: "Clash Meta",
   shadowrocket: "Shadowrocket",
@@ -94,44 +94,6 @@ export const TransformSchema = z.object({
 });
 export type Transform = z.infer<typeof TransformSchema>;
 
-// 兼容旧版转换器格式
-export const LegacyTransformStepSchema = z.union([
-  z.object({
-    type: z.literal("replace"),
-    pattern: z.string(),
-    replacement: z.string(),
-    flags: z.string().optional(),
-  }),
-  z.object({
-    type: z.literal("remove_lines"),
-    pattern: z.string(),
-  }),
-  z.object({
-    type: z.literal("regex_extract"),
-    pattern: z.string(),
-    template: z.string(),
-  }),
-  z.object({
-    type: z.literal("dedupe"),
-  }),
-  z.object({
-    type: z.literal("sort"),
-    order: z.enum(["asc", "desc"]).optional(),
-  }),
-  z.object({
-    type: z.literal("trim"),
-  }),
-  z.object({
-    type: z.literal("normalize_eol"),
-  }),
-]);
-
-// 旧版转换器引用
-export const LegacyTransformerSchema = z.union([
-  LegacyTransformStepSchema,
-  z.object({ use: z.string() }),
-]);
-export type Transformer = z.infer<typeof LegacyTransformerSchema>;
 
 // 合并策略
 export const MergeStrategySchema = z.enum(["concat", "union", "intersect"]);
@@ -171,12 +133,8 @@ export const RuleConfigSchema = z.object({
   icon: z.string().optional(),
   // 数据来源（混合模式）
   sources: z.array(SourceConfigSchema).optional(),
-  // 兼容旧版：聚合规则
-  compose_from: z.array(z.string()).optional(),
   // 后处理转换（新版，支持指定来源）
   transforms: z.array(TransformSchema).optional(),
-  // 兼容旧版后处理
-  post_transforms: z.array(LegacyTransformerSchema).optional(),
   // 合并配置
   merge: MergeConfigSchema.optional(),
   // 输出配置
