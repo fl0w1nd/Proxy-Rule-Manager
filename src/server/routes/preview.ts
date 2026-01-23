@@ -13,7 +13,7 @@ export function registerPreviewRoutes(app: Hono) {
 
     try {
       const body = await c.req.json();
-      const { ruleName, rule: ruleConfig, limitLines = 2000 } = body;
+    const { ruleName, rule: ruleConfig } = body;
 
       let ruleToPreview;
       let transformersConfig = {};
@@ -34,7 +34,7 @@ export function registerPreviewRoutes(app: Hono) {
         return c.json({ error: "Either ruleName or rule config is required" }, 400);
       }
 
-      const result = await previewRule(ruleToPreview, transformersConfig, limitLines);
+    const result = await previewRule(ruleToPreview, transformersConfig, Infinity);
 
       const contentsObj: Record<ClientType, string> = {} as Record<ClientType, string>;
       for (const [client, content] of result.contents) {

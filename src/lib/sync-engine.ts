@@ -546,7 +546,7 @@ export async function previewRule(
     const lines = content.split("\n");
     totalLines = Math.max(totalLines, lines.length);
 
-    if (lines.length > limitLines) {
+    if (Number.isFinite(limitLines) && lines.length > limitLines) {
       truncated = true;
       result.contents.set(client, lines.slice(0, limitLines).join("\n") + "\n# ... (truncated)");
     }
