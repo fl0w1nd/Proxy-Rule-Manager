@@ -396,6 +396,9 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               <Code2 className="w-5 h-5 text-blue-500" />
               {editingTransformer?.isNew ? "新建转换器" : "编辑转换器"}
             </DialogTitle>
+            <DialogDescription>
+              编辑转换器名称、描述与脚本内容
+            </DialogDescription>
           </DialogHeader>
 
           {editingTransformer && (
@@ -548,6 +551,9 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               <BookOpen className="w-5 h-5 text-blue-500" />
               预定义转换器帮助文档
             </DialogTitle>
+            <DialogDescription>
+              了解脚本转换器的使用方式与示例
+            </DialogDescription>
           </DialogHeader>
           <div className="prose dark:prose-invert max-w-none text-sm space-y-4">
             <SimpleMarkdown content={HELP_DOC} />
