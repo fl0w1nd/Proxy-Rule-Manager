@@ -29,7 +29,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Plus,
   Trash2,
   Loader2,
   GripVertical,
@@ -617,11 +616,6 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
   const availableRules = config?.rules.filter((r) => r.name !== formData.name) || [];
   const transformers = config?.transformers || {};
 
-  // Alias helpers for JSX compatibility if needed, though we should use direct names
-  const onAddTransform = addTransform;
-  const onUpdateTransform = updateTransform;
-  const onRemoveTransform = removeTransform;
-
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
@@ -632,6 +626,10 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
         </div>
         <div className="flex items-center gap-3">
           <Button variant="outline" onClick={onCancel} disabled={isSaving}>取消</Button>
+          <Button variant="outline" onClick={handlePreview} disabled={isSaving}>
+            <Eye className="w-4 h-4 mr-1" />
+            预览
+          </Button>
           <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px] shadow-sm">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存规则"}
           </Button>

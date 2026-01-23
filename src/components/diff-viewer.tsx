@@ -7,11 +7,12 @@ interface DiffViewerProps {
 }
 
 export function DiffViewer({ content, className }: DiffViewerProps) {
-    if (!content) return null;
+    const safeContent = content || "";
 
     // Optimize: Memorize line processing to prevent re-parsing on every render
     const lines = React.useMemo(() => {
-        const rawLines = content.split('\n');
+        if (!safeContent) return [];
+        const rawLines = safeContent.split('\n');
         return rawLines.filter((line, index) => {
             // Basic heuristic: if it's the first few lines and starts with --- or +++
             if (index < 3 && (line.startsWith('--- ') || line.startsWith('+++ '))) {
@@ -19,7 +20,7 @@ export function DiffViewer({ content, className }: DiffViewerProps) {
             }
             return true;
         });
-    }, [content]);
+    }, [safeContent]);
 
     // Performance: Render initially a small batch to ensure smooth animation
     const INITIAL_BATCH = 100;
@@ -29,7 +30,9 @@ export function DiffViewer({ content, className }: DiffViewerProps) {
     // Reset when content changes
     React.useEffect(() => {
         setVisibleCount(INITIAL_BATCH);
-    }, [content]);
+    }, [safeContent]);
+
+    if (!safeContent) return null;
 
     const displayLines = lines.slice(0, visibleCount);
     const remainingCount = lines.length - visibleCount;

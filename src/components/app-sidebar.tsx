@@ -1,7 +1,6 @@
 "use client";
 
 import {
-    Activity,
     Code2,
     FileText,
     History,
@@ -11,12 +10,10 @@ import {
     Settings,
     Shield,
     Sun,
-    Moon,
-    LifeBuoy
+    Moon
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useAuth } from "./auth-provider";
 import { useTheme } from "./theme-provider";
 
 export interface SidebarNavProps {

@@ -268,33 +268,9 @@ export function addRuleHeader(
   ruleName: string,
   description?: string
 ): string {
-  const now = new Date().toISOString().replace("T", " ").split(".")[0];
-  const lines = content.split("\n").filter((l) => l.trim() && !l.trim().startsWith("#"));
-  
-  const stats: Record<string, number> = {};
-  for (const line of lines) {
-    const type = line.split(",")[0];
-    if (type) {
-      stats[type] = (stats[type] || 0) + 1;
-    }
-  }
-  
-  const header = [
-    `# NAME: ${ruleName}`,
-    `# UPDATED: ${now}`,
-  ];
-  
-  if (description) {
-    header.push(`# DESCRIPTION: ${description}`);
-  }
-  
-  for (const [type, count] of Object.entries(stats)) {
-    header.push(`# ${type}: ${count}`);
-  }
-  
-  header.push(`# TOTAL: ${lines.length}`);
-  
-  return [...header, content].join("\n");
+  void ruleName;
+  void description;
+  return content;
 }
 
 // 计算内容的 SHA-256 哈希

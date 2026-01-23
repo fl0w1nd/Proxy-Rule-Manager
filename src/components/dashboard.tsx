@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,28 +17,18 @@ import {
   Settings,
   FileText,
   Activity,
-  Clock,
   CheckCircle,
   XCircle,
   Loader2,
   Plus,
-  LogOut,
-  ArrowLeft,
-  Sun,
-  Moon,
-  Code2,
-  History,
   AlertTriangle,
   Zap,
-  Monitor,
-  Shield,
   LayoutDashboard,
   CalendarDays,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
-import { useTheme } from "./theme-provider";
 import {
   getStatus,
   executeFullSync,
@@ -76,7 +66,6 @@ interface DashboardProps {
 
 export function Dashboard({ onBack }: DashboardProps) {
   const { logout, authRequired } = useAuth();
-  const { theme, toggleTheme } = useTheme();
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -90,14 +79,11 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [failurePage, setFailurePage] = useState(1);
   const [changeData, setChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
   const [failureData, setFailureData] = useState<ActivityList<FailureRecord> | null>(null);
-  const [isActivityLoading, setIsActivityLoading] = useState(false);
   const [selectedChange, setSelectedChange] = useState<ChangeRecordSummary | null>(null);
-  const [selectedFailure, setSelectedFailure] = useState<FailureRecord | null>(null);
   const [diffContent, setDiffContent] = useState("");
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const activityPageSize = 20;
   const [activityDates, setActivityDates] = useState<string[]>([]);
-  const [activityClient, setActivityClient] = useState<string>("all");
   const [activityTab, setActivityTab] = useState("changes");
 
   const fetchStatus = async () => {
@@ -195,14 +181,13 @@ export function Dashboard({ onBack }: DashboardProps) {
     }
   };
 
-  const fetchActivity = async () => {
+  const fetchActivity = useCallback(async () => {
     // Only fetch for relevant tabs
     if (activeTab !== "activity" && activeTab !== "overview") return;
 
-    setIsActivityLoading(true);
     try {
       const dateParam = activityDate === "all" ? undefined : activityDate;
-      const clientParam = activityClient === "all" ? undefined : activityClient;
+      const clientParam = undefined;
 
       const [changes, failures, dates] = await Promise.all([
         getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
@@ -215,14 +200,12 @@ export function Dashboard({ onBack }: DashboardProps) {
     } catch (error) {
       console.error("Failed to fetch activity:", error);
       if (activeTab === "activity") toast.error("获取活动记录失败");
-    } finally {
-      setIsActivityLoading(false);
     }
-  };
+  }, [activeTab, activityDate, changePage, failurePage, activityPageSize]);
 
   useEffect(() => {
     fetchActivity();
-  }, [activeTab, activityDate, changePage, failurePage, activityClient]);
+  }, [fetchActivity]);
 
   useEffect(() => {
     if (activityDate !== "all" && !activityDates.includes(activityDate)) {
@@ -460,7 +443,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                               </div>
                             </div>
                             <div className="flex -space-x-1 shrink-0 ml-2">
-                              {rule.clients.slice(0, 3).map((client, i) => (
+                              {rule.clients.slice(0, 3).map((client) => (
                                 <div key={client} className="w-5 h-5 rounded-full bg-background border flex items-center justify-center text-[8px] uppercase ring-1 ring-background" title={getClientDisplayName(client)}>
                                   {client.charAt(0)}
                                 </div>

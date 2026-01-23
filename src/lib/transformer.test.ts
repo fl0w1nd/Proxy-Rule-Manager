@@ -168,32 +168,16 @@ describe("applyNewTransforms", () => {
 });
 
 describe("addRuleHeader", () => {
-    it("should add header with rule name and timestamp", () => {
+    it("should return original content without modification", () => {
         const content = "DOMAIN,test.com";
         const result = addRuleHeader(content, "TestRule");
-        expect(result).toContain("# NAME: TestRule");
-        expect(result).toContain("# UPDATED:");
-        expect(result).toContain("# TOTAL: 1");
+        expect(result).toBe(content);
     });
 
-    it("should include description if provided", () => {
-        const content = "DOMAIN,test.com";
-        const result = addRuleHeader(content, "TestRule", "Test description");
-        expect(result).toContain("# DESCRIPTION: Test description");
-    });
-
-    it("should count rule types", () => {
-        const content = "DOMAIN,a.com\nDOMAIN,b.com\nIP-CIDR,1.2.3.4/32";
-        const result = addRuleHeader(content, "Mixed");
-        expect(result).toContain("# DOMAIN: 2");
-        expect(result).toContain("# IP-CIDR: 1");
-        expect(result).toContain("# TOTAL: 3");
-    });
-
-    it("should strip existing comments when counting", () => {
+    it("should preserve existing comments and formatting", () => {
         const content = "# existing header\nDOMAIN,test.com";
-        const result = addRuleHeader(content, "TestRule");
-        expect(result).toContain("# TOTAL: 1");
+        const result = addRuleHeader(content, "TestRule", "Test description");
+        expect(result).toBe(content);
     });
 });
 
