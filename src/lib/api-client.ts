@@ -270,6 +270,10 @@ export async function getActivityDates(): Promise<{ dates: string[] }> {
   return apiRequest<{ dates: string[] }>("/activity/dates");
 }
 
+export async function clearActivityRecords(): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>("/activity/clear", { method: "POST" });
+}
+
 // 同步 API
 export interface SyncResult {
   success: boolean;

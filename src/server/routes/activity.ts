@@ -4,8 +4,10 @@ import {
   listFailureRecords,
   readChangeDiff,
   listActivityDates,
+  clearActivityRecords,
 } from "../../lib/activity-store";
 import { verifyAdmin } from "../auth";
+import { jsonError } from "../errors";
 
 function parsePageParam(value: string | null, fallback: number): number {
   const parsed = Number(value);
@@ -95,5 +97,18 @@ export function registerActivityRoutes(app: Hono) {
 
     const dates = await listActivityDates();
     return c.json({ dates });
+  });
+
+  app.post("/api/activity/clear", async (c) => {
+    if (!verifyAdmin(c.req.header("authorization"))) {
+      return c.json({ error: "Unauthorized" }, 401);
+    }
+
+    try {
+      await clearActivityRecords();
+      return c.json({ success: true });
+    } catch (error) {
+      return jsonError(c, error, "Failed to clear activity records");
+    }
   });
 }

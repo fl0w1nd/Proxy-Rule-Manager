@@ -19,6 +19,7 @@ import {
   Activity,
   CheckCircle,
   XCircle,
+  Trash2,
   Loader2,
   Plus,
   AlertTriangle,
@@ -35,6 +36,7 @@ import {
   executeFullSync,
   executeInit,
   getClients,
+  clearActivityRecords,
   StatusResponse,
   ClientConfig,
   ChangeRecordSummary,
@@ -77,6 +79,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [needsFirstSync, setNeedsFirstSync] = useState(false);
   const [activityDate, setActivityDate] = useState<string>("all");
   const [activityClient, setActivityClient] = useState<string>("all");
+  const [isClearingActivity, setIsClearingActivity] = useState(false);
   const [changePage, setChangePage] = useState(1);
   const [failurePage, setFailurePage] = useState(1);
   const [changeData, setChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
@@ -235,6 +238,26 @@ export function Dashboard({ onBack }: DashboardProps) {
       setDiffContent("diff 已过期或不可用");
     } finally {
       setIsDiffLoading(false);
+    }
+  };
+
+  const handleClearActivity = async () => {
+    if (!confirm("确定要清空所有活动记录吗？此操作不可恢复。")) {
+      return;
+    }
+    setIsClearingActivity(true);
+    try {
+      await clearActivityRecords();
+      toast.success("活动记录已清空");
+      setChangePage(1);
+      setFailurePage(1);
+      setActivityDate("all");
+      setActivityClient("all");
+      await fetchActivity();
+    } catch (error) {
+      toast.error("清空活动记录失败: " + String(error));
+    } finally {
+      setIsClearingActivity(false);
     }
   };
 
@@ -584,6 +607,23 @@ export function Dashboard({ onBack }: DashboardProps) {
                         {recentDateOptions.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
                       </SelectContent>
                     </Select>
+
+                    <div className="h-4 w-px bg-border/60 mx-1" />
+
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleClearActivity}
+                      disabled={isClearingActivity}
+                      className="h-9"
+                    >
+                      {isClearingActivity ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5 mr-2" />
+                      )}
+                      清空记录
+                    </Button>
                   </div>
                 </CardHeader>
                 <CardContent className="flex-1 p-6">

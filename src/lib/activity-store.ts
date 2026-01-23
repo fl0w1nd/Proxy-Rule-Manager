@@ -341,3 +341,9 @@ export async function countFailureRecords(date: string): Promise<number> {
     return 0;
   }
 }
+
+export async function clearActivityRecords(): Promise<void> {
+  await fs.rm(RECORDS_DIR, { recursive: true, force: true });
+  await ensureDir(CHANGES_DIR);
+  await ensureDir(FAILURES_DIR);
+}
