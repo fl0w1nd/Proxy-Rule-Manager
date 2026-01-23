@@ -5,18 +5,18 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Image tag'
+        description: 'Image tag (default: version from package.json)'
         required: false
-        default: 'dev'
+        default: ''
       tag_type:
-        description: 'Tag type: dev, release (v* + latest), isolated (tag only)'
+        description: 'Tag type'
         required: false
-        default: 'dev'
+        default: 'release'
         type: choice
         options:
-          - 'dev'
-          - 'release'
-          - 'isolated'
+          - 'release'   # version + latest
+          - 'dev'       # dev + git hash
+          - 'isolated'  # tag only, no overwrite
   
   # Auto trigger on release
   release:
@@ -50,53 +50,125 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Get package.json version
+        id: pkg
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          echo "Package version: v${VERSION}"
+
+      - name: Get git short hash
+        id: git
+        run: |
+          HASH=$(git rev-parse --short HEAD)
+          echo "hash=${HASH}" >> $GITHUB_OUTPUT
+          echo "Git hash: ${HASH}"
+
       - name: Determine tags
         id: tags
         run: |
           TAGS=""
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          # Convert to lowercase (ghcr requires lowercase)
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
           
           # GitHub Release event
           if [ "${{ github.event_name }}" = "release" ]; then
             VERSION="${{ github.event.release.tag_name }}"
-            TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${VERSION}"
-            # Only add latest if version starts with 'v'
-            if [[ "$VERSION" == v* ]]; then
-              TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-              echo "Build type: GitHub Release (with latest)"
-            else
-              echo "Build type: GitHub Release (isolated)"
-            fi
-            echo "Tags: ${TAGS}"
+            TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
+            echo "Build type: GitHub Release"
+            echo "Tags: ${VERSION}, latest"
           
           # Manual trigger
           elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             TAG="${{ github.event.inputs.tag }}"
             TAG_TYPE="${{ github.event.inputs.tag_type }}"
+            PKG_VERSION="${{ steps.pkg.outputs.version }}"
+            GIT_HASH="${{ steps.git.outputs.hash }}"
             
             case "$TAG_TYPE" in
               "release")
-                # Release: tag + latest
-                TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
-                TAGS="${TAGS},${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
+                # Use provided tag or package.json version
+                VERSION="${TAG:-$PKG_VERSION}"
+                TAGS="${IMAGE}:${VERSION},${IMAGE}:latest"
                 echo "Build type: Release"
-                echo "Tags: ${TAG}, latest"
+                echo "Tags: ${VERSION}, latest"
+                ;;
+              "dev")
+                # Dev: dev + git hash
+                TAGS="${IMAGE}:dev,${IMAGE}:${GIT_HASH}"
+                echo "Build type: Dev"
+                echo "Tags: dev, ${GIT_HASH}"
                 ;;
               "isolated")
-                # Isolated: tag only
-                TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${TAG}"
+                # Isolated: single tag only
+                if [ -z "$TAG" ]; then
+                  echo "Error: Tag is required for isolated builds"
+                  exit 1
+                fi
+                TAGS="${IMAGE}:${TAG}"
                 echo "Build type: Isolated"
                 echo "Tags: ${TAG}"
-                ;;
-              *)
-                # Dev: dev tag only
-                TAGS="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:dev"
-                echo "Build type: Dev"
-                echo "Tags: dev"
                 ;;
             esac
           fi
           
           echo "tags=${TAGS}" >> $GITHUB_OUTPUT
+
+      - name: Check if release version exists
+        if: github.event.inputs.tag_type == 'release' || github.event_name == 'release'
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          
+          if [ "${{ github.event_name }}" = "release" ]; then
+            VERSION="${{ github.event.release.tag_name }}"
+          else
+            VERSION="${{ github.event.inputs.tag }}"
+            if [ -z "$VERSION" ]; then
+              VERSION="${{ steps.pkg.outputs.version }}"
+            fi
+          fi
+          
+          echo "Checking if ${VERSION} exists..."
+          
+          # Try to get manifest
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${VERSION}" 2>/dev/null || echo "000")
+          
+          if [ "$STATUS" = "200" ]; then
+            echo "::error::Version ${VERSION} already exists! Please bump version in package.json."
+            exit 1
+          fi
+          
+          echo "✓ Version ${VERSION} is available"
+
+      - name: Check if isolated tag exists
+        if: github.event.inputs.tag_type == 'isolated'
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          TAG="${{ github.event.inputs.tag }}"
+          
+          # Block version-like tags and 'latest'
+          if echo "$TAG" | grep -qE "^v[0-9]|^latest$"; then
+            echo "::error::Cannot use version tags (v*) or 'latest' as isolated tag"
+            exit 1
+          fi
+          
+          echo "Checking if ${TAG} exists..."
+          
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${TAG}" 2>/dev/null || echo "000")
+          
+          if [ "$STATUS" = "200" ]; then
+            echo "::error::Tag '${TAG}' already exists!"
+            exit 1
+          fi
+          
+          echo "✓ Tag ${TAG} is available"
 
       - name: Build and push
         uses: docker/bake-action@v5
