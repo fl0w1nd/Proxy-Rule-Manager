@@ -1203,18 +1203,22 @@ function TransformCard({
 
   return (
     <div
-      draggable
-      onDragStart={onDragStart}
       onDragOver={onDragOver}
-      onDragEnd={onDragEnd}
       className={`rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 transition-all ${isDragging ? "opacity-50 scale-95" : ""
         }`}
     >
       <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-slate-700">
         <div className="flex items-center gap-2">
-          <div className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600">
+          <button
+            type="button"
+            draggable
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+            title="拖动排序"
+          >
             <GripVertical className="w-4 h-4" />
-          </div>
+          </button>
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
