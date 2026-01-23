@@ -45,3 +45,6 @@ next-env.d.ts
 
 # Server build output
 /dist/
+
+# agent
+/.agent
