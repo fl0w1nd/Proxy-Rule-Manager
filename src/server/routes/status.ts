@@ -54,6 +54,7 @@ export function registerStatusRoutes(app: Hono) {
         const metas = artifactMetas.filter((m) => m.ruleName === rule.name);
         return {
           name: rule.name,
+          displayName: rule.displayName,
           description: rule.description,
           clients: rule.output.clients,
           lastUpdated:

@@ -33,6 +33,7 @@ import { ClientFileMeta } from "@/lib/schema";
 
 interface RuleInfo {
   name: string;
+  displayName?: string;
   description?: string;
   clients: string[];
 }
@@ -171,6 +172,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const filteredRules = rules.filter(
     (rule) =>
       rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
       rule.description?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
@@ -371,7 +373,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </div>
                       <div className="min-w-0 flex-1">
                         <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                          {rule.name}
+                        {rule.displayName || rule.name}
                         </CardTitle>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
                           {rule.description || "无描述"}
