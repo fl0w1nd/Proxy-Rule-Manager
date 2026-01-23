@@ -368,17 +368,13 @@ export async function verifyToken(token: string): Promise<boolean> {
 // 如果不需要认证（未设置 ADMIN_TOKEN），直接返回 true
 export async function checkAuthRequired(): Promise<{ required: boolean; authenticated: boolean }> {
   try {
-    // 尝试无 token 请求
-    const response = await fetch(`${API_BASE}/config`);
-    if (response.ok) {
-      // 无需认证，且已认证（开发模式）
-      return { required: false, authenticated: true };
-    }
-    if (response.status === 401) {
-      // 需要认证
+    const response = await fetch(`${API_BASE}/auth/required`);
+    if (!response.ok) {
       return { required: true, authenticated: false };
     }
-    return { required: true, authenticated: false };
+    const data = await response.json().catch(() => ({ required: true }));
+    const required = !!data.required;
+    return { required, authenticated: !required };
   } catch {
     return { required: true, authenticated: false };
   }
