@@ -1339,25 +1339,43 @@ function TransformCard({
           )}
 
           {transform.type === "replace" && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-sm text-gray-500 flex items-center gap-2">
-                  正则表达式
-                  <HelpIcon text={HELP_TEXTS.replace} />
-                </Label>
-                <Input
-                  value={transform.pattern || ""}
-                  onChange={(e) => onChange({ pattern: e.target.value })}
-                  placeholder="匹配模式"
-                />
+                <Label className="text-sm text-gray-500">正则标志</Label>
+                <Select
+                  value={transform.flags || "g"}
+                  onValueChange={(value) => onChange({ flags: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="g">g（全局匹配）</SelectItem>
+                    <SelectItem value="gm">gm（按行 + 全局）</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">按行匹配请选 gm</p>
               </div>
-              <div className="space-y-2">
-                <Label className="text-sm text-gray-500">替换为</Label>
-                <Input
-                  value={transform.replacement || ""}
-                  onChange={(e) => onChange({ replacement: e.target.value })}
-                  placeholder="替换内容（留空则删除）"
-                />
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-2">
+                  <Label className="text-sm text-gray-500 flex items-center gap-2">
+                    正则表达式
+                    <HelpIcon text={HELP_TEXTS.replace} />
+                  </Label>
+                  <Input
+                    value={transform.pattern || ""}
+                    onChange={(e) => onChange({ pattern: e.target.value })}
+                    placeholder="匹配模式"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm text-gray-500">替换为</Label>
+                  <Input
+                    value={transform.replacement || ""}
+                    onChange={(e) => onChange({ replacement: e.target.value })}
+                    placeholder="替换内容（留空则删除）"
+                  />
+                </div>
               </div>
             </div>
           )}
