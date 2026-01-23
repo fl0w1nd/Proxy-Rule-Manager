@@ -617,420 +617,405 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
   const availableRules = config?.rules.filter((r) => r.name !== formData.name) || [];
   const transformers = config?.transformers || {};
 
+  // Alias helpers for JSX compatibility if needed, though we should use direct names
+  const onAddTransform = addTransform;
+  const onUpdateTransform = updateTransform;
+  const onRemoveTransform = removeTransform;
+
   return (
-    <div className="space-y-4">
-      {/* 基本信息 */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <SectionHeader
-          title="基本信息"
-          expanded={expandedSections.has("basic")}
-          onToggle={() => toggleSection("basic")}
-        />
-        {expandedSections.has("basic") && (
-          <div className="p-4 space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="flex flex-col h-full bg-background">
+      {/* Sticky Header */}
+      <div className="flex-none flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-20">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight">{formData.name || (rule ? rule.name : "新建规则")}</h2>
+          <p className="text-xs text-muted-foreground">配置规则详情与转换逻辑</p>
+        </div>
+        <div className="flex items-center gap-3">
+          <Button variant="outline" onClick={onCancel} disabled={isSaving}>取消</Button>
+          <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px] shadow-sm">
+            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存规则"}
+          </Button>
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        {/* 基本信息 */}
+        <div className="rounded-lg border border-border shadow-sm bg-card overflow-hidden">
+          <SectionHeader
+            title="基本信息"
+            expanded={expandedSections.has("basic")}
+            onToggle={() => toggleSection("basic")}
+          />
+          {expandedSections.has("basic") && (
+            <div className="p-4 space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    规则 ID <span className="text-destructive">*</span>
+                    <HelpIcon text="规则的唯一标识符，决定 URL 路径。例如：YouTube 会生成 /Rules/Clash Meta/YouTube.list" />
+                  </Label>
+                  <Input
+                    value={formData.name}
+                    onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                    placeholder="例如: YouTube"
+                    className="font-mono"
+                  />
+                  <p className="text-[10px] text-muted-foreground">修改后将同时重命名规则文件</p>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">显示名称（可选）</Label>
+                  <Input
+                    value={formData.displayName || ""}
+                    onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                    placeholder="例如: YouTube视频"
+                  />
+                  <p className="text-[10px] text-muted-foreground">界面显示的名称，留空则使用规则 ID</p>
+                </div>
+              </div>
               <div className="space-y-2">
                 <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  规则 ID <span className="text-destructive">*</span>
-                  <HelpIcon text="规则的唯一标识符，决定 URL 路径。例如：YouTube 会生成 /Rules/Clash Meta/YouTube.list" />
+                  描述
+                  <HelpIcon text={HELP_TEXTS.description} />
                 </Label>
-                <Input
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  placeholder="例如: YouTube"
-                  className="font-mono"
+                <Textarea
+                  value={formData.description || ""}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  placeholder="规则描述..."
+                  rows={2}
+                  className="resize-none"
                 />
-                <p className="text-[10px] text-muted-foreground">修改后将同时重命名规则文件</p>
-              </div>
-              <div className="space-y-2">
-                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">显示名称（可选）</Label>
-                <Input
-                  value={formData.displayName || ""}
-                  onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
-                  placeholder="例如: YouTube视频"
-                />
-                <p className="text-[10px] text-muted-foreground">界面显示的名称，留空则使用规则 ID</p>
               </div>
             </div>
-            <div className="space-y-2">
-              <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                描述
-                <HelpIcon text={HELP_TEXTS.description} />
-              </Label>
-              <Textarea
-                value={formData.description || ""}
-                onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                placeholder="规则描述..."
-                rows={2}
-                className="resize-none"
-              />
-            </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* 数据来源 */}
-      <div className="rounded-lg border shadow-sm bg-card overflow-hidden">
-        <SectionHeader
-          title="数据来源"
-          help={HELP_TEXTS.sources}
-          expanded={expandedSections.has("sources")}
-          onToggle={() => toggleSection("sources")}
-          badge={
-            formData.sources && formData.sources.length > 0 ? (
-              <Badge variant="secondary" className="ml-2">
-                {formData.sources.length} 个来源
-              </Badge>
-            ) : null
-          }
-        />
-        {expandedSections.has("sources") && (
-          <div className="p-4 space-y-3">
-            {/* 来源列表 */}
-            {formData.sources?.map((source, index) => {
-              const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
-              return (
-                <div
-                  key={index}
-                  className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
-                >
-                  <div className="flex items-center gap-2 min-w-0 flex-1">
-                    <Badge variant="outline" className="shrink-0 gap-1 bg-background">
-                      <Icon className="w-3 h-3" />
-                      {index + 1}
-                    </Badge>
-
-                    {source.type === "url" && (
-                      <Input
-                        value={source.url || ""}
-                        onChange={(e) => updateSource(index, { url: e.target.value })}
-                        placeholder="https://example.com/rules.list"
-                        className="flex-1 h-8 text-sm"
-                      />
-                    )}
-
-                    {source.type === "ref" && (
-                      <Select
-                        value={source.ref || ""}
-                        onValueChange={(value) => updateSource(index, { ref: value })}
-                      >
-                        <SelectTrigger className="flex-1 min-w-0 h-8">
-                          <SelectValue placeholder="选择引用规则" className="truncate" />
-                        </SelectTrigger>
-                        <SelectContent className="max-w-[300px]">
-                          {availableRules.map((r) => (
-                            <SelectItem key={r.name} value={r.name} className="truncate">
-                              {r.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
-                    {source.type === "local" && (
-                      <div className="flex-1 flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground truncate flex-1 font-mono">
-                          {source.content ? `${source.content.split('\n').length} 行内容` : "未编辑"}
-                        </span>
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          className="h-8"
-                          onClick={() => {
-                            setLocalContentDraft(source.content || "");
-                            setEditingLocalContent(index);
-                          }}
-                        >
-                          <Edit3 className="w-3 h-3 mr-1" />
-                          编辑
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeSource(index)}
-                    className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+        {/* 数据来源 */}
+        <div className="rounded-lg border border-border shadow-sm bg-card overflow-hidden">
+          <SectionHeader
+            title="数据来源"
+            help={HELP_TEXTS.sources}
+            expanded={expandedSections.has("sources")}
+            onToggle={() => toggleSection("sources")}
+            badge={
+              formData.sources && formData.sources.length > 0 ? (
+                <Badge variant="secondary" className="ml-2">
+                  {formData.sources.length} 个来源
+                </Badge>
+              ) : null
+            }
+          />
+          {expandedSections.has("sources") && (
+            <div className="p-4 space-y-3">
+              {/* 来源列表 */}
+              {formData.sources?.map((source, index) => {
+                const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
+                return (
+                  <div
+                    key={index}
+                    className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
                   >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              );
-            })}
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <Badge variant="outline" className="shrink-0 gap-1 bg-background">
+                        <Icon className="w-3 h-3" />
+                        {index + 1}
+                      </Badge>
 
-            {/* 添加来源按钮 */}
-            <div className="flex flex-wrap gap-2 pt-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addSource("url")}
-                className="bg-background shadow-xs hover:bg-muted"
-              >
-                <Link2 className="w-3 h-3 mr-1" />
-                URL 来源
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addSource("ref")}
-                className="bg-background shadow-xs hover:bg-muted"
-              >
-                <FolderInput className="w-3 h-3 mr-1" />
-                引用规则
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => addSource("local")}
-                className="bg-background shadow-xs hover:bg-muted"
-              >
-                <FileText className="w-3 h-3 mr-1" />
-                本地内容
-              </Button>
+                      {source.type === "url" && (
+                        <Input
+                          value={source.url || ""}
+                          onChange={(e) => updateSource(index, { url: e.target.value })}
+                          placeholder="https://example.com/rules.list"
+                          className="flex-1 h-8 text-sm"
+                        />
+                      )}
+
+                      {source.type === "ref" && (
+                        <Select
+                          value={source.ref || ""}
+                          onValueChange={(value) => updateSource(index, { ref: value })}
+                        >
+                          <SelectTrigger className="flex-1 min-w-0 h-8">
+                            <SelectValue placeholder="选择引用规则" className="truncate" />
+                          </SelectTrigger>
+                          <SelectContent className="max-w-[300px]">
+                            {availableRules.map((r) => (
+                              <SelectItem key={r.name} value={r.name} className="truncate">
+                                {r.name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+
+                      {source.type === "local" && (
+                        <div className="flex-1 flex items-center gap-2">
+                          <span className="text-sm text-muted-foreground truncate flex-1 font-mono">
+                            {source.content ? `${source.content.split('\n').length} 行内容` : "未编辑"}
+                          </span>
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8"
+                            onClick={() => {
+                              setLocalContentDraft(source.content || "");
+                              setEditingLocalContent(index);
+                            }}
+                          >
+                            <Edit3 className="w-3 h-3 mr-1" />
+                            编辑
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSource(index)}
+                      className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+                );
+              })}
+
+              {/* 添加来源按钮 */}
+              <div className="flex flex-wrap gap-2 pt-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addSource("url")}
+                  className="bg-background shadow-xs hover:bg-muted"
+                >
+                  <Link2 className="w-3 h-3 mr-1" />
+                  URL 来源
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addSource("ref")}
+                  className="bg-background shadow-xs hover:bg-muted"
+                >
+                  <FolderInput className="w-3 h-3 mr-1" />
+                  引用规则
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addSource("local")}
+                  className="bg-background shadow-xs hover:bg-muted"
+                >
+                  <FileText className="w-3 h-3 mr-1" />
+                  本地内容
+                </Button>
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* 后处理操作 */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <SectionHeader
-          title="后处理操作"
-          help={HELP_TEXTS.transforms}
-          expanded={expandedSections.has("transforms")}
-          onToggle={() => toggleSection("transforms")}
-          badge={
-            formData.transforms && formData.transforms.length > 0 ? (
-              <Badge variant="secondary" className="ml-2">
-                {formData.transforms.length} 个操作
-              </Badge>
-            ) : null
-          }
-        />
-        {expandedSections.has("transforms") && (
-          <div className="p-4 space-y-3 bg-white dark:bg-slate-900">
-            {/* 操作列表 */}
-            {formData.transforms?.map((transform, index) => (
-              <TransformCard
-                key={index}
-                transform={transform}
-                sources={formData.sources || []}
-                transformers={transformers}
-                onChange={(updates) => updateTransform(index, updates)}
-                onRemove={() => removeTransform(index)}
-                onDuplicate={() => duplicateTransform(index)}
-                onDragStart={() => handleDragStart(index)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDragEnd={handleDragEnd}
-                isDragging={draggedIndex === index}
-              />
-            ))}
+        {/* 后处理操作 */}
+        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <SectionHeader
+            title="后处理操作"
+            help={HELP_TEXTS.transforms}
+            expanded={expandedSections.has("transforms")}
+            onToggle={() => toggleSection("transforms")}
+            badge={
+              formData.transforms && formData.transforms.length > 0 ? (
+                <Badge variant="secondary" className="ml-2">
+                  {formData.transforms.length} 个操作
+                </Badge>
+              ) : null
+            }
+          />
+          {expandedSections.has("transforms") && (
+            <div className="p-4 space-y-3 bg-white dark:bg-slate-900">
+              {/* 操作列表 */}
+              {formData.transforms?.map((transform, index) => (
+                <TransformCard
+                  key={index}
+                  transform={transform}
+                  sources={formData.sources || []}
+                  transformers={transformers}
+                  onChange={(updates) => updateTransform(index, updates)}
+                  onRemove={() => removeTransform(index)}
+                  onDuplicate={() => duplicateTransform(index)}
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDragEnd={handleDragEnd}
+                  isDragging={draggedIndex === index}
+                />
+              ))}
 
-            {/* 添加操作按钮 */}
-            <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
-                添加后处理操作
-                <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {Object.keys(transformers).length > 0 && (
+              {/* 添加操作按钮 */}
+              <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
+                  添加后处理操作
+                  <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {Object.keys(transformers).length > 0 && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => addTransform("use")}
+                    >
+                      <Code2 className="w-4 h-4 mr-1" />
+                      预定义转换器
+                    </Button>
+                  )}
                   <Button
                     type="button"
                     variant="outline"
                     size="sm"
-                    onClick={() => addTransform("use")}
+                    onClick={() => addTransform("replace")}
                   >
-                    <Code2 className="w-4 h-4 mr-1" />
-                    预定义转换器
+                    <Replace className="w-4 h-4 mr-1" />
+                    正则替换
                   </Button>
-                )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addTransform("replace")}
-                >
-                  <Replace className="w-4 h-4 mr-1" />
-                  正则替换
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => addTransform("remove_lines")}
-                >
-                  <Eraser className="w-4 h-4 mr-1" />
-                  正则删除
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* 合并配置 */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <SectionHeader
-          title="合并配置"
-          help={HELP_TEXTS.merge}
-          expanded={expandedSections.has("merge")}
-          onToggle={() => toggleSection("merge")}
-        />
-        {expandedSections.has("merge") && (
-          <div className="p-4 bg-white dark:bg-slate-900">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2">
-                  合并策略
-                  <HelpIcon text="concat: 顺序拼接 | union: 去重并集 | intersect: 交集" />
-                </Label>
-                <Select
-                  value={formData.merge?.strategy || "concat"}
-                  onValueChange={(value: MergeStrategy) =>
-                    setFormData((prev) => ({
-                      ...prev,
-                      merge: {
-                        strategy: value,
-                        dedupe: prev.merge?.dedupe ?? false,
-                      },
-                    }))
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="concat">顺序拼接 (concat)</SelectItem>
-                    <SelectItem value="union">集合并集 (union)</SelectItem>
-                    <SelectItem value="intersect">集合交集 (intersect)</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-2">
-                <Label>去重</Label>
-                <div className="flex items-center gap-2 h-10">
-                  <Switch
-                    checked={formData.merge?.dedupe || false}
-                    onCheckedChange={(dedupe) =>
-                      setFormData((prev) => ({
-                        ...prev,
-                        merge: { strategy: prev.merge?.strategy || "concat", dedupe },
-                      }))
-                    }
-                  />
-                  <span className="text-sm text-gray-500">合并后去重</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => addTransform("remove_lines")}
+                  >
+                    <Eraser className="w-4 h-4 mr-1" />
+                    正则删除
+                  </Button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {/* 输出配置 */}
-      <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
-        <SectionHeader
-          title="输出配置"
-          help={HELP_TEXTS.outputClients}
-          expanded={expandedSections.has("output")}
-          onToggle={() => toggleSection("output")}
-        />
-        {expandedSections.has("output") && (
-          <div className="p-4 space-y-4 bg-white dark:bg-slate-900">
-            <div className="space-y-2">
-              <Label>输出客户端</Label>
-              <div className="flex flex-wrap gap-3">
-                {clientsList.map((client) => (
-                  <label
-                    key={client.id}
-                    className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
-                      ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
-                      : "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700"
-                      }`}
+        {/* 合并配置 */}
+        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <SectionHeader
+            title="合并配置"
+            help={HELP_TEXTS.merge}
+            expanded={expandedSections.has("merge")}
+            onToggle={() => toggleSection("merge")}
+          />
+          {expandedSections.has("merge") && (
+            <div className="p-4 bg-white dark:bg-slate-900">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2">
+                    合并策略
+                    <HelpIcon text="concat: 顺序拼接 | union: 去重并集 | intersect: 交集" />
+                  </Label>
+                  <Select
+                    value={formData.merge?.strategy || "concat"}
+                    onValueChange={(value: MergeStrategy) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        merge: {
+                          strategy: value,
+                          dedupe: prev.merge?.dedupe ?? false,
+                        },
+                      }))
+                    }
                   >
-                    <Checkbox
-                      checked={formData.output.clients.includes(client.id)}
-                      onCheckedChange={() => toggleClient(client.id as ClientType)}
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="concat">顺序拼接 (concat)</SelectItem>
+                      <SelectItem value="union">集合并集 (union)</SelectItem>
+                      <SelectItem value="intersect">集合交集 (intersect)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>去重</Label>
+                  <div className="flex items-center gap-2 h-10">
+                    <Switch
+                      checked={formData.merge?.dedupe || false}
+                      onCheckedChange={(dedupe) =>
+                        setFormData((prev) => ({
+                          ...prev,
+                          merge: { strategy: prev.merge?.strategy || "concat", dedupe },
+                        }))
+                      }
                     />
-                    <Monitor className="w-4 h-4" />
-                    <span>{client.displayName}</span>
-                  </label>
-                ))}
+                    <span className="text-sm text-gray-500">合并后去重</span>
+                  </div>
+                </div>
               </div>
             </div>
-
-            {/* 客户端差异化配置 */}
-            {formData.output.clients.length > 0 && (
-              <div className="space-y-3">
-                <Label className="flex items-center gap-2">
-                  客户端差异化配置
-                  <HelpIcon text={HELP_TEXTS.clientOverrides} />
-                </Label>
-                {formData.output.clients.map((client) => {
-                  const clientConfig = clientsList.find(c => c.id === client);
-                  return (
-                    <ClientOverrideSection
-                      key={client}
-                      client={client}
-                      clientsList={clientsList}
-                      clientGlobalTransforms={clientConfig?.transforms || []}
-                      config={formData.output.client_overrides?.[client]}
-                      transformers={transformers}
-                      onToggle={(enabled) => toggleClientOverride(client, enabled)}
-                      onToggleUseGlobal={(useGlobal) => toggleUseGlobalTransforms(client, useGlobal)}
-                      onAddTransform={(type) => addClientTransform(client, type)}
-                      onUpdateTransform={(index, updates) => updateClientTransform(client, index, updates)}
-                      onRemoveTransform={(index) => removeClientTransform(client, index)}
-                    />
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      <Separator />
-
-      {/* 操作按钮 */}
-      <div className="flex items-center justify-between gap-3 pt-2">
-        <Button
-          type="button"
-          variant="outline"
-          onClick={handlePreview}
-          disabled={isPreviewLoading}
-        >
-          {isPreviewLoading ? (
-            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-          ) : (
-            <Eye className="w-4 h-4 mr-2" />
           )}
-          预览
-        </Button>
-        <div className="flex items-center gap-3">
-          <Button type="button" variant="outline" onClick={onCancel}>
-            取消
-          </Button>
-          <Button
-            onClick={handleSave}
-            disabled={isSaving}
-            className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600"
-          >
-            {isSaving ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                保存中...
-              </>
-            ) : (
-              "保存规则"
-            )}
-          </Button>
         </div>
+
+        {/* 输出配置 */}
+        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+          <SectionHeader
+            title="输出配置"
+            help={HELP_TEXTS.outputClients}
+            expanded={expandedSections.has("output")}
+            onToggle={() => toggleSection("output")}
+          />
+          {expandedSections.has("output") && (
+            <div className="p-4 space-y-4 bg-white dark:bg-slate-900">
+              <div className="space-y-2">
+                <Label>输出客户端</Label>
+                <div className="flex flex-wrap gap-3">
+                  {clientsList.map((client) => (
+                    <label
+                      key={client.id}
+                      className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
+                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
+                        : "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                        }`}
+                    >
+                      <Checkbox
+                        checked={formData.output.clients.includes(client.id)}
+                        onCheckedChange={() => toggleClient(client.id as ClientType)}
+                      />
+                      <Monitor className="w-4 h-4" />
+                      <span>{client.displayName}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              {/* 客户端差异化配置 */}
+              {formData.output.clients.length > 0 && (
+                <div className="space-y-3">
+                  <Label className="flex items-center gap-2">
+                    客户端差异化配置
+                    <HelpIcon text={HELP_TEXTS.clientOverrides} />
+                  </Label>
+                  {formData.output.clients.map((client) => {
+                    const clientConfig = clientsList.find(c => c.id === client);
+                    return (
+                      <ClientOverrideSection
+                        key={client}
+                        client={client as ClientType}
+                        clientsList={clientsList}
+                        clientGlobalTransforms={clientConfig?.transforms || []}
+                        config={formData.output.client_overrides?.[client as ClientType]}
+                        transformers={transformers}
+                        onToggle={(enabled) => toggleClientOverride(client as ClientType, enabled)}
+                        onToggleUseGlobal={(useGlobal) => toggleUseGlobalTransforms(client as ClientType, useGlobal)}
+                        onAddTransform={(type) => addClientTransform(client as ClientType, type)}
+                        onUpdateTransform={(index, updates) => updateClientTransform(client as ClientType, index, updates)}
+                        onRemoveTransform={(index) => removeClientTransform(client as ClientType, index)}
+                      />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
       </div>
 
       {/* 本地内容编辑对话框 */}
@@ -1434,6 +1419,7 @@ function ClientOverrideSection({
   clientGlobalTransforms,
   config,
   transformers,
+  onToggle,
   onToggleUseGlobal,
   onAddTransform,
   onUpdateTransform,
@@ -1464,180 +1450,110 @@ function ClientOverrideSection({
           </span>
           {transforms.length > 0 && (
             <Badge variant="secondary" className="text-xs shrink-0">
-              +{transforms.length} 额外
+              {transforms.length} 自定义
             </Badge>
           )}
         </button>
-
-        {/* 使用全局转换器开关 - 直接在标题栏可见 */}
-        <div className="flex items-center gap-2 shrink-0 ml-2" onClick={(e) => e.stopPropagation()}>
-          <span className="text-xs text-gray-500 dark:text-gray-400">
-            全局转换器
-            {hasGlobalTransforms && (
-              <span className="text-blue-500 ml-1">({clientGlobalTransforms.length})</span>
-            )}
-          </span>
-          <Switch
-            checked={useGlobalTransforms}
-            onCheckedChange={onToggleUseGlobal}
-          />
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={config?.enabled ?? true}
+              onCheckedChange={onToggle}
+            />
+            <span className="text-sm text-gray-500">启用</span>
+          </div>
         </div>
       </div>
 
-      {expanded && (
-        <div className="p-3 space-y-3 bg-white dark:bg-slate-900">
-          {/* 全局转换器预览（只读） */}
-          {hasGlobalTransforms && (
-            <div className="space-y-2">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                全局转换器（来自客户端配置）
-                {!useGlobalTransforms && <span className="text-orange-500 ml-1">- 已禁用</span>}
+      {/* 展开内容 */}
+      {expanded && (config?.enabled ?? true) && (
+        <div className="p-3 bg-white dark:bg-slate-900 space-y-4 border-t border-gray-200 dark:border-slate-700">
+          {/* 全局转换继承开关 */}
+          <div className="flex items-start gap-2 p-2 rounded bg-gray-50 dark:bg-slate-800/50">
+            <Checkbox
+              checked={useGlobalTransforms}
+              onCheckedChange={(c) => onToggleUseGlobal(!!c)}
+              className="mt-1"
+            />
+            <div className="space-y-1">
+              <span className="text-sm font-medium">应用全局客户端转换</span>
+              <p className="text-xs text-gray-500">
+                如果开启，将先应用客户端全局配置中的转换操作，再应用此处的自定义操作。
               </p>
-              {clientGlobalTransforms.map((transform, index) => (
-                <div
-                  key={`global-${index}`}
-                  className={`p-2 rounded border border-dashed text-sm ${useGlobalTransforms
-                    ? "border-gray-300 dark:border-slate-600 bg-gray-50/50 dark:bg-slate-800/50 text-gray-600 dark:text-gray-400"
-                    : "border-gray-200 dark:border-slate-700 bg-gray-50/30 dark:bg-slate-800/30 text-gray-400 dark:text-gray-500 line-through"
-                    }`}
-                >
-                  <span className="font-medium">#{index + 1}</span>
-                  {" "}
-                  {transform.type === "use" && `预定义: ${transform.use}`}
-                  {transform.type === "replace" && `替换: ${transform.pattern} → ${transform.replacement || "(空)"}`}
-                  {transform.type === "remove_lines" && `删除: ${transform.pattern}`}
+              {hasGlobalTransforms ? (
+                <div className="flex flex-wrap gap-1 mt-1">
+                  {clientGlobalTransforms.map((t, i) => (
+                    <Badge key={i} variant="outline" className="text-[10px] bg-background">
+                      {t.type === "use" ? `转换器: ${t.use}` : t.type === "replace" ? "正则替换" : "删除行"}
+                    </Badge>
+                  ))}
                 </div>
-              ))}
+              ) : (
+                <p className="text-xs text-amber-500">
+                  (该客户端暂无全局转换配置)
+                </p>
+              )}
             </div>
-          )}
-
-          {/* 规则级别的额外转换器 */}
-          <div className="space-y-2">
-            {transforms.length > 0 && (
-              <p className="text-xs text-gray-500 dark:text-gray-400">规则额外转换器:</p>
-            )}
-            {transforms.map((transform, index) => (
-              <div
-                key={index}
-                className="p-3 rounded border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-2"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">操作 {index + 1}</span>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => onRemoveTransform(index)}
-                    className="w-6 h-6 text-gray-400 hover:text-red-500"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </Button>
-                </div>
-
-                <Select
-                  value={transform.type}
-                  onValueChange={(type: "use" | "replace" | "remove_lines") => {
-                    const newTransform: Partial<Transform> = { type };
-                    if (type === "replace") {
-                      newTransform.pattern = "";
-                      newTransform.replacement = "";
-                    }
-                    if (type === "remove_lines") {
-                      newTransform.pattern = "";
-                    }
-                    onUpdateTransform(index, newTransform);
-                  }}
-                >
-                  <SelectTrigger className="h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Object.keys(transformers).length > 0 && (
-                      <SelectItem value="use">预定义转换器</SelectItem>
-                    )}
-                    <SelectItem value="replace">正则替换</SelectItem>
-                    <SelectItem value="remove_lines">正则删除</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                {transform.type === "use" && (
-                  <Select
-                    value={transform.use || ""}
-                    onValueChange={(value) => onUpdateTransform(index, { use: value })}
-                  >
-                    <SelectTrigger className="h-8">
-                      <SelectValue placeholder="选择转换器" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {Object.entries(transformers).map(([name]) => (
-                        <SelectItem key={name} value={name}>
-                          {name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                )}
-
-                {transform.type === "replace" && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      value={transform.pattern || ""}
-                      onChange={(e) => onUpdateTransform(index, { pattern: e.target.value })}
-                      placeholder="正则表达式"
-                      className="h-8 text-sm"
-                    />
-                    <Input
-                      value={transform.replacement || ""}
-                      onChange={(e) => onUpdateTransform(index, { replacement: e.target.value })}
-                      placeholder="替换为"
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                )}
-
-                {transform.type === "remove_lines" && (
-                  <Input
-                    value={transform.pattern || ""}
-                    onChange={(e) => onUpdateTransform(index, { pattern: e.target.value })}
-                    placeholder="正则表达式"
-                    className="h-8 text-sm"
-                  />
-                )}
-              </div>
-            ))}
           </div>
 
-          {/* 添加规则转换器按钮 */}
-          <div className="flex flex-wrap gap-2">
-            {Object.keys(transformers).length > 0 && (
+          <Separator />
+
+          {/* 额外转换操作 */}
+          <div className="space-y-3">
+            <p className="text-sm font-medium flex items-center gap-2">
+              额外转换操作
+              <Badge variant="outline" className="text-xs font-normal">
+                仅对该规则生效
+              </Badge>
+            </p>
+
+            {transforms.map((transform, index) => (
+              <TransformCard
+                key={index}
+                transform={transform}
+                sources={[]} // 客户端转换通常不针对特定来源，或者需要传递sources？这里简化处理
+                transformers={transformers}
+                onChange={(updates) => onUpdateTransform(index, updates)}
+                onRemove={() => onRemoveTransform(index)}
+                onDuplicate={() => { }} // 暂时不支持 duplicating client specific transforms easy way
+                isDragging={false}
+                onDragStart={() => { }}
+                onDragOver={() => { }}
+                onDragEnd={() => { }}
+              />
+            ))}
+
+            <div className="flex flex-wrap gap-2">
+              {Object.keys(transformers).length > 0 && (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAddTransform("use")}
+                >
+                  <Code2 className="w-4 h-4 mr-1" />
+                  预定义
+                </Button>
+              )}
               <Button
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={() => onAddTransform("use")}
+                onClick={() => onAddTransform("replace")}
               >
-                <Plus className="w-3 h-3 mr-1" />
-                转换器
+                <Replace className="w-4 h-4 mr-1" />
+                替换
               </Button>
-            )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onAddTransform("replace")}
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              替换
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => onAddTransform("remove_lines")}
-            >
-              <Plus className="w-3 h-3 mr-1" />
-              删除
-            </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => onAddTransform("remove_lines")}
+              >
+                <Eraser className="w-4 h-4 mr-1" />
+                删除
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -486,10 +486,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       </Dialog>
 
       {/* Rule Editor Dialog */}
+      {/* Rule Editor Dialog */}
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
-        <DialogContent className="max-w-4xl max-h-[90vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-gray-900 dark:text-white">
+        <DialogContent className="max-w-4xl h-[90vh] p-0 flex flex-col bg-background border-border overflow-hidden gap-0">
+          <DialogHeader className="p-6 pb-2 border-b shrink-0 hidden"> {/* Hidden because custom header in Editor */}
+            <DialogTitle className="text-foreground">
               {editingRule ? `编辑规则: ${editingRule.name}` : "添加新规则"}
             </DialogTitle>
           </DialogHeader>
