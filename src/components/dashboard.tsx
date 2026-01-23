@@ -166,7 +166,11 @@ export function Dashboard({ onBack }: DashboardProps) {
     try {
       const result = await executeFullSync();
       if (result.success) {
-        toast.success(`同步成功！${result.changedRules.length} 条规则已更新`);
+        if (result.changedRules.length > 0) {
+          toast.success(`同步成功！${result.changedRules.length} 条规则已更新`);
+        } else {
+          toast.success("同步成功！本次无规则变更");
+        }
         setNeedsFirstSync(false);
       } else {
         toast.warning(`同步完成，但有 ${result.failedRules.length} 条规则失败`);
