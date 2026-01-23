@@ -294,13 +294,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           <Card key={rule.name} className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center shrink-0">
                     <FileText className="w-5 h-5 text-blue-500" />
                   </div>
-                  <div>
-                    <CardTitle className="text-gray-900 dark:text-white text-lg">{rule.displayName || rule.name}</CardTitle>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  <div className="min-w-0">
+                    <CardTitle className="text-gray-900 dark:text-white text-lg truncate">{rule.displayName || rule.name}</CardTitle>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
                       {rule.description || `ID: ${rule.name}`}
                     </p>
                   </div>
