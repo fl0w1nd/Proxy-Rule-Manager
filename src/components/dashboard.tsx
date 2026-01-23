@@ -24,6 +24,7 @@ import {
   AlertTriangle,
   Zap,
   LayoutDashboard,
+  Monitor,
   CalendarDays,
   ChevronLeft,
   ChevronRight
@@ -75,6 +76,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [isInitializing, setIsInitializing] = useState(false);
   const [needsFirstSync, setNeedsFirstSync] = useState(false);
   const [activityDate, setActivityDate] = useState<string>("all");
+  const [activityClient, setActivityClient] = useState<string>("all");
   const [changePage, setChangePage] = useState(1);
   const [failurePage, setFailurePage] = useState(1);
   const [changeData, setChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
@@ -189,7 +191,7 @@ export function Dashboard({ onBack }: DashboardProps) {
 
     try {
       const dateParam = activityDate === "all" ? undefined : activityDate;
-      const clientParam = undefined;
+      const clientParam = activityClient === "all" ? undefined : activityClient;
 
       const [changes, failures, dates] = await Promise.all([
         getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
@@ -203,7 +205,7 @@ export function Dashboard({ onBack }: DashboardProps) {
       console.error("Failed to fetch activity:", error);
       if (activeTab === "activity") toast.error("获取活动记录失败");
     }
-  }, [activeTab, activityDate, changePage, failurePage, activityPageSize]);
+  }, [activeTab, activityDate, activityClient, changePage, failurePage, activityPageSize]);
 
   useEffect(() => {
     fetchActivity();
@@ -214,6 +216,12 @@ export function Dashboard({ onBack }: DashboardProps) {
       setActivityDate("all");
     }
   }, [activityDate, activityDates]);
+
+  useEffect(() => {
+    if (activityClient !== "all" && !clients.some((client) => client.id === activityClient)) {
+      setActivityClient("all");
+    }
+  }, [activityClient, clients]);
 
   const openChangeDiff = async (change: ChangeRecordSummary) => {
     setSelectedChange(change);
@@ -272,6 +280,11 @@ export function Dashboard({ onBack }: DashboardProps) {
                 <Badge variant="outline" className={`${getChangeBadgeClass(change.changeType)} text-[10px] border-0 shrink-0`}>
                   {getChangeLabel(change.changeType)}
                 </Badge>
+                {change.client && (
+                  <Badge variant="secondary" className="text-[10px] font-normal">
+                    {getClientDisplayName(change.client)}
+                  </Badge>
+                )}
               </div>
               <p className="text-xs text-muted-foreground flex items-center justify-between">
                 <span>{formatBytes(change.sizeBytes)}</span>
@@ -540,6 +553,25 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                     <div className="h-4 w-px bg-border/60 mx-1" />
 
+                    <Select value={activityClient} onValueChange={(value) => { setActivityClient(value); setChangePage(1); setFailurePage(1); }}>
+                      <SelectTrigger className="w-[160px] h-9 bg-background">
+                        <div className="flex items-center gap-2 text-muted-foreground">
+                          <Monitor className="w-4 h-4" />
+                          <SelectValue placeholder="客户端" />
+                        </div>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">全部客户端</SelectItem>
+                        {clients.map((client) => (
+                          <SelectItem key={client.id} value={client.id}>
+                            {client.displayName}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+
+                    <div className="h-4 w-px bg-border/60 mx-1" />
+
                     <Select value={activityDate} onValueChange={setActivityDate}>
                       <SelectTrigger className="w-[140px] h-9 bg-background">
                         <div className="flex items-center gap-2 text-muted-foreground">
@@ -582,14 +614,19 @@ export function Dashboard({ onBack }: DashboardProps) {
                           <div key={f.id} className="p-4 hover:bg-muted/10 transition-colors flex items-start justify-between gap-4 group">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                                <span className="font-medium text-destructive flex items-center gap-1.5">
-                                  <XCircle className="w-4 h-4" />
-                                  {f.ruleName}
-                                </span>
-                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground border-border/50 bg-muted/20">
-                                  {formatTimestamp(f.timestamp)}
-                                </Badge>
-                              </div>
+                <span className="font-medium text-destructive flex items-center gap-1.5">
+                  <XCircle className="w-4 h-4" />
+                  {f.ruleName}
+                </span>
+                {f.client && (
+                  <Badge variant="secondary" className="text-[10px] font-normal">
+                    {getClientDisplayName(f.client)}
+                  </Badge>
+                )}
+                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground border-border/50 bg-muted/20">
+                  {formatTimestamp(f.timestamp)}
+                </Badge>
+              </div>
                               <p className="text-sm text-muted-foreground leading-relaxed">{f.message}</p>
                             </div>
                           </div>
