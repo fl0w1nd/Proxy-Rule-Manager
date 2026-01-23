@@ -12,7 +12,7 @@ services:
       - PORT=3000
       - NODE_ENV=production
       # 管理员 Token（建议设置强密码，留空则无需认证）
-      # - ADMIN_TOKEN=your-secure-token-here
+      - ADMIN_TOKEN=your-secure-token-here
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/status"]
       interval: 30s
