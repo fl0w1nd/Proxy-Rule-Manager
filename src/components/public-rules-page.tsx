@@ -239,8 +239,6 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     setIsPreviewFullscreen(false);
   };
 
-  const currentClient = getClientConfig(activeClient);
-
   // 全屏预览模式
   if (isPreviewFullscreen && previewItem) {
     return (
