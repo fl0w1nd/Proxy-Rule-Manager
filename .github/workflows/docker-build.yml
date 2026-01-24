@@ -198,18 +198,23 @@ jobs:
           provenance: false
           sbom: false
 
-      - name: Save digest to artifact
+      # 导出 digest 到本地目录
+      - name: Export digest
         run: |
-          echo "${{ steps.build.outputs.digest }}" > digest.txt
-          echo "arch=${{ matrix.arch }}"
-          echo "digest=${{ steps.build.outputs.digest }}"
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "Exported digest: $digest"
 
-      - name: Upload digest artifact
+      # 上传 digest（明确指定名称避免冲突）
+      - name: Upload digest
         uses: actions/upload-artifact@v4
         with:
-          name: digest-${{ matrix.arch }}
-          path: digest.txt
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
           retention-days: 1
+          if-no-files-found: error
+          overwrite: true
 
   manifest:
     needs: [prepare, build]
@@ -231,28 +236,36 @@ jobs:
       - name: Download digests
         uses: actions/download-artifact@v4
         with:
-          path: ./digests
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
 
       - name: Create and push multi-arch manifests for all tags
         env:
           IMAGE: ${{ needs.prepare.outputs.image }}
           TAGS: ${{ needs.prepare.outputs.tags }}
         run: |
-          AMD_DIGEST=$(cat "./digests/digest-amd64/digest.txt")
-          ARM_DIGEST=$(cat "./digests/digest-arm64/digest.txt")
-
-          echo "amd64 digest: ${AMD_DIGEST}"
-          echo "arm64 digest: ${ARM_DIGEST}"
+          # 列出所有下载的 digest 文件
+          ls -la /tmp/digests/
+          
+          # 从文件名读取 digests（文件名就是 digest 去掉 sha256: 前缀）
+          digests=()
+          for digest_file in /tmp/digests/*; do
+            digest="sha256:$(basename "$digest_file")"
+            digests+=("${IMAGE}@${digest}")
+            echo "Found digest: $digest"
+          done
+          
           echo ""
           echo "Tags to publish:"
           echo "${TAGS}"
           echo ""
 
+          # 为每个 tag 创建 multi-arch manifest
           while IFS= read -r tag; do
             [ -z "$tag" ] && continue
             echo "Publishing manifest: ${tag}"
             docker buildx imagetools create \
               -t "${tag}" \
-              "${IMAGE}@${AMD_DIGEST}" \
-              "${IMAGE}@${ARM_DIGEST}"
+              "${digests[@]}"
           done <<< "${TAGS}"
