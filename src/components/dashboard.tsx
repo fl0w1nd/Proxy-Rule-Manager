@@ -332,6 +332,7 @@ export function Dashboard({ onBack }: DashboardProps) {
         activeTab={activeTab}
         onTabChange={setActiveTab}
         onLogout={() => { if (!authRequired) onBack?.(); else logout(); }}
+        onHome={onBack}
       />
 
       {/* Main Content Area */}
@@ -654,19 +655,19 @@ export function Dashboard({ onBack }: DashboardProps) {
                           <div key={f.id} className="p-4 hover:bg-muted/10 transition-colors flex items-start justify-between gap-4 group">
                             <div className="space-y-1">
                               <div className="flex items-center gap-2">
-                <span className="font-medium text-destructive flex items-center gap-1.5">
-                  <XCircle className="w-4 h-4" />
-                  {f.ruleName}
-                </span>
-                {f.client && (
-                  <Badge variant="secondary" className="text-[10px] font-normal">
-                    {getClientDisplayName(f.client)}
-                  </Badge>
-                )}
-                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground border-border/50 bg-muted/20">
-                  {formatTimestamp(f.timestamp)}
-                </Badge>
-              </div>
+                                <span className="font-medium text-destructive flex items-center gap-1.5">
+                                  <XCircle className="w-4 h-4" />
+                                  {f.ruleName}
+                                </span>
+                                {f.client && (
+                                  <Badge variant="secondary" className="text-[10px] font-normal">
+                                    {getClientDisplayName(f.client)}
+                                  </Badge>
+                                )}
+                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground border-border/50 bg-muted/20">
+                                  {formatTimestamp(f.timestamp)}
+                                </Badge>
+                              </div>
                               <p className="text-sm text-muted-foreground leading-relaxed">{f.message}</p>
                             </div>
                           </div>

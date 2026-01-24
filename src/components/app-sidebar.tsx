@@ -10,7 +10,8 @@ import {
     Settings,
     Shield,
     Sun,
-    Moon
+    Moon,
+    Home
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -21,6 +22,7 @@ export interface SidebarNavProps {
     onTabChange: (tab: string) => void;
     className?: string;
     onLogout?: () => void;
+    onHome?: () => void;
 }
 
 const NAV_ITEMS = [
@@ -61,7 +63,7 @@ const NAV_ITEMS = [
     },
 ];
 
-export function AppSidebar({ activeTab, onTabChange, className, onLogout }: SidebarNavProps) {
+export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome }: SidebarNavProps) {
     const { theme, toggleTheme } = useTheme();
 
     return (
@@ -122,14 +124,25 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout }: Side
                     </Button>
                 </div>
 
-                <Button
-                    variant="ghost"
-                    className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-3"
-                    onClick={onLogout}
-                >
-                    <LogOut className="w-4 h-4" />
-                    退出登录
-                </Button>
+                <div className="flex flex-col gap-1">
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start text-muted-foreground hover:text-primary hover:bg-primary/10 gap-3"
+                        onClick={onHome}
+                    >
+                        <Home className="w-4 h-4" />
+                        返回首页
+                    </Button>
+
+                    <Button
+                        variant="ghost"
+                        className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-3"
+                        onClick={onLogout}
+                    >
+                        <LogOut className="w-4 h-4" />
+                        退出登录
+                    </Button>
+                </div>
             </div>
         </div>
     );
