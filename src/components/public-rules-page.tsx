@@ -13,6 +13,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Search,
   Copy,
   Eye,
@@ -68,6 +74,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [copiedRule, setCopiedRule] = useState<string | null>(null);
   const [copiedConfig, setCopiedConfig] = useState<string | null>(null);
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
+
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   // 切换主标签时清空已选标签
@@ -135,11 +142,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return `${window.location.origin}/${clientId}/${name}.${ext}`;
   };
 
-  const copyRuleUrl = (ruleName: string) => {
-    const url = getRuleUrl(ruleName, activeClient);
+  const copyRuleUrl = (ruleName: string, clientId?: string) => {
+    const target = clientId || activeClient;
+    const url = getRuleUrl(ruleName, target);
     navigator.clipboard.writeText(url);
     setCopiedRule(ruleName);
     setTimeout(() => setCopiedRule(null), 2000);
+  };
+
+  const getClientDisplayName = (clientId: string) => {
+    return getClientConfig(clientId)?.displayName || clientId;
   };
 
   const copyConfigUrl = (file: ClientFileMeta) => {
@@ -293,408 +305,431 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-        <div className="container mx-auto px-4 py-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                <Globe className="w-5 h-5 text-white" />
+    <TooltipProvider>
+      <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
+        {/* Header */}
+        <header className="sticky top-0 z-50 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
+                  <Globe className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                    代理规则集
+                  </h1>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Proxy Rule Manager
+                  </p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-xl font-bold text-gray-900 dark:text-white">
-                  代理规则集
-                </h1>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Proxy Rule Manager
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={toggleTheme}
-                className="text-gray-600 dark:text-gray-300"
-              >
-                {theme === "light" ? (
-                  <Moon className="w-5 h-5" />
-                ) : (
-                  <Sun className="w-5 h-5" />
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={onAdminClick}
-                className="text-gray-600 dark:text-gray-300"
-              >
-                <Settings className="w-4 h-4 mr-1" />
-                管理
-              </Button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Main Tabs & Search */}
-        <div className="mb-6 space-y-4">
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-            <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "rules" | "configs")}>
-              <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
-                <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                  规则
-                </TabsTrigger>
-                <TabsTrigger value="configs" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
-                  配置文件
-                </TabsTrigger>
-              </TabsList>
-            </Tabs>
-            <div className="relative w-full lg:w-80">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input
-                placeholder={activeMainTab === "rules" ? "搜索规则..." : "搜索配置文件..."}
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10 bg-white dark:bg-slate-800"
-              />
-            </div>
-          </div>
-          <Tabs
-            value={activeClient}
-            onValueChange={(v) => setActiveClient(v)}
-          >
-            <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
-              {clients.map((client) => (
-                <TabsTrigger
-                  key={client.id}
-                  value={client.id}
-                  className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
-                >
-                  {client.displayName}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-
-          {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}
-          {activeMainTab === "rules" && allTags.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
-                <Tag className="w-4 h-4" />
-                <span>标签:</span>
-              </div>
-              {allTags.map((tag) => (
-                <Badge
-                  key={tag}
-                  variant={selectedTags.includes(tag) ? "default" : "outline"}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={selectedTags.includes(tag)}
-                  className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
-                      ? "bg-blue-500 hover:bg-blue-600 text-white"
-                      : "hover:bg-gray-100 dark:hover:bg-slate-700"
-                    }`}
-                  onClick={() => toggleTag(tag)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      toggleTag(tag);
-                    }
-                  }}
-                >
-                  {tag}
-                </Badge>
-              ))}
-              {selectedTags.length > 0 && (
+              <div className="flex items-center gap-2">
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => setSelectedTags([])}
-                  className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+                  size="icon"
+                  onClick={toggleTheme}
+                  className="text-gray-600 dark:text-gray-300"
                 >
-                  清除筛选
+                  {theme === "light" ? (
+                    <Moon className="w-5 h-5" />
+                  ) : (
+                    <Sun className="w-5 h-5" />
+                  )}
                 </Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Content Grid */}
-        {isLoading ? (
-          <div className="flex items-center justify-center py-20">
-            <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-          </div>
-        ) : activeMainTab === "rules" ? (
-          clientRules.length === 0 ? (
-            <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-              {searchQuery ? "未找到匹配的规则" : "暂无规则，请先在管理后台添加"}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {clientRules.map((rule) => (
-                <Card
-                  key={rule.name}
-                  className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={onAdminClick}
+                  className="text-gray-600 dark:text-gray-300"
                 >
-                  <CardHeader className="pb-2">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center flex-shrink-0">
-                        <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                          {rule.displayName || rule.name}
-                        </CardTitle>
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                          {rule.description || "无描述"}
-                        </p>
-                        {/* 标签 */}
-                        {rule.tags && rule.tags.length > 0 && (
-                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
-                            <Tag className="w-3 h-3 text-gray-400" />
-                            {rule.tags.slice(0, 3).map((tag) => (
-                              <Badge
-                                key={tag}
-                                variant="outline"
-                                className="text-[10px] px-1 py-0 h-4 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
-                              >
-                                {tag}
-                              </Badge>
-                            ))}
-                            {rule.tags.length > 3 && (
-                              <span className="text-[10px] text-gray-400">+{rule.tags.length - 3}</span>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardHeader>
-                  <CardContent className="pt-2">
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => handlePreview({
-                          type: "rule",
-                          name: rule.name,
-                          clientId: activeClient,
-                          fileName: rule.name,
-                        })}
-                      >
-                        <Eye className="w-4 h-4 mr-1" />
-                        预览
-                      </Button>
-                      <Button
-                        size="sm"
-                        className={`flex-1 transition-colors ${copiedRule === rule.name
-                          ? "bg-green-500 hover:bg-green-600"
-                          : "bg-blue-500 hover:bg-blue-600"
-                          }`}
-                        onClick={() => copyRuleUrl(rule.name)}
-                      >
-                        {copiedRule === rule.name ? (
-                          <>
-                            <CheckCircle className="w-4 h-4 mr-1" />
-                            已复制
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="w-4 h-4 mr-1" />
-                            复制
-                          </>
-                        )}
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  <Settings className="w-4 h-4 mr-1" />
+                  管理
+                </Button>
+              </div>
             </div>
-          )
-        ) : (
-          clientPublicFiles.length === 0 ? (
-            <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-              {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
+          </div>
+        </header>
+
+        {/* Main Content */}
+        <main className="container mx-auto px-4 py-8">
+          {/* Main Tabs & Search */}
+          <div className="mb-6 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+              <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "rules" | "configs")}>
+                <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
+                  <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                    规则
+                  </TabsTrigger>
+                  <TabsTrigger value="configs" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                    配置文件
+                  </TabsTrigger>
+                </TabsList>
+              </Tabs>
+              <div className="relative w-full lg:w-80">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <Input
+                  placeholder={activeMainTab === "rules" ? "搜索规则..." : "搜索配置文件..."}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="pl-10 bg-white dark:bg-slate-800"
+                />
+              </div>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-              {clientPublicFiles.map((file) => {
-                return (
+            <Tabs
+              value={activeClient}
+              onValueChange={(v) => setActiveClient(v)}
+            >
+              <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
+                {clients.map((client) => (
+                  <TabsTrigger
+                    key={client.id}
+                    value={client.id}
+                    className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                  >
+                    {client.displayName}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </Tabs>
+
+            {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}
+            {activeMainTab === "rules" && allTags.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                  <Tag className="w-4 h-4" />
+                  <span>标签:</span>
+                </div>
+                {allTags.map((tag) => (
+                  <Badge
+                    key={tag}
+                    variant={selectedTags.includes(tag) ? "default" : "outline"}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedTags.includes(tag)}
+                    className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
+                      ? "bg-blue-500 hover:bg-blue-600 text-white"
+                      : "hover:bg-gray-100 dark:hover:bg-slate-700"
+                      }`}
+                    onClick={() => toggleTag(tag)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggleTag(tag);
+                      }
+                    }}
+                  >
+                    {tag}
+                  </Badge>
+                ))}
+                {selectedTags.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSelectedTags([])}
+                    className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+                  >
+                    清除筛选
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Content Grid */}
+          {isLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+            </div>
+          ) : activeMainTab === "rules" ? (
+            clientRules.length === 0 ? (
+              <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+                {searchQuery ? "未找到匹配的规则" : "暂无规则，请先在管理后台添加"}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {clientRules.map((rule) => (
                   <Card
-                    key={file.id}
-                    className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
+                    key={rule.name}
+                    className="flex flex-col h-full bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow gap-0 pt-6 pb-2 px-0"
                   >
                     <CardHeader className="pb-2">
                       <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                            {file.displayName || `${file.configId}.${file.ext}`}
-                          </CardTitle>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono truncate">
-                            {file.configId}.{file.ext}
-                          </p>
-                          {file.description && (
-                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-wrap break-words">
-                              {file.description}
-                            </p>
-                          )}
+                          <div className="flex items-start justify-between gap-2">
+                            <div className="min-w-0">
+                              <CardTitle className="text-base text-gray-900 dark:text-white truncate">
+                                {rule.displayName || rule.name}
+                              </CardTitle>
+                            </div>
+                            <div className="flex items-center gap-1 shrink-0">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-gray-400 hover:text-blue-500"
+                                onClick={() => handlePreview({
+                                  type: "rule",
+                                  name: rule.name,
+                                  clientId: activeClient,
+                                  fileName: rule.name,
+                                })}
+                                title="预览"
+                              >
+                                <Eye className="w-3 h-3" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className={`h-6 w-6 transition-colors ${copiedRule === rule.name
+                                  ? "text-green-500"
+                                  : "text-gray-400 hover:text-blue-500"
+                                  }`}
+                                onClick={() => copyRuleUrl(rule.name)}
+                                title="复制链接"
+                              >
+                                {copiedRule === rule.name ? (
+                                  <CheckCircle className="w-3 h-3" />
+                                ) : (
+                                  <Copy className="w-3 h-3" />
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                          <Tooltip delayDuration={300}>
+                            <TooltipTrigger asChild>
+                              <div className={`mt-1 rounded p-1 -ml-1 ${rule.description ? "hover:bg-gray-100 dark:hover:bg-slate-700/50" : ""}`}>
+                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.5em] whitespace-pre-wrap break-words cursor-default">
+                                  {rule.description || "无描述"}
+                                </p>
+                              </div>
+                            </TooltipTrigger>
+                            {rule.description && (
+                              <TooltipContent
+                                side="bottom"
+                                align="start"
+                                className="max-w-[320px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 border-none shadow-xl"
+                              >
+                                <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
+                                  {rule.description}
+                                </p>
+                              </TooltipContent>
+                            )}
+                          </Tooltip>
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="pt-2">
-                      <div className="flex gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="flex-1"
-                          onClick={() => handlePreview({
-                            type: "config",
-                            name: file.configId,
-                            clientId: file.clientId,
-                            fileName: `${file.configId}.${file.ext}`,
-                            ext: file.ext,
-                          })}
-                        >
-                          <Eye className="w-4 h-4 mr-1" />
-                          预览
-                        </Button>
-                        <Button
-                          size="sm"
-                          className={`flex-1 transition-colors ${copiedConfig === file.id
-                            ? "bg-green-500 hover:bg-green-600"
-                            : "bg-emerald-500 hover:bg-emerald-600"
-                            }`}
-                          onClick={() => copyConfigUrl(file)}
-                        >
-                          {copiedConfig === file.id ? (
-                            <>
-                              <CheckCircle className="w-4 h-4 mr-1" />
-                              已复制
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-4 h-4 mr-1" />
-                              复制
-                            </>
-                          )}
-                        </Button>
+                    <CardContent className="flex-1 flex flex-col justify-end pt-0 pb-1.5">
+                      {/* 标签 */}
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {rule.tags && rule.tags.length > 0 ? (
+                          rule.tags.slice(0, 4).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant="outline"
+                              className="text-[10px] px-1.5 py-0 h-4 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800"
+                            >
+                              {tag}
+                            </Badge>
+                          ))
+                        ) : (
+                          <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">无标签</span>
+                        )}
+                        {rule.tags && rule.tags.length > 4 && (
+                          <span className="text-[10px] text-gray-400">+{rule.tags.length - 4}</span>
+                        )}
                       </div>
                     </CardContent>
                   </Card>
-                );
-              })}
-            </div>
-          )
-        )}
-
-        {/* Stats */}
-        <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 space-y-1">
-          {activeMainTab === "rules" ? (
-            <>
-              <p>共 {clientRules.length} 条规则</p>
-              {lastSyncAt && (
-                <p>上次更新: {new Date(lastSyncAt).toLocaleString("zh-CN")}</p>
-              )}
-            </>
+                ))}
+              </div>
+            )
           ) : (
-            <p>共 {clientPublicFiles.length} 个配置文件</p>
-          )}
-        </div>
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t bg-white/50 dark:bg-slate-900/50 mt-auto">
-        <div className="container mx-auto px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>Proxy Rule Manager • 代理规则集托管服务</p>
-          <p className="mt-1">
-            <a
-              href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="hover:text-blue-500 inline-flex items-center gap-1"
-            >
-              <ExternalLink className="w-3 h-3" />
-              GitHub
-            </a>
-          </p>
-        </div>
-      </footer>
-
-      {/* Preview Dialog */}
-      <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-5xl w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
-            <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-              <FileText className="w-5 h-5 text-blue-500" />
-              {previewItem?.fileName}
-              <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 ml-2">
-                {previewItem ? (getClientConfig(previewItem.clientId)?.displayName || previewItem.clientId) : (currentClient?.displayName || activeClient)}
-              </Badge>
-            </DialogTitle>
-          </DialogHeader>
-          <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
-            {previewLoading ? (
-              <div className="flex-1 flex items-center justify-center">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+            clientPublicFiles.length === 0 ? (
+              <div className="text-center py-20 text-gray-500 dark:text-gray-400">
+                {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
               </div>
             ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {clientPublicFiles.map((file) => {
+                  return (
+                    <Card
+                      key={file.id}
+                      className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
+                    >
+                      <CardHeader className="pb-2">
+                        <div className="flex items-start gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center flex-shrink-0">
+                            <FileText className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <CardTitle className="text-base text-gray-900 dark:text-white truncate">
+                              {file.displayName || `${file.configId}.${file.ext}`}
+                            </CardTitle>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono truncate">
+                              {file.configId}.{file.ext}
+                            </p>
+                            {file.description && (
+                              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-wrap break-words">
+                                {file.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent className="pt-2">
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="flex-1"
+                            onClick={() => handlePreview({
+                              type: "config",
+                              name: file.configId,
+                              clientId: file.clientId,
+                              fileName: `${file.configId}.${file.ext}`,
+                              ext: file.ext,
+                            })}
+                          >
+                            <Eye className="w-4 h-4 mr-1" />
+                            预览
+                          </Button>
+                          <Button
+                            size="sm"
+                            className={`flex-1 transition-colors ${copiedConfig === file.id
+                              ? "bg-green-500 hover:bg-green-600"
+                              : "bg-emerald-500 hover:bg-emerald-600"
+                              }`}
+                            onClick={() => copyConfigUrl(file)}
+                          >
+                            {copiedConfig === file.id ? (
+                              <>
+                                <CheckCircle className="w-4 h-4 mr-1" />
+                                已复制
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="w-4 h-4 mr-1" />
+                                复制
+                              </>
+                            )}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
+              </div>
+            )
+          )
+          }
+
+          {/* Stats */}
+          <div className="mt-8 text-center text-sm text-gray-500 dark:text-gray-400 space-y-1">
+            {activeMainTab === "rules" ? (
               <>
-                {/* 工具栏 */}
-                <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {previewContent.split('\n').length} 行
-                  </span>
-                  <div className="flex items-center gap-1">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => {
-                        navigator.clipboard.writeText(previewContent);
-                        toast.success("已复制内容");
-                      }}
-                      className="h-7 px-2"
-                    >
-                      <Copy className="w-4 h-4 mr-1" />
-                      复制
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsPreviewFullscreen(true)}
-                      className="h-7 px-2"
-                    >
-                      <Maximize2 className="w-4 h-4 mr-1" />
-                      全屏
-                    </Button>
-                  </div>
-                </div>
-                {/* 内容区域 - 带行号 */}
-                <div className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900">
-                  <div className="flex text-sm font-mono min-w-max">
-                    {/* 行号 */}
-                    <div className="py-4 pl-4 pr-3 text-right text-gray-400 dark:text-gray-500 select-none border-r border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800 sticky left-0">
-                      {previewContent.split('\n').map((_, i) => (
-                        <div key={i}>{i + 1}</div>
-                      ))}
-                    </div>
-                    {/* 内容 */}
-                    <pre className="py-4 px-4 text-gray-800 dark:text-gray-200 whitespace-pre">
-                      {previewContent || "暂无内容"}
-                    </pre>
-                  </div>
-                </div>
+                <p>共 {clientRules.length} 条规则</p>
+                {lastSyncAt && (
+                  <p>上次更新: {new Date(lastSyncAt).toLocaleString("zh-CN")}</p>
+                )}
               </>
+            ) : (
+              <p>共 {clientPublicFiles.length} 个配置文件</p>
             )}
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+        </main>
+
+        {/* Footer */}
+        <footer className="border-t bg-white/50 dark:bg-slate-900/50 mt-auto">
+          <div className="container mx-auto px-4 py-6 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p>Proxy Rule Manager • 代理规则集托管服务</p>
+            <p className="mt-1">
+              <a
+                href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="hover:text-blue-500 inline-flex items-center gap-1"
+              >
+                <ExternalLink className="w-3 h-3" />
+                GitHub
+              </a>
+            </p>
+          </div>
+        </footer>
+
+        {/* Preview Dialog */}
+        <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
+          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
+              <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+                <FileText className="w-5 h-5 text-blue-500" />
+                {previewItem?.fileName}
+                <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 ml-2">
+                  {previewItem ? getClientDisplayName(previewItem.clientId) : getClientDisplayName(activeClient)}
+                </Badge>
+              </DialogTitle>
+            </DialogHeader>
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+              {previewLoading ? (
+                <div className="flex-1 flex items-center justify-center">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                </div>
+              ) : (
+                <>
+                  {/* 工具栏 */}
+                  <div className="flex items-center justify-between px-6 py-2 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-900">
+                    <span className="text-sm text-gray-500 dark:text-gray-400">
+                      {previewContent.split('\n').length} 行
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          navigator.clipboard.writeText(previewContent);
+                          toast.success("已复制内容");
+                        }}
+                        className="h-7 px-2"
+                      >
+                        <Copy className="w-4 h-4 mr-1" />
+                        复制
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setIsPreviewFullscreen(true)}
+                        className="h-7 px-2"
+                      >
+                        <Maximize2 className="w-4 h-4 mr-1" />
+                        全屏
+                      </Button>
+                    </div>
+                  </div>
+                  {/* 内容区域 - 带行号 */}
+                  <div className="flex-1 overflow-auto bg-gray-50 dark:bg-slate-900">
+                    <div className="flex text-sm font-mono min-w-max">
+                      {/* 行号 */}
+                      <div className="py-4 pl-4 pr-3 text-right text-gray-400 dark:text-gray-500 select-none border-r border-gray-200 dark:border-slate-700 bg-gray-100 dark:bg-slate-800 sticky left-0">
+                        {previewContent.split('\n').map((_, i) => (
+                          <div key={i}>{i + 1}</div>
+                        ))}
+                      </div>
+                      {/* 内容 */}
+                      <pre className="py-4 px-4 text-gray-800 dark:text-gray-200 whitespace-pre">
+                        {previewContent || "暂无内容"}
+                      </pre>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    </TooltipProvider>
   );
 }
+
+

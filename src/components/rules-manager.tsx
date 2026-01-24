@@ -136,11 +136,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     }
   };
 
-  const copyRuleUrl = (ruleName: string, client: ClientType) => {
+  const copyRuleUrl = async (ruleName: string, client: ClientType) => {
     const clientPath = getClientPathName(client);
     const url = `${window.location.origin}/Rules/${clientPath}/${ruleName}.list`;
-    navigator.clipboard.writeText(url);
-    toast.success("已复制规则 URL");
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("已复制规则 URL");
+    } catch (error) {
+      toast.error("复制失败: " + String(error));
+    }
   };
 
   const handleDeleteRule = async (ruleName: string) => {
@@ -327,8 +331,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               tabIndex={0}
               aria-pressed={selectedTags.includes(tag)}
               className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
-                  ? "bg-blue-500 hover:bg-blue-600 text-white"
-                  : "hover:bg-gray-100 dark:hover:bg-slate-700"
+                ? "bg-blue-500 hover:bg-blue-600 text-white"
+                : "hover:bg-gray-100 dark:hover:bg-slate-700"
                 }`}
               onClick={() => toggleTag(tag)}
               onKeyDown={(e) => {
@@ -371,92 +375,100 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                     </p>
                   </div>
                 </div>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="ghost" size="icon" className="text-gray-500">
-                      <MoreVertical className="w-4 h-4" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-                    <DropdownMenuItem
-                      onClick={() => {
-                        setEditingRule(rule);
-                        setIsEditorOpen(true);
-                      }}
-                    >
-                      编辑规则
-                    </DropdownMenuItem>
-                    {rule.output.clients.map((client) => (
+                <div className="flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-gray-400 hover:text-blue-500"
+                    onClick={() => handlePreviewRule(rule.name, rule.output.clients)}
+                    title="预览规则"
+                    aria-label={`预览规则 ${rule.name}`}
+                  >
+                    <Eye className="w-4 h-4" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 text-gray-400 hover:text-green-500"
+                    onClick={() => handleRefreshRule(rule.name)}
+                    disabled={refreshingRules.has(rule.name)}
+                    title="刷新规则"
+                    aria-label={`刷新规则 ${rule.name}`}
+                  >
+                    {refreshingRules.has(rule.name) ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-4 h-4" />
+                    )}
+                  </Button>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400">
+                        <MoreVertical className="w-4 h-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
                       <DropdownMenuItem
-                        key={client}
-                        onClick={() => copyRuleUrl(rule.name, client)}
+                        onClick={() => {
+                          setEditingRule(rule);
+                          setIsEditorOpen(true);
+                        }}
                       >
-                        <Copy className="w-4 h-4 mr-2" />
-                        复制 {getClientDisplayName(client)} URL
+                        编辑规则
                       </DropdownMenuItem>
-                    ))}
-                    <DropdownMenuItem
-                      onClick={() => setDeletingRule(rule.name)}
-                      className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
-                    >
-                      <Trash2 className="w-4 h-4 mr-2" />
-                      删除规则
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
+                      {rule.output.clients.map((client) => (
+                        <DropdownMenuItem
+                          key={client}
+                          onClick={() => copyRuleUrl(rule.name, client)}
+                        >
+                          <Copy className="w-4 h-4 mr-2" />
+                          复制 {getClientDisplayName(client)} URL
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuItem
+                        onClick={() => setDeletingRule(rule.name)}
+                        className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
+                      >
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        删除规则
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
               {/* 规则标签 */}
-              {rule.tags && rule.tags.length > 0 && (
-                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-                  <Tag className="w-3 h-3 text-gray-400" />
-                  {rule.tags.map((tag) => (
+              <div className="flex flex-wrap items-center gap-1.5 min-h-[24px] mb-3">
+                {rule.tags && rule.tags.length > 0 ? (
+                  rule.tags.map((tag) => (
                     <Badge
                       key={tag}
                       variant="outline"
-                      className="text-xs px-1.5 py-0 h-5 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+                      className="text-[10px] px-1.5 py-0 h-5 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/50"
                     >
                       {tag}
                     </Badge>
+                  ))
+                ) : (
+                  <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">无标签</span>
+                )}
+              </div>
+
+              {/* 客户端列表 - 放到最底部 */}
+              <div className="flex items-center gap-2 pt-2 border-t border-dashed border-gray-100 dark:border-slate-800">
+                <span className="text-[10px] text-gray-400">输出:</span>
+                <div className="flex flex-wrap gap-1.5">
+                  {rule.output.clients.map((client) => (
+                    <Badge
+                      key={client}
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0 h-5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                    >
+                      {getClientDisplayName(client)}
+                    </Badge>
                   ))}
                 </div>
-              )}
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                {rule.output.clients.map((client) => (
-                  <Badge
-                    key={client}
-                    variant="secondary"
-                    className="bg-gray-100 dark:bg-slate-700 text-gray-700 dark:text-gray-300"
-                  >
-                    {getClientDisplayName(client)}
-                  </Badge>
-                ))}
-              </div>
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handlePreviewRule(rule.name, rule.output.clients)}
-                  className="flex-1"
-                >
-                  <Eye className="w-4 h-4 mr-1" />
-                  预览
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRefreshRule(rule.name)}
-                  disabled={refreshingRules.has(rule.name)}
-                  className="flex-1"
-                >
-                  {refreshingRules.has(rule.name) ? (
-                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
-                  ) : (
-                    <RefreshCw className="w-4 h-4 mr-1" />
-                  )}
-                  刷新
-                </Button>
               </div>
             </CardContent>
           </Card>
@@ -567,13 +579,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       </Dialog>
 
       {/* Rule Editor Dialog */}
-      {/* Rule Editor Dialog */}
       <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
         <DialogContent className="max-w-4xl h-[90vh] p-0 flex flex-col bg-background border-border overflow-hidden gap-0">
           <DialogHeader className="p-6 pb-2 border-b shrink-0 hidden"> {/* Hidden because custom header in Editor */}
             <DialogTitle className="text-foreground">
               {editingRule ? `编辑规则: ${editingRule.name}` : "添加新规则"}
             </DialogTitle>
+            <DialogDescription className="hidden">
+              规则编辑界面
+            </DialogDescription>
           </DialogHeader>
           <RuleEditor
             rule={editingRule}
