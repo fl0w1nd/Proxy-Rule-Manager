@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +26,7 @@ import {
   CheckCircle,
   Maximize2,
   X,
+  Tag,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
@@ -35,6 +36,7 @@ interface RuleInfo {
   name: string;
   displayName?: string;
   description?: string;
+  tags?: string[];
   clients: string[];
 }
 
@@ -66,6 +68,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [copiedRule, setCopiedRule] = useState<string | null>(null);
   const [copiedConfig, setCopiedConfig] = useState<string | null>(null);
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+
+  // 切换主标签时清空已选标签
+  useEffect(() => {
+    setSelectedTags([]);
+  }, [activeMainTab]);
 
   useEffect(() => {
     fetchData();
@@ -169,12 +177,34 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     }
   };
 
-  const filteredRules = rules.filter(
-    (rule) =>
-      rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rule.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // 提取所有唯一标签
+  const allTags = useMemo(() => {
+    return Array.from(
+      new Set(rules.flatMap((rule) => rule.tags || []))
+    ).sort();
+  }, [rules]);
+
+  // 标签切换
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const filteredRules = useMemo(() => {
+    return rules.filter((rule) => {
+      const matchesSearch =
+        rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesTags =
+        selectedTags.length === 0 ||
+        selectedTags.some((tag) => rule.tags?.includes(tag));
+
+      return matchesSearch && matchesTags;
+    });
+  }, [rules, searchQuery, selectedTags]);
 
   const clientRules = filteredRules.filter((rule) =>
     rule.clients.includes(activeClient)
@@ -349,6 +379,48 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               ))}
             </TabsList>
           </Tabs>
+
+          {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}
+          {activeMainTab === "rules" && allTags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+                <Tag className="w-4 h-4" />
+                <span>标签:</span>
+              </div>
+              {allTags.map((tag) => (
+                <Badge
+                  key={tag}
+                  variant={selectedTags.includes(tag) ? "default" : "outline"}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={selectedTags.includes(tag)}
+                  className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
+                      ? "bg-blue-500 hover:bg-blue-600 text-white"
+                      : "hover:bg-gray-100 dark:hover:bg-slate-700"
+                    }`}
+                  onClick={() => toggleTag(tag)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      toggleTag(tag);
+                    }
+                  }}
+                >
+                  {tag}
+                </Badge>
+              ))}
+              {selectedTags.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedTags([])}
+                  className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+                >
+                  清除筛选
+                </Button>
+              )}
+            </div>
+          )}
         </div>
 
         {/* Content Grid */}
@@ -380,6 +452,24 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
                           {rule.description || "无描述"}
                         </p>
+                        {/* 标签 */}
+                        {rule.tags && rule.tags.length > 0 && (
+                          <div className="flex items-center gap-1 mt-1.5 flex-wrap">
+                            <Tag className="w-3 h-3 text-gray-400" />
+                            {rule.tags.slice(0, 3).map((tag) => (
+                              <Badge
+                                key={tag}
+                                variant="outline"
+                                className="text-[10px] px-1 py-0 h-4 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                            {rule.tags.length > 3 && (
+                              <span className="text-[10px] text-gray-400">+{rule.tags.length - 3}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   </CardHeader>

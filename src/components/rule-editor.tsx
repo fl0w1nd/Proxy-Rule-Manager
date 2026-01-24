@@ -48,6 +48,8 @@ import {
   Eye,
   CheckCircle,
   XCircle,
+  X,
+  Tag,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -120,6 +122,7 @@ const DEFAULT_RULE: RuleConfig = {
   output: {
     clients: [], // 将在 useEffect 中动态设置
   },
+  tags: [],
 };
 
 // 帮助图标组件
@@ -188,6 +191,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingLocalContent, setEditingLocalContent] = useState<number | null>(null);
   const [localContentDraft, setLocalContentDraft] = useState("");
+  const [tagInput, setTagInput] = useState("");
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -599,6 +603,30 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
   const availableRules = config?.rules.filter((r) => r.name !== formData.name) || [];
   const transformers = config?.transformers || {};
 
+  // 标签处理逻辑
+  const handleAddTag = () => {
+    const newTag = tagInput.trim();
+    if (!newTag) return;
+
+    if (formData.tags?.includes(newTag)) {
+      toast.error("该标签已存在");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      tags: [...(prev.tags || []), newTag],
+    }));
+    setTagInput("");
+  };
+
+  const handleRemoveTag = (index: number) => {
+    setFormData((prev) => ({
+      ...prev,
+      tags: prev.tags?.filter((_, i) => i !== index) || [],
+    }));
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
@@ -666,6 +694,57 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
                   rows={2}
                   className="resize-none"
                 />
+              </div>
+              {/* 标签 */}
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                  <Tag className="w-3 h-3" />
+                  标签
+                  <HelpIcon text="为规则添加标签，方便分类和筛选" />
+                </Label>
+                <div className="flex flex-wrap gap-2 min-h-[32px]">
+                  {(formData.tags || []).map((tag, index) => (
+                    <Badge
+                      key={`${tag}-${index}`}
+                      variant="secondary"
+                      className="group flex items-center gap-1 pr-1 hover:bg-muted"
+                    >
+                      {tag}
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveTag(index)}
+                        className="ml-1 rounded-full p-0.5 hover:bg-destructive/20 hover:text-destructive transition-colors"
+                        aria-label={`删除标签 ${tag}`}
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </Badge>
+                  ))}
+                </div>
+                <div className="flex gap-2">
+                  <Input
+                    value={tagInput}
+                    onChange={(e) => setTagInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault();
+                        handleAddTag();
+                      }
+                    }}
+                    placeholder="输入标签后按 Enter 添加"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={handleAddTag}
+                    disabled={!tagInput.trim()}
+                  >
+                    添加
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground">标签用于规则分类，可在规则列表中按标签筛选</p>
               </div>
             </div>
           )}

@@ -141,6 +141,8 @@ export const RuleConfigSchema = z.object({
   merge: MergeConfigSchema.optional(),
   // 输出配置
   output: OutputConfigSchema,
+  // 标签（用于分类和筛选）
+  tags: z.array(z.string()).optional().default([]),
 });
 export type RuleConfig = z.infer<typeof RuleConfigSchema>;
 

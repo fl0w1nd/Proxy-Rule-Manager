@@ -56,6 +56,7 @@ export function registerStatusRoutes(app: Hono) {
           name: rule.name,
           displayName: rule.displayName,
           description: rule.description,
+          tags: rule.tags || [],
           clients: rule.output.clients,
           lastUpdated:
             metas.length > 0

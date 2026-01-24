@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,7 @@ import {
   X,
   Trash2,
   AlertTriangle,
+  Tag,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
@@ -58,6 +59,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [deletingRule, setDeletingRule] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const fetchConfig = async () => {
     try {
@@ -163,12 +165,34 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     setIsPreviewFullscreen(false);
   };
 
-  const filteredRules = config?.rules.filter(
-    (rule) =>
-      rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      rule.description?.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  // 提取所有唯一标签
+  const allTags = useMemo(() => {
+    return Array.from(
+      new Set(config?.rules.flatMap((rule) => rule.tags || []) || [])
+    ).sort();
+  }, [config?.rules]);
+
+  // 标签切换
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+  };
+
+  const filteredRules = useMemo(() => {
+    return config?.rules.filter((rule) => {
+      const matchesSearch =
+        rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.description?.toLowerCase().includes(searchQuery.toLowerCase());
+
+      const matchesTags =
+        selectedTags.length === 0 ||
+        selectedTags.some((tag) => rule.tags?.includes(tag));
+
+      return matchesSearch && matchesTags;
+    });
+  }, [config?.rules, searchQuery, selectedTags]);
 
   if (isLoading) {
     return (
@@ -288,6 +312,48 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         </Button>
       </div>
 
+      {/* 标签筛选器 */}
+      {allTags.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+            <Tag className="w-4 h-4" />
+            <span>标签筛选:</span>
+          </div>
+          {allTags.map((tag) => (
+            <Badge
+              key={tag}
+              variant={selectedTags.includes(tag) ? "default" : "outline"}
+              role="button"
+              tabIndex={0}
+              aria-pressed={selectedTags.includes(tag)}
+              className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
+                  ? "bg-blue-500 hover:bg-blue-600 text-white"
+                  : "hover:bg-gray-100 dark:hover:bg-slate-700"
+                }`}
+              onClick={() => toggleTag(tag)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  toggleTag(tag);
+                }
+              }}
+            >
+              {tag}
+            </Badge>
+          ))}
+          {selectedTags.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setSelectedTags([])}
+              className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+            >
+              清除筛选
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Rules Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredRules?.map((rule) => (
@@ -341,6 +407,21 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               </div>
             </CardHeader>
             <CardContent>
+              {/* 规则标签 */}
+              {rule.tags && rule.tags.length > 0 && (
+                <div className="flex items-center gap-1.5 mb-2 flex-wrap">
+                  <Tag className="w-3 h-3 text-gray-400" />
+                  {rule.tags.map((tag) => (
+                    <Badge
+                      key={tag}
+                      variant="outline"
+                      className="text-xs px-1.5 py-0 h-5 border-blue-200 dark:border-blue-800 text-blue-600 dark:text-blue-400"
+                    >
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <div className="flex items-center gap-2 mb-3 flex-wrap">
                 {rule.output.clients.map((client) => (
                   <Badge
