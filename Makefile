@@ -467,6 +467,10 @@ restart: down up ## Restart services
 # Utilities
 # ==================
 
+.PHONY: repomap
+repomap: ## Generate repository map using aider
+	aider --show-repo-map --exit --no-gitignore --yes-always 1>.agent/repomap.md 2>/dev/null
+
 .PHONY: clean
 clean: ## Clean build artifacts and caches
 	@echo "$(CYAN)Cleaning build artifacts...$(NC)"
