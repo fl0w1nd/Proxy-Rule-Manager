@@ -385,7 +385,7 @@ export async function deleteClient(clientId: string): Promise<void> {
     for (const id of clientFileIds) {
         const file = db.clientFiles[id];
         if (file) {
-            const filePath = getClientFilePath(file.clientId, file.name, file.ext);
+            const filePath = getClientFilePath(file.clientId, file.configId, file.ext);
             await fs.unlink(filePath).catch(() => undefined);
             delete db.clientFiles[id];
         }
@@ -422,14 +422,14 @@ function getClientFilesDir(clientId: string): string {
     return path.join(DATA_DIR, clientId);
 }
 
-function getClientFilePath(clientId: string, name: string, ext: string): string {
-    if (name.includes("/") || name.includes("\\") || name.includes("..")) {
-        throw new Error("Invalid file name");
+function getClientFilePath(clientId: string, configId: string, ext: string): string {
+    if (configId.includes("/") || configId.includes("\\") || configId.includes("..")) {
+        throw new Error("Invalid config ID");
     }
     if (ext.includes("/") || ext.includes("\\") || ext.includes("..")) {
         throw new Error("Invalid file extension");
     }
-    const safeName = `${name}.${ext}`;
+    const safeName = `${configId}.${ext}`;
     return path.join(getClientFilesDir(clientId), safeName);
 }
 
@@ -439,9 +439,9 @@ async function ensureClientFilesDir(clientId: string): Promise<string> {
     return dir;
 }
 
-function findClientFileByName(db: Database, clientId: string, name: string, ext: string): ClientFileMeta | undefined {
+function findClientFileByConfigId(db: Database, clientId: string, configId: string, ext: string): ClientFileMeta | undefined {
     return Object.values(db.clientFiles).find(
-        (file) => file.clientId === clientId && file.name === name && file.ext === ext
+        (file) => file.clientId === clientId && file.configId === configId && file.ext === ext
     );
 }
 
@@ -465,7 +465,7 @@ export async function getClientFileContent(fileId: string): Promise<string | nul
     const meta = db.clientFiles[fileId];
     if (!meta) return null;
     try {
-        const filePath = getClientFilePath(meta.clientId, meta.name, meta.ext);
+        const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
         return await fs.readFile(filePath, "utf-8");
     } catch {
         return null;
@@ -474,21 +474,23 @@ export async function getClientFileContent(fileId: string): Promise<string | nul
 
 export async function createClientFile(
     clientId: string,
-    input: { name: string; ext: string; isPublic: boolean; content: string }
+    input: { configId: string; displayName: string; description?: string; ext: string; isPublic: boolean; content: string }
 ): Promise<ClientFileMeta> {
     const db = await loadDb();
-    if (findClientFileByName(db, clientId, input.name, input.ext)) {
-        throw new Error(`File "${input.name}.${input.ext}" already exists`);
+    if (findClientFileByConfigId(db, clientId, input.configId, input.ext)) {
+        throw new Error(`File with config ID "${input.configId}" and extension "${input.ext}" already exists`);
     }
     await ensureClientFilesDir(clientId);
-    const filePath = getClientFilePath(clientId, input.name, input.ext);
+    const filePath = getClientFilePath(clientId, input.configId, input.ext);
     await fs.writeFile(filePath, input.content ?? "", "utf-8");
 
     const now = new Date().toISOString();
     const meta: ClientFileMeta = {
         id: crypto.randomUUID(),
         clientId,
-        name: input.name,
+        configId: input.configId,
+        displayName: input.displayName,
+        description: input.description,
         ext: input.ext,
         isPublic: !!input.isPublic,
         createdAt: now,
@@ -501,7 +503,7 @@ export async function createClientFile(
 
 export async function updateClientFile(
     fileId: string,
-    updates: Partial<{ name: string; ext: string; isPublic: boolean; content: string }>
+    updates: Partial<{ configId: string; displayName: string; description: string; ext: string; isPublic: boolean; content: string }>
 ): Promise<ClientFileMeta> {
     const db = await loadDb();
     const meta = db.clientFiles[fileId];
@@ -509,21 +511,21 @@ export async function updateClientFile(
         throw new Error(`Client file "${fileId}" not found`);
     }
 
-    const nextName = updates.name ?? meta.name;
+    const nextConfigId = updates.configId ?? meta.configId;
     const nextExt = updates.ext ?? meta.ext;
-    const nameChanged = nextName !== meta.name || nextExt !== meta.ext;
+    const identifierChanged = nextConfigId !== meta.configId || nextExt !== meta.ext;
 
-    if (nameChanged) {
-        const existing = findClientFileByName(db, meta.clientId, nextName, nextExt);
+    if (identifierChanged) {
+        const existing = findClientFileByConfigId(db, meta.clientId, nextConfigId, nextExt);
         if (existing && existing.id !== fileId) {
-            throw new Error(`File "${nextName}.${nextExt}" already exists`);
+            throw new Error(`File with config ID "${nextConfigId}" and extension "${nextExt}" already exists`);
         }
     }
 
-    const oldPath = getClientFilePath(meta.clientId, meta.name, meta.ext);
-    const newPath = getClientFilePath(meta.clientId, nextName, nextExt);
+    const oldPath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
+    const newPath = getClientFilePath(meta.clientId, nextConfigId, nextExt);
 
-    if (nameChanged) {
+    if (identifierChanged) {
         await ensureClientFilesDir(meta.clientId);
         try {
             await fs.rename(oldPath, newPath);
@@ -540,7 +542,9 @@ export async function updateClientFile(
 
     const updated: ClientFileMeta = {
         ...meta,
-        name: nextName,
+        configId: nextConfigId,
+        displayName: updates.displayName ?? meta.displayName,
+        description: updates.description ?? meta.description,
         ext: nextExt,
         isPublic: typeof updates.isPublic === "boolean" ? updates.isPublic : meta.isPublic,
         updatedAt: new Date().toISOString(),
@@ -557,7 +561,7 @@ export async function deleteClientFile(fileId: string): Promise<void> {
     if (!meta) {
         throw new Error(`Client file "${fileId}" not found`);
     }
-    const filePath = getClientFilePath(meta.clientId, meta.name, meta.ext);
+    const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
     try {
         await fs.unlink(filePath);
     } catch {
@@ -569,14 +573,14 @@ export async function deleteClientFile(fileId: string): Promise<void> {
 
 export async function getPublicClientFile(
     clientId: string,
-    name: string,
+    configId: string,
     ext: string
 ): Promise<{ meta: ClientFileMeta; content: string } | null> {
     const db = await loadDb();
-    const meta = findClientFileByName(db, clientId, name, ext);
+    const meta = findClientFileByConfigId(db, clientId, configId, ext);
     if (!meta || !meta.isPublic) return null;
     try {
-        const filePath = getClientFilePath(clientId, name, ext);
+        const filePath = getClientFilePath(clientId, configId, ext);
         const content = await fs.readFile(filePath, "utf-8");
         return { meta, content };
     } catch {

@@ -17,7 +17,9 @@ export type ClientConfig = z.infer<typeof ClientConfigSchema>;
 export const ClientFileMetaSchema = z.object({
   id: z.string(),
   clientId: z.string(),
-  name: z.string(),
+  configId: z.string().regex(/^[a-zA-Z0-9_-]+$/, "Config ID must only contain letters, numbers, hyphens, and underscores"), // 配置 id，决定访问路径
+  displayName: z.string(), // 显示名称
+  description: z.string().optional(), // 配置文件描述
   ext: z.string(),
   isPublic: z.boolean().default(false),
   createdAt: z.string(),

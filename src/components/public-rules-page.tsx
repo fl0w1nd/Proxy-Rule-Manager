@@ -135,7 +135,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   };
 
   const copyConfigUrl = (file: ClientFileMeta) => {
-    const url = getConfigUrl(file.clientId, file.name, file.ext);
+    const url = getConfigUrl(file.clientId, file.configId, file.ext);
     navigator.clipboard.writeText(url);
     setCopiedConfig(file.id);
     setTimeout(() => setCopiedConfig(null), 2000);
@@ -182,8 +182,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
   const filteredClientFiles = clientFiles.filter((file) => {
     const query = searchQuery.toLowerCase();
-    const fileName = `${file.name}.${file.ext}`.toLowerCase();
-    return fileName.includes(query);
+    const configId = `${file.configId}.${file.ext}`.toLowerCase();
+    const displayName = (file.displayName || "").toLowerCase();
+    const description = (file.description || "").toLowerCase();
+    return configId.includes(query) || displayName.includes(query) || description.includes(query);
   });
 
   const clientPublicFiles = filteredClientFiles.filter(
@@ -373,7 +375,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </div>
                       <div className="min-w-0 flex-1">
                         <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                        {rule.displayName || rule.name}
+                          {rule.displayName || rule.name}
                         </CardTitle>
                         <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
                           {rule.description || "无描述"}
@@ -431,7 +433,6 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           ) : (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
               {clientPublicFiles.map((file) => {
-                const fileName = `${file.name}.${file.ext}`;
                 return (
                   <Card
                     key={file.id}
@@ -444,11 +445,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         </div>
                         <div className="min-w-0 flex-1">
                           <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                            {fileName}
+                            {file.displayName || `${file.configId}.${file.ext}`}
                           </CardTitle>
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                            {getClientConfig(file.clientId)?.displayName || file.clientId}
+                          <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono truncate">
+                            {file.configId}.{file.ext}
                           </p>
+                          {file.description && (
+                            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-wrap break-words">
+                              {file.description}
+                            </p>
+                          )}
                         </div>
                       </div>
                     </CardHeader>
@@ -458,13 +464,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           variant="outline"
                           size="sm"
                           className="flex-1"
-                        onClick={() => handlePreview({
-                          type: "config",
-                          name: file.name,
-                          clientId: file.clientId,
-                          fileName,
-                          ext: file.ext,
-                        })}
+                          onClick={() => handlePreview({
+                            type: "config",
+                            name: file.configId,
+                            clientId: file.clientId,
+                            fileName: `${file.configId}.${file.ext}`,
+                            ext: file.ext,
+                          })}
                         >
                           <Eye className="w-4 h-4 mr-1" />
                           预览

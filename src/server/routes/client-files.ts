@@ -14,14 +14,18 @@ import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 const ClientFileCreateSchema = z.object({
-  name: z.string().min(1),
+  configId: z.string().min(1),
+  displayName: z.string().min(1),
+  description: z.string().optional(),
   ext: z.string().min(1),
   isPublic: z.boolean().optional().default(false),
   content: z.string().optional().default(""),
 });
 
 const ClientFileUpdateSchema = z.object({
-  name: z.string().min(1).optional(),
+  configId: z.string().min(1).optional(),
+  displayName: z.string().min(1).optional(),
+  description: z.string().optional(),
   ext: z.string().min(1).optional(),
   isPublic: z.boolean().optional(),
   content: z.string().optional(),
@@ -66,11 +70,13 @@ export function registerClientFileRoutes(app: Hono) {
       const body = await c.req.json();
       const parsed = ClientFileCreateSchema.parse(body);
       const ext = normalizeExt(parsed.ext);
-      validateSegment(parsed.name, "File name");
+      validateSegment(parsed.configId, "Config ID");
       validateSegment(ext, "File extension");
 
       const meta = await createClientFile(clientId, {
-        name: parsed.name,
+        configId: parsed.configId,
+        displayName: parsed.displayName,
+        description: parsed.description,
         ext,
         isPublic: !!parsed.isPublic,
         content: parsed.content || "",
@@ -115,7 +121,7 @@ export function registerClientFileRoutes(app: Hono) {
       const fileId = decodeURIComponent(c.req.param("fileId"));
       const body = await c.req.json();
       const parsed = ClientFileUpdateSchema.parse(body);
-      if (parsed.name) validateSegment(parsed.name, "File name");
+      if (parsed.configId) validateSegment(parsed.configId, "Config ID");
       if (parsed.ext) validateSegment(parsed.ext, "File extension");
       const updates = {
         ...parsed,
@@ -184,13 +190,13 @@ export function registerClientFileRoutes(app: Hono) {
         return c.text("# Invalid file format", 400);
       }
 
-      const name = file.slice(0, lastDot);
+      const configId = file.slice(0, lastDot);
       const ext = file.slice(lastDot + 1);
       validateSegment(clientId, "Client ID");
-      validateSegment(name, "File name");
+      validateSegment(configId, "Config ID");
       validateSegment(ext, "File extension");
 
-      const result = await getPublicClientFile(clientId, name, ext);
+      const result = await getPublicClientFile(clientId, configId, ext);
       if (!result) {
         return c.text("# File not found", 404);
       }

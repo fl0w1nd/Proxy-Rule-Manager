@@ -64,7 +64,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isFilesLoading, setIsFilesLoading] = useState(false);
     const [isFileDialogOpen, setIsFileDialogOpen] = useState(false);
     const [editingFile, setEditingFile] = useState<ClientFileMeta | null>(null);
-    const [fileForm, setFileForm] = useState({ name: "", ext: "", isPublic: false });
+    const [fileForm, setFileForm] = useState({ configId: "", displayName: "", description: "", ext: "", isPublic: false });
     const [fileContent, setFileContent] = useState("");
     const [isFileSaving, setIsFileSaving] = useState(false);
     const [isFileLoading, setIsFileLoading] = useState(false);
@@ -138,7 +138,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const openCreateFileDialog = () => {
         if (!selectedClientId) return;
         setEditingFile(null);
-        setFileForm({ name: "", ext: "", isPublic: false });
+        setFileForm({ configId: "", displayName: "", description: "", ext: "", isPublic: false });
         setFileContent("");
         setIsFileLoading(false);
         setIsFileDialogOpen(true);
@@ -147,7 +147,13 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const openEditFileDialog = async (file: ClientFileMeta) => {
         if (!selectedClientId) return;
         setEditingFile(file);
-        setFileForm({ name: file.name, ext: file.ext, isPublic: file.isPublic });
+        setFileForm({
+            configId: file.configId,
+            displayName: file.displayName,
+            description: file.description || "",
+            ext: file.ext,
+            isPublic: file.isPublic
+        });
         setFileContent("");
         setIsFileDialogOpen(true);
         setIsFileLoading(true);
@@ -220,8 +226,13 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const handleSaveFile = async () => {
         if (!selectedClientId) return;
-        if (!fileForm.name || !fileForm.ext) {
-            toast.error("请填写文件名称和后缀");
+        if (!fileForm.configId || !fileForm.displayName || !fileForm.ext) {
+            toast.error("请填写配置 ID、显示名称和后缀");
+            return;
+        }
+
+        if (!/^[a-zA-Z0-9_-]+$/.test(fileForm.configId)) {
+            toast.error("配置 ID 只能包含字母、数字、连字符和下划线");
             return;
         }
 
@@ -229,7 +240,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         try {
             if (editingFile) {
                 await updateClientFile(selectedClientId, editingFile.id, {
-                    name: fileForm.name,
+                    configId: fileForm.configId,
+                    displayName: fileForm.displayName,
+                    description: fileForm.description,
                     ext: fileForm.ext,
                     isPublic: fileForm.isPublic,
                     content: fileContent,
@@ -237,7 +250,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 toast.success("配置文件已更新");
             } else {
                 await createClientFile(selectedClientId, {
-                    name: fileForm.name,
+                    configId: fileForm.configId,
+                    displayName: fileForm.displayName,
+                    description: fileForm.description,
                     ext: fileForm.ext,
                     isPublic: fileForm.isPublic,
                     content: fileContent,
@@ -255,7 +270,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const handleDeleteFile = async (file: ClientFileMeta) => {
         if (!selectedClientId) return;
-        if (!confirm(`确定要删除配置文件 "${file.name}.${file.ext}" 吗？`)) {
+        if (!confirm(`确定要删除配置文件 "${file.displayName}" 吗？`)) {
             return;
         }
         try {
@@ -439,7 +454,10 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                             <div className="min-w-0">
                                                                 <div className="flex items-center gap-2">
                                                                     <p className="font-medium text-foreground truncate">
-                                                                        {file.name}.{file.ext}
+                                                                        {file.displayName}
+                                                                    </p>
+                                                                    <p className="text-xs text-muted-foreground font-mono truncate">
+                                                                        {file.configId}.{file.ext}
                                                                     </p>
                                                                     {file.isPublic && (
                                                                         <Badge variant="secondary" className="text-[10px] h-5 px-1.5 font-normal">
@@ -448,8 +466,13 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                                         </Badge>
                                                                     )}
                                                                 </div>
+                                                                {file.description && (
+                                                                    <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap break-words">
+                                                                        {file.description}
+                                                                    </p>
+                                                                )}
                                                                 <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                                                                    /{file.clientId}/{file.name}.{file.ext}
+                                                                    /{file.clientId}/{file.configId}.{file.ext}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted-foreground mt-1">
                                                                     更新于 {new Date(file.updatedAt).toLocaleString("zh-CN")}
@@ -708,14 +731,15 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                     <div className="space-y-4 px-6 overflow-y-auto flex-1 min-h-0">
                         <div className="grid grid-cols-2 gap-3">
                             <div className="space-y-2">
-                                <Label htmlFor="file-name">文件名称</Label>
+                                <Label htmlFor="file-config-id">配置 ID</Label>
                                 <Input
-                                    id="file-name"
-                                    value={fileForm.name}
-                                    onChange={(e) => setFileForm({ ...fileForm, name: e.target.value })}
+                                    id="file-config-id"
+                                    value={fileForm.configId}
+                                    onChange={(e) => setFileForm({ ...fileForm, configId: e.target.value })}
                                     placeholder="例如: proxy"
                                     disabled={isFileLoading || isFileSaving}
                                 />
+                                <p className="text-[10px] text-muted-foreground">决定访问路径</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="file-ext">文件后缀</Label>
@@ -727,6 +751,27 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     disabled={isFileLoading || isFileSaving}
                                 />
                             </div>
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="file-display-name">显示名称</Label>
+                            <Input
+                                id="file-display-name"
+                                value={fileForm.displayName}
+                                onChange={(e) => setFileForm({ ...fileForm, displayName: e.target.value })}
+                                placeholder="例如: 我的代理配置"
+                                disabled={isFileLoading || isFileSaving}
+                            />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="file-description">配置文件描述</Label>
+                            <Textarea
+                                id="file-description"
+                                value={fileForm.description}
+                                onChange={(e) => setFileForm({ ...fileForm, description: e.target.value })}
+                                placeholder="输入配置文件描述..."
+                                className="min-h-[60px] text-sm"
+                                disabled={isFileLoading || isFileSaving}
+                            />
                         </div>
                         <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
                             <div className="space-y-0.5">

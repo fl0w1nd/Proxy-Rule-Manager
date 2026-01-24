@@ -463,7 +463,7 @@ export async function listClientFiles(clientId: string): Promise<{ files: Client
 
 export async function createClientFile(
   clientId: string,
-  input: { name: string; ext: string; isPublic: boolean; content: string }
+  input: { configId: string; displayName: string; description?: string; ext: string; isPublic: boolean; content: string }
 ): Promise<{ success: boolean; file: ClientFileMeta }> {
   return apiRequest(`/clients/${encodeURIComponent(clientId)}/files`, {
     method: "POST",
@@ -481,7 +481,7 @@ export async function getClientFile(
 export async function updateClientFile(
   clientId: string,
   fileId: string,
-  updates: Partial<{ name: string; ext: string; isPublic: boolean; content: string }>
+  updates: Partial<{ configId: string; displayName: string; description?: string; ext: string; isPublic: boolean; content: string }>
 ): Promise<{ success: boolean; file: ClientFileMeta }> {
   return apiRequest(`/clients/${encodeURIComponent(clientId)}/files/${encodeURIComponent(fileId)}`, {
     method: "PUT",
