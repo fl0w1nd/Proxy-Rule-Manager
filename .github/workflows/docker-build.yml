@@ -1,7 +1,6 @@
 name: Build and Push Docker Image
 
 on:
-  # Manual trigger only
   workflow_dispatch:
     inputs:
       tag:
@@ -23,28 +22,18 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push:
+  prepare:
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      tags: ${{ steps.tags.outputs.tags }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get package.json version
         id: pkg
@@ -60,21 +49,25 @@ jobs:
           echo "hash=${HASH}" >> $GITHUB_OUTPUT
           echo "Git hash: ${HASH}"
 
+      - name: Vars (lowercased image)
+        id: vars
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          echo "image=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "Image: ${IMAGE}"
+
       - name: Determine tags
         id: tags
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          # Convert to lowercase (ghcr requires lowercase)
-          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
-          
+          IMAGE="${{ steps.vars.outputs.image }}"
           TAG="${{ github.event.inputs.tag }}"
           TAG_TYPE="${{ github.event.inputs.tag_type }}"
           PKG_VERSION="${{ steps.pkg.outputs.version }}"
           GIT_HASH="${{ steps.git.outputs.hash }}"
-          
+
           case "$TAG_TYPE" in
             "release")
-              # Use provided tag or package.json version
               VERSION="${TAG:-$PKG_VERSION}"
               TAGS="${IMAGE}:${VERSION}
           ${IMAGE}:latest"
@@ -82,14 +75,12 @@ jobs:
               echo "Tags: ${VERSION}, latest"
               ;;
             "dev")
-              # Dev: dev + git hash
               TAGS="${IMAGE}:dev
           ${IMAGE}:${GIT_HASH}"
               echo "Build type: Dev"
               echo "Tags: dev, ${GIT_HASH}"
               ;;
             "isolated")
-              # Isolated: single tag only
               if [ -z "$TAG" ]; then
                 echo "Error: Tag is required for isolated builds"
                 exit 1
@@ -99,8 +90,7 @@ jobs:
               echo "Tags: ${TAG}"
               ;;
           esac
-          
-          # Use EOF delimiter for multiline output
+
           echo "tags<<EOF" >> $GITHUB_OUTPUT
           echo "$TAGS" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -108,61 +98,161 @@ jobs:
       - name: Check if release version exists
         if: github.event.inputs.tag_type == 'release'
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
-          
+          IMAGE="${{ steps.vars.outputs.image }}"
+
           VERSION="${{ github.event.inputs.tag }}"
           if [ -z "$VERSION" ]; then
             VERSION="${{ steps.pkg.outputs.version }}"
           fi
-          
+
           echo "Checking if ${VERSION} exists..."
-          
-          # Try to get manifest
+
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${VERSION}" 2>/dev/null || echo "000")
-          
+
           if [ "$STATUS" = "200" ]; then
             echo "::error::Version ${VERSION} already exists! Please bump version in package.json."
             exit 1
           fi
-          
+
           echo "✓ Version ${VERSION} is available"
 
       - name: Check if isolated tag exists
         if: github.event.inputs.tag_type == 'isolated'
         run: |
-          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          IMAGE="${{ steps.vars.outputs.image }}"
           TAG="${{ github.event.inputs.tag }}"
-          
+
           # Block version-like tags and 'latest'
           if echo "$TAG" | grep -qE "^v[0-9]|^latest$"; then
             echo "::error::Cannot use version tags (v*) or 'latest' as isolated tag"
             exit 1
           fi
-          
+
           echo "Checking if ${TAG} exists..."
-          
+
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
             "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${TAG}" 2>/dev/null || echo "000")
-          
+
           if [ "$STATUS" = "200" ]; then
             echo "::error::Tag '${TAG}' already exists!"
             exit 1
           fi
-          
+
           echo "✓ Tag ${TAG} is available"
 
-      - name: Build and push
+  build:
+    needs: prepare
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 单平台并行 build + push（按 digest 推送，不抢 tag）
+      - name: Build and push (by digest)
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
+          platforms: ${{ matrix.platform }}
           push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+
+          # 关键：推 digest（name-canonical 便于后面引用）
+          outputs: |
+            type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+
+          # cache 分 arch scope，命中更稳
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+
+          # 不需要就关掉，省时间
+          provenance: false
+          sbom: false
+
+      - name: Save digest to artifact
+        run: |
+          echo "${{ steps.build.outputs.digest }}" > digest.txt
+          echo "arch=${{ matrix.arch }}"
+          echo "digest=${{ steps.build.outputs.digest }}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: digest-${{ matrix.arch }}
+          path: digest.txt
+          retention-days: 1
+
+  manifest:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx (for imagetools)
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: ./digests
+
+      - name: Create and push multi-arch manifests for all tags
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          TAGS: ${{ needs.prepare.outputs.tags }}
+        run: |
+          AMD_DIGEST=$(cat "./digests/digest-amd64/digest.txt")
+          ARM_DIGEST=$(cat "./digests/digest-arm64/digest.txt")
+
+          echo "amd64 digest: ${AMD_DIGEST}"
+          echo "arm64 digest: ${ARM_DIGEST}"
+          echo ""
+          echo "Tags to publish:"
+          echo "${TAGS}"
+          echo ""
+
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "Publishing manifest: ${tag}"
+            docker buildx imagetools create \
+              -t "${tag}" \
+              "${IMAGE}@${AMD_DIGEST}" \
+              "${IMAGE}@${ARM_DIGEST}"
+          done <<< "${TAGS}"

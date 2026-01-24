@@ -1,11 +1,18 @@
+# syntax=docker/dockerfile:1.7
+
 # Build stage
 FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies (cache-friendly)
 COPY package*.json ./
-RUN npm ci
+RUN --mount=type=cache,target=/root/.npm \
+    npm ci --no-audit --prefer-offline
+
+# Install esbuild for bundling (do not modify lock/package)
+RUN --mount=type=cache,target=/root/.npm \
+    npm i -D esbuild --no-save --no-audit --prefer-offline
 
 # Copy source
 COPY . .
@@ -13,13 +20,7 @@ COPY . .
 # Build frontend (Next.js static export)
 RUN npm run build
 
-# Build backend (Bundle into single file)
-# Install esbuild
-RUN npm install esbuild --save-dev
-
 # Bundle server
-# --bundle: bundle dependencies
-# --platform=node: target nodejs
 RUN npx esbuild src/server/index.ts --bundle --platform=node --target=node22 --outfile=dist/server.js
 
 # Production stage

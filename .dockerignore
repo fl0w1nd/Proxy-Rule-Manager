@@ -29,6 +29,9 @@ Thumbs.db
 .git/
 .gitignore
 
+# GitHub workflows (not needed in image)
+.github/
+
 # Misc
 *.md
 LICENSE
