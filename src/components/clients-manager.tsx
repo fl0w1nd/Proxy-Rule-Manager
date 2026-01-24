@@ -23,8 +23,10 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X } from "lucide-react";
 import { toast } from "sonner";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "./theme-provider";
 import {
     getClients,
     addClient,
@@ -68,6 +70,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [fileContent, setFileContent] = useState("");
     const [isFileSaving, setIsFileSaving] = useState(false);
     const [isFileLoading, setIsFileLoading] = useState(false);
+    const [isFullscreenFileEditor, setIsFullscreenFileEditor] = useState(false);
+    const { theme } = useTheme();
 
     const fetchClients = async () => {
         try {
@@ -118,6 +122,17 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         }
     }, [selectedClientId]);
 
+    // ESC key exits fullscreen
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === "Escape" && isFullscreenFileEditor) {
+                setIsFullscreenFileEditor(false);
+            }
+        };
+        window.addEventListener("keydown", handleKeyDown);
+        return () => window.removeEventListener("keydown", handleKeyDown);
+    }, [isFullscreenFileEditor]);
+
     const openAddDialog = () => {
         setEditingClient(null);
         setFormData({ id: "", displayName: "", pathName: "", transforms: [] });
@@ -141,6 +156,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setFileForm({ configId: "", displayName: "", description: "", ext: "", isPublic: false });
         setFileContent("");
         setIsFileLoading(false);
+        setIsFullscreenFileEditor(false);
         setIsFileDialogOpen(true);
     };
 
@@ -155,6 +171,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             isPublic: file.isPublic
         });
         setFileContent("");
+        setIsFullscreenFileEditor(false);
         setIsFileDialogOpen(true);
         setIsFileLoading(true);
         try {
@@ -300,6 +317,21 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         }
     };
 
+    // 根据文件扩展名映射 Monaco Editor 语言
+    const getEditorLanguage = (ext: string): string => {
+        const extLower = ext.toLowerCase();
+        const languageMap: Record<string, string> = {
+            yaml: "yaml",
+            yml: "yaml",
+            json: "json",
+            toml: "toml",
+            conf: "ini",
+            ini: "ini",
+            txt: "plaintext",
+        };
+        return languageMap[extLower] || "plaintext";
+    };
+
     if (isLoading) {
         return (
             <Card className="bg-white dark:bg-slate-800">
@@ -311,6 +343,87 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     }
 
     const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
+    const editorTheme = theme === "dark" ? "vs-dark" : "light";
+    const editorLanguage = getEditorLanguage(fileForm.ext);
+
+    // Fullscreen file editor mode
+    if (isFullscreenFileEditor) {
+        return (
+            <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+                    <div className="flex items-center gap-3">
+                        <FileText className="w-5 h-5 text-primary" />
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                            {editingFile ? "编辑配置文件" : "新建配置文件"}
+                        </span>
+                        {fileForm.configId && fileForm.ext && (
+                            <Badge variant="outline" className="border-gray-300 text-gray-500 font-mono">
+                                {fileForm.configId}.{fileForm.ext}
+                            </Badge>
+                        )}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setIsFullscreenFileEditor(false)}
+                        >
+                            取消
+                        </Button>
+                        <Button
+                            size="sm"
+                            onClick={handleSaveFile}
+                            disabled={isFileLoading || isFileSaving}
+                        >
+                            {isFileSaving ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+                                    保存中
+                                </>
+                            ) : (
+                                "保存"
+                            )}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => setIsFullscreenFileEditor(false)}
+                            title="关闭全屏"
+                        >
+                            <X className="w-5 h-5" />
+                        </Button>
+                    </div>
+                </div>
+
+                <div className="flex-1">
+                    <Editor
+                        height="100%"
+                        language={editorLanguage}
+                        value={fileContent}
+                        onChange={(value) => setFileContent(value || "")}
+                        theme={editorTheme}
+                        options={{
+                            readOnly: isFileLoading || isFileSaving,
+                            minimap: { enabled: true },
+                            fontSize: 14,
+                            lineNumbers: "on",
+                            scrollBeyondLastLine: false,
+                            automaticLayout: true,
+                            tabSize: 2,
+                            wordWrap: "off",
+                            padding: { top: 16 },
+                            scrollbar: {
+                                horizontal: "visible",
+                                vertical: "visible",
+                                horizontalScrollbarSize: 12,
+                                verticalScrollbarSize: 12,
+                            },
+                        }}
+                    />
+                </div>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -718,7 +831,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 </DialogContent>
             </Dialog>
 
-            <Dialog open={isFileDialogOpen} onOpenChange={setIsFileDialogOpen}>
+            <Dialog open={isFileDialogOpen && !isFullscreenFileEditor} onOpenChange={setIsFileDialogOpen}>
                 <DialogContent className="max-h-[85vh] flex flex-col p-0">
                     <DialogHeader className="shrink-0 px-6 pt-6 pb-4">
                         <DialogTitle>
@@ -785,15 +898,45 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             />
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="file-content">内容</Label>
-                            <Textarea
-                                id="file-content"
-                                value={fileContent}
-                                onChange={(e) => setFileContent(e.target.value)}
-                                placeholder="输入配置文件内容..."
-                                className="min-h-[240px] font-mono text-sm"
-                                disabled={isFileLoading || isFileSaving}
-                            />
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="file-content">内容</Label>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => setIsFullscreenFileEditor(true)}
+                                    className="h-7 px-2"
+                                    title="全屏编辑 (ESC 退出)"
+                                >
+                                    <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                                    全屏
+                                </Button>
+                            </div>
+                            <div className="relative border border-border rounded-lg overflow-hidden">
+                                <Editor
+                                    height="300px"
+                                    language={editorLanguage}
+                                    value={fileContent}
+                                    onChange={(value) => setFileContent(value || "")}
+                                    theme={editorTheme}
+                                    options={{
+                                        readOnly: isFileLoading || isFileSaving,
+                                        minimap: { enabled: false },
+                                        fontSize: 13,
+                                        lineNumbers: "on",
+                                        scrollBeyondLastLine: false,
+                                        automaticLayout: true,
+                                        tabSize: 2,
+                                        wordWrap: "off",
+                                        padding: { top: 12, bottom: 12 },
+                                        scrollbar: {
+                                            horizontal: "visible",
+                                            vertical: "visible",
+                                            horizontalScrollbarSize: 10,
+                                            verticalScrollbarSize: 10,
+                                        },
+                                    }}
+                                />
+                            </div>
                         </div>
                     </div>
                     <DialogFooter className="shrink-0 px-6 pb-6 pt-4">

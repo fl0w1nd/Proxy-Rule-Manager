@@ -21,6 +21,7 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogDescription,
 } from "@/components/ui/dialog";
 import {
   Tooltip,
@@ -50,6 +51,8 @@ import {
   XCircle,
   X,
   Tag,
+  Maximize2,
+  Minimize2,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -64,6 +67,8 @@ import {
 import { saveConfig, renameRule, previewRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
 import { toast } from "sonner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import Editor from "@monaco-editor/react";
+import { useTheme } from "./theme-provider";
 
 interface RuleEditorProps {
   rule: RuleConfig | null;
@@ -180,7 +185,12 @@ function SectionHeader({
   );
 }
 
-export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) {
+export function RuleEditor({
+  rule,
+  config,
+  onSave,
+  onCancel,
+}: RuleEditorProps) {
   const [formData, setFormData] = useState<RuleConfig>(() =>
     rule ? migrateRule(rule) : DEFAULT_RULE
   );
@@ -192,6 +202,8 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
   const [editingLocalContent, setEditingLocalContent] = useState<number | null>(null);
   const [localContentDraft, setLocalContentDraft] = useState("");
   const [tagInput, setTagInput] = useState("");
+  const [isFullscreenLocalEditor, setIsFullscreenLocalEditor] = useState(false);
+  const { theme } = useTheme();
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -232,6 +244,8 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
         console.error("Failed to load clients:", err);
       });
   }, [rule, formData.output.clients.length]);
+
+
 
   const toggleSection = (section: string) => {
     setExpandedSections((prev) => {
@@ -626,6 +640,8 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
       tags: prev.tags?.filter((_, i) => i !== index) || [],
     }));
   };
+
+  const editorTheme = theme === "dark" ? "vs-dark" : "light";
 
   return (
     <div className="flex flex-col h-full bg-background">
@@ -1078,30 +1094,97 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
       </div>
 
       {/* 本地内容编辑对话框 */}
-      <Dialog open={editingLocalContent !== null} onOpenChange={(open) => !open && setEditingLocalContent(null)}>
-        <DialogContent className="max-w-3xl max-h-[80vh] flex flex-col">
-          <DialogHeader>
+      <Dialog
+        open={editingLocalContent !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setIsFullscreenLocalEditor(false);
+            setEditingLocalContent(null);
+          }
+        }}
+      >
+        <DialogContent
+          onEscapeKeyDown={(event) => {
+            if (isFullscreenLocalEditor) {
+              event.preventDefault();
+              setIsFullscreenLocalEditor(false);
+            }
+          }}
+          onPointerDownOutside={(event) => {
+            if (isFullscreenLocalEditor) {
+              event.preventDefault();
+            }
+          }}
+          className={`flex flex-col min-h-0${isFullscreenLocalEditor ? " !fixed !inset-0 !w-screen !h-screen !max-w-none !max-h-none !left-0 !top-0 !translate-x-0 !translate-y-0 !rounded-none !transform-none" : " max-w-3xl max-h-[80vh]"}`}
+        >
+          <DialogHeader className={isFullscreenLocalEditor ? "shrink-0" : undefined}>
             <DialogTitle className="flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
               编辑本地内容
             </DialogTitle>
+            <DialogDescription>
+              编辑规则的本地内容数据来源
+            </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 min-h-0">
-            <Textarea
-              value={localContentDraft}
-              onChange={(e) => setLocalContentDraft(e.target.value)}
-              placeholder="输入规则内容，每行一条..."
-              className="h-96 font-mono text-sm resize-none"
-            />
+          <div className={`flex-1 min-h-0 space-y-2${isFullscreenLocalEditor ? " flex flex-col" : ""}`}>
+            <div className="flex items-center justify-between px-1">
+              <Label className="text-sm">内容</Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsFullscreenLocalEditor(!isFullscreenLocalEditor)}
+                className="h-7 px-2"
+                title={isFullscreenLocalEditor ? "退出全屏 (ESC)" : "全屏编辑 (ESC 退出)"}
+              >
+                {isFullscreenLocalEditor ? (
+                  <Minimize2 className="w-3.5 h-3.5 mr-1" />
+                ) : (
+                  <Maximize2 className="w-3.5 h-3.5 mr-1" />
+                )}
+                {isFullscreenLocalEditor ? "退出全屏" : "全屏"}
+              </Button>
+            </div>
+            <div className={`relative border border-border rounded-lg overflow-hidden ${isFullscreenLocalEditor ? "flex-1 min-h-0" : ""}`}>
+              <Editor
+                height={isFullscreenLocalEditor ? "100%" : "400px"}
+                language="plaintext"
+                value={localContentDraft}
+                onChange={(value) => setLocalContentDraft(value || "")}
+                theme={editorTheme}
+                options={{
+                  minimap: { enabled: isFullscreenLocalEditor },
+                  fontSize: 13,
+                  lineNumbers: "on",
+                  scrollBeyondLastLine: false,
+                  automaticLayout: true,
+                  tabSize: 2,
+                  wordWrap: "off",
+                  padding: { top: 12, bottom: 12 },
+                  scrollbar: {
+                    horizontal: "visible",
+                    vertical: "visible",
+                    horizontalScrollbarSize: 10,
+                    verticalScrollbarSize: 10,
+                  },
+                }}
+              />
+            </div>
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setEditingLocalContent(null)}>
+          <div className={`flex justify-end gap-3 pt-4${isFullscreenLocalEditor ? " shrink-0" : ""}`}>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setIsFullscreenLocalEditor(false);
+                setEditingLocalContent(null);
+              }}
+            >
               取消
             </Button>
             <Button
               onClick={() => {
                 if (editingLocalContent !== null) {
                   updateSource(editingLocalContent, { content: localContentDraft });
+                  setIsFullscreenLocalEditor(false);
                   setEditingLocalContent(null);
                 }
               }}
@@ -1211,6 +1294,7 @@ export function RuleEditor({ rule, config, onSave, onCancel }: RuleEditorProps) 
           )}
         </DialogContent>
       </Dialog>
+
     </div>
   );
 }
