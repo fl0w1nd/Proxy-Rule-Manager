@@ -23,6 +23,7 @@ export interface SidebarNavProps {
     className?: string;
     onLogout?: () => void;
     onHome?: () => void;
+    version?: string;
 }
 
 const NAV_ITEMS = [
@@ -63,7 +64,7 @@ const NAV_ITEMS = [
     },
 ];
 
-export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome }: SidebarNavProps) {
+export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome, version }: SidebarNavProps) {
     const { theme, toggleTheme } = useTheme();
 
     return (
@@ -75,7 +76,14 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                 </div>
                 <div>
                     <h1 className="font-bold text-sidebar-foreground tracking-tight">Rule Manager</h1>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Proxy Control</p>
+                    <div className="flex items-center gap-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Proxy Control</p>
+                        {version && (
+                            <span className="text-[11px] px-1.5 py-0.5 rounded bg-sidebar-primary/10 text-sidebar-primary border border-sidebar-primary/20 font-mono leading-none">
+                                v{version}
+                            </span>
+                        )}
+                    </div>
                 </div>
             </div>
 

@@ -7,6 +7,7 @@ import {
   getClients,
 } from "../../lib/storage-adapter";
 import { RulesConfig } from "../../lib/schema";
+import packageJson from "../../../package.json";
 import { countChangeRecords, countFailureRecords } from "../../lib/activity-store";
 import { checkAuth, getClientIp, verifyAdminWithRateLimit } from "../auth";
 import { jsonError } from "../errors";
@@ -83,6 +84,7 @@ export function registerStatusRoutes(app: Hono) {
           lastSyncAt: lastSyncInfo.lastSuccessfulSyncAt || lastSyncInfo.lastFullSyncAt,
           rules: rulesStatus,
           clients: publicClients,
+          version: packageJson.version,
         });
       }
 
@@ -111,6 +113,7 @@ export function registerStatusRoutes(app: Hono) {
         },
         rules: rulesStatus,
         clients: clientsList,
+        version: packageJson.version,
       });
     } catch (error) {
       console.error("Failed to get status:", error);

@@ -225,6 +225,7 @@ export interface StatusResponse {
     lastUpdated: string | null;
     hasError: boolean;
   }[];
+  version?: string;
 }
 
 export async function getStatus(): Promise<StatusResponse> {

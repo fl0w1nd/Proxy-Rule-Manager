@@ -58,6 +58,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [version, setVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeMainTab, setActiveMainTab] = useState<"rules" | "configs">("rules");
@@ -109,6 +110,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         const data = await statusResponse.json();
         setRules(data.rules || []);
         setLastSyncAt(data.lastSyncAt || null);
+        setVersion(data.version || "");
         // 从 status 响应中获取客户端列表
         if (data.clients && data.clients.length > 0) {
           setClients(data.clients);
@@ -317,9 +319,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <h1 className="text-xl font-bold text-gray-900 dark:text-white">
                     代理规则集
                   </h1>
-                  <p className="text-xs text-gray-500 dark:text-gray-400">
-                    Proxy Rule Manager
-                  </p>
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Proxy Rule Manager
+                    </p>
+                    {version && (
+                      <span className="text-[11px] px-1.5 py-0.5 rounded bg-blue-500/10 text-blue-500 border border-blue-500/20 font-mono leading-none">
+                        v{version}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
               <div className="flex items-center gap-2">

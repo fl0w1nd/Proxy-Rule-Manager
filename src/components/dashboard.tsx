@@ -333,6 +333,7 @@ export function Dashboard({ onBack }: DashboardProps) {
         onTabChange={setActiveTab}
         onLogout={() => { if (!authRequired) onBack?.(); else logout(); }}
         onHome={onBack}
+        version={status?.version}
       />
 
       {/* Main Content Area */}
