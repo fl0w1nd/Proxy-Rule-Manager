@@ -4,7 +4,7 @@ const backendPort = process.env.BACKEND_PORT || "3001";
 
 const nextConfig: NextConfig = {
   // Static Export for Hono backend serving
-  output: "export",
+  output: process.env.NODE_ENV === "production" ? "export" : undefined,
   // Optimize images for static export
   images: {
     unoptimized: true,

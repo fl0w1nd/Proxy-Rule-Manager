@@ -3,12 +3,12 @@
   "version": "0.1.5",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "dev:server": "PORT=3001 npx tsx watch src/server/index.ts",
+    "dev": "concurrently -n fe,be -c cyan,green \"next dev\" \"PORT=3001 tsx watch src/server/index.ts\"",
+    "dev:fe": "next dev",
+    "dev:be": "PORT=3001 tsx watch src/server/index.ts",
     "build": "next build",
     "build:server": "tsc src/server/index.ts --outDir dist/server --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck",
     "start": "node dist/server/server/index.js",
-    "start:dev": "PORT=3001 npx tsx src/server/index.ts",
     "lint": "eslint",
     "test": "vitest run",
     "test:watch": "vitest"
@@ -49,6 +49,7 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "concurrently": "^9.2.1",
     "eslint": "^9",
     "eslint-config-next": "16.1.2",
     "tailwindcss": "^4",

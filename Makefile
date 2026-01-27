@@ -25,7 +25,7 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-18s$(NC) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(YELLOW)Examples:$(NC)"
-	@echo "  make dev                # Run development server"
+	@echo "  make dev                # Run development server (frontend + backend with hot reload)"
 	@echo "  make release            # Create GitHub Release + optional Docker build"
 	@echo "  make push-local         # Build & push Docker image locally"
 	@echo "  make push-cloud         # Trigger GitHub Actions Docker build"
@@ -35,16 +35,16 @@ help: ## Show this help message
 # ==================
 
 .PHONY: dev
-dev: ## Run development server (frontend + backend)
-	npm run start:dev
-
-.PHONY: dev-frontend
-dev-frontend: ## Run Next.js development server only
+dev: ## Run development server (frontend + backend with hot reload)
 	npm run dev
 
-.PHONY: dev-backend
-dev-backend: ## Run backend development server only
-	npm run dev:server
+.PHONY: dev-fe
+dev-fe: ## Run Next.js development server only
+	npm run dev:fe
+
+.PHONY: dev-be
+dev-be: ## Run backend development server only
+	npm run dev:be
 
 .PHONY: build
 build: ## Build Next.js application
