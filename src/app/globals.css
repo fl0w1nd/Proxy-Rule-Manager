@@ -85,7 +85,7 @@
   --secondary-foreground: oklch(0.205 0 0);
 
   --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
+  --muted-foreground: oklch(0.45 0 0);
 
   /* Accent - Used sparingly */
   --accent: oklch(0.97 0 0.05);
@@ -140,7 +140,7 @@
   --secondary-foreground: oklch(0.985 0 0);
 
   --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
+  --muted-foreground: oklch(0.65 0 0);
 
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
@@ -273,6 +273,71 @@
 
     40% {
       opacity: 1;
+    }
+  }
+
+  /* Elevated Shadow */
+  .shadow-elevated {
+    box-shadow: 
+      0 4px 12px -2px rgb(0 0 0 / 0.08),
+      0 2px 4px -1px rgb(0 0 0 / 0.04);
+  }
+
+  .dark .shadow-elevated {
+    box-shadow:
+      0 4px 12px -2px rgb(0 0 0 / 0.3),
+      0 2px 4px -1px rgb(0 0 0 / 0.2);
+  }
+
+  /* Skeleton Loading Animation */
+  .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-muted) 25%,
+      oklch(0.45 0 0 / 10%) 50%,
+      var(--color-muted) 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-shimmer 1.5s ease-in-out infinite;
+  }
+
+  .dark .skeleton {
+    background: linear-gradient(
+      90deg,
+      var(--color-muted) 25%,
+      oklch(0.65 0 0 / 10%) 50%,
+      var(--color-muted) 75%
+    );
+    background-size: 200% 100%;
+  }
+
+  @keyframes skeleton-shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+  }
+
+  /* List Item Enter Animations */
+  .animate-fade-in {
+    animation: fade-in 0.3s ease-out forwards;
+  }
+
+  .animate-slide-up {
+    animation: slide-up 0.3s ease-out forwards;
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes slide-up {
+    from { 
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to { 
+      opacity: 1;
+      transform: translateY(0);
     }
   }
 }

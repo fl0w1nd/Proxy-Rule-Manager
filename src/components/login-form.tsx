@@ -33,8 +33,8 @@ export function LoginForm({ onBack }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900">
-      <Card className="w-full max-w-md mx-4 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 shadow-xl">
+    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted/30 to-background">
+      <Card className="w-full max-w-md mx-4 bg-card border-border shadow-elevated animate-slide-up">
         <CardHeader className="text-center">
           {onBack && (
             <Button
@@ -77,7 +77,7 @@ export function LoginForm({ onBack }: LoginFormProps) {
             </div>
             <Button
               type="submit"
-              className="w-full bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
+              className="w-full bg-primary hover:bg-primary/90 text-white"
               disabled={isLoading || !token}
             >
               {isLoading ? (

@@ -294,8 +294,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   return (
     <div className="space-y-6">
       {/* Search and Actions */}
-      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4">
-        <div className="relative flex-1 w-full sm:max-w-md">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
+        <div className="relative w-full sm:w-auto sm:flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
           <Input
             placeholder="搜索规则..."
@@ -318,8 +318,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
       {/* 标签筛选器 */}
       {allTags.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+        <div className="flex items-center gap-2 overflow-x-auto pb-2">
+          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
             <Tag className="w-4 h-4" />
             <span>标签筛选:</span>
           </div>
@@ -330,7 +330,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               role="button"
               tabIndex={0}
               aria-pressed={selectedTags.includes(tag)}
-              className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
+              className={`cursor-pointer transition-colors flex-shrink-0 ${selectedTags.includes(tag)
                 ? "bg-blue-500 hover:bg-blue-600 text-white"
                 : "hover:bg-gray-100 dark:hover:bg-slate-700"
                 }`}
@@ -350,7 +350,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               variant="ghost"
               size="sm"
               onClick={() => setSelectedTags([])}
-              className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+              className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0"
             >
               清除筛选
             </Button>
@@ -359,9 +359,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       )}
 
       {/* Rules Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredRules?.map((rule) => (
-          <Card key={rule.name} className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+        {filteredRules?.map((rule, index) => (
+          <Card
+            key={rule.name}
+            className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow animate-slide-up opacity-0"
+            style={{ animationDelay: `${index * 50}ms` }}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 min-w-0">
@@ -456,9 +460,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               </div>
 
               {/* 客户端列表 - 放到最底部 */}
-              <div className="flex items-center gap-2 pt-2 border-t border-dashed border-gray-100 dark:border-slate-800">
-                <span className="text-[10px] text-gray-400">输出:</span>
-                <div className="flex flex-wrap gap-1.5">
+              <div className="flex items-start gap-2 pt-2 border-t border-dashed border-gray-100 dark:border-slate-800">
+                <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">输出:</span>
+                <div className="flex flex-wrap gap-1.5 flex-1">
                   {rule.output.clients.map((client) => (
                     <Badge
                       key={client}
@@ -476,14 +480,33 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       </div>
 
       {filteredRules?.length === 0 && (
-        <div className="text-center py-12 text-gray-500 dark:text-gray-400">
-          {searchQuery ? "未找到匹配的规则" : "暂无规则，请添加规则配置"}
+        <div className="text-center py-20">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
+            <FileText className="w-10 h-10 text-muted-foreground/40" />
+          </div>
+          <p className="text-lg font-medium text-foreground">
+            {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+            {searchQuery || selectedTags.length > 0
+              ? "尝试调整搜索条件或清除筛选标签"
+              : "点击右上角「添加规则」按钮创建第一条规则"}
+          </p>
+          {!searchQuery && selectedTags.length === 0 && (
+            <Button
+              onClick={() => { setEditingRule(null); setIsEditorOpen(true); }}
+              className="mt-6"
+            >
+              <Plus className="w-4 h-4 mr-2" />
+              添加规则
+            </Button>
+          )}
         </div>
       )}
 
       {/* Preview Dialog */}
       <Dialog open={!!previewingRule && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-5xl w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
+        <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
             <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />

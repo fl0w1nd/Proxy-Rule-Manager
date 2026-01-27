@@ -318,23 +318,27 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
         <Card className="shadow-minimal border-none bg-card">
-          <CardContent className="py-16 text-center text-muted-foreground flex flex-col items-center">
-            <div className="w-16 h-16 rounded-full bg-muted/50 flex items-center justify-center mb-4">
-              <Code2 className="w-8 h-8 text-muted-foreground/50" />
+          <CardContent className="text-center py-16">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
+              <Code2 className="w-10 h-10 text-muted-foreground/40" />
             </div>
-            <p className="mb-6 font-medium">暂无预定义转换器</p>
-            <Button onClick={handleCreate} className="shadow-sm">
-              <Plus className="w-4 h-4 mr-1" />
-              创建第一个转换器
+            <p className="text-lg font-medium text-foreground">暂无预定义转换器</p>
+            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+              转换器可用于处理规则内容，如去重、排序、正则替换等
+            </p>
+            <Button onClick={handleCreate} className="mt-6">
+              <Plus className="w-4 h-4 mr-2" />
+              创建转换器
             </Button>
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {transformerList.map(([name, transformer]) => (
+          {transformerList.map(([name, transformer], index) => (
             <Card
               key={name}
-              className="shadow-minimal border-none bg-card hover-lift group relative overflow-hidden"
+              className="shadow-minimal border-none bg-card hover-lift group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4"
+              style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
             >
               <CardHeader className="pb-3 z-10 relative">
                 <div className="flex items-start justify-between">

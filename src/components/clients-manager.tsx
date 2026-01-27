@@ -447,27 +447,34 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 </CardHeader>
                 <CardContent>
                     {clients.length === 0 ? (
-                        <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
-                            <Monitor className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                            <p>暂无客户端配置</p>
-                            <Button variant="link" onClick={openAddDialog} className="mt-2 text-primary">
-                                立即添加
+                        <div className="text-center py-16">
+                            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
+                                <Monitor className="w-10 h-10 text-muted-foreground/40" />
+                            </div>
+                            <p className="text-lg font-medium text-foreground">暂无客户端配置</p>
+                            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
+                                客户端用于定义不同代理软件的规则输出格式和转换规则
+                            </p>
+                            <Button onClick={openAddDialog} className="mt-6">
+                                <Plus className="w-4 h-4 mr-2" />
+                                添加客户端
                             </Button>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
                             <div className="space-y-2">
-                                {clients.map((client) => {
+                                {clients.map((client, index) => {
                                     const isActive = selectedClientId === client.id;
                                     return (
                                         <button
                                             key={client.id}
                                             type="button"
                                             onClick={() => setSelectedClientId(client.id)}
-                                            className={`w-full text-left p-3 rounded-lg border transition-all ${isActive
+                                            className={`w-full text-left p-3 rounded-lg border transition-all animate-in fade-in slide-in-from-left-4 ${isActive
                                                 ? "border-primary/50 bg-primary/5 shadow-sm"
                                                 : "border-transparent bg-muted/30 hover:bg-muted/50"
                                                 }`}
+                                            style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                         >
                                             <div className="flex items-start justify-between">
                                                 <div>
@@ -551,18 +558,19 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                                                     </div>
                                                 ) : clientFiles.length === 0 ? (
-                                                    <div className="text-center py-8 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
-                                                        <FileText className="w-10 h-10 mx-auto text-muted-foreground/30 mb-2" />
-                                                        <p>暂无配置文件</p>
-                                                        <Button variant="link" onClick={openCreateFileDialog} className="mt-2 text-primary">
-                                                            立即创建
-                                                        </Button>
+                                                    <div className="text-center py-12">
+                                                        <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
+                                                            <FileText className="w-8 h-8 text-muted-foreground/40" />
+                                                        </div>
+                                                        <p className="text-sm font-medium text-foreground">暂无配置文件</p>
+                                                        <p className="text-xs text-muted-foreground mt-1">点击「新建配置文件」添加配置文件</p>
                                                     </div>
                                                 ) : (
-                                                    clientFiles.map((file) => (
+                                                    clientFiles.map((file, index) => (
                                                         <div
                                                             key={file.id}
-                                                            className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/20"
+                                                            className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/20 animate-in fade-in slide-in-from-bottom-2"
+                                                            style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                                         >
                                                             <div className="min-w-0">
                                                                 <div className="flex items-center gap-2">

@@ -90,6 +90,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   const activityPageSize = 20;
   const [activityDates, setActivityDates] = useState<string[]>([]);
   const [activityTab, setActivityTab] = useState("changes");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -164,6 +165,17 @@ export function Dashboard({ onBack }: DashboardProps) {
     fetchStatus();
     const interval = setInterval(fetchStatus, 30000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth < 768) {
+        setSidebarCollapsed(true);
+      }
+    };
+    handleResize();
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
   }, []);
 
   const handleFullSync = async () => {
@@ -287,7 +299,11 @@ export function Dashboard({ onBack }: DashboardProps) {
   }) => (
     <div className="space-y-3">
       {items.length === 0 ? (
-        <div className="text-sm text-muted-foreground py-4 text-center">暂无近期变更</div>
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
+          <p className="text-sm font-medium text-muted-foreground">暂无活动记录</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">同步操作后将在此显示变更日志</p>
+        </div>
       ) : (
         items.map((change) => (
           <div
@@ -331,9 +347,11 @@ export function Dashboard({ onBack }: DashboardProps) {
       <AppSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        onLogout={() => { if (!authRequired) onBack?.(); else logout(); }}
+        onLogout={authRequired ? logout : undefined}
         onHome={onBack}
         version={status?.version}
+        isCollapsed={sidebarCollapsed}
+        onToggle={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
       {/* Main Content Area */}
@@ -405,7 +423,7 @@ export function Dashboard({ onBack }: DashboardProps) {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {/* Top Row: Stats & System Status */}
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
                   <Card className="shadow-sm border-border bg-card hover:bg-accent/5 transition-colors">
                     <CardContent className="p-4 flex flex-col justify-center h-full">
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">规则总数</p>
@@ -449,7 +467,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                 </div>
 
                 {/* Content Columns: Active Rules & Activity Feed */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                   {/* Rules List */}
                   <Card className="shadow-sm border-border bg-card flex flex-col h-[600px]">
                     <CardHeader className="flex flex-row items-center justify-between pb-2 border-b border-border/40 shrink-0">
@@ -550,7 +568,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       查看详细的历史变更与同步日志
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Pagination Controls */}
                     <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-md border border-border/50">
                       <Button
@@ -579,7 +597,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <div className="h-4 w-px bg-border/60 mx-1" />
 
                     <Select value={activityClient} onValueChange={(value) => { setActivityClient(value); setChangePage(1); setFailurePage(1); }}>
-                      <SelectTrigger className="w-[160px] h-9 bg-background">
+                      <SelectTrigger className="w-full sm:w-[160px] h-9 bg-background">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Monitor className="w-4 h-4" />
                           <SelectValue placeholder="客户端" />
@@ -598,7 +616,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <div className="h-4 w-px bg-border/60 mx-1" />
 
                     <Select value={activityDate} onValueChange={setActivityDate}>
-                      <SelectTrigger className="w-[140px] h-9 bg-background">
+                      <SelectTrigger className="w-full sm:w-[140px] h-9 bg-background">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CalendarDays className="w-4 h-4" />
                           <SelectValue placeholder="日期范围" />
@@ -619,12 +637,14 @@ export function Dashboard({ onBack }: DashboardProps) {
                       disabled={isClearingActivity}
                       className="h-9"
                     >
-                      {isClearingActivity ? (
-                        <Loader2 className="w-3.5 h-3.5 mr-2 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-3.5 h-3.5 mr-2" />
-                      )}
-                      清空记录
+                      <>
+                        {isClearingActivity ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-3.5 h-3.5" />
+                        )}
+                        <span className="hidden sm:inline ml-2">清空记录</span>
+                      </>
                     </Button>
                   </div>
                 </CardHeader>
@@ -674,9 +694,12 @@ export function Dashboard({ onBack }: DashboardProps) {
                           </div>
                         ))}
                         {failureItems.length === 0 && (
-                          <div className="p-8 text-center text-muted-foreground text-sm">
-                            <CheckCircle className="w-8 h-8 mx-auto mb-3 text-green-500/50" />
-                            暂无失败记录
+                          <div className="p-12 text-center">
+                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-100/50 to-green-50 dark:from-green-900/20 dark:to-green-800/10 flex items-center justify-center">
+                              <CheckCircle className="w-8 h-8 text-green-500/60" />
+                            </div>
+                            <p className="text-sm font-medium text-foreground">运行正常</p>
+                            <p className="text-xs text-muted-foreground mt-1">暂无失败记录</p>
                           </div>
                         )}
                       </div>

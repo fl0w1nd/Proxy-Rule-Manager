@@ -309,18 +309,18 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
       <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-slate-900 dark:via-slate-800 dark:to-slate-900 transition-colors">
         {/* Header */}
         <header className="sticky top-0 z-50 border-b bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
-          <div className="container mx-auto px-4 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center">
-                  <Globe className="w-5 h-5 text-white" />
+          <div className="container mx-auto px-4 py-3 sm:py-4">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0">
+                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
                 </div>
-                <div>
-                  <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+                <div className="min-w-0">
+                  <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
                     代理规则集
                   </h1>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 hidden xs:block">
                       Proxy Rule Manager
                     </p>
                     {version && (
@@ -331,12 +331,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   </div>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
                 <Button
                   variant="ghost"
                   size="icon"
                   onClick={toggleTheme}
-                  className="text-gray-600 dark:text-gray-300"
+                  className="text-gray-600 dark:text-gray-300 min-w-[44px] min-h-[44px]"
                 >
                   {theme === "light" ? (
                     <Moon className="w-5 h-5" />
@@ -348,10 +348,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   variant="outline"
                   size="sm"
                   onClick={onAdminClick}
-                  className="text-gray-600 dark:text-gray-300"
+                  className="text-gray-600 dark:text-gray-300 min-h-[44px] px-3"
                 >
-                  <Settings className="w-4 h-4 mr-1" />
-                  管理
+                  <Settings className="w-4 h-4 sm:mr-1" />
+                  <span className="hidden sm:inline">管理</span>
                 </Button>
               </div>
             </div>
@@ -362,24 +362,24 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         <main className="container mx-auto px-4 py-8">
           {/* Main Tabs & Search */}
           <div className="mb-6 space-y-4">
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
               <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "rules" | "configs")}>
                 <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
-                  <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                  <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4">
                     规则
                   </TabsTrigger>
-                  <TabsTrigger value="configs" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white">
+                  <TabsTrigger value="configs" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4">
                     配置文件
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
-              <div className="relative w-full lg:w-80">
+              <div className="relative w-full sm:w-auto sm:min-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
                   placeholder={activeMainTab === "rules" ? "搜索规则..." : "搜索配置文件..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10 bg-white dark:bg-slate-800"
+                  className="pl-10 bg-white dark:bg-slate-800 h-11"
                 />
               </div>
             </div>
@@ -387,12 +387,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               value={activeClient}
               onValueChange={(v) => setActiveClient(v)}
             >
-              <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
+              <TabsList className="bg-white dark:bg-slate-800 border shadow-sm overflow-x-auto scrollbar-hide w-full sm:w-auto flex-nowrap">
                 {clients.map((client) => (
                   <TabsTrigger
                     key={client.id}
                     value={client.id}
-                    className="data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                    className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4 flex-shrink-0"
                   >
                     {client.displayName}
                   </TabsTrigger>
@@ -402,8 +402,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
             {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}
             {activeMainTab === "rules" && allTags.length > 0 && (
-              <div className="flex flex-wrap items-center gap-2">
-                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-hide">
+                <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
                   <Tag className="w-4 h-4" />
                   <span>标签:</span>
                 </div>
@@ -414,7 +414,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     role="button"
                     tabIndex={0}
                     aria-pressed={selectedTags.includes(tag)}
-                    className={`cursor-pointer transition-colors ${selectedTags.includes(tag)
+                    className={`cursor-pointer transition-colors flex-shrink-0 min-h-[32px] px-3 ${selectedTags.includes(tag)
                       ? "bg-blue-500 hover:bg-blue-600 text-white"
                       : "hover:bg-gray-100 dark:hover:bg-slate-700"
                       }`}
@@ -434,7 +434,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     variant="ghost"
                     size="sm"
                     onClick={() => setSelectedTags([])}
-                    className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700"
+                    className="h-8 px-3 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0 min-h-[44px]"
                   >
                     清除筛选
                   </Button>
@@ -450,61 +450,82 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             </div>
           ) : activeMainTab === "rules" ? (
             clientRules.length === 0 ? (
-              <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-                {searchQuery ? "未找到匹配的规则" : "暂无规则，请先在管理后台添加"}
+              <div className="text-center py-20">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-blue-100/50 to-blue-50 dark:from-blue-900/20 dark:to-blue-800/10 flex items-center justify-center">
+                  <Globe className="w-10 h-10 text-blue-400/50 dark:text-blue-500/30" />
+                </div>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
+                  {searchQuery || selectedTags.length > 0
+                    ? "尝试调整搜索条件或清除筛选标签"
+                    : "该客户端暂无可用规则"}
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {clientRules.map((rule) => (
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {clientRules.map((rule, index) => (
                   <Card
                     key={rule.name}
-                    className="flex flex-col h-full bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow gap-0 pt-6 pb-2 px-0"
+                    className="group relative flex flex-col h-full bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow gap-0 pt-6 pb-2 px-0 animate-slide-up opacity-0"
+                    style={{ animationDelay: `${index * 30}ms` }}
                   >
+                    {/* 右下角浮动按钮组 */}
+                    <div className="absolute bottom-2.5 right-3 flex items-center gap-1">
+                      <Tooltip delayDuration={100}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 rounded text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50 transition-all"
+                            onClick={() => handlePreview({
+                              type: "rule",
+                              name: rule.name,
+                              clientId: activeClient,
+                              fileName: rule.name,
+                            })}
+                          >
+                            <Eye className="w-3 h-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          查看内容
+                        </TooltipContent>
+                      </Tooltip>
+                      <Tooltip delayDuration={100}>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className={`h-6 w-6 rounded transition-all ${copiedRule === rule.name
+                                ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
+                                : "text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50"
+                              }`}
+                            onClick={() => copyRuleUrl(rule.name)}
+                          >
+                            {copiedRule === rule.name ? (
+                              <CheckCircle className="w-3 h-3" />
+                            ) : (
+                              <Copy className="w-3 h-3" />
+                            )}
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent side="top" className="text-xs">
+                          {copiedRule === rule.name ? "已复制" : "复制 URL"}
+                        </TooltipContent>
+                      </Tooltip>
+                    </div>
+
                     <CardHeader className="pb-2">
                       <div className="flex items-start gap-3">
                         <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center flex-shrink-0">
                           <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="min-w-0">
-                              <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                                {rule.displayName || rule.name}
-                              </CardTitle>
-                            </div>
-                            <div className="flex items-center gap-1 shrink-0">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-6 w-6 text-gray-400 hover:text-blue-500"
-                                onClick={() => handlePreview({
-                                  type: "rule",
-                                  name: rule.name,
-                                  clientId: activeClient,
-                                  fileName: rule.name,
-                                })}
-                                title="预览"
-                              >
-                                <Eye className="w-3 h-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className={`h-6 w-6 transition-colors ${copiedRule === rule.name
-                                  ? "text-green-500"
-                                  : "text-gray-400 hover:text-blue-500"
-                                  }`}
-                                onClick={() => copyRuleUrl(rule.name)}
-                                title="复制链接"
-                              >
-                                {copiedRule === rule.name ? (
-                                  <CheckCircle className="w-3 h-3" />
-                                ) : (
-                                  <Copy className="w-3 h-3" />
-                                )}
-                              </Button>
-                            </div>
-                          </div>
+                          <CardTitle className="text-base text-gray-900 dark:text-white truncate">
+                            {rule.displayName || rule.name}
+                          </CardTitle>
                           <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                               <div className={`mt-1 rounded p-1 -ml-1 ${rule.description ? "hover:bg-gray-100 dark:hover:bg-slate-700/50" : ""}`}>
@@ -528,9 +549,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         </div>
                       </div>
                     </CardHeader>
-                    <CardContent className="flex-1 flex flex-col justify-end pt-0 pb-1.5">
+                    <CardContent className="flex-1 flex flex-col justify-end pt-0 pb-1.5 gap-2">
                       {/* 标签 */}
-                      <div className="flex flex-wrap items-center gap-1.5">
+                      <div className="flex flex-wrap items-center gap-1.5 pr-16">
                         {rule.tags && rule.tags.length > 0 ? (
                           rule.tags.slice(0, 4).map((tag) => (
                             <Badge
@@ -555,16 +576,27 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             )
           ) : (
             clientPublicFiles.length === 0 ? (
-              <div className="text-center py-20 text-gray-500 dark:text-gray-400">
-                {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
+              <div className="text-center py-20">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-100/50 to-emerald-50 dark:from-emerald-900/20 dark:to-emerald-800/10 flex items-center justify-center">
+                  <FileText className="w-10 h-10 text-emerald-400/50 dark:text-emerald-500/30" />
+                </div>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
+                  {searchQuery
+                    ? "尝试使用其他关键词搜索"
+                    : "该客户端暂无公开的配置文件"}
+                </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {clientPublicFiles.map((file) => {
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+                {clientPublicFiles.map((file, index) => {
                   return (
                     <Card
                       key={file.id}
-                      className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
+                      className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow animate-slide-up opacity-0"
+                      style={{ animationDelay: `${index * 30}ms` }}
                     >
                       <CardHeader className="pb-2">
                         <div className="flex items-start gap-3">
@@ -591,7 +623,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <Button
                             variant="outline"
                             size="sm"
-                            className="flex-1"
+                            className="flex-1 min-h-[44px]"
                             onClick={() => handlePreview({
                               type: "config",
                               name: file.configId,
@@ -605,7 +637,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           </Button>
                           <Button
                             size="sm"
-                            className={`flex-1 transition-colors ${copiedConfig === file.id
+                            className={`flex-1 min-h-[44px] transition-colors ${copiedConfig === file.id
                               ? "bg-green-500 hover:bg-green-600"
                               : "bg-emerald-500 hover:bg-emerald-600"
                               }`}
