@@ -312,8 +312,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           <div className="container mx-auto px-4 py-3 sm:py-4">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 sm:gap-3 min-w-0">
-                <div className="w-9 h-9 sm:w-10 sm:h-10 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                  <Globe className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                <div className="w-9 h-9 sm:w-10 sm:h-10 flex items-center justify-center flex-shrink-0 transition-transform hover:scale-105 duration-300">
+                  <img src="/logo.svg" alt="Logo" className="w-8 h-8 sm:w-9 sm:h-9" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg sm:text-xl font-bold text-gray-900 dark:text-white truncate">
@@ -499,8 +499,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                             variant="ghost"
                             size="icon"
                             className={`h-6 w-6 rounded transition-all ${copiedRule === rule.name
-                                ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
-                                : "text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50"
+                              ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
+                              : "text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50"
                               }`}
                             onClick={() => copyRuleUrl(rule.name)}
                           >

@@ -17,7 +17,7 @@ export const metadata: Metadata = {
   title: "Proxy Rule Manager",
   description: "代理规则集托管服务 - 管理和托管 Clash Meta / Shadowrocket 规则",
   icons: {
-    icon: "/favicon.png",
+    icon: "/logo.svg",
   },
 };
 

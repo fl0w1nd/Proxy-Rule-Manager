@@ -78,9 +78,9 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             className
         )}>
             {/* Header */}
-            <div className={cn("h-16 flex items-center border-b border-sidebar-border", isCollapsed ? "px-3 justify-center" : "px-6")}>
-                <div className={cn("w-9 h-9 bg-gradient-to-br from-primary via-primary to-blue-600 rounded-xl flex items-center justify-center shadow-sm hover-lift", !isCollapsed && "mr-3")}>
-                    <Shield className="w-5 h-5 text-primary-foreground" />
+            <div className={cn("h-16 flex items-center border-b border-sidebar-border relative", isCollapsed ? "justify-center" : "px-6 gap-3")}>
+                <div className={cn("w-9 h-9 flex-shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300")}>
+                    <img src="/logo.svg" alt="Logo" className="w-full h-full object-contain" />
                 </div>
                 {!isCollapsed && (
                     <div className="flex-1 min-w-0">
@@ -100,9 +100,12 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                         variant="ghost"
                         size="icon"
                         onClick={onToggle}
-                        className="ml-auto h-8 w-8"
+                        className={cn(
+                            "h-8 w-8 transition-all",
+                            isCollapsed ? "absolute -right-3 top-1/2 -translate-y-1/2 bg-sidebar border border-sidebar-border shadow-sm rounded-full z-50 hover:bg-sidebar-accent" : "ml-auto"
+                        )}
                     >
-                        {isCollapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+                        {isCollapsed ? <ChevronRight className="w-3 h-3" /> : <ChevronLeft className="w-3 h-3" />}
                     </Button>
                 )}
             </div>

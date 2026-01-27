@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="public/logo.svg" width="100" height="100" alt="Proxy Rule Manager Logo">
+</p>
+
 # Proxy Rule Manager
 
 面向代理规则与客户端配置的管理平台，提供规则编辑、客户端管理与公开分发。
