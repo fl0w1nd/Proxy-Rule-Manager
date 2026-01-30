@@ -539,15 +539,15 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <h3 className="text-[15px] font-medium text-gray-900 dark:text-white truncate leading-tight">
                             {rule.displayName || rule.name}
                           </h3>
-                          <Tooltip delayDuration={300}>
-                            <TooltipTrigger asChild>
-                              <div className={`mt-1.5 ${rule.description ? "cursor-default" : ""}`}>
-                                <p className="text-[13px] text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.6em] leading-snug">
-                                  {rule.description || "暂无描述"}
-                                </p>
-                              </div>
-                            </TooltipTrigger>
-                            {rule.description && (
+                          {rule.description && (
+                            <Tooltip delayDuration={300}>
+                              <TooltipTrigger asChild>
+                                <div className="mt-1.5 cursor-default">
+                                  <p className="text-[13px] text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.6em] leading-snug">
+                                    {rule.description}
+                                  </p>
+                                </div>
+                              </TooltipTrigger>
                               <TooltipContent
                                 side="bottom"
                                 align="start"
@@ -557,8 +557,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                                   {rule.description}
                                 </p>
                               </TooltipContent>
-                            )}
-                          </Tooltip>
+                            </Tooltip>
+                          )}
                         </div>
                       </div>
                     </div>
