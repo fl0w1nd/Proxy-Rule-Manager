@@ -40,6 +40,7 @@ import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewRes
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
 import { RuleEditor } from "./rule-editor";
 import { toast } from "sonner";
+import { RuleIcon } from "./icon-picker";
 
 interface RulesManagerProps {
   onRefresh: () => void;
@@ -213,7 +214,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-3">
-            <FileText className="w-5 h-5 text-blue-500" />
+            {(() => {
+              const rule = config?.rules.find(r => r.name === previewingRule);
+              return rule?.icon ? (
+                <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+              ) : (
+                <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              );
+            })()}
             <span className="font-semibold text-gray-900 dark:text-white">预览: {previewingRule}</span>
             {previewData.diagnostics.truncated && (
               <Badge variant="outline" className="border-amber-500 text-amber-500">
@@ -369,8 +377,12 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center shrink-0">
-                    <FileText className="w-5 h-5 text-blue-500" />
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800/50 dark:to-gray-900/30 flex items-center justify-center shrink-0">
+                    {rule.icon ? (
+                      <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                    ) : (
+                      <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    )}
                   </div>
                   <div className="min-w-0">
                     <CardTitle className="text-gray-900 dark:text-white text-lg truncate">{rule.displayName || rule.name}</CardTitle>
@@ -509,7 +521,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
             <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
+              {(() => {
+                const rule = config?.rules.find(r => r.name === previewingRule);
+                return rule?.icon ? (
+                  <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                ) : (
+                  <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                );
+              })()}
               预览: {previewingRule}
             </DialogTitle>
             {previewData?.diagnostics.truncated && (

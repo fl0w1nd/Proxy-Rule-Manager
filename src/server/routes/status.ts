@@ -57,6 +57,7 @@ export function registerStatusRoutes(app: Hono) {
           name: rule.name,
           displayName: rule.displayName,
           description: rule.description,
+          icon: rule.icon,
           tags: rule.tags || [],
           clients: rule.output.clients,
           lastUpdated:

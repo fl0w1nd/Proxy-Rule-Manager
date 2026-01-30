@@ -66,6 +66,7 @@ import {
 } from "@/lib/schema";
 import { saveConfig, renameRule, previewRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
 import { toast } from "sonner";
+import { IconPicker, RuleIcon } from "@/components/icon-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "./theme-provider";
@@ -698,18 +699,30 @@ export function RuleEditor({
                   <p className="text-[10px] text-muted-foreground">界面显示的名称，留空则使用规则 ID</p>
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                  描述
-                  <HelpIcon text={HELP_TEXTS.description} />
-                </Label>
-                <Textarea
-                  value={formData.description || ""}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="规则描述..."
-                  rows={2}
-                  className="resize-none"
-                />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    描述
+                    <HelpIcon text={HELP_TEXTS.description} />
+                  </Label>
+                  <Textarea
+                    value={formData.description || ""}
+                    onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                    placeholder="规则描述..."
+                    rows={2}
+                    className="resize-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+                    图标
+                  </Label>
+                  <IconPicker
+                    value={formData.icon}
+                    onChange={(icon) => setFormData({ ...formData, icon })}
+                  />
+                  <p className="text-[10px] text-muted-foreground">从 Iconify 搜索图标，支持品牌、通用等</p>
+                </div>
               </div>
               {/* 标签 */}
               <div className="space-y-2">

@@ -37,11 +37,13 @@ import {
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
 import { ClientFileMeta } from "@/lib/schema";
+import { RuleIcon } from "./icon-picker";
 
 interface RuleInfo {
   name: string;
   displayName?: string;
   description?: string;
+  icon?: string;
   tags?: string[];
   clients: string[];
 }
@@ -248,7 +250,14 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
           <div className="flex items-center gap-3">
-            <FileText className="w-5 h-5 text-blue-500" />
+            {(() => {
+              const rule = rules.find(r => r.name === previewItem.name);
+              return rule?.icon ? (
+                <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+              ) : (
+                <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+              );
+            })()}
             <span className="font-semibold text-gray-900 dark:text-white">{previewItem.fileName}</span>
             <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
               {getClientConfig(previewItem.clientId)?.displayName || previewItem.clientId}
@@ -520,7 +529,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <div className="pb-3 px-5">
                       <div className="flex items-start gap-3.5">
                         <div className="icon-refined w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-4.5 h-4.5 text-gray-500 dark:text-gray-400" />
+                          {rule.icon ? (
+                            <RuleIcon icon={rule.icon} className="w-5.5 h-5.5 text-gray-500 dark:text-gray-400" />
+                          ) : (
+                            <FileText className="w-[18px] h-[18px] text-gray-500 dark:text-gray-400" />
+                          )}
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="text-[15px] font-medium text-gray-900 dark:text-white truncate leading-tight">
@@ -698,7 +711,14 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           <DialogContent className="max-w-5xl w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
             <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
               <DialogTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
-                <FileText className="w-5 h-5 text-blue-500" />
+                {(() => {
+                  const rule = rules.find(r => r.name === previewItem?.name);
+                  return rule?.icon ? (
+                    <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  );
+                })()}
                 {previewItem?.fileName}
                 <Badge className="bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 ml-2">
                   {previewItem ? getClientDisplayName(previewItem.clientId) : getClientDisplayName(activeClient)}
