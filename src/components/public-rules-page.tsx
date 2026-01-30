@@ -464,21 +464,21 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="card-grid-dashed">
                 {clientRules.map((rule, index) => (
-                  <Card
+                  <div
                     key={rule.name}
-                    className="group relative flex flex-col h-full bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow gap-0 pt-6 pb-2 px-0 animate-slide-up opacity-0"
+                    className="card-refined group relative flex flex-col h-full gap-0 py-4 px-0 animate-slide-up opacity-0"
                     style={{ animationDelay: `${index * 30}ms` }}
                   >
                     {/* 右下角浮动按钮组 */}
-                    <div className="absolute bottom-2.5 right-3 flex items-center gap-1">
+                    <div className="absolute bottom-3 right-4 flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
                       <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                           <Button
                             variant="ghost"
                             size="icon"
-                            className="h-6 w-6 rounded text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50 transition-all"
+                            className="h-7 w-7 rounded-md text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
                             onClick={() => handlePreview({
                               type: "rule",
                               name: rule.name,
@@ -486,7 +486,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                               fileName: rule.name,
                             })}
                           >
-                            <Eye className="w-3 h-3" />
+                            <Eye className="w-3.5 h-3.5" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent side="top" className="text-xs">
@@ -498,16 +498,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <Button
                             variant="ghost"
                             size="icon"
-                            className={`h-6 w-6 rounded transition-all ${copiedRule === rule.name
-                              ? "bg-green-500 text-white hover:bg-green-600 shadow-sm"
-                              : "text-gray-400 hover:text-blue-500 hover:bg-white/80 dark:hover:bg-slate-700/80 hover:shadow-sm hover:backdrop-blur-sm hover:border hover:border-gray-200/50 dark:hover:border-slate-600/50"
+                            className={`h-7 w-7 rounded-md transition-colors ${copiedRule === rule.name
+                              ? "bg-green-500 text-white hover:bg-green-600"
+                              : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 hover:bg-gray-100 dark:hover:bg-white/5"
                               }`}
                             onClick={() => copyRuleUrl(rule.name)}
                           >
                             {copiedRule === rule.name ? (
-                              <CheckCircle className="w-3 h-3" />
+                              <CheckCircle className="w-3.5 h-3.5" />
                             ) : (
-                              <Copy className="w-3 h-3" />
+                              <Copy className="w-3.5 h-3.5" />
                             )}
                           </Button>
                         </TooltipTrigger>
@@ -517,20 +517,20 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </Tooltip>
                     </div>
 
-                    <CardHeader className="pb-2">
-                      <div className="flex items-start gap-3">
-                        <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-100 to-cyan-100 dark:from-blue-900/30 dark:to-cyan-900/30 flex items-center justify-center flex-shrink-0">
-                          <FileText className="w-5 h-5 text-blue-600 dark:text-blue-400" />
+                    <div className="pb-3 px-5">
+                      <div className="flex items-start gap-3.5">
+                        <div className="icon-refined w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4.5 h-4.5 text-gray-500 dark:text-gray-400" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <CardTitle className="text-base text-gray-900 dark:text-white truncate">
+                          <h3 className="text-[15px] font-medium text-gray-900 dark:text-white truncate leading-tight">
                             {rule.displayName || rule.name}
-                          </CardTitle>
+                          </h3>
                           <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
-                              <div className={`mt-1 rounded p-1 -ml-1 ${rule.description ? "hover:bg-gray-100 dark:hover:bg-slate-700/50" : ""}`}>
-                                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.5em] whitespace-pre-wrap break-words cursor-default">
-                                  {rule.description || "无描述"}
+                              <div className={`mt-1.5 ${rule.description ? "cursor-default" : ""}`}>
+                                <p className="text-[13px] text-gray-500 dark:text-gray-400 line-clamp-2 min-h-[2.6em] leading-snug">
+                                  {rule.description || "暂无描述"}
                                 </p>
                               </div>
                             </TooltipTrigger>
@@ -538,9 +538,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                               <TooltipContent
                                 side="bottom"
                                 align="start"
-                                className="max-w-[320px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900 border-none shadow-xl"
+                                className="max-w-[300px] bg-gray-900 text-white dark:bg-white dark:text-gray-900 border-none shadow-lg"
                               >
-                                <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
+                                <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
                                   {rule.description}
                                 </p>
                               </TooltipContent>
@@ -548,29 +548,28 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           </Tooltip>
                         </div>
                       </div>
-                    </CardHeader>
-                    <CardContent className="flex-1 flex flex-col justify-end pt-0 pb-1.5 gap-2">
+                    </div>
+                    <div className="flex-1 flex flex-col justify-end pt-0 pb-0.5 px-5">
                       {/* 标签 */}
                       <div className="flex flex-wrap items-center gap-1.5 pr-16">
                         {rule.tags && rule.tags.length > 0 ? (
                           rule.tags.slice(0, 4).map((tag) => (
-                            <Badge
+                            <span
                               key={tag}
-                              variant="outline"
-                              className="text-[10px] px-1.5 py-0 h-4 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800"
+                              className="badge-refined text-[11px] px-2 py-0.5 rounded-md font-normal"
                             >
                               {tag}
-                            </Badge>
+                            </span>
                           ))
                         ) : (
-                          <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">无标签</span>
+                          <span className="text-[11px] text-gray-300 dark:text-gray-600">—</span>
                         )}
                         {rule.tags && rule.tags.length > 4 && (
-                          <span className="text-[10px] text-gray-400">+{rule.tags.length - 4}</span>
+                          <span className="text-[11px] text-gray-400 dark:text-gray-500">+{rule.tags.length - 4}</span>
                         )}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+                  </div>
                 ))}
               </div>
             )
@@ -590,74 +589,70 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-4">
+              <div className="card-grid-dashed">
                 {clientPublicFiles.map((file, index) => {
                   return (
-                    <Card
+                    <div
                       key={file.id}
-                      className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow animate-slide-up opacity-0"
+                      className="card-refined group py-4 px-5 animate-slide-up opacity-0"
                       style={{ animationDelay: `${index * 30}ms` }}
                     >
-                      <CardHeader className="pb-2">
-                        <div className="flex items-start gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-emerald-100 to-teal-100 dark:from-emerald-900/30 dark:to-teal-900/30 flex items-center justify-center flex-shrink-0">
-                            <FileText className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <CardTitle className="text-base text-gray-900 dark:text-white truncate">
-                              {file.displayName || `${file.configId}.${file.ext}`}
-                            </CardTitle>
-                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 font-mono truncate">
-                              {file.configId}.{file.ext}
+                      <div className="flex items-start gap-3.5">
+                        <div className="icon-refined w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0">
+                          <FileText className="w-4.5 h-4.5 text-gray-500 dark:text-gray-400" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-[15px] font-medium text-gray-900 dark:text-white truncate leading-tight">
+                            {file.displayName || `${file.configId}.${file.ext}`}
+                          </h3>
+                          <p className="text-[12px] text-gray-400 dark:text-gray-500 mt-0.5 font-mono truncate">
+                            {file.configId}.{file.ext}
+                          </p>
+                          {file.description && (
+                            <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-1.5 line-clamp-2 leading-snug">
+                              {file.description}
                             </p>
-                            {file.description && (
-                              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1 whitespace-pre-wrap break-words">
-                                {file.description}
-                              </p>
-                            )}
-                          </div>
+                          )}
                         </div>
-                      </CardHeader>
-                      <CardContent className="pt-2">
-                        <div className="flex gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="flex-1 min-h-[44px]"
-                            onClick={() => handlePreview({
-                              type: "config",
-                              name: file.configId,
-                              clientId: file.clientId,
-                              fileName: `${file.configId}.${file.ext}`,
-                              ext: file.ext,
-                            })}
-                          >
-                            <Eye className="w-4 h-4 mr-1" />
-                            预览
-                          </Button>
-                          <Button
-                            size="sm"
-                            className={`flex-1 min-h-[44px] transition-colors ${copiedConfig === file.id
-                              ? "bg-green-500 hover:bg-green-600"
-                              : "bg-emerald-500 hover:bg-emerald-600"
-                              }`}
-                            onClick={() => copyConfigUrl(file)}
-                          >
-                            {copiedConfig === file.id ? (
-                              <>
-                                <CheckCircle className="w-4 h-4 mr-1" />
-                                已复制
-                              </>
-                            ) : (
-                              <>
-                                <Copy className="w-4 h-4 mr-1" />
-                                复制
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </CardContent>
-                    </Card>
+                      </div>
+                      <div className="flex gap-2.5 mt-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="flex-1 h-9 text-[13px] border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-white/5"
+                          onClick={() => handlePreview({
+                            type: "config",
+                            name: file.configId,
+                            clientId: file.clientId,
+                            fileName: `${file.configId}.${file.ext}`,
+                            ext: file.ext,
+                          })}
+                        >
+                          <Eye className="w-3.5 h-3.5 mr-1.5" />
+                          预览
+                        </Button>
+                        <Button
+                          size="sm"
+                          className={`flex-1 h-9 text-[13px] transition-colors ${copiedConfig === file.id
+                            ? "bg-green-600 hover:bg-green-700"
+                            : "bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                            }`}
+                          onClick={() => copyConfigUrl(file)}
+                        >
+                          {copiedConfig === file.id ? (
+                            <>
+                              <CheckCircle className="w-3.5 h-3.5 mr-1.5" />
+                              已复制
+                            </>
+                          ) : (
+                            <>
+                              <Copy className="w-3.5 h-3.5 mr-1.5" />
+                              复制
+                            </>
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   );
                 })}
               </div>

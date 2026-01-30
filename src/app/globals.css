@@ -289,6 +289,129 @@
       0 2px 4px -1px rgb(0 0 0 / 0.2);
   }
 
+  .card-refined {
+    background: oklch(1 0 0);
+    border: none;
+    transition: background 150ms ease;
+  }
+
+  .card-refined:hover {
+    background: oklch(0.985 0 0);
+  }
+
+  .dark .card-refined {
+    background: oklch(0.16 0 0);
+  }
+
+  .dark .card-refined:hover {
+    background: oklch(0.18 0 0);
+  }
+
+  /* Card Grid */
+  .card-grid-dashed {
+    --grid-border: oklch(0.88 0 0);
+    --grid-bg: oklch(1 0 0);
+    position: relative;
+    display: grid;
+    grid-template-columns: 1fr;
+    background: var(--grid-bg);
+    border: 1px solid var(--grid-border);
+    border-radius: 12px;
+    overflow: hidden;
+  }
+
+  .card-grid-dashed::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: var(--grid-bg);
+    pointer-events: none;
+  }
+
+  .card-grid-dashed > * {
+    border-bottom: 1px dashed var(--grid-border);
+  }
+
+  @media (min-width: 640px) {
+    .card-grid-dashed {
+      grid-template-columns: repeat(2, 1fr);
+    }
+    .card-grid-dashed > * {
+      border-right: 1px dashed var(--grid-border);
+    }
+    .card-grid-dashed > *:nth-child(2n) {
+      border-right: none;
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .card-grid-dashed {
+      grid-template-columns: repeat(3, 1fr);
+    }
+    .card-grid-dashed > *:nth-child(2n) {
+      border-right: 1px dashed var(--grid-border);
+    }
+    .card-grid-dashed > *:nth-child(3n) {
+      border-right: none;
+    }
+  }
+
+  @media (min-width: 1280px) {
+    .card-grid-dashed {
+      grid-template-columns: repeat(4, 1fr);
+    }
+    .card-grid-dashed > *:nth-child(3n) {
+      border-right: 1px dashed var(--grid-border);
+    }
+    .card-grid-dashed > *:nth-child(4n) {
+      border-right: none;
+    }
+  }
+
+  @media (min-width: 1536px) {
+    .card-grid-dashed {
+      grid-template-columns: repeat(5, 1fr);
+    }
+    .card-grid-dashed > *:nth-child(4n) {
+      border-right: 1px dashed var(--grid-border);
+    }
+    .card-grid-dashed > *:nth-child(5n) {
+      border-right: none;
+    }
+  }
+
+  .dark .card-grid-dashed {
+    --grid-border: oklch(0.26 0 0);
+    --grid-bg: oklch(0.16 0 0);
+  }
+
+  .icon-refined {
+    background: oklch(0.97 0 0);
+    border: 1px solid oklch(0.92 0 0);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.5);
+  }
+
+  .dark .icon-refined {
+    background: oklch(0.22 0 0);
+    border: 1px solid oklch(0.28 0 0);
+    box-shadow: inset 0 1px 0 oklch(1 0 0 / 0.03);
+  }
+
+  .badge-refined {
+    background: oklch(0.98 0 0);
+    border: 1px solid oklch(0.92 0 0);
+    color: oklch(0.45 0 0);
+  }
+
+  .dark .badge-refined {
+    background: oklch(0.20 0 0);
+    border: 1px solid oklch(0.28 0 0);
+    color: oklch(0.60 0 0);
+  }
+
   /* Skeleton Loading Animation */
   .skeleton {
     background: linear-gradient(
