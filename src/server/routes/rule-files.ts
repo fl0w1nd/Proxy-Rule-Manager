@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { getRuleContent } from "../../lib/storage-adapter";
+import { getRuleContent, getCdnSettings, buildResponseHeaders } from "../../lib/storage-adapter";
 import { CLIENT_PATH_NAMES, ClientType } from "../../lib/schema";
 
 export function registerRuleFileRoutes(app: Hono) {
@@ -29,9 +29,9 @@ export function registerRuleFileRoutes(app: Hono) {
       );
     }
 
-    return c.text(content, 200, {
-      "Content-Type": "text/plain; charset=utf-8",
-      "Cache-Control": "no-cache",
-    });
+    const cdnSettings = await getCdnSettings();
+    const headers = buildResponseHeaders(cdnSettings);
+
+    return c.text(content, 200, headers);
   });
 }

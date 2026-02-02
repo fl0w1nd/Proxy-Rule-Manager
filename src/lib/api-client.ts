@@ -570,3 +570,26 @@ export async function cleanupWafBans(): Promise<{ success: boolean; message: str
 export async function getMyIp(): Promise<{ ip: string }> {
   return apiRequest<{ ip: string }>("/waf/my-ip");
 }
+
+// --- CDN Settings ---
+export interface CdnSettings {
+  enabled: boolean;
+  cacheMode: "no-cache" | "no-store" | "custom";
+  staleIfErrorSeconds: number;
+  customCacheControl?: string;
+  cloudflareCdnCacheControl?: string;
+  customHeaders: { name: string; value: string }[];
+}
+
+export async function getCdnSettings(): Promise<{ settings: CdnSettings }> {
+  return apiRequest<{ settings: CdnSettings }>("/cdn-settings");
+}
+
+export async function updateCdnSettings(
+  settings: Partial<CdnSettings>
+): Promise<{ success: boolean; settings: CdnSettings }> {
+  return apiRequest("/cdn-settings", {
+    method: "PUT",
+    body: JSON.stringify(settings),
+  });
+}

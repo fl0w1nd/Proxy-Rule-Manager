@@ -26,6 +26,7 @@ import { registerStatusRoutes } from "./routes/status";
 import { registerSyncRoutes } from "./routes/sync";
 import { registerActivityRoutes } from "./routes/activity";
 import { registerWafRoutes } from "./routes/waf";
+import { registerCdnSettingsRoutes } from "./routes/cdn-settings";
 
 const app = new Hono();
 
@@ -39,11 +40,12 @@ registerActivityRoutes(app);
 registerSyncRoutes(app);
 registerRuleRoutes(app);
 registerClientRoutes(app);
-registerClientFileRoutes(app);
 registerAuthRoutes(app);
 registerPreviewRoutes(app);
 registerInitRoutes(app);
 registerWafRoutes(app);
+registerCdnSettingsRoutes(app);
+registerClientFileRoutes(app);
 
 // --- Rule File Serving (Real-time, no cache) ---
 registerRuleFileRoutes(app);

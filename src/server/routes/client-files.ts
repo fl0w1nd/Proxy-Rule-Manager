@@ -9,6 +9,8 @@ import {
   listPublicClientFiles,
   updateClientFile,
   getPublicClientFile,
+  getCdnSettings,
+  buildResponseHeaders,
 } from "../../lib/storage-adapter";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
@@ -201,10 +203,10 @@ export function registerClientFileRoutes(app: Hono) {
         return c.text("# File not found", 404);
       }
 
-      return c.text(result.content, 200, {
-        "Content-Type": "text/plain; charset=utf-8",
-        "Cache-Control": "no-cache",
-      });
+      const cdnSettings = await getCdnSettings();
+      const headers = buildResponseHeaders(cdnSettings);
+
+      return c.text(result.content, 200, headers);
     } catch (error) {
       console.error("Failed to serve public client file:", error);
       return jsonError(c, error, "Failed to serve public client file");

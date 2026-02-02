@@ -21,6 +21,8 @@ import {
     SyncSchedule,
     DEFAULT_SYNC_SCHEDULE,
     ClientFileMeta,
+    CdnSettings,
+    DEFAULT_CDN_SETTINGS,
 } from "./schema";
 import { normalizeSyncSchedule } from "./sync-schedule";
 import {
@@ -55,6 +57,7 @@ interface Database {
     locks: Record<string, number>; // key -> expireTimestamp
     lastSyncInfo: LastSyncInfo;
     syncSchedule: SyncSchedule; // 定时同步配置
+    cdnSettings: CdnSettings; // CDN 缓存设置
 }
 
 export interface LastSyncInfo {
@@ -84,6 +87,7 @@ const DEFAULT_DB: Database = {
         failedRulesCount: 0,
     },
     syncSchedule: DEFAULT_SYNC_SCHEDULE,
+    cdnSettings: DEFAULT_CDN_SETTINGS,
 };
 
 // --- Database Operations (Simple JSON file) ---
@@ -926,6 +930,62 @@ export async function updateSyncSchedule(
     const current = normalizeSyncSchedule(db.syncSchedule);
     db.syncSchedule = normalizeSyncSchedule({ ...current, ...updates });
     await saveDb(db);
+}
+
+// --- CDN Settings ---
+export async function getCdnSettings(): Promise<CdnSettings> {
+    const db = await loadDb();
+    return db.cdnSettings ?? DEFAULT_CDN_SETTINGS;
+}
+
+export async function updateCdnSettings(
+    updates: Partial<CdnSettings>
+): Promise<CdnSettings> {
+    const db = await loadDb();
+    const current = db.cdnSettings ?? DEFAULT_CDN_SETTINGS;
+    db.cdnSettings = { ...current, ...updates };
+    await saveDb(db);
+    return db.cdnSettings;
+}
+
+export function buildCacheControlHeader(settings: CdnSettings): string {
+    if (!settings.enabled) {
+        return "no-cache";
+    }
+
+    switch (settings.cacheMode) {
+        case "no-store":
+            return "no-store";
+        case "custom":
+            return settings.customCacheControl || "no-cache";
+        case "no-cache":
+        default:
+            if (settings.staleIfErrorSeconds > 0) {
+                return `no-cache, stale-if-error=${settings.staleIfErrorSeconds}`;
+            }
+            return "no-cache";
+    }
+}
+
+export function buildResponseHeaders(settings: CdnSettings): Record<string, string> {
+    const headers: Record<string, string> = {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Cache-Control": buildCacheControlHeader(settings),
+    };
+
+    if (settings.enabled && settings.cloudflareCdnCacheControl) {
+        headers["Cloudflare-CDN-Cache-Control"] = settings.cloudflareCdnCacheControl;
+    }
+
+    if (settings.enabled && settings.customHeaders) {
+        for (const header of settings.customHeaders) {
+            if (header.name && header.value) {
+                headers[header.name] = header.value;
+            }
+        }
+    }
+
+    return headers;
 }
 
 // --- Rule File Storage (replaces Vercel Blob) ---

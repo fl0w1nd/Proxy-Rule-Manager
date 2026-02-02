@@ -237,6 +237,39 @@ export const DEFAULT_SYNC_SCHEDULE: SyncSchedule = {
   cronExpression: "0 0 * * *",
 };
 
+// CDN 缓存设置（用于 Cloudflare 等 CDN）
+export const CdnSettingsSchema = z.object({
+  // 是否启用自定义响应头
+  enabled: z.boolean().default(false),
+  // 缓存模式
+  // "no-cache": 每次请求都验证源站，但源站不可用时使用旧缓存（推荐）
+  // "no-store": 完全不缓存
+  // "custom": 自定义 Cache-Control
+  cacheMode: z.enum(["no-cache", "no-store", "custom"]).default("no-cache"),
+  // stale-if-error 时长（秒），源站不可用时缓存兜底时间
+  staleIfErrorSeconds: z.number().min(0).default(604800), // 默认 7 天
+  // 自定义 Cache-Control 值（仅当 cacheMode 为 custom 时使用）
+  customCacheControl: z.string().optional(),
+  // Cloudflare CDN 专用头（可选）
+  cloudflareCdnCacheControl: z.string().optional(),
+  // 额外的自定义响应头
+  customHeaders: z.array(z.object({
+    name: z.string(),
+    value: z.string(),
+  })).optional().default([]),
+});
+export type CdnSettings = z.infer<typeof CdnSettingsSchema>;
+
+// 默认 CDN 设置
+export const DEFAULT_CDN_SETTINGS: CdnSettings = {
+  enabled: false,
+  cacheMode: "no-cache",
+  staleIfErrorSeconds: 604800,
+  customCacheControl: undefined,
+  cloudflareCdnCacheControl: undefined,
+  customHeaders: [],
+};
+
 // 默认的空配置
 export const DEFAULT_CONFIG: RulesConfig = {
   version: 1,
