@@ -3,9 +3,9 @@
   "version": "0.1.6",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n fe,be -c cyan,green \"next dev\" \"PORT=3001 tsx watch src/server/index.ts\"",
+    "dev": "concurrently -n fe,be -c cyan,green \"next dev\" \"PORT=3001 tsx watch --exclude 'data/**' --exclude 'out/**' src/server/index.ts\"",
     "dev:fe": "next dev",
-    "dev:be": "PORT=3001 tsx watch src/server/index.ts",
+    "dev:be": "PORT=3001 tsx watch --exclude 'data/**' --exclude 'out/**' src/server/index.ts",
     "build": "next build",
     "build:server": "tsc src/server/index.ts --outDir dist/server --esModuleInterop --module NodeNext --moduleResolution NodeNext --target ES2022 --skipLibCheck",
     "start": "node dist/server/server/index.js",
