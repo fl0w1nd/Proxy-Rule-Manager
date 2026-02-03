@@ -2,6 +2,7 @@ import type { Hono } from "hono";
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { getIconSetDir } from "../../lib/data-paths";
+import { getCdnSettings, buildResponseHeaders } from "../../lib/storage-adapter";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
@@ -255,12 +256,14 @@ export function registerIconSetRoutes(app: Hono) {
       const content = await fs.readFile(filePath);
       const mimeType = getMimeType(filename);
 
+      const cdnSettings = await getCdnSettings();
+      const headers = buildResponseHeaders(cdnSettings);
+      // 覆盖 Content-Type 为图片的 MIME 类型
+      headers["Content-Type"] = mimeType;
+
       return new Response(content, {
         status: 200,
-        headers: {
-          "Content-Type": mimeType,
-          "Cache-Control": "public, max-age=86400",
-        },
+        headers,
       });
     } catch (error) {
       console.error("Failed to serve icon:", error);

@@ -467,7 +467,7 @@ export function WafManager() {
                                     CDN 缓存设置
                                 </CardTitle>
                                 <CardDescription>
-                                    配置规则文件的 HTTP 响应头，优化 CDN（如 Cloudflare）缓存行为
+                                    配置规则文件、客户端配置文件和图标集的 HTTP 响应头，优化 CDN（如 Cloudflare）缓存行为
                                 </CardDescription>
                             </div>
                             <Button onClick={handleSaveCdnSettings} disabled={savingCdn}>
