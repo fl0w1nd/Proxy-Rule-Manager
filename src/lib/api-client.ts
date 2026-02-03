@@ -593,3 +593,55 @@ export async function updateCdnSettings(
     body: JSON.stringify(settings),
   });
 }
+
+// --- IconSet Management ---
+export interface IconMeta {
+  id: string;
+  name: string;
+  url: string;
+  size: number;
+  createdAt: string;
+}
+
+export async function listIcons(): Promise<{ icons: IconMeta[] }> {
+  return apiRequest<{ icons: IconMeta[] }>("/iconset");
+}
+
+export async function uploadIcons(files: FileList | File[]): Promise<{ success: boolean; uploaded: IconMeta[]; renamed: { original: string; renamed: string }[] }> {
+  const token = getToken();
+  const headers: HeadersInit = {};
+  if (token) {
+    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+  }
+  const formData = new FormData();
+  for (const file of files) {
+    formData.append("files", file);
+  }
+  const response = await fetch(`${API_BASE}/iconset/upload`, {
+    method: "POST",
+    headers,
+    body: formData,
+  });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    const message =
+      typeof error.error === "string"
+        ? error.error
+        : error?.error?.message || error.message || "Request failed";
+    throw new Error(message);
+  }
+  return response.json();
+}
+
+export async function renameIcon(id: string, newName: string): Promise<{ success: boolean; icon: IconMeta }> {
+  return apiRequest(`/iconset/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    body: JSON.stringify({ newName }),
+  });
+}
+
+export async function deleteIcon(id: string): Promise<{ success: boolean }> {
+  return apiRequest(`/iconset/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+  });
+}

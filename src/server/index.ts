@@ -27,6 +27,7 @@ import { registerSyncRoutes } from "./routes/sync";
 import { registerActivityRoutes } from "./routes/activity";
 import { registerWafRoutes } from "./routes/waf";
 import { registerCdnSettingsRoutes } from "./routes/cdn-settings";
+import { registerIconSetRoutes } from "./routes/iconset";
 
 const app = new Hono();
 
@@ -45,6 +46,10 @@ registerPreviewRoutes(app);
 registerInitRoutes(app);
 registerWafRoutes(app);
 registerCdnSettingsRoutes(app);
+
+// --- IconSet Routes (before client files to avoid /:clientId/:file conflict) ---
+registerIconSetRoutes(app);
+
 registerClientFileRoutes(app);
 
 // --- Rule File Serving (Real-time, no cache) ---

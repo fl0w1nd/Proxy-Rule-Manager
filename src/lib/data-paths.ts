@@ -20,3 +20,7 @@ export function getDbFilePath(): string {
 export function getSourcesDir(): string {
   return SOURCES_DIR;
 }
+
+export function getIconSetDir(): string {
+  return path.join(DATA_DIR, "iconset");
+}

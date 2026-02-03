@@ -13,7 +13,8 @@ import {
     Shield,
     Sun,
     Moon,
-    Home
+    Home,
+    Image
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,11 @@ const NAV_ITEMS = [
         title: "安全防护",
         value: "security",
         icon: Shield,
+    },
+    {
+        title: "图标集",
+        value: "iconset",
+        icon: Image,
     },
     {
         title: "系统配置",

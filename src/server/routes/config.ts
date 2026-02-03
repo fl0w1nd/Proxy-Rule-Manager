@@ -15,11 +15,11 @@ import { detectCircularDependency } from "../../lib/sync-engine";
 import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
-import { getDataDir, getDbFilePath, getSourcesDir } from "../../lib/data-paths";
+import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir } from "../../lib/data-paths";
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
-const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf"]);
+const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf", "iconset"]);
 
 async function addDirToZip(zip: AdmZip, sourceDir: string, prefix: string): Promise<void> {
   const entries = await fs.readdir(sourceDir, { withFileTypes: true });
@@ -176,6 +176,13 @@ export function registerConfigRoutes(app: Hono) {
         // No waf directory yet.
       }
 
+      const iconsetDir = getIconSetDir();
+      try {
+        await addDirToZip(zip, iconsetDir, "iconset");
+      } catch {
+        // No iconset directory yet.
+      }
+
       const dateTag = new Date().toISOString().split("T")[0];
       const zipBuffer = zip.toBuffer();
       const arrayBuffer = zipBuffer.buffer.slice(
@@ -212,6 +219,7 @@ export function registerConfigRoutes(app: Hono) {
       const sourceFiles: { path: string; data: Buffer }[] = [];
       const clientFileEntries: { clientId: string; fileName: string; data: Buffer }[] = [];
       const wafFiles: { path: string; data: Buffer }[] = [];
+      const iconsetFiles: { path: string; data: Buffer }[] = [];
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
@@ -242,6 +250,11 @@ export function registerConfigRoutes(app: Hono) {
           const wafPath = normalized.slice("waf/".length);
           if (!wafPath || wafPath.includes("..")) continue;
           wafFiles.push({ path: wafPath, data: entry.getData() });
+        }
+        if (normalized.startsWith("iconset/")) {
+          const iconsetPath = normalized.slice("iconset/".length);
+          if (!iconsetPath || iconsetPath.includes("..")) continue;
+          iconsetFiles.push({ path: iconsetPath, data: entry.getData() });
         }
       }
 
@@ -282,6 +295,16 @@ export function registerConfigRoutes(app: Hono) {
         await fs.mkdir(wafDir, { recursive: true });
         for (const entry of wafFiles) {
           const targetPath = path.join(wafDir, entry.path);
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.writeFile(targetPath, entry.data);
+        }
+      }
+
+      if (iconsetFiles.length > 0) {
+        const iconsetDir = getIconSetDir();
+        await fs.mkdir(iconsetDir, { recursive: true });
+        for (const entry of iconsetFiles) {
+          const targetPath = path.join(iconsetDir, entry.path);
           await fs.mkdir(path.dirname(targetPath), { recursive: true });
           await fs.writeFile(targetPath, entry.data);
         }

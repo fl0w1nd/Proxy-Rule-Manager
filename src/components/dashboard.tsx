@@ -52,6 +52,7 @@ import { ConfigEditor } from "./config-editor";
 import { TransformersManager } from "./transformers-manager";
 import { ClientsManager } from "./clients-manager";
 import { WafManager } from "./waf-manager";
+import { IconSetManager } from "./iconset-manager";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -552,6 +553,7 @@ export function Dashboard({ onBack }: DashboardProps) {
             {activeTab === 'transformers' && <TransformersManager />}
             {activeTab === 'clients' && <ClientsManager />}
             {activeTab === 'security' && <WafManager />}
+            {activeTab === 'iconset' && <IconSetManager />}
             {activeTab === 'config' && <ConfigEditor onSave={fetchStatus} />}
 
             {/* Activity Full View */}

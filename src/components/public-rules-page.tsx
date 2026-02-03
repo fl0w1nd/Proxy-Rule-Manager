@@ -33,11 +33,13 @@ import {
   Maximize2,
   X,
   Tag,
+  Image,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
 import { ClientFileMeta } from "@/lib/schema";
 import { RuleIcon } from "./icon-picker";
+import { listIcons, IconMeta } from "@/lib/api-client";
 
 interface RuleInfo {
   name: string;
@@ -63,7 +65,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [version, setVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeMainTab, setActiveMainTab] = useState<"rules" | "configs">("rules");
+  const [activeMainTab, setActiveMainTab] = useState<"rules" | "configs" | "icons">("rules");
+  const [icons, setIcons] = useState<IconMeta[]>([]);
+  const [copiedIcon, setCopiedIcon] = useState<string | null>(null);
   const [activeClient, setActiveClient] = useState<string>("");
   const [previewItem, setPreviewItem] = useState<{
     type: "rule" | "config";
@@ -103,9 +107,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const fetchData = async () => {
     try {
       // 获取规则状态和客户端列表（从 /api/status 统一获取，无需鉴权）
-      const [statusResponse, filesResponse] = await Promise.all([
+      const [statusResponse, filesResponse, iconsResult] = await Promise.all([
         fetch("/api/status"),
         fetch("/api/client-files/public"),
+        listIcons().catch(() => ({ icons: [] })),
       ]);
 
       if (statusResponse.ok) {
@@ -125,6 +130,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         const data = await filesResponse.json();
         setClientFiles(data.files || []);
       }
+
+      setIcons(iconsResult.icons || []);
     } catch (error) {
       console.error("Failed to fetch data:", error);
     } finally {
@@ -163,6 +170,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     navigator.clipboard.writeText(url);
     setCopiedConfig(file.id);
     setTimeout(() => setCopiedConfig(null), 2000);
+  };
+
+  const getIconFullUrl = (icon: IconMeta) => {
+    return `${window.location.origin}${icon.url}`;
+  };
+
+  const copyIconUrl = (icon: IconMeta) => {
+    navigator.clipboard.writeText(getIconFullUrl(icon));
+    setCopiedIcon(icon.id);
+    setTimeout(() => setCopiedIcon(null), 2000);
   };
 
   const handlePreview = async (item: {
@@ -236,6 +253,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
   const clientPublicFiles = filteredClientFiles.filter(
     (file) => file.clientId === activeClient
+  );
+
+  const filteredIcons = useMemo(() => {
+    if (!searchQuery) return icons;
+    const query = searchQuery.toLowerCase();
+    return icons.filter((icon) => icon.name.toLowerCase().includes(query));
+  }, [icons, searchQuery]
   );
 
   const closePreview = () => {
@@ -372,7 +396,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {/* Main Tabs & Search */}
           <div className="mb-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4">
-              <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "rules" | "configs")}>
+              <Tabs value={activeMainTab} onValueChange={(v) => setActiveMainTab(v as "rules" | "configs" | "icons")}>
                 <TabsList className="bg-white dark:bg-slate-800 border shadow-sm">
                   <TabsTrigger value="rules" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4">
                     规则
@@ -380,18 +404,22 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <TabsTrigger value="configs" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4">
                     配置文件
                   </TabsTrigger>
+                  <TabsTrigger value="icons" className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4">
+                    图标集
+                  </TabsTrigger>
                 </TabsList>
               </Tabs>
               <div className="relative w-full sm:w-auto sm:min-w-[280px]">
                 <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
                 <Input
-                  placeholder={activeMainTab === "rules" ? "搜索规则..." : "搜索配置文件..."}
+                  placeholder={activeMainTab === "rules" ? "搜索规则..." : activeMainTab === "configs" ? "搜索配置文件..." : "搜索图标..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="pl-10 bg-white dark:bg-slate-800 h-11"
                 />
               </div>
             </div>
+            {activeMainTab !== "icons" && (
             <Tabs
               value={activeClient}
               onValueChange={(v) => setActiveClient(v)}
@@ -408,6 +436,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 ))}
               </TabsList>
             </Tabs>
+            )}
 
             {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}
             {activeMainTab === "rules" && allTags.length > 0 && (
@@ -586,7 +615,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 ))}
               </div>
             )
-          ) : (
+          ) : activeMainTab === "configs" ? (
             clientPublicFiles.length === 0 ? (
               <div className="text-center py-20">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-emerald-100/50 to-emerald-50 dark:from-emerald-900/20 dark:to-emerald-800/10 flex items-center justify-center">
@@ -670,6 +699,64 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 })}
               </div>
             )
+          ) : (
+            /* Icons Tab */
+            filteredIcons.length === 0 ? (
+              <div className="text-center py-20">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-purple-100/50 to-purple-50 dark:from-purple-900/20 dark:to-purple-800/10 flex items-center justify-center">
+                  <Image className="w-10 h-10 text-purple-400/50 dark:text-purple-500/30" />
+                </div>
+                <p className="text-lg font-medium text-gray-900 dark:text-white">
+                  {searchQuery ? "未找到匹配的图标" : "暂无图标"}
+                </p>
+                <p className="text-sm text-gray-500 dark:text-gray-400 mt-2 max-w-sm mx-auto">
+                  {searchQuery
+                    ? "尝试使用其他关键词搜索"
+                    : "图标集暂无图标"}
+                </p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-4">
+                {filteredIcons.map((icon, index) => (
+                  <div
+                    key={icon.id}
+                    className="card-refined group p-3 animate-slide-up opacity-0"
+                    style={{ animationDelay: `${index * 20}ms` }}
+                  >
+                    <div className="aspect-square w-full flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-slate-800/50 mb-2 overflow-hidden">
+                      <img
+                        src={icon.url}
+                        alt={icon.name}
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                    <p className="text-xs font-medium text-gray-900 dark:text-white truncate text-center" title={icon.name}>
+                      {icon.name}
+                    </p>
+                    <Button
+                      size="sm"
+                      className={`w-full mt-2 h-7 text-[11px] transition-colors ${copiedIcon === icon.id
+                        ? "bg-green-600 hover:bg-green-700"
+                        : "bg-gray-900 hover:bg-gray-800 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-100"
+                        }`}
+                      onClick={() => copyIconUrl(icon)}
+                    >
+                      {copiedIcon === icon.id ? (
+                        <>
+                          <CheckCircle className="w-3 h-3 mr-1" />
+                          已复制
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3 mr-1" />
+                          复制链接
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )
           )
           }
 
@@ -682,8 +769,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <p>上次更新: {new Date(lastSyncAt).toLocaleString("zh-CN")}</p>
                 )}
               </>
-            ) : (
+            ) : activeMainTab === "configs" ? (
               <p>共 {clientPublicFiles.length} 个配置文件</p>
+            ) : (
+              <p>共 {filteredIcons.length} 个图标</p>
             )}
           </div>
         </main>
