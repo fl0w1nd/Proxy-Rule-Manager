@@ -177,15 +177,10 @@ export function registerClientFileRoutes(app: Hono) {
     }
   });
 
-  // Public file access
-  app.get("/:clientId/:file", async (c) => {
+  // Public file access - 访问路径: /client/<configId>.<ext>
+  app.get("/client/:file", async (c) => {
     try {
-      const clientId = decodeURIComponent(c.req.param("clientId"));
       const file = decodeURIComponent(c.req.param("file"));
-
-      if (clientId === "api" || clientId === "Rules" || clientId === "templates" || clientId.startsWith("_")) {
-        return c.text("Not Found", 404);
-      }
 
       const lastDot = file.lastIndexOf(".");
       if (lastDot <= 0) {
@@ -194,11 +189,10 @@ export function registerClientFileRoutes(app: Hono) {
 
       const configId = file.slice(0, lastDot);
       const ext = file.slice(lastDot + 1);
-      validateSegment(clientId, "Client ID");
       validateSegment(configId, "Config ID");
       validateSegment(ext, "File extension");
 
-      const result = await getPublicClientFile(clientId, configId, ext);
+      const result = await getPublicClientFile(configId, ext);
       if (!result) {
         return c.text("# File not found", 404);
       }

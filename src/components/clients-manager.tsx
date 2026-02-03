@@ -514,7 +514,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                     </div>
                                                     <div className="mt-3 space-y-1 text-xs text-muted-foreground font-mono">
                                                         <p title={`/Rules/${selectedClient.pathName}/`}>规则目录：/Rules/{selectedClient.pathName}/</p>
-                                                        <p title={`/${selectedClient.id}/`}>配置文件：/{selectedClient.id}/</p>
+                                                        <p title="/client/">配置文件：/client/</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -593,7 +593,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                                     </p>
                                                                 )}
                                                                 <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                                                                    /{file.clientId}/{file.configId}.{file.ext}
+                                                                    /client/{file.configId}.{file.ext}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted-foreground mt-1">
                                                                     更新于 {new Date(file.updatedAt).toLocaleString("zh-CN")}

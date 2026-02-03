@@ -15,11 +15,11 @@ import { detectCircularDependency } from "../../lib/sync-engine";
 import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
 import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
-import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir } from "../../lib/data-paths";
+import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir, getClientFilesDir } from "../../lib/data-paths";
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
-const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf", "iconset"]);
+const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf", "iconset", "client"]);
 
 async function addDirToZip(zip: AdmZip, sourceDir: string, prefix: string): Promise<void> {
   const entries = await fs.readdir(sourceDir, { withFileTypes: true });
@@ -131,35 +131,12 @@ export function registerConfigRoutes(app: Hono) {
       const dbBuffer = await fs.readFile(dbPath);
       zip.addFile("db.json", dbBuffer);
 
-      // client files (package all client directories)
+      // client files - 直接打包 data/client 目录
+      const clientFilesDir = getClientFilesDir();
       try {
-        const dataDir = getDataDir();
-        const entries = await fs.readdir(dataDir, { withFileTypes: true });
-        for (const entry of entries) {
-          if (!entry.isDirectory()) continue;
-          const clientId = entry.name;
-          if (RESERVED_CLIENT_DIRS.has(clientId)) continue;
-          const clientDir = path.join(dataDir, clientId);
-          try {
-            const files = await fs.readdir(clientDir, { withFileTypes: true });
-            for (const file of files) {
-              if (!file.isFile()) continue;
-              const fileName = file.name;
-              if (!CLIENT_FILE_NAME_PATTERN.test(fileName)) continue;
-              const filePath = path.join(clientDir, fileName);
-              try {
-                const content = await fs.readFile(filePath);
-                zip.addFile(`client-files/${clientId}/${fileName}`, content);
-              } catch {
-                // missing file; skip
-              }
-            }
-          } catch {
-            // ignore client dir read errors
-          }
-        }
+        await addDirToZip(zip, clientFilesDir, "client-files");
       } catch {
-        // ignore data dir read errors
+        // No client files directory yet.
       }
 
       const sourcesDir = getSourcesDir();
@@ -217,7 +194,7 @@ export function registerConfigRoutes(app: Hono) {
 
       let dbPayload: Buffer | null = null;
       const sourceFiles: { path: string; data: Buffer }[] = [];
-      const clientFileEntries: { clientId: string; fileName: string; data: Buffer }[] = [];
+      const clientFileEntries: { fileName: string; data: Buffer }[] = [];
       const wafFiles: { path: string; data: Buffer }[] = [];
       const iconsetFiles: { path: string; data: Buffer }[] = [];
 
@@ -239,12 +216,11 @@ export function registerConfigRoutes(app: Hono) {
           sourceFiles.push({ path: sourcePath, data: entry.getData() });
         }
         if (normalized.startsWith("client-files/")) {
-          const rest = normalized.slice("client-files/".length);
-          const [clientId, fileName] = rest.split("/");
-          if (!clientId || !fileName) continue;
-          if (RESERVED_CLIENT_DIRS.has(clientId)) continue;
+          const filePath = normalized.slice("client-files/".length);
+          if (!filePath || filePath.includes("..")) continue;
+          const fileName = path.posix.basename(filePath);
           if (!CLIENT_FILE_NAME_PATTERN.test(fileName)) continue;
-          clientFileEntries.push({ clientId, fileName, data: entry.getData() });
+          clientFileEntries.push({ fileName: filePath, data: entry.getData() });
         }
         if (normalized.startsWith("waf/")) {
           const wafPath = normalized.slice("waf/".length);
@@ -284,10 +260,14 @@ export function registerConfigRoutes(app: Hono) {
         })
       );
 
-      for (const entry of clientFileEntries) {
-        const targetDir = path.join(dataDir, entry.clientId);
-        await fs.mkdir(targetDir, { recursive: true });
-        await fs.writeFile(path.join(targetDir, entry.fileName), entry.data);
+      if (clientFileEntries.length > 0) {
+        const clientDir = getClientFilesDir();
+        await fs.mkdir(clientDir, { recursive: true });
+        for (const entry of clientFileEntries) {
+          const targetPath = path.join(clientDir, entry.fileName);
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.writeFile(targetPath, entry.data);
+        }
       }
 
       if (wafFiles.length > 0) {

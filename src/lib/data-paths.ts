@@ -24,3 +24,7 @@ export function getSourcesDir(): string {
 export function getIconSetDir(): string {
   return path.join(DATA_DIR, "iconset");
 }
+
+export function getClientFilesDir(): string {
+  return path.join(DATA_DIR, "client");
+}

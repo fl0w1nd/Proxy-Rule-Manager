@@ -149,8 +149,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return `${window.location.origin}/Rules/${clientPath}/${ruleName}.list`;
   };
 
-  const getConfigUrl = (clientId: string, name: string, ext: string) => {
-    return `${window.location.origin}/${clientId}/${name}.${ext}`;
+  const getConfigUrl = (name: string, ext: string) => {
+    return `${window.location.origin}/client/${name}.${ext}`;
   };
 
   const copyRuleUrl = (ruleName: string, clientId?: string) => {
@@ -166,7 +166,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   };
 
   const copyConfigUrl = (file: ClientFileMeta) => {
-    const url = getConfigUrl(file.clientId, file.configId, file.ext);
+    const url = getConfigUrl(file.configId, file.ext);
     navigator.clipboard.writeText(url);
     setCopiedConfig(file.id);
     setTimeout(() => setCopiedConfig(null), 2000);
@@ -196,7 +196,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     try {
       const response = item.type === "rule"
         ? await fetch(getRuleUrl(item.name, item.clientId))
-        : await fetch(getConfigUrl(item.clientId, item.name, item.ext || ""));
+        : await fetch(getConfigUrl(item.name, item.ext || ""));
       if (response.ok) {
         const text = await response.text();
         setPreviewContent(text);
@@ -420,22 +420,22 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               </div>
             </div>
             {activeMainTab !== "icons" && (
-            <Tabs
-              value={activeClient}
-              onValueChange={(v) => setActiveClient(v)}
-            >
-              <TabsList className="bg-white dark:bg-slate-800 border shadow-sm overflow-x-auto scrollbar-hide w-full sm:w-auto flex-nowrap">
-                {clients.map((client) => (
-                  <TabsTrigger
-                    key={client.id}
-                    value={client.id}
-                    className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4 flex-shrink-0"
-                  >
-                    {client.displayName}
-                  </TabsTrigger>
-                ))}
-              </TabsList>
-            </Tabs>
+              <Tabs
+                value={activeClient}
+                onValueChange={(v) => setActiveClient(v)}
+              >
+                <TabsList className="bg-white dark:bg-slate-800 border shadow-sm overflow-x-auto scrollbar-hide w-full sm:w-auto flex-nowrap">
+                  {clients.map((client) => (
+                    <TabsTrigger
+                      key={client.id}
+                      value={client.id}
+                      className="data-[state=active]:bg-blue-500 data-[state=active]:text-white min-h-[44px] px-4 flex-shrink-0"
+                    >
+                      {client.displayName}
+                    </TabsTrigger>
+                  ))}
+                </TabsList>
+              </Tabs>
             )}
 
             {/* 标签筛选器 - 仅在规则标签页且有标签时显示 */}

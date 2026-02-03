@@ -30,6 +30,7 @@ import {
     getDbFilePath,
     getRulesDir as getRulesDirPath,
     getSourcesDir,
+    getClientFilesDir as getClientFilesDirPath,
 } from "./data-paths";
 import {
     externalizeConfigLocalSources,
@@ -43,7 +44,7 @@ const RULES_DIR = getRulesDirPath();
 const RECORDS_DIR = path.join(DATA_DIR, "records");
 const SOURCES_DIR = getSourcesDir();
 const DB_FILE = getDbFilePath();
-const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "db.json"]);
+const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "db.json", "client"]);
 
 // --- Database Schema ---
 interface Database {
@@ -319,19 +320,7 @@ export async function updateClient(
         }
         db.artifacts = newArtifacts;
 
-        // 更新客户端配置文件的 clientId 和目录
-        try {
-            const oldDir = getClientFilesDir(clientId);
-            const newDir = getClientFilesDir(updates.id);
-            await fs.access(oldDir);
-            await fs.rename(oldDir, newDir);
-        } catch (err: unknown) {
-            const isNotFound = err && typeof err === "object" && "code" in err && err.code === "ENOENT";
-            if (!isNotFound) {
-                throw new Error(`重命名客户端文件目录失败: ${err}`);
-            }
-        }
-
+        // 更新客户端配置文件的 clientId（存储路径不再依赖 clientId，无需重命名目录）
         for (const file of Object.values(db.clientFiles)) {
             if (file.clientId === clientId) {
                 file.clientId = updates.id;
@@ -389,18 +378,10 @@ export async function deleteClient(clientId: string): Promise<void> {
     for (const id of clientFileIds) {
         const file = db.clientFiles[id];
         if (file) {
-            const filePath = getClientFilePath(file.clientId, file.configId, file.ext);
+            const filePath = getClientFilePath(file.configId, file.ext);
             await fs.unlink(filePath).catch(() => undefined);
             delete db.clientFiles[id];
         }
-    }
-    try {
-        const clientFilesDir = getClientFilesDir(clientId);
-        if (clientFilesDir !== RULES_DIR && clientFilesDir !== SOURCES_DIR && clientFilesDir !== DATA_DIR) {
-            await fs.rm(clientFilesDir, { recursive: true, force: true });
-        }
-    } catch {
-        // ignore
     }
 
     // 从配置中移除该客户端引用和 client_overrides
@@ -419,14 +400,7 @@ export async function deleteClient(clientId: string): Promise<void> {
 
 // --- Client File Management ---
 
-function getClientFilesDir(clientId: string): string {
-    if (RESERVED_CLIENT_DIRS.has(clientId)) {
-        throw new Error(`Client id "${clientId}" is reserved and cannot store files`);
-    }
-    return path.join(DATA_DIR, clientId);
-}
-
-function getClientFilePath(clientId: string, configId: string, ext: string): string {
+function getClientFilePath(configId: string, ext: string): string {
     if (configId.includes("/") || configId.includes("\\") || configId.includes("..")) {
         throw new Error("Invalid config ID");
     }
@@ -434,18 +408,18 @@ function getClientFilePath(clientId: string, configId: string, ext: string): str
         throw new Error("Invalid file extension");
     }
     const safeName = `${configId}.${ext}`;
-    return path.join(getClientFilesDir(clientId), safeName);
+    return path.join(getClientFilesDirPath(), safeName);
 }
 
-async function ensureClientFilesDir(clientId: string): Promise<string> {
-    const dir = getClientFilesDir(clientId);
+async function ensureClientFilesDir(): Promise<string> {
+    const dir = getClientFilesDirPath();
     await fs.mkdir(dir, { recursive: true });
     return dir;
 }
 
-function findClientFileByConfigId(db: Database, clientId: string, configId: string, ext: string): ClientFileMeta | undefined {
+function findClientFileByConfigId(db: Database, configId: string, ext: string): ClientFileMeta | undefined {
     return Object.values(db.clientFiles).find(
-        (file) => file.clientId === clientId && file.configId === configId && file.ext === ext
+        (file) => file.configId === configId && file.ext === ext
     );
 }
 
@@ -469,7 +443,7 @@ export async function getClientFileContent(fileId: string): Promise<string | nul
     const meta = db.clientFiles[fileId];
     if (!meta) return null;
     try {
-        const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
+        const filePath = getClientFilePath(meta.configId, meta.ext);
         return await fs.readFile(filePath, "utf-8");
     } catch {
         return null;
@@ -481,11 +455,12 @@ export async function createClientFile(
     input: { configId: string; displayName: string; description?: string; ext: string; isPublic: boolean; content: string }
 ): Promise<ClientFileMeta> {
     const db = await loadDb();
-    if (findClientFileByConfigId(db, clientId, input.configId, input.ext)) {
+    // configId + ext 现在是全局唯一的
+    if (findClientFileByConfigId(db, input.configId, input.ext)) {
         throw new Error(`File with config ID "${input.configId}" and extension "${input.ext}" already exists`);
     }
-    await ensureClientFilesDir(clientId);
-    const filePath = getClientFilePath(clientId, input.configId, input.ext);
+    await ensureClientFilesDir();
+    const filePath = getClientFilePath(input.configId, input.ext);
     await fs.writeFile(filePath, input.content ?? "", "utf-8");
 
     const now = new Date().toISOString();
@@ -520,17 +495,18 @@ export async function updateClientFile(
     const identifierChanged = nextConfigId !== meta.configId || nextExt !== meta.ext;
 
     if (identifierChanged) {
-        const existing = findClientFileByConfigId(db, meta.clientId, nextConfigId, nextExt);
+        // configId + ext 现在是全局唯一的
+        const existing = findClientFileByConfigId(db, nextConfigId, nextExt);
         if (existing && existing.id !== fileId) {
             throw new Error(`File with config ID "${nextConfigId}" and extension "${nextExt}" already exists`);
         }
     }
 
-    const oldPath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
-    const newPath = getClientFilePath(meta.clientId, nextConfigId, nextExt);
+    const oldPath = getClientFilePath(meta.configId, meta.ext);
+    const newPath = getClientFilePath(nextConfigId, nextExt);
 
     if (identifierChanged) {
-        await ensureClientFilesDir(meta.clientId);
+        await ensureClientFilesDir();
         try {
             await fs.rename(oldPath, newPath);
         } catch {
@@ -540,7 +516,7 @@ export async function updateClientFile(
     }
 
     if (typeof updates.content === "string") {
-        await ensureClientFilesDir(meta.clientId);
+        await ensureClientFilesDir();
         await fs.writeFile(newPath, updates.content, "utf-8");
     }
 
@@ -565,7 +541,7 @@ export async function deleteClientFile(fileId: string): Promise<void> {
     if (!meta) {
         throw new Error(`Client file "${fileId}" not found`);
     }
-    const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
+    const filePath = getClientFilePath(meta.configId, meta.ext);
     try {
         await fs.unlink(filePath);
     } catch {
@@ -576,15 +552,14 @@ export async function deleteClientFile(fileId: string): Promise<void> {
 }
 
 export async function getPublicClientFile(
-    clientId: string,
     configId: string,
     ext: string
 ): Promise<{ meta: ClientFileMeta; content: string } | null> {
     const db = await loadDb();
-    const meta = findClientFileByConfigId(db, clientId, configId, ext);
+    const meta = findClientFileByConfigId(db, configId, ext);
     if (!meta || !meta.isPublic) return null;
     try {
-        const filePath = getClientFilePath(clientId, configId, ext);
+        const filePath = getClientFilePath(configId, ext);
         const content = await fs.readFile(filePath, "utf-8");
         return { meta, content };
     } catch {
