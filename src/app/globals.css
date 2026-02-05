@@ -412,6 +412,514 @@
     color: oklch(0.60 0 0);
   }
 
+  /* ============================================
+     Neumorphic / Glass Lens Design System
+     ============================================ */
+
+  /* Base neumorphic surface - the main background canvas */
+  .neu-surface {
+    background: #e8ecf1;
+    min-height: 100vh;
+  }
+
+  .dark .neu-surface {
+    background: #1a1d23;
+  }
+
+  /* Neumorphic raised element - the signature convex look */
+  .neu-raised {
+    background: linear-gradient(145deg, #f0f4f8, #d8dce2);
+    border-radius: 20px;
+    box-shadow:
+      6px 6px 14px 0 rgba(0, 0, 0, 0.08),
+      -6px -6px 14px 0 rgba(255, 255, 255, 0.9),
+      inset 0 1px 1px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+  }
+
+  .dark .neu-raised {
+    background: linear-gradient(145deg, #22262d, #1c1f25);
+    box-shadow:
+      6px 6px 14px 0 rgba(0, 0, 0, 0.35),
+      -6px -6px 14px 0 rgba(255, 255, 255, 0.03),
+      inset 0 1px 1px rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  /* Neumorphic pressed/inset element */
+  .neu-inset {
+    border-radius: 16px;
+    background: linear-gradient(145deg, #dde1e7, #e6eaf0);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.08),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .neu-inset {
+    background: linear-gradient(145deg, #16191e, #1e2127);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.4),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.03);
+  }
+
+  /* Glass pill - the premium tab/button container */
+  .neu-pill {
+    border-radius: 50px;
+    background: linear-gradient(145deg, #f0f4f8, #dce0e6);
+    box-shadow:
+      4px 4px 10px 0 rgba(0, 0, 0, 0.07),
+      -4px -4px 10px 0 rgba(255, 255, 255, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    padding: 5px;
+  }
+
+  .dark .neu-pill {
+    background: linear-gradient(145deg, #22262d, #1c1f25);
+    box-shadow:
+      4px 4px 10px 0 rgba(0, 0, 0, 0.3),
+      -4px -4px 10px 0 rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  /* Active pill button - the glowing selected state */
+  .neu-pill-active {
+    border-radius: 50px;
+    background: linear-gradient(135deg, #c8e0fc 0%, #dceafb 50%, #d0e4fa 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(255, 255, 255, 0.5),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.04),
+      0 1px 3px rgba(100, 160, 240, 0.15);
+    border: 1px solid rgba(180, 210, 250, 0.6);
+    color: #3b6cb5;
+    font-weight: 600;
+  }
+
+  .dark .neu-pill-active {
+    background: linear-gradient(135deg, #2a3a52 0%, #334466 50%, #2e3f58 100%);
+    box-shadow:
+      inset 0 2px 4px rgba(255, 255, 255, 0.05),
+      inset 0 -1px 2px rgba(0, 0, 0, 0.2),
+      0 1px 3px rgba(80, 140, 220, 0.2);
+    border: 1px solid rgba(80, 140, 220, 0.3);
+    color: #8bb8f0;
+  }
+
+  /* Glass card - the frosted glass card */
+  .glass-card {
+    background: linear-gradient(160deg,
+      rgba(255, 255, 255, 0.85) 0%,
+      rgba(255, 255, 255, 0.65) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-radius: 20px;
+    box-shadow:
+      8px 8px 20px 0 rgba(0, 0, 0, 0.06),
+      -4px -4px 12px 0 rgba(255, 255, 255, 0.8),
+      inset 0 1px 1px rgba(255, 255, 255, 0.8),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    transition: all 0.3s ease;
+  }
+
+  .glass-card:hover {
+    box-shadow:
+      10px 10px 24px 0 rgba(0, 0, 0, 0.08),
+      -5px -5px 14px 0 rgba(255, 255, 255, 0.85),
+      inset 0 1px 1px rgba(255, 255, 255, 0.8),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.02);
+    transform: translateY(-1px);
+  }
+
+  .dark .glass-card {
+    background: linear-gradient(160deg,
+      rgba(35, 39, 47, 0.9) 0%,
+      rgba(28, 32, 38, 0.8) 100%);
+    box-shadow:
+      8px 8px 20px 0 rgba(0, 0, 0, 0.35),
+      -4px -4px 12px 0 rgba(255, 255, 255, 0.02),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .dark .glass-card:hover {
+    box-shadow:
+      10px 10px 24px 0 rgba(0, 0, 0, 0.4),
+      -5px -5px 14px 0 rgba(255, 255, 255, 0.03),
+      inset 0 1px 1px rgba(255, 255, 255, 0.05),
+      inset 0 -1px 1px rgba(0, 0, 0, 0.1);
+  }
+
+  /* Neumorphic icon bubble */
+  .neu-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #f0f4f8, #dde1e7);
+    box-shadow:
+      3px 3px 6px rgba(0, 0, 0, 0.06),
+      -3px -3px 6px rgba(255, 255, 255, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    flex-shrink: 0;
+  }
+
+  .dark .neu-icon {
+    background: linear-gradient(145deg, #22262d, #1a1d22);
+    box-shadow:
+      3px 3px 6px rgba(0, 0, 0, 0.3),
+      -3px -3px 6px rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  /* Neumorphic icon with color accent */
+  .neu-icon-accent {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(145deg, #e8fbe8, #d4f0d4);
+    box-shadow:
+      3px 3px 6px rgba(0, 0, 0, 0.06),
+      -3px -3px 6px rgba(255, 255, 255, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(200, 235, 200, 0.6);
+    flex-shrink: 0;
+  }
+
+  .dark .neu-icon-accent {
+    background: linear-gradient(145deg, #1e2e1e, #1a2a1a);
+    box-shadow:
+      3px 3px 6px rgba(0, 0, 0, 0.3),
+      -3px -3px 6px rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(60, 120, 60, 0.1);
+    border: 1px solid rgba(60, 120, 60, 0.2);
+  }
+
+  /* Glass search bar */
+  .neu-search {
+    border-radius: 50px;
+    background: linear-gradient(145deg, #e2e6ec, #eef2f8);
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.06),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+  }
+
+  .dark .neu-search {
+    background: linear-gradient(145deg, #16191e, #1e2127);
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.3),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  /* Neumorphic button */
+  .neu-btn {
+    border-radius: 14px;
+    background: linear-gradient(145deg, #f0f4f8, #dde1e7);
+    box-shadow:
+      3px 3px 8px rgba(0, 0, 0, 0.07),
+      -3px -3px 8px rgba(255, 255, 255, 0.8),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(255, 255, 255, 0.4);
+    transition: all 0.15s ease;
+  }
+
+  .neu-btn:hover {
+    box-shadow:
+      1px 1px 4px rgba(0, 0, 0, 0.06),
+      -1px -1px 4px rgba(255, 255, 255, 0.7),
+      inset 0 1px 0 rgba(255, 255, 255, 0.5);
+  }
+
+  .neu-btn:active {
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.06),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.6);
+  }
+
+  .dark .neu-btn {
+    background: linear-gradient(145deg, #22262d, #1c1f25);
+    box-shadow:
+      3px 3px 8px rgba(0, 0, 0, 0.3),
+      -3px -3px 8px rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+  }
+
+  .dark .neu-btn:hover {
+    box-shadow:
+      1px 1px 4px rgba(0, 0, 0, 0.25),
+      -1px -1px 4px rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  }
+
+  .dark .neu-btn:active {
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.35),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.02);
+  }
+
+  /* Neumorphic tag badge - base */
+  .neu-badge {
+    border-radius: 50px;
+    background: linear-gradient(145deg, #eef2f6, #e2e6ec);
+    box-shadow:
+      2px 2px 4px rgba(0, 0, 0, 0.05),
+      -2px -2px 4px rgba(255, 255, 255, 0.6),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    color: #5a6a7e;
+    font-size: 11px;
+    padding: 3px 10px;
+    font-weight: 500;
+  }
+
+  .dark .neu-badge {
+    background: linear-gradient(145deg, #22262d, #1a1d22);
+    box-shadow:
+      2px 2px 4px rgba(0, 0, 0, 0.25),
+      -2px -2px 4px rgba(255, 255, 255, 0.02),
+      inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    color: #8a9ab0;
+  }
+
+  .neu-badge-active {
+    background: linear-gradient(135deg, #c8e0fc, #d8ecff);
+    box-shadow:
+      inset 0 1px 3px rgba(255, 255, 255, 0.4),
+      0 1px 3px rgba(100, 160, 240, 0.15);
+    border: 1px solid rgba(180, 210, 250, 0.5);
+    color: #3b6cb5;
+  }
+
+  .dark .neu-badge-active {
+    background: linear-gradient(135deg, #2a3a52, #334466);
+    box-shadow:
+      inset 0 1px 3px rgba(255, 255, 255, 0.04),
+      0 1px 3px rgba(80, 140, 220, 0.15);
+    border: 1px solid rgba(80, 140, 220, 0.25);
+    color: #8bb8f0;
+  }
+
+  /* Colored badge variants - soft pastel tints */
+  .neu-badge-blue {
+    background: linear-gradient(145deg, #e4eef8, #dae6f4);
+    border: 1px solid rgba(170, 200, 240, 0.35);
+    color: #5a80aa;
+  }
+  .dark .neu-badge-blue {
+    background: linear-gradient(145deg, #1e2a3a, #1a2535);
+    border: 1px solid rgba(80, 130, 200, 0.15);
+    color: #7ea8d0;
+  }
+
+  .neu-badge-rose {
+    background: linear-gradient(145deg, #f4e6ea, #eedce2);
+    border: 1px solid rgba(220, 170, 185, 0.35);
+    color: #a06a7c;
+  }
+  .dark .neu-badge-rose {
+    background: linear-gradient(145deg, #321e26, #2c1a22);
+    border: 1px solid rgba(180, 90, 120, 0.15);
+    color: #c89aa8;
+  }
+
+  .neu-badge-amber {
+    background: linear-gradient(145deg, #f2ede2, #ece6d8);
+    border: 1px solid rgba(210, 190, 140, 0.35);
+    color: #8e7a4a;
+  }
+  .dark .neu-badge-amber {
+    background: linear-gradient(145deg, #2e2818, #282214);
+    border: 1px solid rgba(180, 150, 80, 0.15);
+    color: #c4a868;
+  }
+
+  .neu-badge-violet {
+    background: linear-gradient(145deg, #ece4f4, #e4dced);
+    border: 1px solid rgba(185, 160, 220, 0.35);
+    color: #7a60a0;
+  }
+  .dark .neu-badge-violet {
+    background: linear-gradient(145deg, #261e36, #221a30);
+    border: 1px solid rgba(130, 100, 190, 0.15);
+    color: #a890cc;
+  }
+
+  .neu-badge-teal {
+    background: linear-gradient(145deg, #e0f0ee, #d6e8e6);
+    border: 1px solid rgba(140, 200, 190, 0.35);
+    color: #4a8a80;
+  }
+  .dark .neu-badge-teal {
+    background: linear-gradient(145deg, #182c2a, #142624);
+    border: 1px solid rgba(80, 170, 155, 0.15);
+    color: #78bab0;
+  }
+
+  .neu-badge-emerald {
+    background: linear-gradient(145deg, #e2f0e6, #d8e8dc);
+    border: 1px solid rgba(150, 210, 165, 0.35);
+    color: #508a5c;
+  }
+  .dark .neu-badge-emerald {
+    background: linear-gradient(145deg, #1a2e1e, #162818);
+    border: 1px solid rgba(80, 170, 100, 0.15);
+    color: #7aba8a;
+  }
+
+  /* Footer warm tint */
+  .neu-footer {
+    border-radius: 20px;
+    background: linear-gradient(145deg, #f0ede6, #e6e2da);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.04),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(220, 210, 190, 0.4);
+  }
+
+  .dark .neu-footer {
+    background: linear-gradient(145deg, #201e18, #1a1814);
+    box-shadow:
+      inset 3px 3px 7px rgba(0, 0, 0, 0.3),
+      inset -3px -3px 7px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(180, 150, 80, 0.08);
+  }
+
+  /* Stats pill with cool tint */
+  .neu-stats {
+    border-radius: 50px;
+    background: linear-gradient(145deg, #e6ecf4, #dce2ea);
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.04),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(180, 200, 230, 0.3);
+  }
+
+  .dark .neu-stats {
+    background: linear-gradient(145deg, #182030, #14182a);
+    box-shadow:
+      inset 2px 2px 5px rgba(0, 0, 0, 0.3),
+      inset -2px -2px 5px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(80, 120, 180, 0.1);
+  }
+
+  /* Glass header bar */
+  .glass-header {
+    background: linear-gradient(180deg,
+      rgba(232, 236, 241, 0.95) 0%,
+      rgba(232, 236, 241, 0.85) 100%);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.04),
+      inset 0 -1px 0 rgba(0, 0, 0, 0.04);
+  }
+
+  .dark .glass-header {
+    background: linear-gradient(180deg,
+      rgba(26, 29, 35, 0.95) 0%,
+      rgba(26, 29, 35, 0.85) 100%);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    box-shadow:
+      0 4px 12px rgba(0, 0, 0, 0.2),
+      inset 0 -1px 0 rgba(255, 255, 255, 0.03);
+  }
+
+  /* Glass progress bar effect */
+  .neu-progress {
+    border-radius: 50px;
+    height: 6px;
+    background: linear-gradient(145deg, #dde1e7, #e8ecf2);
+    box-shadow:
+      inset 1px 1px 3px rgba(0, 0, 0, 0.06),
+      inset -1px -1px 3px rgba(255, 255, 255, 0.5);
+    overflow: hidden;
+  }
+
+  .dark .neu-progress {
+    background: linear-gradient(145deg, #16191e, #1e2127);
+    box-shadow:
+      inset 1px 1px 3px rgba(0, 0, 0, 0.3),
+      inset -1px -1px 3px rgba(255, 255, 255, 0.02);
+  }
+
+  .neu-progress-bar {
+    height: 100%;
+    border-radius: 50px;
+    background: linear-gradient(90deg, #a8d0f8, #7bb8f0);
+    box-shadow: 0 0 8px rgba(120, 180, 240, 0.3);
+  }
+
+  .dark .neu-progress-bar {
+    background: linear-gradient(90deg, #3a5a8a, #5080c0);
+    box-shadow: 0 0 8px rgba(80, 128, 192, 0.3);
+  }
+
+  /* Floating action area with glass effect */
+  .glass-float {
+    background: linear-gradient(145deg,
+      rgba(255, 255, 255, 0.7),
+      rgba(255, 255, 255, 0.4));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: 14px;
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.05),
+      -2px -2px 6px rgba(255, 255, 255, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.5);
+    padding: 6px;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+
+  .group:hover .glass-float {
+    opacity: 1;
+  }
+
+  .dark .glass-float {
+    background: linear-gradient(145deg,
+      rgba(35, 39, 47, 0.7),
+      rgba(28, 32, 38, 0.4));
+    box-shadow:
+      4px 4px 10px rgba(0, 0, 0, 0.3),
+      -2px -2px 6px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  /* Card grid for neumorphic layout */
+  .neu-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  @media (min-width: 640px) {
+    .neu-grid { grid-template-columns: repeat(2, 1fr); }
+  }
+
+  @media (min-width: 1024px) {
+    .neu-grid { grid-template-columns: repeat(3, 1fr); }
+  }
+
+  @media (min-width: 1280px) {
+    .neu-grid { grid-template-columns: repeat(4, 1fr); }
+  }
+
   /* Skeleton Loading Animation */
   .skeleton {
     background: linear-gradient(
