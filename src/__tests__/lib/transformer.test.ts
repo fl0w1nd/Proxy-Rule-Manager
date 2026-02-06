@@ -4,8 +4,8 @@ import {
     applyNewTransforms,
     addRuleHeader,
     computeHash,
-} from "./transformer";
-import type { Transform, TransformersConfig } from "./schema";
+} from "@/lib/transformer";
+import type { Transform, TransformersConfig } from "@/lib/schema";
 
 describe("mergeContents", () => {
     describe("concat strategy", () => {

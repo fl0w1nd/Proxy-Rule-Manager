@@ -3,8 +3,8 @@ import {
     extractDependencies,
     detectCircularDependency,
     topologicalSort,
-} from "./dependency-graph";
-import type { RuleConfig } from "../schema";
+} from "@/lib/sync-engine/dependency-graph";
+import type { RuleConfig } from "@/lib/schema";
 
 // 创建测试规则的辅助函数
 function createRule(

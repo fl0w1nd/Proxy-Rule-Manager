@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { fetchSource } from "./fetcher";
+import { fetchSource } from "@/lib/sync-engine/fetcher";
 
 describe("fetchSource", () => {
     beforeEach(() => {
