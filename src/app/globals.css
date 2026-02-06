@@ -901,6 +901,161 @@
     border: 1px solid rgba(255, 255, 255, 0.05);
   }
 
+  /* Embossed card - white bg + layered edge shadows for raised look */
+  .card-embossed {
+    background: #fff;
+    border-radius: 18px;
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.03),
+      0 2px 4px -1px rgba(0, 0, 0, 0.04),
+      0 8px 20px -4px rgba(0, 0, 0, 0.06),
+      0 -2px 6px -1px rgba(255, 255, 255, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    transition: box-shadow 0.25s ease, transform 0.25s ease;
+  }
+
+  .card-embossed:hover {
+    box-shadow:
+      0 0 0 1px rgba(0, 0, 0, 0.04),
+      0 4px 8px -2px rgba(0, 0, 0, 0.06),
+      0 12px 28px -6px rgba(0, 0, 0, 0.08),
+      0 -2px 6px -1px rgba(255, 255, 255, 0.8);
+    transform: translateY(-1px);
+  }
+
+  .dark .card-embossed {
+    background: #1e2128;
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 2px 4px -1px rgba(0, 0, 0, 0.2),
+      0 8px 20px -4px rgba(0, 0, 0, 0.3),
+      0 -1px 3px 0px rgba(255, 255, 255, 0.02);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .dark .card-embossed:hover {
+    box-shadow:
+      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 4px 8px -2px rgba(0, 0, 0, 0.25),
+      0 12px 28px -6px rgba(0, 0, 0, 0.35),
+      0 -1px 3px 0px rgba(255, 255, 255, 0.03);
+  }
+
+  /*
+   * Floating action toolbar
+   * A vertical strip of icon buttons that slides down from the trigger.
+   * Positioned along the right edge inside the card.
+   *
+   * --fab-i : stagger index (0-based), set via inline style
+   */
+
+  /* The trigger button in the card top-right */
+  .fab-trigger {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 52;
+  }
+
+  /* Toolbar container – vertical strip below trigger */
+  .fab-toolbar {
+    position: absolute;
+    top: 46px;          /* just below the 32px trigger + gap */
+    right: 12px;
+    z-index: 51;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 6px;
+    border-radius: 16px;
+    pointer-events: none;
+    opacity: 0;
+    transform: translateY(-8px) scale(0.95);
+    transform-origin: top center;
+    transition:
+      opacity 0.2s ease,
+      transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    /* Frosted glass backing */
+    background: rgba(255, 255, 255, 0.82);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(0, 0, 0, 0.06);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.08),
+      0 1px 4px rgba(0, 0, 0, 0.04);
+  }
+
+  .dark .fab-toolbar {
+    background: rgba(30, 33, 40, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow:
+      0 4px 24px rgba(0, 0, 0, 0.3),
+      0 1px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  .fab-toolbar.open {
+    pointer-events: auto;
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+
+  /* Individual action button */
+  .fab-toolbar .fab-item {
+    width: 36px;
+    height: 36px;
+    border-radius: 11px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    opacity: 0;
+    transform: translateY(-6px) scale(0.85);
+    transition:
+      opacity 0.15s ease,
+      transform 0.2s cubic-bezier(0.4, 0, 0.2, 1),
+      background-color 0.15s ease,
+      box-shadow 0.15s ease;
+    pointer-events: none;
+    background: transparent;
+  }
+
+  .fab-toolbar.open .fab-item {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    pointer-events: auto;
+    /* Stagger: each item delayed by its index * 40ms */
+    transition-delay: calc(var(--fab-i, 0) * 0.04s);
+  }
+
+  /* Closing – reverse stagger */
+  .fab-toolbar:not(.open) .fab-item {
+    transition-delay: calc((4 - var(--fab-i, 0)) * 0.025s);
+  }
+
+  /* Hover state */
+  .fab-toolbar .fab-item:hover {
+    background: rgba(0, 0, 0, 0.05);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  }
+
+  .dark .fab-toolbar .fab-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  /* Divider inside the toolbar (before delete button) */
+  .fab-toolbar .fab-divider {
+    width: 24px;
+    height: 1px;
+    background: rgba(0, 0, 0, 0.08);
+    flex-shrink: 0;
+  }
+
+  .dark .fab-toolbar .fab-divider {
+    background: rgba(255, 255, 255, 0.08);
+  }
+
   /* Card grid for neumorphic layout */
   .neu-grid {
     display: grid;

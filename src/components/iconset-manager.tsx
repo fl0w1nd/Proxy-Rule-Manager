@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -151,23 +150,23 @@ export function IconSetManager() {
 
     return (
         <>
-            <Card>
-                <CardHeader>
+            <div className="card-embossed">
+                <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="flex items-center gap-2">
+                            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
                                 <Image className="w-5 h-5" />
                                 图标集
-                            </CardTitle>
-                            <CardDescription>上传和管理图标文件</CardDescription>
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">上传和管理图标文件</p>
                         </div>
                         <Button onClick={openUploadDialog}>
                             <Upload className="w-4 h-4 mr-2" />
                             上传图标
                         </Button>
                     </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                <div className="px-5 pb-5">
                     {isLoading ? (
                         <div className="flex items-center justify-center py-12">
                             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -183,7 +182,7 @@ export function IconSetManager() {
                             {icons.map((icon) => (
                                 <div
                                     key={icon.id}
-                                    className="group relative flex flex-col rounded-lg border border-border bg-card p-3"
+                                    className="group relative flex flex-col rounded-xl border border-gray-100 dark:border-gray-700/40 bg-white dark:bg-gray-800/30 p-3"
                                 >
                                     <div className="aspect-square w-full flex items-center justify-center rounded-md border border-border/50 bg-muted/30 mb-2 overflow-hidden">
                                         <img
@@ -281,8 +280,8 @@ export function IconSetManager() {
                             ))}
                         </div>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                 <DialogContent>

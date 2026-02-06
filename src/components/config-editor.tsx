@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -302,45 +301,33 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         }}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <Card className="shadow-minimal border-none bg-card hover-lift">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">配置版本</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-minimal border-none bg-card hover-lift">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">规则数量</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
-          </CardContent>
-        </Card>
-        <Card className="shadow-minimal border-none bg-card hover-lift">
-          <CardHeader className="pb-2">
-            <CardDescription className="text-muted-foreground text-xs uppercase tracking-wider font-medium">预定义转换器</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-mono font-bold tracking-tight text-orange-500">
-              {Object.keys(config?.transformers || {}).length}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="card-embossed p-4">
+          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">配置版本</p>
+          <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
+        </div>
+        <div className="card-embossed p-4">
+          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">规则数量</p>
+          <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
+        </div>
+        <div className="card-embossed p-4">
+          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">预定义转换器</p>
+          <div className="text-3xl font-mono font-bold tracking-tight text-orange-500">
+            {Object.keys(config?.transformers || {}).length}
+          </div>
+        </div>
       </div>
 
-      <Card className="shadow-minimal border-none bg-card">
-        <CardHeader>
-          <CardTitle className="text-foreground flex items-center gap-2 text-base font-medium">
+      <div className="card-embossed">
+        <div className="px-5 pt-5 pb-3">
+          <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
             <Clock className="w-5 h-5 text-primary" />
             定时同步
-          </CardTitle>
-          <CardDescription className="text-muted-foreground">
+          </h3>
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             支持 interval 与 cron 两种模式，系统将按配置自动同步规则。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
           {isScheduleLoading ? (
             <div className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="w-4 h-4 animate-spin text-primary" />
@@ -431,27 +418,27 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               </div>
             </>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
-      <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-        <CardHeader>
+      <div className="card-embossed">
+        <div className="px-5 pt-5 pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+              <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
                 <Code className="w-5 h-5 text-blue-500" />
                 YAML 配置编辑器
-              </CardTitle>
+              </h3>
               <Badge variant="outline" className="border-gray-300 text-gray-500">
                 只读
               </Badge>
             </div>
           </div>
-          <CardDescription className="text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-gray-500 dark:text-gray-400">
             只读查看当前配置模版。请使用下方导入模版或数据库恢复来变更配置。
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
+          </p>
+        </div>
+        <div className="px-5 pb-5 space-y-4">
           <div className="relative border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
             <Button
               variant="ghost"
@@ -489,21 +476,21 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           <div className="text-sm text-gray-500 dark:text-gray-400">
             提示: 配置编辑为只读，需通过导入模版或恢复数据库来变更。
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+        <div className="card-embossed">
+          <div className="px-5 pt-5 pb-3">
+            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
               配置模板
-            </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-gray-400">
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               分享/导入规则模板，仅包含配置内容，不含运行元数据。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
+            </p>
+          </div>
+          <div className="px-5 pb-5 flex flex-wrap gap-3">
             <Button
               variant="outline"
               onClick={() => importTemplateRef.current?.click()}
@@ -520,20 +507,20 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               {isExportingTemplate ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
               导出模板
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
 
-        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-          <CardHeader>
-            <CardTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+        <div className="card-embossed">
+          <div className="px-5 pt-5 pb-3">
+            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
               <Database className="w-5 h-5 text-amber-500" />
               数据库备份与恢复
-            </CardTitle>
-            <CardDescription className="text-gray-500 dark:text-gray-400">
+            </h3>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
               备份/恢复完整数据库（含元数据）。恢复将覆盖当前数据。
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-wrap gap-3">
+            </p>
+          </div>
+          <div className="px-5 pb-5 flex flex-wrap gap-3">
             <Button
               variant="outline"
               onClick={() => restoreDbRef.current?.click()}
@@ -550,15 +537,15 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               {isBackingUp ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
               备份数据库
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
 
-      <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-        <CardHeader>
-          <CardTitle className="text-gray-900 dark:text-white text-lg">配置说明</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4 text-gray-700 dark:text-gray-300 text-sm">
+      <div className="card-embossed">
+        <div className="px-5 pt-5 pb-3">
+          <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 text-lg">配置说明</h3>
+        </div>
+        <div className="px-5 pb-5 space-y-4 text-gray-700 dark:text-gray-300 text-sm">
           <div>
             <h4 className="font-medium text-gray-900 dark:text-white mb-2">规则结构</h4>
             <pre className="p-3 rounded bg-gray-100 dark:bg-slate-900 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
@@ -619,8 +606,8 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
       clients: [clash_meta, shadowrocket]`}
             </pre>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

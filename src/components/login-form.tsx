@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAuth } from "./auth-provider";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,15 +36,13 @@ export function LoginForm({ onBack }: LoginFormProps) {
       <Card className="w-full max-w-md mx-4 bg-card border-border shadow-elevated animate-slide-up">
         <CardHeader className="text-center">
           {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={onBack}
-              className="absolute left-4 top-4 text-gray-500"
+              className="neu-btn absolute left-4 top-4 px-3 py-1.5 text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1.5 !rounded-xl"
             >
-              <ArrowLeft className="w-4 h-4 mr-1" />
+              <ArrowLeft className="w-4 h-4" />
               返回
-            </Button>
+            </button>
           )}
           <div className="mx-auto w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
             <Lock className="w-6 h-6 text-white" />
@@ -75,20 +72,20 @@ export function LoginForm({ onBack }: LoginFormProps) {
                 <p className="text-sm text-red-500">{error}</p>
               )}
             </div>
-            <Button
+            <button
               type="submit"
-              className="w-full bg-primary hover:bg-primary/90 text-white"
               disabled={isLoading || !token}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed neu-pill-active flex items-center justify-center gap-2"
             >
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  <Loader2 className="h-4 w-4 animate-spin" />
                   验证中...
                 </>
               ) : (
                 "登录"
               )}
-            </Button>
+            </button>
           </form>
         </CardContent>
       </Card>

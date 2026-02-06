@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -334,11 +333,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     if (isLoading) {
         return (
-            <Card className="bg-white dark:bg-slate-800">
-                <CardContent className="flex items-center justify-center py-8">
+            <div className="card-embossed">
+                <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         );
     }
 
@@ -427,25 +426,25 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     return (
         <>
-            <Card className="shadow-minimal border-none bg-card">
-                <CardHeader>
+            <div className="card-embossed">
+                <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <CardTitle className="text-foreground flex items-center gap-2 text-base font-medium">
+                            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
                                 <Monitor className="w-5 h-5 text-primary" />
                                 客户端管理
-                            </CardTitle>
-                            <CardDescription className="text-muted-foreground">
+                            </h3>
+                            <p className="text-sm text-gray-500 dark:text-gray-400">
                                 管理代理客户端类型，添加新客户端或修改现有客户端
-                            </CardDescription>
+                            </p>
                         </div>
                         <Button onClick={openAddDialog} size="sm" className="shadow-sm">
                             <Plus className="w-4 h-4 mr-2" />
                             添加客户端
                         </Button>
                     </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                <div className="px-5 pb-5">
                     {clients.length === 0 ? (
                         <div className="text-center py-16">
                             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
@@ -627,8 +626,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             </div>
                         </div>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-h-[85vh] flex flex-col p-0">

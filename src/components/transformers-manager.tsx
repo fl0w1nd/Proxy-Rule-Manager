@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -317,8 +316,8 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
-        <Card className="shadow-minimal border-none bg-card">
-          <CardContent className="text-center py-16">
+        <div className="card-embossed">
+          <div className="text-center py-16 px-5">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
               <Code2 className="w-10 h-10 text-muted-foreground/40" />
             </div>
@@ -330,32 +329,32 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               <Plus className="w-4 h-4 mr-2" />
               创建转换器
             </Button>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {transformerList.map(([name, transformer], index) => (
-            <Card
+            <div
               key={name}
-              className="shadow-minimal border-none bg-card hover-lift group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4"
+              className="card-embossed group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4"
               style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
             >
-              <CardHeader className="pb-3 z-10 relative">
+              <div className="px-5 pt-5 pb-3 z-10 relative">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-md bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
                       <Code2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <CardTitle className="text-base font-semibold">{name}</CardTitle>
+                      <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100">{name}</h3>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={transformer.description}>
                         {transformer.description || "无描述"}
                       </p>
                     </div>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="z-10 relative">
+              </div>
+              <div className="px-5 pb-5 z-10 relative">
                 <div className="flex items-center justify-between border-t border-border/50 pt-3 mt-1">
                   <span className="text-xs text-muted-foreground font-mono">
                     {transformer.updatedAt
@@ -383,8 +382,8 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                     </Button>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+            </div>
           ))}
         </div>
       )}

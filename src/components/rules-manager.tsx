@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -20,6 +19,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Tooltip,
+  TooltipTrigger,
+  TooltipContent,
+} from "@/components/ui/tooltip";
+import {
   RefreshCw,
   Eye,
   MoreVertical,
@@ -35,6 +39,7 @@ import {
   Trash2,
   AlertTriangle,
   Tag,
+  Pencil,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
@@ -61,6 +66,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [deletingRule, setDeletingRule] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const fetchConfig = async () => {
     try {
@@ -367,128 +373,210 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       )}
 
       {/* Rules Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredRules?.map((rule, index) => (
-          <Card
-            key={rule.name}
-            className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 hover:shadow-lg transition-shadow animate-slide-up opacity-0"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <CardHeader className="pb-2">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-100 to-gray-50 dark:from-gray-800/50 dark:to-gray-900/30 flex items-center justify-center shrink-0">
-                    {rule.icon ? (
-                      <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
-                    ) : (
-                      <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <CardTitle className="text-gray-900 dark:text-white text-lg truncate">{rule.displayName || rule.name}</CardTitle>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">
-                      {rule.description || `ID: ${rule.name}`}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-gray-400 hover:text-blue-500"
-                    onClick={() => handlePreviewRule(rule.name, rule.output.clients)}
-                    title="预览规则"
-                    aria-label={`预览规则 ${rule.name}`}
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8 text-gray-400 hover:text-green-500"
-                    onClick={() => handleRefreshRule(rule.name)}
-                    disabled={refreshingRules.has(rule.name)}
-                    title="刷新规则"
-                    aria-label={`刷新规则 ${rule.name}`}
-                  >
-                    {refreshingRules.has(rule.name) ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
-                    )}
-                  </Button>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400">
-                        <MoreVertical className="w-4 h-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end" className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
-                      <DropdownMenuItem
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {filteredRules?.map((rule, index) => {
+          const isExpanded = expandedCard === rule.name;
+          return (
+            <div
+              key={rule.name}
+              className={`card-embossed p-5 animate-slide-up opacity-0 flex flex-col relative transition-[z-index] ${
+                isExpanded ? "z-50" : "z-0"
+              }`}
+              style={{ animationDelay: `${index * 50}ms` }}
+            >
+              {/* Trigger button – top right */}
+              <button
+                onClick={() => setExpandedCard(isExpanded ? null : rule.name)}
+                className={`fab-trigger w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-250 ${
+                  isExpanded
+                    ? "bg-gray-800 dark:bg-white text-white dark:text-gray-800 shadow-md"
+                    : "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/40"
+                }`}
+              >
+                {isExpanded ? (
+                  <X className="w-4 h-4" />
+                ) : (
+                  <MoreVertical className="w-4 h-4" />
+                )}
+              </button>
+
+              {/* Floating toolbar – slides down from trigger */}
+              <div className={`fab-toolbar ${isExpanded ? "open" : ""}`}>
+                {/* Edit */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="fab-item text-gray-600 dark:text-gray-300"
+                      style={{ "--fab-i": 0 } as React.CSSProperties}
+                      onClick={() => {
+                        setEditingRule(rule);
+                        setIsEditorOpen(true);
+                        setExpandedCard(null);
+                      }}
+                    >
+                      <Pencil className="w-[15px] h-[15px]" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">编辑</TooltipContent>
+                </Tooltip>
+
+                {/* Preview */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="fab-item text-gray-600 dark:text-gray-300"
+                      style={{ "--fab-i": 1 } as React.CSSProperties}
+                      onClick={() => {
+                        handlePreviewRule(rule.name, rule.output.clients);
+                        setExpandedCard(null);
+                      }}
+                    >
+                      <Eye className="w-[15px] h-[15px]" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">预览</TooltipContent>
+                </Tooltip>
+
+                {/* Refresh */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="fab-item text-gray-600 dark:text-gray-300"
+                      style={{ "--fab-i": 2 } as React.CSSProperties}
+                      onClick={() => {
+                        handleRefreshRule(rule.name);
+                        setExpandedCard(null);
+                      }}
+                      disabled={refreshingRules.has(rule.name)}
+                    >
+                      {refreshingRules.has(rule.name) ? (
+                        <Loader2 className="w-[15px] h-[15px] animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-[15px] h-[15px]" />
+                      )}
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">刷新</TooltipContent>
+                </Tooltip>
+
+                {/* Copy URL */}
+                {rule.output.clients.length === 1 ? (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        className="fab-item text-gray-600 dark:text-gray-300"
+                        style={{ "--fab-i": 3 } as React.CSSProperties}
                         onClick={() => {
-                          setEditingRule(rule);
-                          setIsEditorOpen(true);
+                          copyRuleUrl(rule.name, rule.output.clients[0]);
+                          setExpandedCard(null);
                         }}
                       >
-                        编辑规则
-                      </DropdownMenuItem>
+                        <Copy className="w-[15px] h-[15px]" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">复制 URL</TooltipContent>
+                  </Tooltip>
+                ) : (
+                  <DropdownMenu>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            className="fab-item text-gray-600 dark:text-gray-300"
+                            style={{ "--fab-i": 3 } as React.CSSProperties}
+                          >
+                            <Copy className="w-[15px] h-[15px]" />
+                          </button>
+                        </DropdownMenuTrigger>
+                      </TooltipTrigger>
+                      <TooltipContent side="left">复制 URL</TooltipContent>
+                    </Tooltip>
+                    <DropdownMenuContent align="end" side="left" className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
                       {rule.output.clients.map((client) => (
                         <DropdownMenuItem
                           key={client}
-                          onClick={() => copyRuleUrl(rule.name, client)}
+                          onClick={() => {
+                            copyRuleUrl(rule.name, client);
+                            setExpandedCard(null);
+                          }}
                         >
-                          <Copy className="w-4 h-4 mr-2" />
-                          复制 {getClientDisplayName(client)} URL
+                          {getClientDisplayName(client)}
                         </DropdownMenuItem>
                       ))}
-                      <DropdownMenuItem
-                        onClick={() => setDeletingRule(rule.name)}
-                        className="text-red-600 focus:text-red-600 focus:bg-red-50 dark:focus:bg-red-900/20"
-                      >
-                        <Trash2 className="w-4 h-4 mr-2" />
-                        删除规则
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
+                )}
+
+                {/* Divider */}
+                <div className="fab-divider" />
+
+                {/* Delete */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="fab-item text-red-500/70 dark:text-red-400/60 hover:!bg-red-50 dark:hover:!bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
+                      style={{ "--fab-i": 4 } as React.CSSProperties}
+                      onClick={() => {
+                        setDeletingRule(rule.name);
+                        setExpandedCard(null);
+                      }}
+                    >
+                      <Trash2 className="w-[15px] h-[15px]" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">删除</TooltipContent>
+                </Tooltip>
+              </div>
+
+              {/* Header: Icon + Name + Description */}
+              <div className="flex items-start gap-3 pr-8">
+                <div className="neu-icon flex-shrink-0">
+                  {rule.icon ? (
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  ) : (
+                    <FileText className="w-[18px] h-[18px] text-gray-400 dark:text-gray-500" />
+                  )}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100 truncate leading-tight">
+                    {rule.displayName || rule.name}
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                    {rule.description || `ID: ${rule.name}`}
+                  </p>
                 </div>
               </div>
-            </CardHeader>
-            <CardContent>
-              {/* 规则标签 */}
-              <div className="flex flex-wrap items-center gap-1.5 min-h-[24px] mb-3">
+
+              {/* Tags */}
+              <div className="flex flex-wrap items-center gap-1.5 mt-3 min-h-[22px]">
                 {rule.tags && rule.tags.length > 0 ? (
                   rule.tags.map((tag) => (
-                    <Badge
-                      key={tag}
-                      variant="outline"
-                      className="text-[10px] px-1.5 py-0 h-5 border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-slate-800/50"
-                    >
+                    <span key={tag} className="neu-badge neu-badge-violet !text-[10px] !px-2 !py-0">
                       {tag}
-                    </Badge>
+                    </span>
                   ))
                 ) : (
                   <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">无标签</span>
                 )}
               </div>
 
-              {/* 客户端列表 - 放到最底部 */}
-              <div className="flex items-start gap-2 pt-2 border-t border-dashed border-gray-100 dark:border-slate-800">
+              {/* Client badges */}
+              <div className="flex items-start gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
                 <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">输出:</span>
                 <div className="flex flex-wrap gap-1.5 flex-1">
                   {rule.output.clients.map((client) => (
-                    <Badge
+                    <span
                       key={client}
-                      variant="secondary"
-                      className="text-[10px] px-1.5 py-0 h-5 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/40"
+                      className="neu-badge neu-badge-blue !text-[10px] !px-2 !py-0"
                     >
                       {getClientDisplayName(client)}
-                    </Badge>
+                    </span>
                   ))}
                 </div>
               </div>
-            </CardContent>
-          </Card>
-        ))}
+            </div>
+          );
+        })}
       </div>
 
       {filteredRules?.length === 0 && (

@@ -4,7 +4,6 @@ import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -226,68 +225,60 @@ export function WafManager() {
         <div className="space-y-6">
             {/* 统计卡片 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>持久化封禁</CardDescription>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                            <Ban className="w-5 h-5 text-red-500" />
-                            {stats?.bans.total || 0}
-                        </CardTitle>
-                    </CardHeader>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>永久封禁</CardDescription>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                            <ShieldAlert className="w-5 h-5 text-orange-500" />
-                            {stats?.bans.permanent || 0}
-                        </CardTitle>
-                    </CardHeader>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>临时追踪</CardDescription>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                            <Clock className="w-5 h-5 text-blue-500" />
-                            {stats?.temporary.totalTracked || 0}
-                        </CardTitle>
-                    </CardHeader>
-                </Card>
-                <Card>
-                    <CardHeader className="pb-2">
-                        <CardDescription>当前阻塞</CardDescription>
-                        <CardTitle className="text-2xl flex items-center gap-2">
-                            <Shield className="w-5 h-5 text-yellow-500" />
-                            {stats?.temporary.currentlyBlocked || 0}
-                        </CardTitle>
-                    </CardHeader>
-                </Card>
+                <div className="card-embossed p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">持久化封禁</p>
+                    <div className="text-2xl font-bold flex items-center gap-2">
+                        <Ban className="w-5 h-5 text-red-500" />
+                        {stats?.bans.total || 0}
+                    </div>
+                </div>
+                <div className="card-embossed p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">永久封禁</p>
+                    <div className="text-2xl font-bold flex items-center gap-2">
+                        <ShieldAlert className="w-5 h-5 text-orange-500" />
+                        {stats?.bans.permanent || 0}
+                    </div>
+                </div>
+                <div className="card-embossed p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">临时追踪</p>
+                    <div className="text-2xl font-bold flex items-center gap-2">
+                        <Clock className="w-5 h-5 text-blue-500" />
+                        {stats?.temporary.totalTracked || 0}
+                    </div>
+                </div>
+                <div className="card-embossed p-4">
+                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">当前阻塞</p>
+                    <div className="text-2xl font-bold flex items-center gap-2">
+                        <Shield className="w-5 h-5 text-yellow-500" />
+                        {stats?.temporary.currentlyBlocked || 0}
+                    </div>
+                </div>
             </div>
 
             {/* 当前 IP */}
-            <Card>
-                <CardHeader className="pb-3">
+            <div className="card-embossed">
+                <div className="p-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <ShieldCheck className="w-5 h-5 text-green-500" />
-                            <CardTitle className="text-lg">您的 IP 地址</CardTitle>
+                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">您的 IP 地址</h3>
                         </div>
                         <Badge variant="outline" className="font-mono">
                             {myIp}
                         </Badge>
                     </div>
-                </CardHeader>
-            </Card>
+                </div>
+            </div>
 
             {/* 添加封禁 */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
+            <div className="card-embossed">
+                <div className="px-5 pt-5 pb-3">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                         <Plus className="w-5 h-5" />
                         手动添加封禁
-                    </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
+                    </h3>
+                </div>
+                <div className="px-5 pb-5 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div className="space-y-2">
                             <Label htmlFor="ip">IP 地址</Label>
@@ -338,17 +329,17 @@ export function WafManager() {
                         )}
                         添加封禁
                     </Button>
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* 封禁列表 */}
-            <Card>
-                <CardHeader>
+            <div className="card-embossed">
+                <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
-                        <CardTitle className="text-lg flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                             <Ban className="w-5 h-5" />
                             封禁列表
-                        </CardTitle>
+                        </h3>
                         <div className="flex gap-2">
                             <Button variant="outline" size="sm" onClick={handleCleanup}>
                                 <Trash2 className="w-4 h-4 mr-2" />
@@ -360,8 +351,8 @@ export function WafManager() {
                             </Button>
                         </div>
                     </div>
-                </CardHeader>
-                <CardContent>
+                </div>
+                <div className="px-5 pb-5">
                     {bans.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                             <ShieldCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -406,21 +397,21 @@ export function WafManager() {
                             </div>
                         </ScrollArea>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* 活跃失败记录 */}
-            <Card>
-                <CardHeader>
-                    <CardTitle className="text-lg flex items-center gap-2">
+            <div className="card-embossed">
+                <div className="px-5 pt-5 pb-3">
+                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                         <Clock className="w-5 h-5" />
                         活跃失败记录（内存中）
-                    </CardTitle>
-                    <CardDescription>
+                    </h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                         临时追踪的登录失败记录，24小时后自动清除
-                    </CardDescription>
-                </CardHeader>
-                <CardContent>
+                    </p>
+                </div>
+                <div className="px-5 pb-5">
                     {failures.length === 0 ? (
                         <div className="text-center py-8 text-muted-foreground">
                             <ShieldCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
@@ -453,22 +444,22 @@ export function WafManager() {
                             </div>
                         </ScrollArea>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
             {/* CDN 缓存设置 */}
             {cdnSettings && (
-                <Card>
-                    <CardHeader>
+                <div className="card-embossed">
+                    <div className="px-5 pt-5 pb-3">
                         <div className="flex items-center justify-between">
                             <div>
-                                <CardTitle className="text-lg flex items-center gap-2">
+                                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
                                     <Cloud className="w-5 h-5 text-blue-500" />
                                     CDN 缓存设置
-                                </CardTitle>
-                                <CardDescription>
+                                </h3>
+                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                                     配置规则文件、客户端配置文件和图标集的 HTTP 响应头，优化 CDN（如 Cloudflare）缓存行为
-                                </CardDescription>
+                                </p>
                             </div>
                             <Button onClick={handleSaveCdnSettings} disabled={savingCdn}>
                                 {savingCdn ? (
@@ -479,8 +470,8 @@ export function WafManager() {
                                 保存设置
                             </Button>
                         </div>
-                    </CardHeader>
-                    <CardContent className="space-y-6">
+                    </div>
+                    <div className="px-5 pb-5 space-y-6">
                         {/* 启用开关 */}
                         <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
                             <div className="space-y-0.5">
@@ -715,8 +706,8 @@ export function WafManager() {
                                 </div>
                             </>
                         )}
-                    </CardContent>
-                </Card>
+                    </div>
+                </div>
             )}
         </div>
     );

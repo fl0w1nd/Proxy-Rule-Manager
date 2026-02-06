@@ -134,15 +134,15 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                                 "w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group animate-fade-in opacity-0",
                                 isCollapsed && "justify-center",
                                 isActive
-                                    ? "bg-sidebar-primary/15 text-sidebar-primary shadow-sm ring-1 ring-sidebar-primary/20"
+                                    ? "neu-pill-active !rounded-lg"
                                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                             )}
                             title={isCollapsed ? item.title : undefined}
                         >
-                            <item.icon className={cn("w-4 h-4 transition-colors flex-shrink-0", isActive ? "text-sidebar-primary" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+                            <item.icon className={cn("w-4 h-4 transition-colors flex-shrink-0", isActive ? "text-blue-600/80 dark:text-blue-300/80" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
                             {!isCollapsed && item.title}
                             {!isCollapsed && isActive && (
-                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sidebar-primary animate-pulse" />
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500/60 dark:bg-blue-400/60 animate-pulse" />
                             )}
                         </button>
                     );
@@ -153,33 +153,29 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             <div className={cn("border-t border-sidebar-border space-y-2 bg-sidebar/50", isCollapsed ? "p-2" : "p-4")}>
                 {isCollapsed ? (
                     <div className="flex flex-col items-center gap-2">
-                        <Button
-                            variant="ghost"
-                            size="icon"
+                        <button
                             onClick={toggleTheme}
-                            className="h-10 w-10 text-muted-foreground hover:text-foreground"
+                            className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
                             title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
                         >
                             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
+                        </button>
+                        <button
                             onClick={onHome}
-                            className="h-10 w-10 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                            className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
                             title="返回首页"
                         >
                             <Home className="w-4 h-4" />
-                        </Button>
-                        <Button
-                            variant="ghost"
-                            size="icon"
-                            onClick={onLogout}
-                            className="h-10 w-10 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
-                            title="退出登录"
-                        >
-                            <LogOut className="w-4 h-4" />
-                        </Button>
+                        </button>
+                        {onLogout && (
+                            <button
+                                onClick={onLogout}
+                                className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
+                                title="退出登录"
+                            >
+                                <LogOut className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <>
@@ -188,34 +184,32 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                                 <p className="text-sm font-medium text-sidebar-foreground truncate">Administrator</p>
                                 <p className="text-xs text-muted-foreground truncate">System Access</p>
                             </div>
-                            <Button
-                                variant="ghost"
-                                size="icon"
+                            <button
                                 onClick={toggleTheme}
-                                className="h-10 w-10 text-muted-foreground hover:text-foreground"
+                                className="neu-btn w-9 h-9 flex items-center justify-center text-muted-foreground !rounded-lg flex-shrink-0"
                             >
-                                {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                            </Button>
+                                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
+                            </button>
                         </div>
 
-                        <div className="flex flex-col gap-1">
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start text-muted-foreground hover:text-primary hover:bg-primary/10 gap-3 h-11"
+                        <div className="flex gap-2">
+                            <button
                                 onClick={onHome}
+                                className="neu-btn flex-1 h-10 flex items-center justify-center gap-2 text-sm text-muted-foreground !rounded-xl"
                             >
                                 <Home className="w-4 h-4" />
                                 返回首页
-                            </Button>
+                            </button>
 
-                            <Button
-                                variant="ghost"
-                                className="w-full justify-start text-muted-foreground hover:text-destructive hover:bg-destructive/10 gap-3 h-11"
-                                onClick={onLogout}
-                            >
-                                <LogOut className="w-4 h-4" />
-                                退出登录
-                            </Button>
+                            {onLogout && (
+                                <button
+                                    onClick={onLogout}
+                                    className="neu-btn flex-1 h-10 flex items-center justify-center gap-2 text-sm text-muted-foreground !rounded-xl"
+                                >
+                                    <LogOut className="w-4 h-4" />
+                                    退出登录
+                                </button>
+                            )}
                         </div>
                     </>
                 )}
