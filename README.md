@@ -52,7 +52,7 @@ services:
 ### 环境要求
 
 - Node.js >= 18
-- npm >= 9
+- pnpm >= 10
 
 ### 项目结构
 
@@ -67,27 +67,27 @@ src/
 ### 开发
 
 ```bash
-npm install
+pnpm install
 
 # 同时启动前端和后端（热重载）
-npm run dev
+pnpm run dev
 
 # 或分别启动
-npm run dev:fe   # 前端（3000）
-npm run dev:be   # 后端（3001）
+pnpm run dev:fe   # 前端（3000）
+pnpm run dev:be   # 后端（3001）
 ```
 
 ### 构建与运行
 
 ```bash
-npm run build          # 构建前端
-npm run build:server   # 构建后端
-npm run start          # 启动生产服务
+pnpm run build          # 构建前端
+pnpm run build:server   # 构建后端
+pnpm run start          # 启动生产服务
 ```
 
 ### 测试
 
 ```bash
-npm run test
-npm run test:watch
+pnpm run test
+pnpm run test:watch
 ```

@@ -36,27 +36,27 @@ help: ## Show this help message
 
 .PHONY: dev
 dev: ## Run development server (frontend + backend with hot reload)
-	npm run dev
+	pnpm run dev
 
 .PHONY: dev-fe
 dev-fe: ## Run Next.js development server only
-	npm run dev:fe
+	pnpm run dev:fe
 
 .PHONY: dev-be
 dev-be: ## Run backend development server only
-	npm run dev:be
+	pnpm run dev:be
 
 .PHONY: build
 build: ## Build Next.js application
-	npm run build
+	pnpm run build
 
 .PHONY: test
 test: ## Run tests
-	npm run test
+	pnpm run test
 
 .PHONY: lint
 lint: ## Run linter
-	npm run lint
+	pnpm run lint
 
 # ==================
 # Docker - Development
@@ -142,7 +142,7 @@ push-local: ## Build multi-arch image locally and push to ghcr.io
 			echo "$(RED)Error: v$(VERSION) already exists on ghcr.io$(NC)"; \
 			echo ""; \
 			echo "Please bump version in package.json first, then retry."; \
-			echo "  npm version patch  # or minor, major"; \
+			echo "  pnpm version patch  # or minor, major"; \
 			exit 1; \
 		fi; \
 		echo "$(GREEN)✓ Version available$(NC)"; \
@@ -281,9 +281,9 @@ release: ## Create GitHub Release with auto-generated notes
 		echo "$(RED)Error: Tag v$(VERSION) already exists$(NC)"; \
 		echo ""; \
 		echo "Bump version first:"; \
-		echo "  npm version patch  # 0.1.0 → 0.1.1"; \
-		echo "  npm version minor  # 0.1.0 → 0.2.0"; \
-		echo "  npm version major  # 0.1.0 → 1.0.0"; \
+		echo "  pnpm version patch  # 0.1.0 → 0.1.1"; \
+		echo "  pnpm version minor  # 0.1.0 → 0.2.0"; \
+		echo "  pnpm version major  # 0.1.0 → 1.0.0"; \
 		exit 1; \
 	fi
 	@# Check for uncommitted changes
@@ -440,9 +440,9 @@ version: ## Show current version and how to bump
 	@echo "$(CYAN)Current version:$(NC) v$(VERSION)"
 	@echo ""
 	@echo "$(YELLOW)To bump version:$(NC)"
-	@echo "  npm version patch  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==2?+v+1:v).join('.')\")"
-	@echo "  npm version minor  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==1?+v+1:i==2?0:v).join('.')\")"
-	@echo "  npm version major  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==0?+v+1:0).join('.')\")"
+	@echo "  pnpm version patch  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==2?+v+1:v).join('.')\")"
+	@echo "  pnpm version minor  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==1?+v+1:i==2?0:v).join('.')\")"
+	@echo "  pnpm version major  # $(VERSION) → $$(node -p \"'$(VERSION)'.split('.').map((v,i)=>i==0?+v+1:0).join('.')\")"
 
 # ==================
 # Docker Compose

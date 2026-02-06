@@ -5,23 +5,25 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
+RUN corepack enable
+
 # Install dependencies (cache-friendly)
-COPY package*.json ./
-RUN --mount=type=cache,target=/root/.npm \
-    npm ci --no-audit --prefer-offline
+COPY package.json pnpm-lock.yaml ./
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm install --frozen-lockfile --prefer-offline
 
 # Install esbuild for bundling (do not modify lock/package)
-RUN --mount=type=cache,target=/root/.npm \
-    npm i -D esbuild --no-save --no-audit --prefer-offline
+RUN --mount=type=cache,target=/pnpm/store \
+    pnpm add -D esbuild
 
 # Copy source
 COPY . .
 
 # Build frontend (Next.js static export)
-RUN npm run build
+RUN pnpm run build
 
 # Bundle server
-RUN npx esbuild src/server/index.ts --bundle --platform=node --target=node22 --outfile=dist/server.js
+RUN pnpm exec esbuild src/server/index.ts --bundle --platform=node --target=node22 --outfile=dist/server.js
 
 # Production stage
 FROM node:22-alpine AS runner
