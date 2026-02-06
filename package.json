@@ -35,6 +35,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cron-parser": "^5.5.0",
+    "diff": "^8.0.3",
     "hono": "^4.11.4",
     "lucide-react": "^0.562.0",
     "next": "16.1.2",
