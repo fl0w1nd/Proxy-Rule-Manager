@@ -83,6 +83,7 @@ export function topologicalSort(
 
   const ruleMap = new Map<string, RuleConfig>();
   const dependencies = new Map<string, Set<string>>();
+  const missingDeps: string[] = [];
 
   for (const rule of rules) {
     ruleMap.set(rule.name, rule);
@@ -90,6 +91,15 @@ export function topologicalSort(
 
   for (const rule of rules) {
     const allDeps = extractDependencies(rule);
+
+    if (!skipMissingDepsCheck) {
+      for (const dep of allDeps) {
+        if (!ruleMap.has(dep)) {
+          missingDeps.push(`规则 "${rule.name}" 引用了不存在的规则 "${dep}"`);
+        }
+      }
+    }
+
     const inSetDeps = new Set<string>();
     for (const dep of allDeps) {
       if (ruleMap.has(dep)) {
@@ -99,18 +109,8 @@ export function topologicalSort(
     dependencies.set(rule.name, inSetDeps);
   }
 
-  if (!skipMissingDepsCheck) {
-    const missingDeps: string[] = [];
-    for (const [ruleName, deps] of dependencies) {
-      for (const dep of deps) {
-        if (!ruleMap.has(dep)) {
-          missingDeps.push(`规则 "${ruleName}" 引用了不存在的规则 "${dep}"`);
-        }
-      }
-    }
-    if (missingDeps.length > 0) {
-      throw new Error(`依赖缺失:\n${missingDeps.join("\n")}`);
-    }
+  if (!skipMissingDepsCheck && missingDeps.length > 0) {
+    throw new Error(`依赖缺失:\n${missingDeps.join("\n")}`);
   }
 
   const sorted: RuleConfig[] = [];

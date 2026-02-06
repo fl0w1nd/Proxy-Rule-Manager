@@ -159,6 +159,11 @@ describe("topologicalSort", () => {
         expect(() => topologicalSort(rules)).toThrow("循环依赖");
     });
 
+    it("should throw for missing deps when skipMissingDepsCheck is false", () => {
+        const rules = [createRule("A", { refs: ["NonExistent"] })];
+        expect(() => topologicalSort(rules)).toThrow("依赖缺失");
+    });
+
     it("should not throw for missing deps when skipMissingDepsCheck is true", () => {
         const rules = [createRule("A", { refs: ["NonExistent"] })];
         expect(() => topologicalSort(rules, true)).not.toThrow();
