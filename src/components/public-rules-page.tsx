@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import { ClientFileMeta } from "@/lib/schema";
 import { RuleIcon } from "./icon-picker";
 import { listIcons, IconMeta } from "@/lib/api-client";
+import { AmbientBackground } from "./ambient-background";
+
 
 interface RuleInfo {
   name: string;
@@ -80,11 +82,18 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [isScrolled, setIsScrolled] = useState(false);
 
   // 切换主标签时清空已选标签
   useEffect(() => {
     setSelectedTags([]);
   }, [activeMainTab]);
+
+  useEffect(() => {
+    const handleScroll = () => setIsScrolled(window.scrollY > 10);
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     fetchData();
@@ -283,7 +292,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   // 全屏预览模式
   if (isPreviewFullscreen && previewItem) {
     return (
-      <div className="fixed inset-0 z-50 neu-surface flex flex-col">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
         {/* 顶部工具栏 */}
         <div className="flex items-center justify-between px-6 py-4 glass-header">
           <div className="flex items-center gap-3">
@@ -357,8 +366,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   return (
     <TooltipProvider>
       <div className="neu-surface transition-colors">
+        <AmbientBackground />
         {/* Header */}
-        <header className="sticky top-0 z-50 glass-header">
+        <header className={`sticky top-0 z-50 glass-header${isScrolled ? " scrolled" : ""}`}>
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
