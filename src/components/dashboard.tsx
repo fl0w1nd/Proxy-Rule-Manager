@@ -515,54 +515,58 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </Card>
 
                   {/* Recent Activity Feed - Two Column Layout */}
-                  <Card className="flex flex-col min-h-[400px]">
+                  <Card className="flex flex-col h-[600px]">
                     <CardHeader className="border-b border-border/40 shrink-0">
                       <CardTitle className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-primary" />
                         动态流
                       </CardTitle>
                     </CardHeader>
-                    <div className="p-6 flex-1 flex flex-col relative">
+                    <div className="p-6 flex-1 flex flex-col min-h-0 relative">
                       {/* Middle Separator */}
                       <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-border/60 -translate-x-1/2" />
 
-                      <div className="flex-1 flex flex-col md:flex-row gap-12">
+                      <div className="flex-1 flex flex-col md:flex-row gap-12 min-h-0">
 
                         {/* Left Column: Change Records */}
-                        <div className="flex-1 space-y-4">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4 shrink-0">
                             <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                               <RefreshCw className="w-3.5 h-3.5" /> 变动记录
                             </h3>
                           </div>
-                          <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} />
+                          <div className="flex-1 overflow-y-auto">
+                            <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} />
+                          </div>
                         </div>
 
                         {/* Right Column: Failure Records */}
-                        <div className="flex-1 space-y-4">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                        <div className="flex-1 flex flex-col min-h-0">
+                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4 shrink-0">
                             <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
                               <XCircle className="w-3.5 h-3.5 text-destructive" /> 失败记录
                             </h3>
                           </div>
-                          {filteredFailureItems.length === 0 ? (
-                            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                              <CheckCircle className="w-8 h-8 text-green-500/50 mb-2" />
-                              <p className="text-xs">无异常记录</p>
-                            </div>
-                          ) : (
-                            <div className="space-y-3">
-                              {filteredFailureItems.slice(0, 8).map(f => (
-                                <div key={f.id} className="p-3 bg-destructive/5 rounded-xl border border-destructive/10 text-xs hover:bg-destructive/10 transition-colors">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-semibold text-destructive truncate">{f.ruleName}</p>
-                                    <span className="text-[10px] text-muted-foreground font-mono">{formatTimestamp(f.timestamp).split(' ')[1]}</span>
+                          <div className="flex-1 overflow-y-auto">
+                            {filteredFailureItems.length === 0 ? (
+                              <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                                <CheckCircle className="w-8 h-8 text-green-500/50 mb-2" />
+                                <p className="text-xs">无异常记录</p>
+                              </div>
+                            ) : (
+                              <div className="space-y-3">
+                                {filteredFailureItems.slice(0, 8).map(f => (
+                                  <div key={f.id} className="p-3 bg-destructive/5 rounded-xl border border-destructive/10 text-xs hover:bg-destructive/10 transition-colors">
+                                    <div className="flex items-center justify-between mb-1">
+                                      <p className="font-semibold text-destructive truncate">{f.ruleName}</p>
+                                      <span className="text-[10px] text-muted-foreground font-mono">{formatTimestamp(f.timestamp).split(' ')[1]}</span>
+                                    </div>
+                                    <p className="text-muted-foreground line-clamp-2">{f.message}</p>
                                   </div>
-                                  <p className="text-muted-foreground line-clamp-2">{f.message}</p>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+                                ))}
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     </div>
