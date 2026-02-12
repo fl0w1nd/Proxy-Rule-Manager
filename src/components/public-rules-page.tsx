@@ -304,11 +304,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
                 <div className="neu-icon">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
+                      <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/60" />
                 </div>
               ) : (
                 <div className="neu-icon">
-                  <FileText className="w-5 h-5 text-muted-foreground" />
+                  <FileText className="w-5 h-5 text-primary/60" />
                 </div>
               );
             })()}
@@ -344,7 +344,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           <div className="neu-inset p-0 overflow-hidden">
             {previewLoading ? (
               <div className="flex items-center justify-center h-64">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
               </div>
             ) : (
               <div className="flex text-sm font-mono min-w-max">
@@ -512,7 +512,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {isLoading ? (
             <div className="flex items-center justify-center py-24">
               <div className="neu-raised p-8 flex flex-col items-center gap-4">
-                <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
+                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
                 <p className="text-sm text-muted-foreground">加载中...</p>
               </div>
             </div>
@@ -520,7 +520,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             clientRules.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <Globe className="w-10 h-10 text-muted-foreground/70" />
+                  <Globe className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
@@ -587,9 +587,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <div className="flex items-start gap-3.5">
                       <div className="neu-icon">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/60" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-muted-foreground" />
+                          <FileText className="w-[18px] h-[18px] text-primary/60" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1 pr-16">
@@ -645,7 +645,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             clientPublicFiles.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <FileText className="w-10 h-10 text-muted-foreground/70" />
+                  <FileText className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
@@ -730,7 +730,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             filteredIcons.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <ImageIcon className="w-10 h-10 text-muted-foreground/70" />
+                  <ImageIcon className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的图标" : "暂无图标"}
@@ -814,7 +814,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         <footer className="mt-12 pb-8">
           <div className="container mx-auto px-4 sm:px-6 text-center">
             <div className="neu-footer inline-flex flex-col items-center gap-1.5 px-8 py-4">
-              <div className="flex items-center gap-2 text-sm text-amber-800/40 dark:text-amber-200/30">
+              <div className="flex items-center gap-2 text-sm text-amber-800/50 dark:text-amber-200/40">
                 <Sparkles className="w-3.5 h-3.5" />
                 <span>Proxy Rule Manager</span>
               </div>
@@ -822,7 +822,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-amber-700/30 dark:text-amber-300/20 hover:text-amber-700/50 dark:hover:text-amber-300/40 inline-flex items-center gap-1 text-xs transition-colors"
+                className="text-amber-700/40 dark:text-amber-300/30 hover:text-amber-700/60 dark:hover:text-amber-300/50 inline-flex items-center gap-1 text-xs transition-colors"
               >
                 <ExternalLink className="w-3 h-3" />
                 GitHub
@@ -833,18 +833,18 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
         {/* Preview Dialog */}
         <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none bg-[#e8ecf1] dark:bg-[#1a1d23]">
+          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none bg-[#e7ebf8] dark:bg-[#191d2b]">
             <DialogHeader className="px-6 pt-6 pb-4 glass-header !border-b-0">
               <DialogTitle className="flex items-center gap-3 text-foreground font-semibold">
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
                     <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-muted-foreground" />
+                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary/60" />
                     </div>
                   ) : (
                     <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
-                      <FileText className="w-4 h-4 text-muted-foreground" />
+                      <FileText className="w-4 h-4 text-primary/60" />
                     </div>
                   );
                 })()}
@@ -857,7 +857,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative mx-4 mb-4">
               {previewLoading ? (
                 <div className="flex-1 flex items-center justify-center">
-                  <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+                  <Loader2 className="w-6 h-6 animate-spin text-primary/50" />
                 </div>
               ) : (
                 <>

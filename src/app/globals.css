@@ -434,17 +434,17 @@
 
   /* Neumorphic raised element - the signature convex look */
   .neu-raised {
-    background: linear-gradient(145deg, #f0f4f8, #d8dce2);
+    background: linear-gradient(145deg, #eef1fc, #d7dbea);
     border-radius: 20px;
     box-shadow:
       6px 6px 14px 0 rgba(0, 0, 0, 0.08),
       -6px -6px 14px 0 rgba(255, 255, 255, 0.9),
       inset 0 1px 1px rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(220, 225, 250, 0.5);
   }
 
   .dark .neu-raised {
-    background: linear-gradient(145deg, #22262d, #1c1f25);
+    background: linear-gradient(145deg, #212537, #1b1f2d);
     box-shadow:
       6px 6px 14px 0 rgba(0, 0, 0, 0.35),
       -6px -6px 14px 0 rgba(255, 255, 255, 0.03),
@@ -455,15 +455,15 @@
   /* Neumorphic pressed/inset element */
   .neu-inset {
     border-radius: 16px;
-    background: linear-gradient(145deg, #dde1e7, #e6eaf0);
+    background: linear-gradient(145deg, #dce0ee, #e4e9f4);
     box-shadow:
       inset 3px 3px 7px rgba(0, 0, 0, 0.08),
       inset -3px -3px 7px rgba(255, 255, 255, 0.7);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(220, 225, 250, 0.3);
   }
 
   .dark .neu-inset {
-    background: linear-gradient(145deg, #16191e, #1e2127);
+    background: linear-gradient(145deg, #151926, #1d212e);
     box-shadow:
       inset 3px 3px 7px rgba(0, 0, 0, 0.4),
       inset -3px -3px 7px rgba(255, 255, 255, 0.02);
@@ -473,17 +473,17 @@
   /* Glass pill - the premium tab/button container */
   .neu-pill {
     border-radius: 50px;
-    background: linear-gradient(145deg, #f0f4f8, #dce0e6);
+    background: linear-gradient(145deg, #eef1fc, #dbe0ec);
     box-shadow:
       4px 4px 10px 0 rgba(0, 0, 0, 0.07),
       -4px -4px 10px 0 rgba(255, 255, 255, 0.8),
       inset 0 1px 0 rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(220, 225, 250, 0.4);
     padding: 5px;
   }
 
   .dark .neu-pill {
-    background: linear-gradient(145deg, #22262d, #1c1f25);
+    background: linear-gradient(145deg, #212537, #1b1f2d);
     box-shadow:
       4px 4px 10px 0 rgba(0, 0, 0, 0.3),
       -4px -4px 10px 0 rgba(255, 255, 255, 0.02),
@@ -593,23 +593,23 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(145deg, #f0f4f8, #dde1e7);
+    background: linear-gradient(145deg, #edf0fd, #dde2f4);
     box-shadow:
-      3px 3px 6px rgba(0, 0, 0, 0.06),
+      3px 3px 6px rgba(80, 100, 180, 0.07),
       -3px -3px 6px rgba(255, 255, 255, 0.7),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(200, 210, 250, 0.4);
     flex-shrink: 0;
     transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark .neu-icon {
-    background: linear-gradient(145deg, #22262d, #1a1d22);
+    background: linear-gradient(145deg, #222640, #191d30);
     box-shadow:
       3px 3px 6px rgba(0, 0, 0, 0.3),
-      -3px -3px 6px rgba(255, 255, 255, 0.02),
-      inset 0 1px 0 rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.04);
+      -3px -3px 6px rgba(100, 130, 220, 0.02),
+      inset 0 1px 0 rgba(100, 130, 220, 0.06);
+    border: 1px solid rgba(80, 110, 200, 0.1);
   }
 
   .group:hover .neu-icon {
@@ -646,15 +646,15 @@
   /* Glass search bar */
   .neu-search {
     border-radius: 50px;
-    background: linear-gradient(145deg, #e2e6ec, #eef2f8);
+    background: linear-gradient(145deg, #e0e4f0, #ecf0fb);
     box-shadow:
       inset 2px 2px 5px rgba(0, 0, 0, 0.06),
       inset -2px -2px 5px rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(220, 225, 250, 0.3);
   }
 
   .dark .neu-search {
-    background: linear-gradient(145deg, #16191e, #1e2127);
+    background: linear-gradient(145deg, #151926, #1d212e);
     box-shadow:
       inset 2px 2px 5px rgba(0, 0, 0, 0.3),
       inset -2px -2px 5px rgba(255, 255, 255, 0.02);
@@ -664,12 +664,12 @@
   /* Neumorphic button */
   .neu-btn {
     border-radius: 14px;
-    background: linear-gradient(145deg, #f0f4f8, #dde1e7);
+    background: linear-gradient(145deg, #eef1fc, #dce0ee);
     box-shadow:
       3px 3px 8px rgba(0, 0, 0, 0.07),
       -3px -3px 8px rgba(255, 255, 255, 0.8),
       inset 0 1px 0 rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(255, 255, 255, 0.4);
+    border: 1px solid rgba(220, 225, 250, 0.4);
     transition: all 0.15s ease;
   }
 
@@ -687,7 +687,7 @@
   }
 
   .dark .neu-btn {
-    background: linear-gradient(145deg, #22262d, #1c1f25);
+    background: linear-gradient(145deg, #212537, #1b1f2d);
     box-shadow:
       3px 3px 8px rgba(0, 0, 0, 0.3),
       -3px -3px 8px rgba(255, 255, 255, 0.02),
@@ -711,26 +711,26 @@
   /* Neumorphic tag badge - base */
   .neu-badge {
     border-radius: 50px;
-    background: linear-gradient(145deg, #eef2f6, #e2e6ec);
+    background: linear-gradient(145deg, #ecf0fa, #e0e4f0);
     box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.05),
       -2px -2px 4px rgba(255, 255, 255, 0.6),
       inset 0 1px 0 rgba(255, 255, 255, 0.4);
-    border: 1px solid rgba(255, 255, 255, 0.3);
-    color: #5a6a7e;
+    border: 1px solid rgba(220, 225, 250, 0.3);
+    color: #546094;
     font-size: 11px;
     padding: 3px 10px;
     font-weight: 500;
   }
 
   .dark .neu-badge {
-    background: linear-gradient(145deg, #22262d, #1a1d22);
+    background: linear-gradient(145deg, #212537, #191d2a);
     box-shadow:
       2px 2px 4px rgba(0, 0, 0, 0.25),
       -2px -2px 4px rgba(255, 255, 255, 0.02),
       inset 0 1px 0 rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.04);
-    color: #8a9ab0;
+    color: #8a9cc4;
   }
 
   .neu-badge-active {
@@ -845,30 +845,30 @@
   /* Stats pill with cool tint */
   .neu-stats {
     border-radius: 50px;
-    background: linear-gradient(145deg, #e6ecf4, #dce2ea);
+    background: linear-gradient(145deg, #e5ebf8, #dbe1f0);
     box-shadow:
       inset 2px 2px 5px rgba(0, 0, 0, 0.04),
       inset -2px -2px 5px rgba(255, 255, 255, 0.5);
-    border: 1px solid rgba(180, 200, 230, 0.3);
+    border: 1px solid rgba(180, 200, 240, 0.3);
   }
 
   .dark .neu-stats {
-    background: linear-gradient(145deg, #182030, #14182a);
+    background: linear-gradient(145deg, #182038, #14182e);
     box-shadow:
       inset 2px 2px 5px rgba(0, 0, 0, 0.3),
       inset -2px -2px 5px rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(80, 120, 180, 0.1);
+    border: 1px solid rgba(80, 120, 200, 0.12);
   }
 
   /* Glass header bar */
   .glass-header {
     background: linear-gradient(180deg,
-        rgba(232, 236, 241, 0.95) 0%,
-        rgba(232, 236, 241, 0.85) 100%);
+        rgba(232, 236, 250, 0.95) 0%,
+        rgba(232, 236, 250, 0.85) 100%);
     backdrop-filter: blur(24px) saturate(1.2);
     -webkit-backdrop-filter: blur(24px) saturate(1.2);
     border-bottom: 1px solid transparent;
-    border-image: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.4), transparent) 1;
+    border-image: linear-gradient(to right, transparent, rgba(200, 210, 250, 0.4), transparent) 1;
     box-shadow:
       0 4px 12px rgba(0, 0, 0, 0.04),
       inset 0 1px 0 rgba(255, 255, 255, 0.5),
@@ -878,8 +878,8 @@
 
   .glass-header.scrolled {
     background: linear-gradient(180deg,
-        rgba(232, 236, 241, 0.98) 0%,
-        rgba(232, 236, 241, 0.95) 100%);
+        rgba(232, 236, 250, 0.98) 0%,
+        rgba(232, 236, 250, 0.95) 100%);
     box-shadow:
       0 8px 24px rgba(0, 0, 0, 0.06),
       0 2px 8px rgba(0, 0, 0, 0.04),
@@ -889,10 +889,10 @@
 
   .dark .glass-header {
     background: linear-gradient(180deg,
-        rgba(26, 29, 35, 0.95) 0%,
-        rgba(26, 29, 35, 0.85) 100%);
+        rgba(24, 27, 42, 0.95) 0%,
+        rgba(24, 27, 42, 0.85) 100%);
     border-bottom: 1px solid transparent;
-    border-image: linear-gradient(to right, transparent, rgba(255, 255, 255, 0.06), transparent) 1;
+    border-image: linear-gradient(to right, transparent, rgba(80, 110, 200, 0.08), transparent) 1;
     box-shadow:
       0 4px 12px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.06),
@@ -901,8 +901,8 @@
 
   .dark .glass-header.scrolled {
     background: linear-gradient(180deg,
-        rgba(26, 29, 35, 0.98) 0%,
-        rgba(26, 29, 35, 0.95) 100%);
+        rgba(24, 27, 42, 0.98) 0%,
+        rgba(24, 27, 42, 0.95) 100%);
     box-shadow:
       0 8px 24px rgba(0, 0, 0, 0.35),
       0 2px 8px rgba(0, 0, 0, 0.2),
@@ -914,7 +914,7 @@
   .neu-progress {
     border-radius: 50px;
     height: 6px;
-    background: linear-gradient(145deg, #dde1e7, #e8ecf2);
+    background: linear-gradient(145deg, #dce0ee, #e7ebf6);
     box-shadow:
       inset 1px 1px 3px rgba(0, 0, 0, 0.06),
       inset -1px -1px 3px rgba(255, 255, 255, 0.5);
@@ -922,7 +922,7 @@
   }
 
   .dark .neu-progress {
-    background: linear-gradient(145deg, #16191e, #1e2127);
+    background: linear-gradient(145deg, #151926, #1d212e);
     box-shadow:
       inset 1px 1px 3px rgba(0, 0, 0, 0.3),
       inset -1px -1px 3px rgba(255, 255, 255, 0.02);
@@ -943,15 +943,15 @@
   /* Floating action area with glass effect */
   .glass-float {
     background: linear-gradient(145deg,
-        rgba(255, 255, 255, 0.7),
-        rgba(255, 255, 255, 0.4));
+        rgba(240, 242, 255, 0.75),
+        rgba(235, 238, 252, 0.45));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     border-radius: 14px;
     box-shadow:
       4px 4px 10px rgba(0, 0, 0, 0.05),
       -2px -2px 6px rgba(255, 255, 255, 0.6);
-    border: 1px solid rgba(255, 255, 255, 0.5);
+    border: 1px solid rgba(220, 225, 250, 0.5);
     padding: 6px;
     opacity: 0;
     transform: translateY(4px);
@@ -965,12 +965,12 @@
 
   .dark .glass-float {
     background: linear-gradient(145deg,
-        rgba(35, 39, 47, 0.7),
-        rgba(28, 32, 38, 0.4));
+        rgba(33, 37, 55, 0.75),
+        rgba(27, 31, 45, 0.45));
     box-shadow:
       4px 4px 10px rgba(0, 0, 0, 0.3),
       -2px -2px 6px rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(80, 110, 200, 0.08);
   }
 
   /* Embossed card - white bg + layered edge shadows for raised look */
@@ -996,18 +996,18 @@
   }
 
   .dark .card-embossed {
-    background: #1e2128;
+    background: #1d2131;
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.04),
+      0 0 0 1px rgba(80, 110, 200, 0.06),
       0 2px 4px -1px rgba(0, 0, 0, 0.2),
       0 8px 20px -4px rgba(0, 0, 0, 0.3),
       0 -1px 3px 0px rgba(255, 255, 255, 0.02);
-    border: 1px solid rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(80, 110, 200, 0.08);
   }
 
   .dark .card-embossed:hover {
     box-shadow:
-      0 0 0 1px rgba(255, 255, 255, 0.05),
+      0 0 0 1px rgba(80, 110, 200, 0.08),
       0 4px 8px -2px rgba(0, 0, 0, 0.25),
       0 12px 28px -6px rgba(0, 0, 0, 0.35),
       0 -1px 3px 0px rgba(255, 255, 255, 0.03);
