@@ -608,6 +608,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                             <TooltipContent
                               side="bottom"
                               align="start"
+                              showArrow={false}
                               className="max-w-[300px] bg-background text-foreground border border-border shadow-lg rounded-xl"
                             >
                               <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
