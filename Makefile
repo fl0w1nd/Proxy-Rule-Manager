@@ -298,6 +298,7 @@ release: ## Create GitHub Release with auto-generated notes
 		echo ""; \
 		FEAT=$$(git log $(PREV_TAG)..HEAD --pretty=format:"%h %s" | grep -iE "^[a-f0-9]+ feat" || true); \
 		FIX=$$(git log $(PREV_TAG)..HEAD --pretty=format:"%h %s" | grep -iE "^[a-f0-9]+ fix" || true); \
+		MISC=$$(git log $(PREV_TAG)..HEAD --pretty=format:"%h %s" | grep -ivE "^[a-f0-9]+ (feat|fix)" || true); \
 		if [ -n "$$FEAT" ]; then \
 			echo "$(GREEN)Features:$(NC)"; \
 			echo "$$FEAT" | while read line; do echo "  $$line"; done; \
@@ -308,8 +309,13 @@ release: ## Create GitHub Release with auto-generated notes
 			echo "$$FIX" | while read line; do echo "  $$line"; done; \
 			echo ""; \
 		fi; \
-		if [ -z "$$FEAT" ] && [ -z "$$FIX" ]; then \
-			echo "  (No feature or fix commits)"; \
+		if [ -n "$$MISC" ]; then \
+			echo "$(CYAN)Misc:$(NC)"; \
+			echo "$$MISC" | while read line; do echo "  $$line"; done; \
+			echo ""; \
+		fi; \
+		if [ -z "$$FEAT" ] && [ -z "$$FIX" ] && [ -z "$$MISC" ]; then \
+			echo "  (No changes detected)"; \
 			echo ""; \
 		fi; \
 	else \
@@ -328,12 +334,17 @@ release: ## Create GitHub Release with auto-generated notes
 	if [ -n "$(PREV_TAG)" ]; then \
 		FEAT=$$(git log $(PREV_TAG)..HEAD --pretty=format:"- %s (%h)" | grep -iE "^- feat" || true); \
 		FIX=$$(git log $(PREV_TAG)..HEAD --pretty=format:"- %s (%h)" | grep -iE "^- fix" || true); \
+		MISC=$$(git log $(PREV_TAG)..HEAD --pretty=format:"- %s (%h)" | grep -ivE "^- (feat|fix)" || true); \
 		if [ -n "$$FEAT" ]; then \
 			NOTES="## Features\n$$FEAT"; \
 		fi; \
 		if [ -n "$$FIX" ]; then \
 			if [ -n "$$NOTES" ]; then NOTES="$$NOTES\n\n"; fi; \
 			NOTES="$${NOTES}## Bug Fixes\n$$FIX"; \
+		fi; \
+		if [ -n "$$MISC" ]; then \
+			if [ -n "$$NOTES" ]; then NOTES="$$NOTES\n\n"; fi; \
+			NOTES="$${NOTES}## Misc\n$$MISC"; \
 		fi; \
 		if [ -z "$$NOTES" ]; then \
 			NOTES="Maintenance release."; \
@@ -428,7 +439,7 @@ changelog: ## Preview changelog for upcoming release
 		git log --pretty=format:"- %s" | grep -iE "^- fix" || echo "  (none)"; \
 	fi
 	@echo ""
-	@echo "$(CYAN)Other:$(NC)"
+	@echo "$(CYAN)Misc:$(NC)"
 	@if [ -n "$(PREV_TAG)" ]; then \
 		git log $(PREV_TAG)..HEAD --pretty=format:"- %s" | grep -ivE "^- (feat|fix)" || echo "  (none)"; \
 	else \
