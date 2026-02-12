@@ -1,10 +1,11 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { LoadingState } from "@/components/loading-state";
 import {
   Select,
   SelectContent,
@@ -133,14 +134,10 @@ export function Dashboard({ onBack }: DashboardProps) {
     return "更新";
   };
 
-  const getChangeBadgeClass = (changeType: ChangeRecordSummary["changeType"]) => {
-    if (changeType === "created") {
-      return "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400";
-    }
-    if (changeType === "deleted") {
-      return "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400";
-    }
-    return "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400";
+  const getChangeBadgeVariant = (changeType: ChangeRecordSummary["changeType"]) => {
+    if (changeType === "created") return "emerald" as const;
+    if (changeType === "deleted") return "rose" as const;
+    return "blue" as const;
   };
 
   const handleInit = async () => {
@@ -283,10 +280,20 @@ export function Dashboard({ onBack }: DashboardProps) {
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center bg-background">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+        <LoadingState />
       </div>
     );
   }
+
+  // 7-day filter for overview
+  const last7Dates = activityDates.slice(0, 7);
+  const filteredChangeItems = activeTab === "overview" && activityDates.length > 0
+    ? changeItems.filter(item => last7Dates.includes(item.date))
+    : changeItems;
+
+  const filteredFailureItems = activeTab === "overview" && activityDates.length > 0
+    ? failureItems.filter(item => last7Dates.includes(new Date(item.timestamp).toISOString().split('T')[0]))
+    : failureItems;
 
   // Activity Feed Component
   const ActivityFeed = ({
@@ -317,7 +324,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                 <span className="font-medium text-sm truncate" title={change.ruleName}>
                   {change.ruleName}
                 </span>
-                <Badge variant="outline" className={`${getChangeBadgeClass(change.changeType)} text-[10px] border-0 shrink-0`}>
+                <Badge variant={getChangeBadgeVariant(change.changeType)} className="text-[10px] shrink-0">
                   {getChangeLabel(change.changeType)}
                 </Badge>
                 {change.client && (
@@ -366,14 +373,14 @@ export function Dashboard({ onBack }: DashboardProps) {
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <button
+            <Button
+              variant="neu"
               onClick={handleFullSync}
               disabled={isSyncing}
-              className="neu-btn h-9 px-4 text-sm text-muted-foreground flex items-center gap-2 !rounded-xl disabled:opacity-50"
             >
               {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
               同步规则
-            </button>
+            </Button>
           </div>
         </header>
 
@@ -393,7 +400,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                           <p className="text-xs text-amber-700 dark:text-amber-300">检测到暂无规则配置，建议立即初始化。</p>
                         </div>
                       </div>
-                      <Button size="sm" onClick={handleInit} disabled={isInitializing} className="bg-amber-600 text-white hover:bg-amber-700">
+                      <Button variant="success" size="sm" onClick={handleInit} disabled={isInitializing}>
                         {isInitializing ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : <Zap className="w-3 h-3 mr-1" />} 初始化
                       </Button>
                     </CardContent>
@@ -423,23 +430,23 @@ export function Dashboard({ onBack }: DashboardProps) {
               <div className="space-y-6">
                 {/* Top Row: Stats & System Status */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
-                  <div className="card-embossed p-4 flex flex-col justify-center">
+                  <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">规则总数</p>
                     <div className="text-2xl font-mono font-bold">{status?.rulesCount || 0}</div>
-                  </div>
-                  <div className="card-embossed p-4 flex flex-col justify-center">
+                  </Card>
+                  <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">今日变更</p>
                     <div className="text-2xl font-mono font-bold text-primary">{status?.todayStats?.ruleFilesChanged || 0}</div>
-                  </div>
-                  <div className="card-embossed p-4 flex flex-col justify-center">
+                  </Card>
+                  <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">生成文件</p>
-                    <div className="text-2xl font-mono font-bold text-orange-500">{status?.ruleFilesCount || 0}</div>
-                  </div>
-                  <div className="card-embossed p-4 flex flex-col justify-center">
+                    <div className="text-2xl font-mono font-bold text-amber-500">{status?.ruleFilesCount || 0}</div>
+                  </Card>
+                  <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">异常记录</p>
                     <div className="text-2xl font-mono font-bold text-destructive">{status?.todayStats?.failureRecords || 0}</div>
-                  </div>
-                  <div className="card-embossed p-4 flex flex-col justify-center space-y-2">
+                  </Card>
+                  <Card className="p-4 flex flex-col justify-center space-y-2">
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">上次全量同步</p>
                       <p className="text-xs font-mono truncate" title={status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}>
@@ -448,40 +455,40 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </div>
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
-                      <p className="text-xs font-mono text-green-600 dark:text-green-400 truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
+                      <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}
                       </p>
                     </div>
-                  </div>
+                  </Card>
                 </div>
 
                 {/* Content Columns: Active Rules & Activity Feed */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                   {/* Rules List */}
-                  <div className="card-embossed flex flex-col h-[600px]">
-                    <div className="flex flex-row items-center justify-between px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700/40 shrink-0">
+                  <Card className="flex flex-col h-[600px]">
+                    <CardHeader className="flex-row items-center justify-between border-b border-border/40 shrink-0">
                       <div className="space-y-1">
-                        <h3 className="text-base font-medium flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                        <CardTitle className="flex items-center gap-2">
                           <FileText className="w-4 h-4 text-primary" />
                           活跃规则
-                        </h3>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        </CardTitle>
+                        <CardDescription className="text-xs">
                           当前系统中配置的所有规则状态
-                        </p>
+                        </CardDescription>
                       </div>
                       <div className="flex items-center gap-2">
-                        <button onClick={() => setActiveTab('rules')} className="neu-btn h-8 px-3 text-xs text-muted-foreground flex items-center gap-1.5 !rounded-lg">
+                        <Button variant="neu" size="sm" onClick={() => setActiveTab('rules')}>
                           <Settings className="w-3.5 h-3.5" /> 管理
-                        </button>
-                        <button onClick={() => setActiveTab('rules')} className="h-8 px-3 text-xs font-medium flex items-center gap-1.5 rounded-lg neu-pill-active">
+                        </Button>
+                        <Button size="sm" onClick={() => setActiveTab('rules')}>
                           <Plus className="w-3.5 h-3.5" /> 新建
-                        </button>
+                        </Button>
                       </div>
-                    </div>
+                    </CardHeader>
                     <div className="flex-1 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {status?.rules?.map((rule) => (
-                          <div key={rule.name} className="flex items-center justify-between p-3 rounded-xl border border-gray-100 dark:border-gray-700/40 bg-gray-50/50 dark:bg-gray-800/30 hover:bg-gray-100/60 dark:hover:bg-gray-700/30 transition-colors">
+                          <div key={rule.name} className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className={`w-2 h-2 rounded-full ${rule.hasError ? 'bg-destructive' : 'bg-green-500'}`} />
                               <div className="min-w-0 flex-1">
@@ -491,12 +498,12 @@ export function Dashboard({ onBack }: DashboardProps) {
                             </div>
                             <div className="flex -space-x-1 shrink-0 ml-2">
                               {rule.clients.slice(0, 3).map((client) => (
-                                <div key={client} className="w-5 h-5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-[8px] uppercase ring-1 ring-white dark:ring-gray-700" title={getClientDisplayName(client)}>
+                                <div key={client} className="w-5 h-5 rounded-full bg-background border border-border flex items-center justify-center text-[8px] uppercase ring-1 ring-background" title={getClientDisplayName(client)}>
                                   {client.charAt(0)}
                                 </div>
                               ))}
                               {rule.clients.length > 3 && (
-                                <div className="w-5 h-5 rounded-full bg-white dark:bg-gray-700 border border-gray-200 dark:border-gray-600 flex items-center justify-center text-[8px] uppercase ring-1 ring-white dark:ring-gray-700 text-muted-foreground">
+                                <div className="w-5 h-5 rounded-full bg-background border border-border flex items-center justify-center text-[8px] uppercase ring-1 ring-background text-muted-foreground">
                                   +{rule.clients.length - 3}
                                 </div>
                               )}
@@ -505,33 +512,61 @@ export function Dashboard({ onBack }: DashboardProps) {
                         ))}
                       </div>
                     </div>
-                  </div>
+                  </Card>
 
-                  {/* Recent Activity Feed */}
-                  <div className="card-embossed flex flex-col h-[600px]">
-                    <div className="px-5 pt-5 pb-3 border-b border-gray-100 dark:border-gray-700/40 shrink-0">
-                      <h3 className="text-base font-medium flex items-center gap-2 text-gray-800 dark:text-gray-100">
-                        <Activity className="w-4 h-4 text-blue-500" />
+                  {/* Recent Activity Feed - Two Column Layout */}
+                  <Card className="flex flex-col min-h-[400px]">
+                    <CardHeader className="border-b border-border/40 shrink-0">
+                      <CardTitle className="flex items-center gap-2">
+                        <Activity className="w-4 h-4 text-primary" />
                         动态流
-                      </h3>
-                    </div>
-                    <div className="flex-1 overflow-y-auto p-4">
-                      <ActivityFeed compact items={changeItems} onViewDiff={openChangeDiff} />
-                      <div className="mt-4 pt-4 border-t border-dashed border-gray-200 dark:border-gray-700/40">
-                        <div className="text-xs font-semibold text-muted-foreground mb-2">最近失败</div>
-                        {failureItems.length === 0 ? <p className="text-xs text-muted-foreground">无异常记录</p> : (
-                          <div className="space-y-2">
-                            {failureItems.slice(0, 3).map(f => (
-                              <div key={f.id} className="p-2 bg-red-50 dark:bg-red-900/10 rounded-xl border border-red-100 dark:border-red-800/30 text-xs">
-                                <p className="font-medium text-destructive truncate">{f.ruleName}</p>
-                                <p className="text-muted-foreground truncate">{f.message}</p>
-                              </div>
-                            ))}
+                      </CardTitle>
+                    </CardHeader>
+                    <div className="p-6 flex-1 flex flex-col relative">
+                      {/* Middle Separator */}
+                      <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-border/60 -translate-x-1/2" />
+
+                      <div className="flex-1 flex flex-col md:flex-row gap-12">
+
+                        {/* Left Column: Change Records */}
+                        <div className="flex-1 space-y-4">
+                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                              <RefreshCw className="w-3.5 h-3.5" /> 变动记录
+                            </h3>
                           </div>
-                        )}
+                          <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} />
+                        </div>
+
+                        {/* Right Column: Failure Records */}
+                        <div className="flex-1 space-y-4">
+                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4">
+                            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                              <XCircle className="w-3.5 h-3.5 text-destructive" /> 失败记录
+                            </h3>
+                          </div>
+                          {filteredFailureItems.length === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
+                              <CheckCircle className="w-8 h-8 text-green-500/50 mb-2" />
+                              <p className="text-xs">无异常记录</p>
+                            </div>
+                          ) : (
+                            <div className="space-y-3">
+                              {filteredFailureItems.slice(0, 8).map(f => (
+                                <div key={f.id} className="p-3 bg-destructive/5 rounded-xl border border-destructive/10 text-xs hover:bg-destructive/10 transition-colors">
+                                  <div className="flex items-center justify-between mb-1">
+                                    <p className="font-semibold text-destructive truncate">{f.ruleName}</p>
+                                    <span className="text-[10px] text-muted-foreground font-mono">{formatTimestamp(f.timestamp).split(' ')[1]}</span>
+                                  </div>
+                                  <p className="text-muted-foreground line-clamp-2">{f.message}</p>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  </Card>
                 </div>
               </div>
             )}
@@ -547,16 +582,16 @@ export function Dashboard({ onBack }: DashboardProps) {
             {/* Activity Full View */}
             {/* Activity Full View */}
             {activeTab === 'activity' && (
-              <div className="card-embossed flex flex-col min-h-[600px]">
-                <div className="flex flex-row items-center justify-between px-6 pt-6 pb-4 border-b border-gray-100 dark:border-gray-700/40">
+              <Card className="flex flex-col min-h-[600px]">
+                <CardHeader className="flex-row items-center justify-between border-b border-border/40">
                   <div className="space-y-1">
-                    <h3 className="text-lg font-semibold flex items-center gap-2 text-gray-800 dark:text-gray-100">
+                    <CardTitle className="text-lg flex items-center gap-2">
                       <Activity className="w-5 h-5 text-primary" />
                       系统活动记录
-                    </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                    </CardTitle>
+                    <CardDescription>
                       查看详细的历史变更与同步日志
-                    </p>
+                    </CardDescription>
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Pagination Controls */}
@@ -637,7 +672,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </>
                     </Button>
                   </div>
-                </div>
+                </CardHeader>
                 <div className="flex-1 p-6">
                   <Tabs defaultValue="changes" value={activityTab} onValueChange={setActivityTab} className="w-full h-full flex flex-col">
                     <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 mb-6 h-auto">
@@ -696,7 +731,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </TabsContent>
                   </Tabs>
                 </div>
-              </div>
+              </Card>
             )}
           </div>
         </main>

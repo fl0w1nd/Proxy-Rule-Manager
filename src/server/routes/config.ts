@@ -19,7 +19,6 @@ import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir, getClientFiles
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
-const RESERVED_CLIENT_DIRS = new Set(["rules", "sources", "records", "waf", "iconset", "client"]);
 
 async function addDirToZip(zip: AdmZip, sourceDir: string, prefix: string): Promise<void> {
   const entries = await fs.readdir(sourceDir, { withFileTypes: true });

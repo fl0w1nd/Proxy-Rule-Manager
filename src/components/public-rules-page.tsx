@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { Button } from "@/components/ui/button";
+import NextImage from "next/image";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -29,35 +30,26 @@ import {
   Maximize2,
   X,
   Tag,
-  Image,
+  Image as ImageIcon,
   Sparkles,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
 import { ClientFileMeta } from "@/lib/schema";
 import { RuleIcon } from "./icon-picker";
-import { listIcons, IconMeta } from "@/lib/api-client";
+import {
+  listIcons,
+  IconMeta,
+  ClientConfig,
+  PublicRuleInfo,
+  getPublicStatus,
+  getPublicClientFiles,
+} from "@/lib/api-client";
 import { AmbientBackground } from "./ambient-background";
-
-
-interface RuleInfo {
-  name: string;
-  displayName?: string;
-  description?: string;
-  icon?: string;
-  tags?: string[];
-  clients: string[];
-}
-
-interface ClientConfig {
-  id: string;
-  displayName: string;
-  pathName: string;
-}
 
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
-  const [rules, setRules] = useState<RuleInfo[]>([]);
+  const [rules, setRules] = useState<PublicRuleInfo[]>([]);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
@@ -110,33 +102,42 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isPreviewFullscreen]);
 
+  const copyToClipboard = async (
+    text: string,
+    onCopied: () => void,
+    successMessage?: string
+  ) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      onCopied();
+      if (successMessage) {
+        toast.success(successMessage);
+      }
+    } catch {
+      toast.error("复制失败");
+    }
+  };
+
   const fetchData = async () => {
     try {
-      const [statusResponse, filesResponse, iconsResult] = await Promise.all([
-        fetch("/api/status"),
-        fetch("/api/client-files/public"),
+      const [statusResult, filesResult, iconsResult] = await Promise.all([
+        getPublicStatus(),
+        getPublicClientFiles(),
         listIcons().catch(() => ({ icons: [] })),
       ]);
 
-      if (statusResponse.ok) {
-        const data = await statusResponse.json();
-        setRules(data.rules || []);
-        setLastSyncAt(data.lastSyncAt || null);
-        setVersion(data.version || "");
-        if (data.clients && data.clients.length > 0) {
-          setClients(data.clients);
-          setActiveClient((prev) => prev || data.clients[0].id);
-        }
+      setRules(statusResult.rules || []);
+      setLastSyncAt(statusResult.lastSyncAt || null);
+      setVersion(statusResult.version || "");
+      if (statusResult.clients && statusResult.clients.length > 0) {
+        setClients(statusResult.clients);
+        setActiveClient((prev) => prev || statusResult.clients[0].id);
       }
 
-      if (filesResponse.ok) {
-        const data = await filesResponse.json();
-        setClientFiles(data.files || []);
-      }
-
+      setClientFiles(filesResult.files || []);
       setIcons(iconsResult.icons || []);
-    } catch (error) {
-      console.error("Failed to fetch data:", error);
+    } catch {
+      toast.error("加载公开数据失败");
     } finally {
       setIsLoading(false);
     }
@@ -156,33 +157,36 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return `${window.location.origin}/client/${name}.${ext}`;
   };
 
-  const copyRuleUrl = (ruleName: string, clientId?: string) => {
+  const copyRuleUrl = async (ruleName: string, clientId?: string) => {
     const target = clientId || activeClient;
     const url = getRuleUrl(ruleName, target);
-    navigator.clipboard.writeText(url);
-    setCopiedRule(ruleName);
-    setTimeout(() => setCopiedRule(null), 2000);
+    await copyToClipboard(url, () => {
+      setCopiedRule(ruleName);
+      setTimeout(() => setCopiedRule(null), 2000);
+    });
   };
 
   const getClientDisplayName = (clientId: string) => {
     return getClientConfig(clientId)?.displayName || clientId;
   };
 
-  const copyConfigUrl = (file: ClientFileMeta) => {
+  const copyConfigUrl = async (file: ClientFileMeta) => {
     const url = getConfigUrl(file.configId, file.ext);
-    navigator.clipboard.writeText(url);
-    setCopiedConfig(file.id);
-    setTimeout(() => setCopiedConfig(null), 2000);
+    await copyToClipboard(url, () => {
+      setCopiedConfig(file.id);
+      setTimeout(() => setCopiedConfig(null), 2000);
+    });
   };
 
   const getIconFullUrl = (icon: IconMeta) => {
     return `${window.location.origin}${icon.url}`;
   };
 
-  const copyIconUrl = (icon: IconMeta) => {
-    navigator.clipboard.writeText(getIconFullUrl(icon));
-    setCopiedIcon(icon.id);
-    setTimeout(() => setCopiedIcon(null), 2000);
+  const copyIconUrl = async (icon: IconMeta) => {
+    await copyToClipboard(getIconFullUrl(icon), () => {
+      setCopiedIcon(icon.id);
+      setTimeout(() => setCopiedIcon(null), 2000);
+    });
   };
 
   const handlePreview = async (item: {
@@ -300,35 +304,34 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
                 <div className="neu-icon">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
                 </div>
               ) : (
                 <div className="neu-icon">
-                  <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <FileText className="w-5 h-5 text-muted-foreground" />
                 </div>
               );
             })()}
-            <span className="font-semibold text-gray-800 dark:text-gray-100">{previewItem.fileName}</span>
+            <span className="font-semibold text-foreground">{previewItem.fileName}</span>
             <span className="neu-badge neu-badge-active">
               {getClientConfig(previewItem.clientId)?.displayName || previewItem.clientId}
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="text-sm text-gray-500 dark:text-gray-400">
+            <span className="text-sm text-muted-foreground">
               {previewContent.split('\n').length} 行
             </span>
             <button
-              className="neu-btn px-4 py-2 text-sm text-gray-600 dark:text-gray-300 flex items-center gap-1.5"
+              className="neu-btn px-4 py-2 text-sm text-muted-foreground flex items-center gap-1.5"
               onClick={() => {
-                navigator.clipboard.writeText(previewContent);
-                toast.success("已复制内容");
+                void copyToClipboard(previewContent, () => undefined, "已复制内容");
               }}
             >
               <Copy className="w-4 h-4" />
               复制
             </button>
             <button
-              className="neu-btn w-10 h-10 flex items-center justify-center text-gray-500 dark:text-gray-400"
+              className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground"
               onClick={() => setIsPreviewFullscreen(false)}
             >
               <X className="w-5 h-5" />
@@ -346,13 +349,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             ) : (
               <div className="flex text-sm font-mono min-w-max">
                 {/* 行号 */}
-                <div className="py-4 pl-4 pr-3 text-right text-gray-400 dark:text-gray-500 select-none sticky left-0 bg-black/[0.02] dark:bg-white/[0.02]">
+                <div className="py-4 pl-4 pr-3 text-right text-muted-foreground select-none sticky left-0 bg-muted/20">
                   {previewContent.split('\n').map((_, i) => (
                     <div key={i}>{i + 1}</div>
                   ))}
                 </div>
                 {/* 内容 */}
-                <pre className="py-4 px-4 text-gray-700 dark:text-gray-200 whitespace-pre">
+                <pre className="py-4 px-4 text-foreground whitespace-pre">
                   {previewContent || "暂无内容"}
                 </pre>
               </div>
@@ -373,14 +376,14 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
                 <div className="neu-icon !w-11 !h-11 !rounded-[16px]">
-                  <img src="/logo.svg" alt="Logo" className="w-6 h-6" />
+                  <NextImage src="/logo.svg" alt="Logo" width={24} height={24} className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl font-bold text-gray-800 dark:text-gray-100 truncate tracking-tight">
+                  <h1 className="text-lg sm:text-xl font-bold text-foreground truncate tracking-tight">
                     代理规则集
                   </h1>
                   <div className="flex items-center gap-2">
-                    <p className="text-xs text-gray-400 dark:text-gray-500 hidden xs:block">
+                    <p className="text-xs text-muted-foreground hidden xs:block">
                       Proxy Rule Manager
                     </p>
                     {version && (
@@ -394,7 +397,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={toggleTheme}
-                  className="neu-btn w-11 h-11 flex items-center justify-center text-gray-500 dark:text-gray-400 !rounded-[14px]"
+                  className="neu-btn w-11 h-11 flex items-center justify-center text-muted-foreground !rounded-[14px]"
                 >
                   {theme === "light" ? (
                     <Moon className="w-[18px] h-[18px]" />
@@ -404,7 +407,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </button>
                 <button
                   onClick={onAdminClick}
-                  className="neu-btn h-11 px-4 flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm !rounded-[14px]"
+                  className="neu-btn h-11 px-4 flex items-center gap-2 text-muted-foreground text-sm !rounded-[14px]"
                 >
                   <Settings className="w-4 h-4" />
                   <span className="hidden sm:inline">管理</span>
@@ -434,7 +437,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className={`px-5 py-2.5 text-sm font-medium transition-all duration-200 ${
                       activeMainTab === tab.key
                         ? "neu-pill-active"
-                        : "rounded-[50px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        : "rounded-[50px] text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {tab.label}
@@ -444,13 +447,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
               {/* Search */}
               <div className="neu-search flex items-center gap-2 px-4 py-2.5 w-full sm:w-auto sm:min-w-[280px]">
-                <Search className="w-4 h-4 text-gray-400 flex-shrink-0" />
+                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
                 <input
                   type="text"
                   placeholder={activeMainTab === "rules" ? "搜索规则..." : activeMainTab === "configs" ? "搜索配置文件..." : "搜索图标..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-gray-700 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 w-full"
+                  className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-full"
                 />
               </div>
             </div>
@@ -465,7 +468,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className={`px-4 py-2 text-sm font-medium transition-all duration-200 flex-shrink-0 whitespace-nowrap ${
                       activeClient === client.id
                         ? "neu-pill-active"
-                        : "rounded-[50px] text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200"
+                        : "rounded-[50px] text-muted-foreground hover:text-foreground"
                     }`}
                   >
                     {client.displayName}
@@ -477,7 +480,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             {/* Tag Filter */}
             {activeMainTab === "rules" && allTags.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <div className="flex items-center gap-1.5 text-sm text-gray-400 dark:text-gray-500 flex-shrink-0">
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0">
                   <Tag className="w-3.5 h-3.5" />
                 </div>
                 {allTags.map((tag) => (
@@ -487,7 +490,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className={`flex-shrink-0 transition-all duration-200 ${
                       selectedTags.includes(tag)
                         ? "neu-badge neu-badge-active"
-                        : "neu-badge hover:text-gray-700 dark:hover:text-gray-200"
+                        : "neu-badge hover:text-foreground"
                     }`}
                   >
                     {tag}
@@ -496,7 +499,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {selectedTags.length > 0 && (
                   <button
                     onClick={() => setSelectedTags([])}
-                    className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 flex-shrink-0 ml-1 transition-colors"
+                    className="text-xs text-muted-foreground hover:text-foreground flex-shrink-0 ml-1 transition-colors"
                   >
                     清除筛选
                   </button>
@@ -510,19 +513,19 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             <div className="flex items-center justify-center py-24">
               <div className="neu-raised p-8 flex flex-col items-center gap-4">
                 <Loader2 className="w-8 h-8 animate-spin text-blue-400" />
-                <p className="text-sm text-gray-400">加载中...</p>
+                <p className="text-sm text-muted-foreground">加载中...</p>
               </div>
             </div>
           ) : activeMainTab === "rules" ? (
             clientRules.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <Globe className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                  <Globe className="w-10 h-10 text-muted-foreground/70" />
                 </div>
-                <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                <p className="text-lg font-semibold text-foreground">
                   {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
                 </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 max-w-sm mx-auto">
+                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
                   {searchQuery || selectedTags.length > 0
                     ? "尝试调整搜索条件或清除筛选标签"
                     : "该客户端暂无可用规则"}
@@ -531,9 +534,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             ) : (
               <div className="neu-grid">
                 {clientRules.map((rule, index) => (
-                  <div
+                  <Card
                     key={rule.name}
-                    className="glass-card group relative p-5 animate-slide-up opacity-0"
+                    className="group relative p-5 animate-slide-up opacity-0"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
                     {/* Floating action buttons */}
@@ -541,7 +544,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                           <button
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors"
                             onClick={() => handlePreview({
                               type: "rule",
                               name: rule.name,
@@ -562,9 +565,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                             className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
                               copiedRule === rule.name
                                 ? "bg-green-400/20 text-green-600 dark:text-green-400"
-                                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                                : "text-muted-foreground hover:text-foreground"
                             }`}
-                            onClick={() => copyRuleUrl(rule.name)}
+                            onClick={() => {
+                              void copyRuleUrl(rule.name);
+                            }}
                           >
                             {copiedRule === rule.name ? (
                               <CheckCircle className="w-3.5 h-3.5" />
@@ -582,20 +587,20 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <div className="flex items-start gap-3.5">
                       <div className="neu-icon">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-gray-400 dark:text-gray-500" />
+                          <FileText className="w-[18px] h-[18px] text-muted-foreground" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1 pr-16">
-                        <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100 truncate leading-tight">
+                        <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
                           {rule.displayName || rule.name}
                         </h3>
                         {rule.description && (
                           <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
                               <div className="mt-2 cursor-default">
-                                <p className="text-[13px] text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                                <p className="text-[13px] text-muted-foreground line-clamp-2 leading-relaxed">
                                   {rule.description}
                                 </p>
                               </div>
@@ -603,7 +608,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                             <TooltipContent
                               side="bottom"
                               align="start"
-                              className="max-w-[300px] bg-gray-900 text-white dark:bg-white dark:text-gray-900 border-none shadow-lg rounded-xl"
+                              className="max-w-[300px] bg-background text-foreground border border-border shadow-lg rounded-xl"
                             >
                               <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
                                 {rule.description}
@@ -626,13 +631,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           </span>
                         ))
                       ) : (
-                        <span className="text-[11px] text-gray-300 dark:text-gray-600">—</span>
+                        <span className="text-[11px] text-muted-foreground/70">—</span>
                       )}
                       {rule.tags && rule.tags.length > 4 && (
-                        <span className="text-[11px] text-gray-400 dark:text-gray-500">+{rule.tags.length - 4}</span>
+                        <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
                       )}
                     </div>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )
@@ -640,12 +645,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             clientPublicFiles.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <FileText className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                  <FileText className="w-10 h-10 text-muted-foreground/70" />
                 </div>
-                <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
                 </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 max-w-sm mx-auto">
+                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
                   {searchQuery
                     ? "尝试使用其他关键词搜索"
                     : "该客户端暂无公开的配置文件"}
@@ -655,9 +660,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               <div className="neu-grid">
                 {clientPublicFiles.map((file, index) => {
                   return (
-                    <div
+                    <Card
                       key={file.id}
-                      className="glass-card p-5 animate-slide-up opacity-0"
+                      className="p-5 animate-slide-up opacity-0"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                       <div className="flex items-start gap-3.5">
@@ -665,14 +670,14 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <FileText className="w-[18px] h-[18px] text-green-600/70 dark:text-green-400/70" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100 truncate leading-tight">
+                          <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
                             {file.displayName || `${file.configId}.${file.ext}`}
                           </h3>
-                          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5 font-mono truncate">
+                          <p className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
                             {file.configId}.{file.ext}
                           </p>
                           {file.description && (
-                            <p className="text-[13px] text-gray-500 dark:text-gray-400 mt-2 line-clamp-2 leading-relaxed">
+                            <p className="text-[13px] text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
                               {file.description}
                             </p>
                           )}
@@ -680,7 +685,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </div>
                       <div className="flex gap-3 mt-5">
                         <button
-                          className="neu-btn flex-1 h-10 text-[13px] text-gray-600 dark:text-gray-300 flex items-center justify-center gap-1.5"
+                          className="neu-btn flex-1 h-10 text-[13px] text-muted-foreground flex items-center justify-center gap-1.5"
                           onClick={() => handlePreview({
                             type: "config",
                             name: file.configId,
@@ -698,7 +703,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                               ? "bg-green-400/20 text-green-600 dark:text-green-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.04),inset_-2px_-2px_5px_rgba(255,255,255,0.4)]"
                               : "neu-pill-active"
                           }`}
-                          onClick={() => copyConfigUrl(file)}
+                          onClick={() => {
+                            void copyConfigUrl(file);
+                          }}
                         >
                           {copiedConfig === file.id ? (
                             <>
@@ -713,7 +720,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           )}
                         </button>
                       </div>
-                    </div>
+                    </Card>
                   );
                 })}
               </div>
@@ -723,12 +730,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             filteredIcons.length === 0 ? (
               <div className="text-center py-24">
                 <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
-                  <Image className="w-10 h-10 text-gray-300 dark:text-gray-600" />
+                  <ImageIcon className="w-10 h-10 text-muted-foreground/70" />
                 </div>
-                <p className="text-lg font-semibold text-gray-700 dark:text-gray-200">
+                <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的图标" : "暂无图标"}
                 </p>
-                <p className="text-sm text-gray-400 dark:text-gray-500 mt-2 max-w-sm mx-auto">
+                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
                   {searchQuery
                     ? "尝试使用其他关键词搜索"
                     : "图标集暂无图标"}
@@ -737,19 +744,22 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5">
                 {filteredIcons.map((icon, index) => (
-                  <div
+                  <Card
                     key={icon.id}
-                    className="glass-card group p-3 animate-slide-up opacity-0"
+                    className="group p-3 animate-slide-up opacity-0"
                     style={{ animationDelay: `${index * 25}ms` }}
                   >
-                    <div className="aspect-square w-full flex items-center justify-center rounded-xl overflow-hidden mb-2 neu-inset p-2">
-                      <img
+                    <div className="relative aspect-square w-full flex items-center justify-center rounded-xl overflow-hidden mb-2 neu-inset p-2">
+                      <NextImage
                         src={icon.url}
                         alt={icon.name}
-                        className="max-w-full max-h-full object-contain"
+                        fill
+                        sizes="(max-width: 640px) 30vw, (max-width: 1024px) 16vw, 10vw"
+                        unoptimized
+                        className="object-contain"
                       />
                     </div>
-                    <p className="text-xs font-medium text-gray-700 dark:text-gray-200 truncate text-center" title={icon.name}>
+                    <p className="text-xs font-medium text-foreground truncate text-center" title={icon.name}>
                       {icon.name}
                     </p>
                     <button
@@ -758,7 +768,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           ? "bg-green-400/20 text-green-600 dark:text-green-400"
                           : "neu-pill-active !rounded-lg"
                       }`}
-                      onClick={() => copyIconUrl(icon)}
+                      onClick={() => {
+                        void copyIconUrl(icon);
+                      }}
                     >
                       {copiedIcon === icon.id ? (
                         <>
@@ -772,7 +784,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         </>
                       )}
                     </button>
-                  </div>
+                  </Card>
                 ))}
               </div>
             )
@@ -781,7 +793,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
           {/* Stats */}
           <div className="mt-10 flex justify-center">
-            <div className="neu-stats px-6 py-2.5 text-center text-sm text-gray-500/80 dark:text-gray-400/70 space-y-0.5">
+            <div className="neu-stats px-6 py-2.5 text-center text-sm text-muted-foreground/80 space-y-0.5">
               {activeMainTab === "rules" ? (
                 <>
                   <p>共 {clientRules.length} 条规则</p>
@@ -823,16 +835,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
           <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none bg-[#e8ecf1] dark:bg-[#1a1d23]">
             <DialogHeader className="px-6 pt-6 pb-4 glass-header !border-b-0">
-              <DialogTitle className="flex items-center gap-3 text-gray-800 dark:text-gray-100 font-semibold">
+              <DialogTitle className="flex items-center gap-3 text-foreground font-semibold">
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
                     <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-muted-foreground" />
                     </div>
                   ) : (
                     <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
-                      <FileText className="w-4 h-4 text-gray-500 dark:text-gray-400" />
+                      <FileText className="w-4 h-4 text-muted-foreground" />
                     </div>
                   );
                 })()}
@@ -851,22 +863,21 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 <>
                   {/* 工具栏 */}
                   <div className="flex items-center justify-between px-4 py-2 mb-2">
-                    <span className="text-sm text-gray-400 dark:text-gray-500">
+                    <span className="text-sm text-muted-foreground">
                       {previewContent.split('\n').length} 行
                     </span>
                     <div className="flex items-center gap-2">
                       <button
-                        className="neu-btn px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 !rounded-lg"
+                        className="neu-btn px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5 !rounded-lg"
                         onClick={() => {
-                          navigator.clipboard.writeText(previewContent);
-                          toast.success("已复制内容");
+                          void copyToClipboard(previewContent, () => undefined, "已复制内容");
                         }}
                       >
                         <Copy className="w-3.5 h-3.5" />
                         复制
                       </button>
                       <button
-                        className="neu-btn px-3 py-1.5 text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1.5 !rounded-lg"
+                        className="neu-btn px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5 !rounded-lg"
                         onClick={() => setIsPreviewFullscreen(true)}
                       >
                         <Maximize2 className="w-3.5 h-3.5" />
@@ -878,13 +889,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <div className="flex-1 overflow-auto neu-inset">
                     <div className="flex text-sm font-mono min-w-max">
                       {/* 行号 */}
-                      <div className="py-4 pl-4 pr-3 text-right text-gray-400 dark:text-gray-500 select-none sticky left-0 bg-black/[0.02] dark:bg-white/[0.02]">
+                      <div className="py-4 pl-4 pr-3 text-right text-muted-foreground select-none sticky left-0 bg-muted/20">
                         {previewContent.split('\n').map((_, i) => (
                           <div key={i}>{i + 1}</div>
                         ))}
                       </div>
                       {/* 内容 */}
-                      <pre className="py-4 px-4 text-gray-700 dark:text-gray-200 whitespace-pre">
+                      <pre className="py-4 px-4 text-foreground whitespace-pre">
                         {previewContent || "暂无内容"}
                       </pre>
                     </div>

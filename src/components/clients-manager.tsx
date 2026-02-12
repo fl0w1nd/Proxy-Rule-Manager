@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ import {
     ClientConfig,
 } from "@/lib/api-client";
 import { Transform, ScriptTransformer, ClientFileMeta } from "@/lib/schema";
+import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
 
 interface ClientsManagerProps {
     onRefresh?: () => void;
@@ -52,12 +54,21 @@ interface ClientFormData {
     transforms: Transform[];
 }
 
+function createListItemKey(): string {
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function createListItemKeys(count: number): string[] {
+    return Array.from({ length: count }, () => createListItemKey());
+}
+
 export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [clients, setClients] = useState<ClientConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientConfig | null>(null);
     const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", pathName: "", transforms: [] });
+    const [transformKeys, setTransformKeys] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
@@ -135,6 +146,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const openAddDialog = () => {
         setEditingClient(null);
         setFormData({ id: "", displayName: "", pathName: "", transforms: [] });
+        setTransformKeys([]);
         setIsDialogOpen(true);
     };
 
@@ -146,6 +158,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             pathName: client.pathName,
             transforms: client.transforms || [],
         });
+        setTransformKeys(createListItemKeys(client.transforms?.length || 0));
         setIsDialogOpen(true);
     };
 
@@ -184,28 +197,26 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     const addTransform = (type: "use" | "replace" | "remove_lines") => {
-        const newTransform: Transform = { type, target: "all" };
-        if (type === "replace") {
-            newTransform.pattern = "";
-            newTransform.replacement = "";
-        } else if (type === "remove_lines") {
-            newTransform.pattern = "";
-        }
-        setFormData({ ...formData, transforms: [...formData.transforms, newTransform] });
+        setFormData((prev) => ({
+            ...prev,
+            transforms: [...prev.transforms, createTransformByType(type)],
+        }));
+        setTransformKeys((prev) => [...prev, createListItemKey()]);
     };
 
     const updateTransform = (index: number, updates: Partial<Transform>) => {
-        setFormData({
-            ...formData,
-            transforms: formData.transforms.map((t, i) => (i === index ? { ...t, ...updates } : t)),
-        });
+        setFormData((prev) => ({
+            ...prev,
+            transforms: prev.transforms.map((t, i) => (i === index ? { ...t, ...updates } : t)),
+        }));
     };
 
     const removeTransform = (index: number) => {
-        setFormData({
-            ...formData,
-            transforms: formData.transforms.filter((_, i) => i !== index),
-        });
+        setFormData((prev) => ({
+            ...prev,
+            transforms: prev.transforms.filter((_, i) => i !== index),
+        }));
+        setTransformKeys((prev) => prev.filter((_, i) => i !== index));
     };
 
     const handleSave = async () => {
@@ -333,11 +344,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     if (isLoading) {
         return (
-            <div className="card-embossed">
+            <Card>
                 <div className="flex items-center justify-center py-8">
                     <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
                 </div>
-            </div>
+            </Card>
         );
     }
 
@@ -348,15 +359,15 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     // Fullscreen file editor mode
     if (isFullscreenFileEditor) {
         return (
-            <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
-                <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+            <div className="fixed inset-0 z-50 bg-background flex flex-col">
+                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
                     <div className="flex items-center gap-3">
                         <FileText className="w-5 h-5 text-primary" />
-                        <span className="font-semibold text-gray-900 dark:text-white">
+                        <span className="font-semibold text-foreground">
                             {editingFile ? "编辑配置文件" : "新建配置文件"}
                         </span>
                         {fileForm.configId && fileForm.ext && (
-                            <Badge variant="outline" className="border-gray-300 text-gray-500 font-mono">
+                            <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground font-mono">
                                 {fileForm.configId}.{fileForm.ext}
                             </Badge>
                         )}
@@ -426,15 +437,15 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     return (
         <>
-            <div className="card-embossed">
+            <Card>
                 <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                            <h3 className="text-base font-medium text-foreground flex items-center gap-2">
                                 <Monitor className="w-5 h-5 text-primary" />
                                 客户端管理
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                            <p className="text-sm text-muted-foreground">
                                 管理代理客户端类型，添加新客户端或修改现有客户端
                             </p>
                         </div>
@@ -627,7 +638,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                         </div>
                     )}
                 </div>
-            </div>
+            </Card>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                 <DialogContent className="max-h-[85vh] flex flex-col p-0">
@@ -647,10 +658,10 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <Input
                                 id="id"
                                 value={formData.id}
-                                onChange={(e) => setFormData({ ...formData, id: e.target.value })}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, id: e.target.value }))}
                                 placeholder="例如: surge"
                             />
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 唯一标识符，用于内部引用（可作为规则配置中的客户端 ID）
                             </p>
                         </div>
@@ -659,7 +670,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <Input
                                 id="displayName"
                                 value={formData.displayName}
-                                onChange={(e) => setFormData({ ...formData, displayName: e.target.value })}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
                                 placeholder="例如: Surge"
                             />
                         </div>
@@ -668,16 +679,16 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <Input
                                 id="pathName"
                                 value={formData.pathName}
-                                onChange={(e) => setFormData({ ...formData, pathName: e.target.value })}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, pathName: e.target.value }))}
                                 placeholder="例如: Surge"
                             />
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 用于 URL 路径: /Rules/{formData.pathName || "..."}/规则名.list
                             </p>
                         </div>
 
                         {/* 全局转换器配置 */}
-                        <div className="space-y-2 pt-2 border-t border-gray-200 dark:border-slate-700">
+                        <div className="space-y-2 pt-2 border-t border-border">
                             <div className="flex items-center justify-between">
                                 <Label className="flex items-center gap-2">
                                     <Settings2 className="w-4 h-4" />
@@ -689,7 +700,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     </Badge>
                                 )}
                             </div>
-                            <p className="text-xs text-gray-500">
+                            <p className="text-xs text-muted-foreground">
                                 为该客户端配置全局转换器，规则默认会使用这些转换器
                             </p>
 
@@ -697,8 +708,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <div className="space-y-2">
                                 {formData.transforms.map((transform, index) => (
                                     <div
-                                        key={index}
-                                        className="p-3 rounded border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 space-y-2"
+                                        key={transformKeys[index] ?? `transform-${index}`}
+                                        className="p-3 rounded border border-border bg-muted/50 space-y-2"
                                     >
                                         <div className="flex items-center justify-between">
                                             <span className="text-sm font-medium">转换器 {index + 1}</span>
@@ -707,7 +718,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => removeTransform(index)}
-                                                className="w-6 h-6 text-gray-400 hover:text-red-500"
+                                                className="w-6 h-6 text-muted-foreground hover:text-red-500"
                                             >
                                                 <Trash2 className="w-3 h-3" />
                                             </Button>
@@ -716,15 +727,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                         <Select
                                             value={transform.type}
                                             onValueChange={(type: "use" | "replace" | "remove_lines") => {
-                                                const newTransform: Partial<Transform> = { type };
-                                                if (type === "replace") {
-                                                    newTransform.pattern = "";
-                                                    newTransform.replacement = "";
-                                                }
-                                                if (type === "remove_lines") {
-                                                    newTransform.pattern = "";
-                                                }
-                                                updateTransform(index, newTransform);
+                                                updateTransform(index, getTransformTypeUpdates(type));
                                             }}
                                         >
                                             <SelectTrigger className="h-8">

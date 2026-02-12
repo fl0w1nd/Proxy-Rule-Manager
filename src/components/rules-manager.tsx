@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -216,19 +217,19 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   // 全屏预览模式
   if (isPreviewFullscreen && previewingRule && previewData) {
     return (
-      <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
             {(() => {
               const rule = config?.rules.find(r => r.name === previewingRule);
               return rule?.icon ? (
-                <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                <RuleIcon icon={rule.icon} className="w-6 h-6 text-muted-foreground" />
               ) : (
-                <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                <FileText className="w-5 h-5 text-muted-foreground" />
               );
             })()}
-            <span className="font-semibold text-gray-900 dark:text-white">预览: {previewingRule}</span>
+            <span className="font-semibold text-foreground">预览: {previewingRule}</span>
             {previewData.diagnostics.truncated && (
               <Badge variant="outline" className="border-amber-500 text-amber-500">
                 内容已截断（共 {previewData.diagnostics.totalLines} 行）
@@ -262,7 +263,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 数据源状态 */}
         {previewData.diagnostics.sourceResults.length > 0 && (
-          <div className="px-4 py-2 bg-gray-50 dark:bg-slate-800/50 border-b border-gray-200 dark:border-slate-700">
+          <div className="px-4 py-2 bg-muted/50 border-b border-border">
             <div className="flex flex-wrap gap-4">
               {previewData.diagnostics.sourceResults.map((source, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
@@ -271,10 +272,10 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   ) : (
                     <XCircle className="w-4 h-4 text-red-500" />
                   )}
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">#{i + 1}</span>
-                  <span className="text-gray-700 dark:text-gray-300 truncate max-w-md">{source.url}</span>
+                  <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
+                  <span className="text-foreground/80 truncate max-w-md">{source.url}</span>
                   {source.size !== undefined && source.size > 0 && (
-                    <span className="text-gray-500">({(source.size / 1024).toFixed(1)} KB)</span>
+                    <span className="text-muted-foreground">({(source.size / 1024).toFixed(1)} KB)</span>
                   )}
                 </div>
               ))}
@@ -284,8 +285,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 客户端标签 */}
         <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="px-4 py-2 border-b border-gray-200 dark:border-slate-700 shrink-0">
-            <TabsList className="bg-gray-100 dark:bg-slate-800">
+          <div className="px-4 py-2 border-b border-border shrink-0">
+            <TabsList className="bg-muted">
               {Object.keys(previewData.contents).map((client) => (
                 <TabsTrigger key={client} value={client} className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
                   {getClientDisplayName(client)}
@@ -295,7 +296,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           </div>
           {Object.entries(previewData.contents).map(([client, content]) => (
             <TabsContent key={client} value={client} className="flex-1 m-0 min-h-0 overflow-auto">
-              <pre className="p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre">
+              <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre">
                 {content || "暂无内容"}
               </pre>
             </TabsContent>
@@ -310,20 +311,20 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       {/* Search and Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
         <div className="relative w-full sm:w-auto sm:flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <Input
             placeholder="搜索规则..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-white dark:bg-slate-800"
+            className="pl-10 bg-background"
           />
         </div>
         <Button
+          variant="success"
           onClick={() => {
             setEditingRule(null);
             setIsEditorOpen(true);
           }}
-          className="bg-gradient-to-r from-blue-500 to-cyan-500 hover:from-blue-600 hover:to-cyan-600 text-white"
         >
           <Plus className="w-4 h-4 mr-2" />
           添加规则
@@ -333,7 +334,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       {/* 标签筛选器 */}
       {allTags.length > 0 && (
         <div className="flex items-center gap-2 overflow-x-auto pb-2">
-          <div className="flex items-center gap-1 text-sm text-gray-500 dark:text-gray-400 flex-shrink-0">
+          <div className="flex items-center gap-1 text-sm text-muted-foreground flex-shrink-0">
             <Tag className="w-4 h-4" />
             <span>标签筛选:</span>
           </div>
@@ -346,7 +347,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               aria-pressed={selectedTags.includes(tag)}
               className={`cursor-pointer transition-colors flex-shrink-0 ${selectedTags.includes(tag)
                 ? "bg-blue-500 hover:bg-blue-600 text-white"
-                : "hover:bg-gray-100 dark:hover:bg-slate-700"
+                : "hover:bg-accent"
                 }`}
               onClick={() => toggleTag(tag)}
               onKeyDown={(e) => {
@@ -364,7 +365,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               variant="ghost"
               size="sm"
               onClick={() => setSelectedTags([])}
-              className="h-6 px-2 text-xs text-gray-500 hover:text-gray-700 flex-shrink-0"
+              className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground flex-shrink-0"
             >
               清除筛选
             </Button>
@@ -377,21 +378,19 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         {filteredRules?.map((rule, index) => {
           const isExpanded = expandedCard === rule.name;
           return (
-            <div
+            <Card
               key={rule.name}
-              className={`card-embossed p-5 animate-slide-up opacity-0 flex flex-col relative transition-[z-index] ${
-                isExpanded ? "z-50" : "z-0"
-              }`}
+              className={`p-5 animate-slide-up opacity-0 flex flex-col relative transition-[z-index] ${isExpanded ? "z-50" : "z-0"
+                }`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               {/* Trigger button – top right */}
               <button
                 onClick={() => setExpandedCard(isExpanded ? null : rule.name)}
-                className={`fab-trigger w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-250 ${
-                  isExpanded
-                    ? "bg-gray-800 dark:bg-white text-white dark:text-gray-800 shadow-md"
-                    : "text-gray-300 dark:text-gray-600 hover:text-gray-500 dark:hover:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/40"
-                }`}
+                className={`fab-trigger w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-250 ${isExpanded
+                  ? "bg-foreground text-background shadow-md"
+                  : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent"
+                  }`}
               >
                 {isExpanded ? (
                   <X className="w-4 h-4" />
@@ -406,7 +405,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="fab-item text-gray-600 dark:text-gray-300"
+                      className="fab-item text-muted-foreground"
                       style={{ "--fab-i": 0 } as React.CSSProperties}
                       onClick={() => {
                         setEditingRule(rule);
@@ -424,7 +423,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="fab-item text-gray-600 dark:text-gray-300"
+                      className="fab-item text-muted-foreground"
                       style={{ "--fab-i": 1 } as React.CSSProperties}
                       onClick={() => {
                         handlePreviewRule(rule.name, rule.output.clients);
@@ -441,7 +440,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="fab-item text-gray-600 dark:text-gray-300"
+                      className="fab-item text-muted-foreground"
                       style={{ "--fab-i": 2 } as React.CSSProperties}
                       onClick={() => {
                         handleRefreshRule(rule.name);
@@ -464,7 +463,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
-                        className="fab-item text-gray-600 dark:text-gray-300"
+                        className="fab-item text-muted-foreground"
                         style={{ "--fab-i": 3 } as React.CSSProperties}
                         onClick={() => {
                           copyRuleUrl(rule.name, rule.output.clients[0]);
@@ -482,7 +481,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       <TooltipTrigger asChild>
                         <DropdownMenuTrigger asChild>
                           <button
-                            className="fab-item text-gray-600 dark:text-gray-300"
+                            className="fab-item text-muted-foreground"
                             style={{ "--fab-i": 3 } as React.CSSProperties}
                           >
                             <Copy className="w-[15px] h-[15px]" />
@@ -491,7 +490,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       </TooltipTrigger>
                       <TooltipContent side="left">复制 URL</TooltipContent>
                     </Tooltip>
-                    <DropdownMenuContent align="end" side="left" className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+                    <DropdownMenuContent align="end" side="left" className="bg-background border-border">
                       {rule.output.clients.map((client) => (
                         <DropdownMenuItem
                           key={client}
@@ -532,16 +531,16 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               <div className="flex items-start gap-3 pr-8">
                 <div className="neu-icon flex-shrink-0">
                   {rule.icon ? (
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
                   ) : (
-                    <FileText className="w-[18px] h-[18px] text-gray-400 dark:text-gray-500" />
+                    <FileText className="w-[18px] h-[18px] text-muted-foreground" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100 truncate leading-tight">
+                  <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
                     {rule.displayName || rule.name}
                   </h3>
-                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 line-clamp-2 leading-relaxed">
+                  <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
                     {rule.description || `ID: ${rule.name}`}
                   </p>
                 </div>
@@ -551,30 +550,27 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               <div className="flex flex-wrap items-center gap-1.5 mt-3 min-h-[22px]">
                 {rule.tags && rule.tags.length > 0 ? (
                   rule.tags.map((tag) => (
-                    <span key={tag} className="neu-badge neu-badge-violet !text-[10px] !px-2 !py-0">
+                    <Badge key={tag} variant="violet" className="text-[10px]">
                       {tag}
-                    </span>
+                    </Badge>
                   ))
                 ) : (
-                  <span className="text-[10px] text-gray-300 dark:text-gray-600 italic">无标签</span>
+                  <span className="text-[10px] text-muted-foreground/40 italic">无标签</span>
                 )}
               </div>
 
               {/* Client badges */}
-              <div className="flex items-start gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-gray-700/40">
-                <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">输出:</span>
+              <div className="flex items-start gap-2 mt-3 pt-3 border-t border-border/40">
+                <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">输出:</span>
                 <div className="flex flex-wrap gap-1.5 flex-1">
                   {rule.output.clients.map((client) => (
-                    <span
-                      key={client}
-                      className="neu-badge neu-badge-blue !text-[10px] !px-2 !py-0"
-                    >
+                    <Badge key={client} variant="blue" className="text-[10px]">
                       {getClientDisplayName(client)}
-                    </span>
+                    </Badge>
                   ))}
                 </div>
               </div>
-            </div>
+            </Card>
           );
         })}
       </div>
@@ -606,15 +602,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
       {/* Preview Dialog */}
       <Dialog open={!!previewingRule && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700">
-            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+        <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
+            <DialogTitle className="flex items-center gap-2">
               {(() => {
                 const rule = config?.rules.find(r => r.name === previewingRule);
                 return rule?.icon ? (
-                  <RuleIcon icon={rule.icon} className="w-6 h-6 text-gray-500 dark:text-gray-400" />
+                  <RuleIcon icon={rule.icon} className="w-6 h-6 text-muted-foreground" />
                 ) : (
-                  <FileText className="w-5 h-5 text-gray-500 dark:text-gray-400" />
+                  <FileText className="w-5 h-5 text-muted-foreground" />
                 );
               })()}
               预览: {previewingRule}
@@ -630,8 +626,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {/* Source Results */}
               {previewData.diagnostics.sourceResults.length > 0 && (
-                <div className="px-6 py-3 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">数据源状态:</p>
+                <div className="px-6 py-3 bg-muted/50 border-b border-border">
+                  <p className="text-sm text-muted-foreground mb-2">数据源状态:</p>
                   <div className="flex flex-wrap gap-4">
                     {previewData.diagnostics.sourceResults.map((source, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
@@ -640,10 +636,10 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                         ) : (
                           <XCircle className="w-4 h-4 text-red-500" />
                         )}
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">#{i + 1}</span>
-                        <span className="text-gray-700 dark:text-gray-300 truncate max-w-xs">{source.url}</span>
+                        <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
+                        <span className="text-foreground/80 truncate max-w-xs">{source.url}</span>
                         {source.size !== undefined && source.size > 0 && (
-                          <span className="text-gray-500">({(source.size / 1024).toFixed(1)} KB)</span>
+                          <span className="text-muted-foreground">({(source.size / 1024).toFixed(1)} KB)</span>
                         )}
                       </div>
                     ))}
@@ -653,15 +649,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
               {/* Content Tabs */}
               <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0">
-                <div className="px-6 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between">
-                  <TabsList className="bg-gray-100 dark:bg-slate-900">
+                <div className="px-6 py-3 border-b border-border flex items-center justify-between">
+                  <TabsList className="bg-muted">
                     {Object.keys(previewData.contents).map((client) => (
                       <TabsTrigger key={client} value={client} className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800">
                         {getClientDisplayName(client)}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                  <span className="text-sm text-muted-foreground">
                     {previewData.contents[previewClient]?.split('\n').length || 0} 行
                   </span>
                 </div>
@@ -691,8 +687,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                         <Maximize2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="h-full overflow-auto bg-gray-50 dark:bg-slate-900">
-                      <pre className="p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre min-w-max">
+                    <div className="h-full overflow-auto bg-muted/50">
+                      <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre min-w-max">
                         {content || "暂无内容"}
                       </pre>
                     </div>
@@ -734,7 +730,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deletingRule} onOpenChange={(open) => !open && setDeletingRule(null)}>
-        <DialogContent className="max-w-md bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+        <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-red-500" />

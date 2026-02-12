@@ -14,8 +14,9 @@ import {
     Sun,
     Moon,
     Home,
-    Image
+    Image as ImageIcon
 } from "lucide-react";
+import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "./theme-provider";
@@ -65,7 +66,7 @@ const NAV_ITEMS = [
     {
         title: "图标集",
         value: "iconset",
-        icon: Image,
+        icon: ImageIcon,
     },
     {
         title: "系统配置",
@@ -84,18 +85,17 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             className
         )}>
             {/* Header */}
-            <div className={cn("h-16 flex items-center border-b border-sidebar-border relative", isCollapsed ? "justify-center" : "px-6 gap-3")}>
-                <div className={cn("w-9 h-9 flex-shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300")}>
-                    <img src="/logo.svg" alt="Logo" className="w-full h-full object-contain" />
+            <div className={cn("flex items-center border-b border-sidebar-border relative", isCollapsed ? "h-16 justify-center" : "px-5 py-4 gap-3")}>
+                <div className={cn("flex-shrink-0 flex items-center justify-center transition-transform hover:scale-105 duration-300", isCollapsed ? "w-9 h-9" : "w-10 h-10")}>
+                    <NextImage src="/logo.svg" alt="Logo" width={40} height={40} className="w-full h-full object-contain" />
                 </div>
                 {!isCollapsed && (
                     <div className="flex-1 min-w-0">
-                        <h1 className="font-bold text-sidebar-foreground tracking-tight">Rule Manager</h1>
-                        <div className="flex items-center gap-2">
-                            <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Proxy Control</p>
+                        <div className="flex items-baseline gap-2">
+                            <h1 className="font-bold text-sidebar-foreground tracking-tight leading-tight">后台管理</h1>
                             {version && (
-                                <span className="text-[11px] px-1.5 py-0.5 rounded bg-sidebar-primary/10 text-sidebar-primary border border-sidebar-primary/20 font-mono leading-none">
-                                    v{version}
+                                <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-sidebar-primary/10 text-sidebar-primary font-mono leading-none">
+                                    {version}
                                 </span>
                             )}
                         </div>
@@ -126,25 +126,26 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                 {NAV_ITEMS.map((item, index) => {
                     const isActive = activeTab === item.value;
                     return (
-                        <button
+                        <Button
                             key={item.value}
                             onClick={() => onTabChange(item.value)}
                             style={{ animationDelay: `${index * 30}ms` }}
+                            variant={isActive ? "default" : "ghost"}
                             className={cn(
-                                "w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded-md transition-all duration-200 group animate-fade-in opacity-0",
-                                isCollapsed && "justify-center",
+                                "w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-all duration-200 group animate-fade-in opacity-0",
+                                isCollapsed && "!justify-center",
                                 isActive
-                                    ? "neu-pill-active !rounded-lg"
+                                    ? "!rounded-xl"
                                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                             )}
                             title={isCollapsed ? item.title : undefined}
                         >
                             <item.icon className={cn("w-4 h-4 transition-colors flex-shrink-0", isActive ? "text-blue-600/80 dark:text-blue-300/80" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
-                            {!isCollapsed && item.title}
+                            {!isCollapsed && <span>{item.title}</span>}
                             {!isCollapsed && isActive && (
                                 <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500/60 dark:bg-blue-400/60 animate-pulse" />
                             )}
-                        </button>
+                        </Button>
                     );
                 })}
             </div>
@@ -153,28 +154,31 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             <div className={cn("border-t border-sidebar-border space-y-2 bg-sidebar/50", isCollapsed ? "p-2" : "p-4")}>
                 {isCollapsed ? (
                     <div className="flex flex-col items-center gap-2">
-                        <button
+                        <Button
                             onClick={toggleTheme}
-                            className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
+                            variant="neu"
+                            className="w-10 h-10 flex items-center justify-center !rounded-xl"
                             title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
                         >
                             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                        </button>
-                        <button
+                        </Button>
+                        <Button
                             onClick={onHome}
-                            className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
+                            variant="neu"
+                            className="w-10 h-10 flex items-center justify-center !rounded-xl"
                             title="返回首页"
                         >
                             <Home className="w-4 h-4" />
-                        </button>
+                        </Button>
                         {onLogout && (
-                            <button
+                            <Button
                                 onClick={onLogout}
-                                className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground !rounded-xl"
+                                variant="neu"
+                                className="w-10 h-10 flex items-center justify-center !rounded-xl"
                                 title="退出登录"
                             >
                                 <LogOut className="w-4 h-4" />
-                            </button>
+                            </Button>
                         )}
                     </div>
                 ) : (
@@ -184,31 +188,34 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                                 <p className="text-sm font-medium text-sidebar-foreground truncate">Administrator</p>
                                 <p className="text-xs text-muted-foreground truncate">System Access</p>
                             </div>
-                            <button
+                            <Button
                                 onClick={toggleTheme}
-                                className="neu-btn w-9 h-9 flex items-center justify-center text-muted-foreground !rounded-lg flex-shrink-0"
+                                variant="neu"
+                                className="w-9 h-9 flex items-center justify-center !rounded-lg flex-shrink-0"
                             >
                                 {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                            </button>
+                            </Button>
                         </div>
 
                         <div className="flex gap-2">
-                            <button
+                            <Button
                                 onClick={onHome}
-                                className="neu-btn flex-1 h-10 flex items-center justify-center gap-2 text-sm text-muted-foreground !rounded-xl"
+                                variant="neu"
+                                className="flex-1 h-10 flex items-center justify-center gap-2 text-sm !rounded-xl"
                             >
                                 <Home className="w-4 h-4" />
                                 返回首页
-                            </button>
+                            </Button>
 
                             {onLogout && (
-                                <button
+                                <Button
                                     onClick={onLogout}
-                                    className="neu-btn flex-1 h-10 flex items-center justify-center gap-2 text-sm text-muted-foreground !rounded-xl"
+                                    variant="neu"
+                                    className="flex-1 h-10 flex items-center justify-center gap-2 text-sm !rounded-xl"
                                 >
                                     <LogOut className="w-4 h-4" />
                                     退出登录
-                                </button>
+                                </Button>
                             )}
                         </div>
                     </>

@@ -65,8 +65,9 @@ import {
   ScriptTransformer,
 } from "@/lib/schema";
 import { saveConfig, renameRule, previewRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
+import { createTransformByType } from "@/lib/transform-utils";
 import { toast } from "sonner";
-import { IconPicker, RuleIcon } from "@/components/icon-picker";
+import { IconPicker } from "@/components/icon-picker";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import Editor from "@monaco-editor/react";
 import { useTheme } from "./theme-provider";
@@ -103,6 +104,14 @@ const SOURCE_TYPE_ICONS = {
   local: FileText,
 };
 
+function createListItemKey(): string {
+  return Math.random().toString(36).slice(2, 10);
+}
+
+function createListItemKeys(count: number): string[] {
+  return Array.from({ length: count }, () => createListItemKey());
+}
+
 // 规范化规则数据
 function migrateRule(rule: RuleConfig): RuleConfig {
   const newRule = { ...rule };
@@ -118,18 +127,19 @@ function migrateRule(rule: RuleConfig): RuleConfig {
   return newRule;
 }
 
-// 默认规则模板（客户端列表将在组件加载时动态设置）
-const DEFAULT_RULE: RuleConfig = {
-  name: "",
-  displayName: "",
-  description: "",
-  sources: [],
-  transforms: [],
-  output: {
-    clients: [], // 将在 useEffect 中动态设置
-  },
-  tags: [],
-};
+function createDefaultRule(): RuleConfig {
+  return {
+    name: "",
+    displayName: "",
+    description: "",
+    sources: [],
+    transforms: [],
+    output: {
+      clients: [],
+    },
+    tags: [],
+  };
+}
 
 // 帮助图标组件
 function HelpIcon({ text }: { text: string }) {
@@ -192,9 +202,22 @@ export function RuleEditor({
   onSave,
   onCancel,
 }: RuleEditorProps) {
-  const [formData, setFormData] = useState<RuleConfig>(() =>
-    rule ? migrateRule(rule) : DEFAULT_RULE
+  const initialFormData = rule ? migrateRule(rule) : createDefaultRule();
+  const [formData, setFormData] = useState<RuleConfig>(initialFormData);
+  const [sourceKeys, setSourceKeys] = useState<string[]>(() =>
+    createListItemKeys(initialFormData.sources?.length ?? 0)
   );
+  const [transformKeys, setTransformKeys] = useState<string[]>(() =>
+    createListItemKeys(initialFormData.transforms?.length ?? 0)
+  );
+  const [clientTransformKeys, setClientTransformKeys] = useState<Record<string, string[]>>(() => {
+    const keys: Record<string, string[]> = {};
+    const overrides = initialFormData.output.client_overrides || {};
+    for (const [clientId, override] of Object.entries(overrides)) {
+      keys[clientId] = createListItemKeys(override.transforms?.length ?? 0);
+    }
+    return keys;
+  });
   const [isSaving, setIsSaving] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic", "sources", "transforms", "merge", "output"])
@@ -231,20 +254,23 @@ export function RuleEditor({
     getClients()
       .then(({ clients }) => {
         setClientsList(clients);
-        if (!rule && formData.output.clients.length === 0 && clients.length > 0) {
-          setFormData((prev) => ({
+        setFormData((prev) => {
+          if (rule || prev.output.clients.length > 0 || clients.length === 0) {
+            return prev;
+          }
+          return {
             ...prev,
             output: {
               ...prev.output,
               clients: clients.map((c) => c.id),
             },
-          }));
-        }
+          };
+        });
       })
       .catch((err) => {
         console.error("Failed to load clients:", err);
       });
-  }, [rule, formData.output.clients.length]);
+  }, [rule]);
 
 
 
@@ -409,6 +435,7 @@ export function RuleEditor({
       ...prev,
       sources: [...(prev.sources || []), newSource],
     }));
+    setSourceKeys((prev) => [...prev, createListItemKey()]);
   };
 
   const updateSource = (index: number, updates: Partial<SourceConfig>) => {
@@ -435,26 +462,16 @@ export function RuleEditor({
         return t;
       }),
     }));
+    setSourceKeys((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 后处理管理
   const addTransform = (type: "use" | "replace" | "remove_lines") => {
-    const newTransform: Transform = {
-      type,
-      target: "all",
-    };
-    if (type === "replace") {
-      newTransform.pattern = "";
-      newTransform.replacement = "";
-    }
-    if (type === "remove_lines") {
-      newTransform.pattern = "";
-    }
-
     setFormData((prev) => ({
       ...prev,
-      transforms: [...(prev.transforms || []), newTransform],
+      transforms: [...(prev.transforms || []), createTransformByType(type)],
     }));
+    setTransformKeys((prev) => [...prev, createListItemKey()]);
   };
 
   const updateTransform = (index: number, updates: Partial<Transform>) => {
@@ -469,6 +486,7 @@ export function RuleEditor({
       ...prev,
       transforms: prev.transforms?.filter((_, i) => i !== index),
     }));
+    setTransformKeys((prev) => prev.filter((_, i) => i !== index));
   };
 
   // 拖动排序
@@ -483,6 +501,12 @@ export function RuleEditor({
       const [dragged] = transforms.splice(draggedIndex, 1);
       transforms.splice(index, 0, dragged);
       return { ...prev, transforms };
+    });
+    setTransformKeys((prev) => {
+      const nextKeys = [...prev];
+      const [draggedKey] = nextKeys.splice(draggedIndex, 1);
+      nextKeys.splice(index, 0, draggedKey);
+      return nextKeys;
     });
     setDraggedIndex(index);
   };
@@ -499,6 +523,8 @@ export function RuleEditor({
 
   // 客户端差异化配置
   const toggleClientOverride = (client: ClientType, enabled: boolean) => {
+    const existingTransformCount =
+      formData.output.client_overrides?.[client]?.transforms?.length ?? 0;
     setFormData((prev) => {
       const currentOverride = prev.output.client_overrides?.[client];
       return {
@@ -514,6 +540,15 @@ export function RuleEditor({
             },
           },
         },
+      };
+    });
+    setClientTransformKeys((prev) => {
+      if (prev[client]) {
+        return prev;
+      }
+      return {
+        ...prev,
+        [client]: createListItemKeys(existingTransformCount),
       };
     });
   };
@@ -539,15 +574,6 @@ export function RuleEditor({
   };
 
   const addClientTransform = (client: ClientType, type: "use" | "replace" | "remove_lines") => {
-    const newTransform: Transform = { type, target: "all" };
-    if (type === "replace") {
-      newTransform.pattern = "";
-      newTransform.replacement = "";
-    }
-    if (type === "remove_lines") {
-      newTransform.pattern = "";
-    }
-
     setFormData((prev) => {
       const currentOverride = prev.output.client_overrides?.[client];
       return {
@@ -561,13 +587,17 @@ export function RuleEditor({
               useGlobalTransforms: currentOverride?.useGlobalTransforms ?? true,
               transforms: [
                 ...(currentOverride?.transforms || []),
-                newTransform,
+                createTransformByType(type),
               ],
             },
           },
         },
       };
     });
+    setClientTransformKeys((prev) => ({
+      ...prev,
+      [client]: [...(prev[client] || []), createListItemKey()],
+    }));
   };
 
   const updateClientTransform = (client: ClientType, index: number, updates: Partial<Transform>) => {
@@ -612,6 +642,10 @@ export function RuleEditor({
         },
       };
     });
+    setClientTransformKeys((prev) => ({
+      ...prev,
+      [client]: (prev[client] || []).filter((_, i) => i !== index),
+    }));
   };
 
   // 获取可用的其他规则列表
@@ -801,7 +835,7 @@ export function RuleEditor({
                 const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
                 return (
                   <div
-                    key={index}
+                    key={sourceKeys[index] ?? `source-${index}`}
                     className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -928,7 +962,7 @@ export function RuleEditor({
               {/* 操作列表 */}
               {formData.transforms?.map((transform, index) => (
                 <TransformCard
-                  key={index}
+                  key={transformKeys[index] ?? `transform-${index}`}
                   transform={transform}
                   sources={formData.sources || []}
                   transformers={transformers}
@@ -1095,6 +1129,7 @@ export function RuleEditor({
                         onAddTransform={(type) => addClientTransform(client as ClientType, type)}
                         onUpdateTransform={(index, updates) => updateClientTransform(client as ClientType, index, updates)}
                         onRemoveTransform={(index) => removeClientTransform(client as ClientType, index)}
+                        transformKeys={clientTransformKeys[client] || []}
                       />
                     );
                   })}
@@ -1587,6 +1622,7 @@ interface ClientOverrideSectionProps {
   onAddTransform: (type: "use" | "replace" | "remove_lines") => void;
   onUpdateTransform: (index: number, updates: Partial<Transform>) => void;
   onRemoveTransform: (index: number) => void;
+  transformKeys: string[];
 }
 
 function ClientOverrideSection({
@@ -1600,6 +1636,7 @@ function ClientOverrideSection({
   onAddTransform,
   onUpdateTransform,
   onRemoveTransform,
+  transformKeys,
 }: ClientOverrideSectionProps) {
   const [expanded, setExpanded] = useState(false);
   const useGlobalTransforms = config?.useGlobalTransforms ?? true;
@@ -1685,7 +1722,7 @@ function ClientOverrideSection({
 
             {transforms.map((transform, index) => (
               <TransformCard
-                key={index}
+                key={transformKeys[index] ?? `${client}-transform-${index}`}
                 transform={transform}
                 sources={[]} // 客户端转换通常不针对特定来源，或者需要传递sources？这里简化处理
                 transformers={transformers}

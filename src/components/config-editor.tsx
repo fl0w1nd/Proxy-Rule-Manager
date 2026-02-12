@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
   Select,
@@ -196,7 +197,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   // Fullscreen mode
   if (isFullscreen) {
     return (
-      <div className="fixed inset-0 z-50 bg-white dark:bg-slate-900 flex flex-col">
+      <div className="fixed inset-0 z-50 bg-background flex flex-col">
         <input
           ref={importTemplateRef}
           type="file"
@@ -223,11 +224,11 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             e.currentTarget.value = "";
           }}
         />
-        <div className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800">
+        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
             <Code className="w-5 h-5 text-blue-500" />
-            <span className="font-semibold text-gray-900 dark:text-white">YAML 配置编辑器</span>
-            <Badge variant="outline" className="border-gray-300 text-gray-500">
+            <span className="font-semibold text-foreground">YAML 配置编辑器</span>
+            <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
               只读
             </Badge>
           </div>
@@ -317,13 +318,13 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         </div>
       </div>
 
-      <div className="card-embossed">
+      <Card>
         <div className="px-5 pt-5 pb-3">
-          <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+          <h3 className="text-base font-medium text-foreground flex items-center gap-2">
             <Clock className="w-5 h-5 text-primary" />
             定时同步
           </h3>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-muted-foreground">
             支持 interval 与 cron 两种模式，系统将按配置自动同步规则。
           </p>
         </div>
@@ -419,32 +420,32 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             </>
           )}
         </div>
-      </div>
+      </Card>
 
-      <div className="card-embossed">
+      <Card>
         <div className="px-5 pt-5 pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+              <h3 className="text-base font-medium text-foreground flex items-center gap-2">
                 <Code className="w-5 h-5 text-blue-500" />
                 YAML 配置编辑器
               </h3>
-              <Badge variant="outline" className="border-gray-300 text-gray-500">
+              <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
                 只读
               </Badge>
             </div>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-muted-foreground">
             只读查看当前配置模版。请使用下方导入模版或数据库恢复来变更配置。
           </p>
         </div>
         <div className="px-5 pb-5 space-y-4">
-          <div className="relative border border-gray-200 dark:border-slate-700 rounded-lg overflow-hidden">
+          <div className="relative border border-border rounded-lg overflow-hidden">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(true)}
-              className="absolute top-2 right-2 z-10 bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
+              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
               title="全屏查看 (ESC 退出)"
             >
               <Maximize2 className="w-4 h-4" />
@@ -473,20 +474,20 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               }}
             />
           </div>
-          <div className="text-sm text-gray-500 dark:text-gray-400">
+          <div className="text-sm text-muted-foreground">
             提示: 配置编辑为只读，需通过导入模版或恢复数据库来变更。
           </div>
         </div>
-      </div>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="card-embossed">
+        <Card>
           <div className="px-5 pt-5 pb-3">
-            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <h3 className="text-base font-medium text-foreground flex items-center gap-2">
               <FileText className="w-5 h-5 text-blue-500" />
               配置模板
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               分享/导入规则模板，仅包含配置内容，不含运行元数据。
             </p>
           </div>
@@ -508,15 +509,15 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               导出模板
             </Button>
           </div>
-        </div>
+        </Card>
 
-        <div className="card-embossed">
+        <Card>
           <div className="px-5 pt-5 pb-3">
-            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
+            <h3 className="text-base font-medium text-foreground flex items-center gap-2">
               <Database className="w-5 h-5 text-amber-500" />
               数据库备份与恢复
             </h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <p className="text-sm text-muted-foreground">
               备份/恢复完整数据库（含元数据）。恢复将覆盖当前数据。
             </p>
           </div>
@@ -538,17 +539,17 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               备份数据库
             </Button>
           </div>
-        </div>
+        </Card>
       </div>
 
-      <div className="card-embossed">
+      <Card>
         <div className="px-5 pt-5 pb-3">
-          <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 text-lg">配置说明</h3>
+          <h3 className="text-base font-medium text-foreground text-lg">配置说明</h3>
         </div>
-        <div className="px-5 pb-5 space-y-4 text-gray-700 dark:text-gray-300 text-sm">
+        <div className="px-5 pb-5 space-y-4 text-foreground/80 text-sm">
           <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-2">规则结构</h4>
-            <pre className="p-3 rounded bg-gray-100 dark:bg-slate-900 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
+            <h4 className="font-medium text-foreground mb-2">规则结构</h4>
+            <pre className="p-3 rounded bg-muted text-xs font-mono overflow-x-auto text-foreground/80">
               {`rules:
   - name: YouTube          # 规则名称（必填）
     description: YouTube 规则  # 描述（可选）
@@ -581,7 +582,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </div>
 
           <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-2">支持的转换类型</h4>
+            <h4 className="font-medium text-foreground mb-2">支持的转换类型</h4>
             <ul className="space-y-1 list-disc list-inside text-gray-600 dark:text-gray-400">
               <li><code className="text-blue-600 dark:text-blue-400">replace</code> - 正则替换</li>
               <li><code className="text-blue-600 dark:text-blue-400">remove_lines</code> - 删除匹配行</li>
@@ -589,8 +590,8 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </div>
 
           <div>
-            <h4 className="font-medium text-gray-900 dark:text-white mb-2">引用规则</h4>
-            <pre className="p-3 rounded bg-gray-100 dark:bg-slate-900 text-xs font-mono overflow-x-auto text-gray-800 dark:text-gray-200">
+            <h4 className="font-medium text-foreground mb-2">引用规则</h4>
+            <pre className="p-3 rounded bg-muted text-xs font-mono overflow-x-auto text-foreground/80">
               {`rules:
   - name: ProxyMedia
     sources:
@@ -607,7 +608,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             </pre>
           </div>
         </div>
-      </div>
+      </Card>
     </div>
   );
 }

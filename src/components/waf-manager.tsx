@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
+import { Card } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
     Shield,
@@ -54,6 +55,14 @@ import {
 } from "@/lib/api-client";
 import { toast } from "sonner";
 
+function createListItemKey(): string {
+    return Math.random().toString(36).slice(2, 10);
+}
+
+function createListItemKeys(count: number): string[] {
+    return Array.from({ length: count }, () => createListItemKey());
+}
+
 export function WafManager() {
     const [bans, setBans] = useState<BanRecord[]>([]);
     const [stats, setStats] = useState<WafStats | null>(null);
@@ -74,6 +83,7 @@ export function WafManager() {
     const [savingCdn, setSavingCdn] = useState(false);
     const [newHeaderName, setNewHeaderName] = useState("");
     const [newHeaderValue, setNewHeaderValue] = useState("");
+    const [customHeaderKeys, setCustomHeaderKeys] = useState<string[]>([]);
 
     const loadData = useCallback(async () => {
         try {
@@ -89,6 +99,7 @@ export function WafManager() {
             setFailures(failuresRes.failures);
             setMyIp(ipRes.ip);
             setCdnSettings(cdnRes.settings);
+            setCustomHeaderKeys(createListItemKeys(cdnRes.settings.customHeaders.length));
         } catch (error) {
             toast.error("加载数据失败", {
                 description: error instanceof Error ? error.message : "未知错误",
@@ -181,22 +192,31 @@ export function WafManager() {
             return;
         }
         if (!cdnSettings) return;
-        setCdnSettings({
-            ...cdnSettings,
-            customHeaders: [
-                ...cdnSettings.customHeaders,
-                { name: newHeaderName.trim(), value: newHeaderValue.trim() },
-            ],
+        setCdnSettings((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                customHeaders: [
+                    ...prev.customHeaders,
+                    { name: newHeaderName.trim(), value: newHeaderValue.trim() },
+                ],
+            };
         });
+        setCustomHeaderKeys((prev) => [...prev, createListItemKey()]);
         setNewHeaderName("");
         setNewHeaderValue("");
     };
 
     const handleRemoveCustomHeader = (index: number) => {
         if (!cdnSettings) return;
-        const newHeaders = [...cdnSettings.customHeaders];
-        newHeaders.splice(index, 1);
-        setCdnSettings({ ...cdnSettings, customHeaders: newHeaders });
+        setCdnSettings((prev) => {
+            if (!prev) return prev;
+            return {
+                ...prev,
+                customHeaders: prev.customHeaders.filter((_, i) => i !== index),
+            };
+        });
+        setCustomHeaderKeys((prev) => prev.filter((_, i) => i !== index));
     };
 
     const formatTime = (isoString: string) => {
@@ -225,55 +245,55 @@ export function WafManager() {
         <div className="space-y-6">
             {/* 统计卡片 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="card-embossed p-4">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">持久化封禁</p>
+                <Card className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">持久化封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Ban className="w-5 h-5 text-red-500" />
                         {stats?.bans.total || 0}
                     </div>
-                </div>
-                <div className="card-embossed p-4">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">永久封禁</p>
+                </Card>
+                <Card className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">永久封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <ShieldAlert className="w-5 h-5 text-orange-500" />
                         {stats?.bans.permanent || 0}
                     </div>
-                </div>
-                <div className="card-embossed p-4">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">临时追踪</p>
+                </Card>
+                <Card className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">临时追踪</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Clock className="w-5 h-5 text-blue-500" />
                         {stats?.temporary.totalTracked || 0}
                     </div>
-                </div>
-                <div className="card-embossed p-4">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">当前阻塞</p>
+                </Card>
+                <Card className="p-4">
+                    <p className="text-xs text-muted-foreground mb-1">当前阻塞</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Shield className="w-5 h-5 text-yellow-500" />
                         {stats?.temporary.currentlyBlocked || 0}
                     </div>
-                </div>
+                </Card>
             </div>
 
             {/* 当前 IP */}
-            <div className="card-embossed">
+            <Card>
                 <div className="p-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <ShieldCheck className="w-5 h-5 text-green-500" />
-                            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">您的 IP 地址</h3>
+                            <h3 className="text-lg font-semibold text-foreground">您的 IP 地址</h3>
                         </div>
                         <Badge variant="outline" className="font-mono">
                             {myIp}
                         </Badge>
                     </div>
                 </div>
-            </div>
+            </Card>
 
             {/* 添加封禁 */}
-            <div className="card-embossed">
+            <Card>
                 <div className="px-5 pt-5 pb-3">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                         <Plus className="w-5 h-5" />
                         手动添加封禁
                     </h3>
@@ -330,13 +350,13 @@ export function WafManager() {
                         添加封禁
                     </Button>
                 </div>
-            </div>
+            </Card>
 
             {/* 封禁列表 */}
-            <div className="card-embossed">
+            <Card>
                 <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                        <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                             <Ban className="w-5 h-5" />
                             封禁列表
                         </h3>
@@ -398,16 +418,16 @@ export function WafManager() {
                         </ScrollArea>
                     )}
                 </div>
-            </div>
+            </Card>
 
             {/* 活跃失败记录 */}
-            <div className="card-embossed">
+            <Card>
                 <div className="px-5 pt-5 pb-3">
-                    <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
+                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
                         <Clock className="w-5 h-5" />
                         活跃失败记录（内存中）
                     </h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+                    <p className="text-sm text-muted-foreground mt-1">
                         临时追踪的登录失败记录，24小时后自动清除
                     </p>
                 </div>
@@ -445,270 +465,286 @@ export function WafManager() {
                         </ScrollArea>
                     )}
                 </div>
-            </div>
+            </Card>
 
             {/* CDN 缓存设置 */}
-            {cdnSettings && (
-                <div className="card-embossed">
-                    <div className="px-5 pt-5 pb-3">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                    <Cloud className="w-5 h-5 text-blue-500" />
-                                    CDN 缓存设置
-                                </h3>
-                                <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                                    配置规则文件、客户端配置文件和图标集的 HTTP 响应头，优化 CDN（如 Cloudflare）缓存行为
-                                </p>
-                            </div>
-                            <Button onClick={handleSaveCdnSettings} disabled={savingCdn}>
-                                {savingCdn ? (
-                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                ) : (
-                                    <Save className="w-4 h-4 mr-2" />
-                                )}
-                                保存设置
-                            </Button>
-                        </div>
-                    </div>
-                    <div className="px-5 pb-5 space-y-6">
-                        {/* 启用开关 */}
-                        <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
-                            <div className="space-y-0.5">
-                                <Label className="text-base">启用自定义响应头</Label>
-                                <p className="text-sm text-muted-foreground">
-                                    开启后将使用下方配置的缓存策略，关闭则使用默认的 no-cache
-                                </p>
-                            </div>
-                            <Switch
-                                checked={cdnSettings.enabled}
-                                onCheckedChange={(checked) =>
-                                    setCdnSettings({ ...cdnSettings, enabled: checked })
-                                }
-                            />
-                        </div>
-
-                        {cdnSettings.enabled && (
-                            <>
-                                {/* 缓存模式 */}
-                                <div className="space-y-3">
-                                    <Label>缓存模式</Label>
-                                    <RadioGroup
-                                        value={cdnSettings.cacheMode}
-                                        onValueChange={(value: "no-cache" | "no-store" | "custom") =>
-                                            setCdnSettings({ ...cdnSettings, cacheMode: value })
-                                        }
-                                        className="space-y-1"
-                                    >
-                                        <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
-                                            <RadioGroupItem value="no-cache" id="cache-no-cache" />
-                                            <Label htmlFor="cache-no-cache" className="flex-1 cursor-pointer">
-                                                <div className="font-medium">协商缓存 + 备用缓存</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    每次请求验证源站，源站不可用时用旧缓存兜底
-                                                    <code className="ml-1 bg-muted px-1 rounded">no-cache, stale-if-error</code>
-                                                </div>
-                                            </Label>
-                                            <Badge variant="secondary" className="text-xs">推荐</Badge>
-                                        </div>
-                                        <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
-                                            <RadioGroupItem value="no-store" id="cache-no-store" />
-                                            <Label htmlFor="cache-no-store" className="flex-1 cursor-pointer">
-                                                <div className="font-medium">完全不缓存</div>
-                                                <div className="text-xs text-muted-foreground">
-                                                    CDN 不缓存任何内容
-                                                    <code className="ml-1 bg-muted px-1 rounded">no-store</code>
-                                                </div>
-                                            </Label>
-                                        </div>
-                                        <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
-                                            <RadioGroupItem value="custom" id="cache-custom" />
-                                            <Label htmlFor="cache-custom" className="flex-1 cursor-pointer">
-                                                <div className="font-medium">自定义</div>
-                                                <div className="text-xs text-muted-foreground">完全自定义 Cache-Control 头</div>
-                                            </Label>
-                                        </div>
-                                    </RadioGroup>
+            {
+                cdnSettings && (
+                    <Card>
+                        <div className="px-5 pt-5 pb-3">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                                        <Cloud className="w-5 h-5 text-blue-500" />
+                                        CDN 缓存设置
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground mt-1">
+                                        配置规则文件、客户端配置文件和图标集的 HTTP 响应头，优化 CDN（如 Cloudflare）缓存行为
+                                    </p>
                                 </div>
+                                <Button onClick={handleSaveCdnSettings} disabled={savingCdn}>
+                                    {savingCdn ? (
+                                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    ) : (
+                                        <Save className="w-4 h-4 mr-2" />
+                                    )}
+                                    保存设置
+                                </Button>
+                            </div>
+                        </div>
+                        <div className="px-5 pb-5 space-y-6">
+                            {/* 启用开关 */}
+                            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                                <div className="space-y-0.5">
+                                    <Label className="text-base">启用自定义响应头</Label>
+                                    <p className="text-sm text-muted-foreground">
+                                        开启后将使用下方配置的缓存策略，关闭则使用默认的 no-cache
+                                    </p>
+                                </div>
+                                <Switch
+                                    checked={cdnSettings.enabled}
+                                    onCheckedChange={(checked) =>
+                                        setCdnSettings({ ...cdnSettings, enabled: checked })
+                                    }
+                                />
+                            </div>
 
-                                {/* stale-if-error 时长 */}
-                                {cdnSettings.cacheMode === "no-cache" && (
-                                    <div className="space-y-2">
+                            {cdnSettings.enabled && (
+                                <>
+                                    {/* 缓存模式 */}
+                                    <div className="space-y-3">
+                                        <Label>缓存模式</Label>
+                                        <RadioGroup
+                                            value={cdnSettings.cacheMode}
+                                            onValueChange={(value: "no-cache" | "no-store" | "custom") =>
+                                                setCdnSettings({ ...cdnSettings, cacheMode: value })
+                                            }
+                                            className="space-y-1"
+                                        >
+                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                                <RadioGroupItem value="no-cache" id="cache-no-cache" />
+                                                <Label htmlFor="cache-no-cache" className="flex-1 cursor-pointer">
+                                                    <div className="font-medium">协商缓存 + 备用缓存</div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        每次请求验证源站，源站不可用时用旧缓存兜底
+                                                        <code className="ml-1 bg-muted px-1 rounded">no-cache, stale-if-error</code>
+                                                    </div>
+                                                </Label>
+                                                <Badge variant="secondary" className="text-xs">推荐</Badge>
+                                            </div>
+                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                                <RadioGroupItem value="no-store" id="cache-no-store" />
+                                                <Label htmlFor="cache-no-store" className="flex-1 cursor-pointer">
+                                                    <div className="font-medium">完全不缓存</div>
+                                                    <div className="text-xs text-muted-foreground">
+                                                        CDN 不缓存任何内容
+                                                        <code className="ml-1 bg-muted px-1 rounded">no-store</code>
+                                                    </div>
+                                                </Label>
+                                            </div>
+                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                                <RadioGroupItem value="custom" id="cache-custom" />
+                                                <Label htmlFor="cache-custom" className="flex-1 cursor-pointer">
+                                                    <div className="font-medium">自定义</div>
+                                                    <div className="text-xs text-muted-foreground">完全自定义 Cache-Control 头</div>
+                                                </Label>
+                                            </div>
+                                        </RadioGroup>
+                                    </div>
+
+                                    {/* stale-if-error 时长 */}
+                                    {cdnSettings.cacheMode === "no-cache" && (
+                                        <div className="space-y-2">
+                                            <div className="flex items-center gap-2">
+                                                <Label>备用缓存时长（stale-if-error）</Label>
+                                                <TooltipProvider>
+                                                    <Tooltip>
+                                                        <TooltipTrigger>
+                                                            <Info className="w-4 h-4 text-muted-foreground" />
+                                                        </TooltipTrigger>
+                                                        <TooltipContent className="max-w-sm">
+                                                            <p>源站不可用时，CDN 继续提供旧缓存的最长时间</p>
+                                                        </TooltipContent>
+                                                    </Tooltip>
+                                                </TooltipProvider>
+                                            </div>
+                                            <Select
+                                                value={String(cdnSettings.staleIfErrorSeconds)}
+                                                onValueChange={(value) =>
+                                                    setCdnSettings({
+                                                        ...cdnSettings,
+                                                        staleIfErrorSeconds: parseInt(value, 10),
+                                                    })
+                                                }
+                                            >
+                                                <SelectTrigger className="w-48">
+                                                    <SelectValue />
+                                                </SelectTrigger>
+                                                <SelectContent>
+                                                    <SelectItem value="3600">1 小时</SelectItem>
+                                                    <SelectItem value="86400">1 天</SelectItem>
+                                                    <SelectItem value="259200">3 天</SelectItem>
+                                                    <SelectItem value="604800">7 天（推荐）</SelectItem>
+                                                    <SelectItem value="1209600">14 天</SelectItem>
+                                                    <SelectItem value="2592000">30 天</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                        </div>
+                                    )}
+
+                                    {/* 自定义 Cache-Control */}
+                                    {cdnSettings.cacheMode === "custom" && (
+                                        <div className="space-y-2">
+                                            <Label>自定义 Cache-Control</Label>
+                                            <Input
+                                                placeholder="例如: public, max-age=300, stale-if-error=86400"
+                                                value={cdnSettings.customCacheControl || ""}
+                                                onChange={(e) =>
+                                                    setCdnSettings({
+                                                        ...cdnSettings,
+                                                        customCacheControl: e.target.value,
+                                                    })
+                                                }
+                                            />
+                                        </div>
+                                    )}
+
+                                    {/* Cloudflare 专用头 */}
+                                    <div className="space-y-3">
                                         <div className="flex items-center gap-2">
-                                            <Label>备用缓存时长（stale-if-error）</Label>
+                                            <Label>Cloudflare-CDN-Cache-Control（可选）</Label>
                                             <TooltipProvider>
                                                 <Tooltip>
                                                     <TooltipTrigger>
                                                         <Info className="w-4 h-4 text-muted-foreground" />
                                                     </TooltipTrigger>
                                                     <TooltipContent className="max-w-sm">
-                                                        <p>源站不可用时，CDN 继续提供旧缓存的最长时间</p>
+                                                        <p>Cloudflare 专用响应头，可覆盖常规 Cache-Control 的行为</p>
                                                     </TooltipContent>
                                                 </Tooltip>
                                             </TooltipProvider>
                                         </div>
-                                        <Select
-                                            value={String(cdnSettings.staleIfErrorSeconds)}
-                                            onValueChange={(value) =>
-                                                setCdnSettings({
-                                                    ...cdnSettings,
-                                                    staleIfErrorSeconds: parseInt(value, 10),
-                                                })
-                                            }
-                                        >
-                                            <SelectTrigger className="w-48">
-                                                <SelectValue />
-                                            </SelectTrigger>
-                                            <SelectContent>
-                                                <SelectItem value="3600">1 小时</SelectItem>
-                                                <SelectItem value="86400">1 天</SelectItem>
-                                                <SelectItem value="259200">3 天</SelectItem>
-                                                <SelectItem value="604800">7 天（推荐）</SelectItem>
-                                                <SelectItem value="1209600">14 天</SelectItem>
-                                                <SelectItem value="2592000">30 天</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                    </div>
-                                )}
-
-                                {/* 自定义 Cache-Control */}
-                                {cdnSettings.cacheMode === "custom" && (
-                                    <div className="space-y-2">
-                                        <Label>自定义 Cache-Control</Label>
                                         <Input
-                                            placeholder="例如: public, max-age=300, stale-if-error=86400"
-                                            value={cdnSettings.customCacheControl || ""}
+                                            placeholder="例如: max-age=86400, stale-if-error=604800"
+                                            value={cdnSettings.cloudflareCdnCacheControl || ""}
                                             onChange={(e) =>
                                                 setCdnSettings({
                                                     ...cdnSettings,
-                                                    customCacheControl: e.target.value,
+                                                    cloudflareCdnCacheControl: e.target.value,
                                                 })
                                             }
                                         />
                                     </div>
-                                )}
 
-                                {/* Cloudflare 专用头 */}
-                                <div className="space-y-3">
-                                    <div className="flex items-center gap-2">
-                                        <Label>Cloudflare-CDN-Cache-Control（可选）</Label>
-                                        <TooltipProvider>
-                                            <Tooltip>
-                                                <TooltipTrigger>
-                                                    <Info className="w-4 h-4 text-muted-foreground" />
-                                                </TooltipTrigger>
-                                                <TooltipContent className="max-w-sm">
-                                                    <p>Cloudflare 专用响应头，可覆盖常规 Cache-Control 的行为</p>
-                                                </TooltipContent>
-                                            </Tooltip>
-                                        </TooltipProvider>
-                                    </div>
-                                    <Input
-                                        placeholder="例如: max-age=86400, stale-if-error=604800"
-                                        value={cdnSettings.cloudflareCdnCacheControl || ""}
-                                        onChange={(e) =>
-                                            setCdnSettings({
-                                                ...cdnSettings,
-                                                cloudflareCdnCacheControl: e.target.value,
-                                            })
-                                        }
-                                    />
-                                </div>
-
-                                {/* 自定义响应头 */}
-                                <div className="space-y-3">
-                                    <Label>自定义响应头</Label>
-                                    <div className="space-y-2">
-                                        {cdnSettings.customHeaders.map((header, index) => (
-                                            <div key={index} className="flex items-center gap-2">
+                                    {/* 自定义响应头 */}
+                                    <div className="space-y-3">
+                                        <Label>自定义响应头</Label>
+                                        <div className="space-y-2">
+                                            {cdnSettings.customHeaders.map((header, index) => (
+                                                <div key={customHeaderKeys[index] ?? `custom-header-${index}`} className="flex items-center gap-2">
+                                                    <Input
+                                                        value={header.name}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            setCdnSettings((prev) => {
+                                                                if (!prev) return prev;
+                                                                return {
+                                                                    ...prev,
+                                                                    customHeaders: prev.customHeaders.map((item, i) =>
+                                                                        i === index ? { ...item, name: value } : item
+                                                                    ),
+                                                                };
+                                                            });
+                                                        }}
+                                                        placeholder="响应头名称"
+                                                        className="flex-1"
+                                                    />
+                                                    <Input
+                                                        value={header.value}
+                                                        onChange={(e) => {
+                                                            const value = e.target.value;
+                                                            setCdnSettings((prev) => {
+                                                                if (!prev) return prev;
+                                                                return {
+                                                                    ...prev,
+                                                                    customHeaders: prev.customHeaders.map((item, i) =>
+                                                                        i === index ? { ...item, value } : item
+                                                                    ),
+                                                                };
+                                                            });
+                                                        }}
+                                                        placeholder="响应头值"
+                                                        className="flex-1"
+                                                    />
+                                                    <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() => handleRemoveCustomHeader(index)}
+                                                    >
+                                                        <Trash2 className="w-4 h-4" />
+                                                    </Button>
+                                                </div>
+                                            ))}
+                                            <div className="flex items-center gap-2">
                                                 <Input
-                                                    value={header.name}
-                                                    onChange={(e) => {
-                                                        const newHeaders = [...cdnSettings.customHeaders];
-                                                        newHeaders[index] = { ...header, name: e.target.value };
-                                                        setCdnSettings({ ...cdnSettings, customHeaders: newHeaders });
-                                                    }}
-                                                    placeholder="响应头名称"
+                                                    value={newHeaderName}
+                                                    onChange={(e) => setNewHeaderName(e.target.value)}
+                                                    placeholder="新响应头名称"
                                                     className="flex-1"
                                                 />
                                                 <Input
-                                                    value={header.value}
-                                                    onChange={(e) => {
-                                                        const newHeaders = [...cdnSettings.customHeaders];
-                                                        newHeaders[index] = { ...header, value: e.target.value };
-                                                        setCdnSettings({ ...cdnSettings, customHeaders: newHeaders });
-                                                    }}
-                                                    placeholder="响应头值"
+                                                    value={newHeaderValue}
+                                                    onChange={(e) => setNewHeaderValue(e.target.value)}
+                                                    placeholder="新响应头值"
                                                     className="flex-1"
                                                 />
                                                 <Button
-                                                    variant="ghost"
+                                                    variant="outline"
                                                     size="sm"
-                                                    onClick={() => handleRemoveCustomHeader(index)}
+                                                    onClick={handleAddCustomHeader}
+                                                    disabled={!newHeaderName.trim() || !newHeaderValue.trim()}
                                                 >
-                                                    <Trash2 className="w-4 h-4" />
+                                                    <Plus className="w-4 h-4" />
                                                 </Button>
                                             </div>
-                                        ))}
-                                        <div className="flex items-center gap-2">
-                                            <Input
-                                                value={newHeaderName}
-                                                onChange={(e) => setNewHeaderName(e.target.value)}
-                                                placeholder="新响应头名称"
-                                                className="flex-1"
-                                            />
-                                            <Input
-                                                value={newHeaderValue}
-                                                onChange={(e) => setNewHeaderValue(e.target.value)}
-                                                placeholder="新响应头值"
-                                                className="flex-1"
-                                            />
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={handleAddCustomHeader}
-                                                disabled={!newHeaderName.trim() || !newHeaderValue.trim()}
-                                            >
-                                                <Plus className="w-4 h-4" />
-                                            </Button>
                                         </div>
                                     </div>
-                                </div>
 
-                                {/* 预览 */}
-                                <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
-                                    <Label className="text-sm text-muted-foreground">当前配置将生成的响应头预览：</Label>
-                                    <Textarea
-                                        readOnly
-                                        className="font-mono text-xs min-h-[100px] bg-background"
-                                        value={(() => {
-                                            const lines: string[] = [];
-                                            let cacheControl = "no-cache";
-                                            if (cdnSettings.cacheMode === "no-store") {
-                                                cacheControl = "no-store";
-                                            } else if (cdnSettings.cacheMode === "custom") {
-                                                cacheControl = cdnSettings.customCacheControl || "no-cache";
-                                            } else if (cdnSettings.staleIfErrorSeconds > 0) {
-                                                cacheControl = `no-cache, stale-if-error=${cdnSettings.staleIfErrorSeconds}`;
-                                            }
-                                            lines.push(`Cache-Control: ${cacheControl}`);
-                                            if (cdnSettings.cloudflareCdnCacheControl) {
-                                                lines.push(`Cloudflare-CDN-Cache-Control: ${cdnSettings.cloudflareCdnCacheControl}`);
-                                            }
-                                            for (const h of cdnSettings.customHeaders) {
-                                                if (h.name && h.value) {
-                                                    lines.push(`${h.name}: ${h.value}`);
+                                    {/* 预览 */}
+                                    <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
+                                        <Label className="text-sm text-muted-foreground">当前配置将生成的响应头预览：</Label>
+                                        <Textarea
+                                            readOnly
+                                            className="font-mono text-xs min-h-[100px] bg-background"
+                                            value={(() => {
+                                                const lines: string[] = [];
+                                                let cacheControl = "no-cache";
+                                                if (cdnSettings.cacheMode === "no-store") {
+                                                    cacheControl = "no-store";
+                                                } else if (cdnSettings.cacheMode === "custom") {
+                                                    cacheControl = cdnSettings.customCacheControl || "no-cache";
+                                                } else if (cdnSettings.staleIfErrorSeconds > 0) {
+                                                    cacheControl = `no-cache, stale-if-error=${cdnSettings.staleIfErrorSeconds}`;
                                                 }
-                                            }
-                                            return lines.join("\n");
-                                        })()}
-                                    />
-                                </div>
-                            </>
-                        )}
-                    </div>
-                </div>
-            )}
+                                                lines.push(`Cache-Control: ${cacheControl}`);
+                                                if (cdnSettings.cloudflareCdnCacheControl) {
+                                                    lines.push(`Cloudflare-CDN-Cache-Control: ${cdnSettings.cloudflareCdnCacheControl}`);
+                                                }
+                                                for (const h of cdnSettings.customHeaders) {
+                                                    if (h.name && h.value) {
+                                                        lines.push(`${h.name}: ${h.value}`);
+                                                    }
+                                                }
+                                                return lines.join("\n");
+                                            })()}
+                                        />
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    </Card>
+                )
+            }
         </div>
     );
 }

@@ -232,6 +232,27 @@ export async function getStatus(): Promise<StatusResponse> {
   return apiRequest<StatusResponse>("/status");
 }
 
+export interface PublicRuleInfo {
+  name: string;
+  displayName?: string;
+  description?: string;
+  icon?: string;
+  tags?: string[];
+  clients: ClientType[];
+}
+
+export interface PublicStatusResponse {
+  rulesCount: number;
+  lastSyncAt: string | null;
+  rules: PublicRuleInfo[];
+  clients: Pick<ClientConfig, "id" | "displayName" | "pathName">[];
+  version?: string;
+}
+
+export async function getPublicStatus(): Promise<PublicStatusResponse> {
+  return apiRequest<PublicStatusResponse>("/status");
+}
+
 export async function getChangeRecords(
   date?: string,
   page: number = 1,

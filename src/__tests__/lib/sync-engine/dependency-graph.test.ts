@@ -18,6 +18,7 @@ function createRule(
     return {
         name,
         sources,
+        tags: [],
         output: {
             clients: options.clients || ["clash_meta"],
         },

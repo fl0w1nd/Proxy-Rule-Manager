@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
     Dialog,
@@ -11,8 +12,9 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
+import NextImage from "next/image";
 
-import { Trash2, Loader2, Image, Upload, Copy, Pencil, Check, X } from "lucide-react";
+import { Trash2, Loader2, Image as ImageIcon, Upload, Copy, Pencil, Check, X } from "lucide-react";
 import { toast } from "sonner";
 import { listIcons, uploadIcons, renameIcon, deleteIcon, IconMeta } from "@/lib/api-client";
 
@@ -150,15 +152,15 @@ export function IconSetManager() {
 
     return (
         <>
-            <div className="card-embossed">
+            <Card>
                 <div className="px-5 pt-5 pb-3">
                     <div className="flex items-center justify-between">
                         <div>
-                            <h3 className="text-base font-medium text-gray-800 dark:text-gray-100 flex items-center gap-2">
-                                <Image className="w-5 h-5" />
+                            <h3 className="text-base font-medium text-foreground flex items-center gap-2">
+                                <ImageIcon className="w-5 h-5" />
                                 图标集
                             </h3>
-                            <p className="text-sm text-gray-500 dark:text-gray-400">上传和管理图标文件</p>
+                            <p className="text-sm text-muted-foreground">上传和管理图标文件</p>
                         </div>
                         <Button onClick={openUploadDialog}>
                             <Upload className="w-4 h-4 mr-2" />
@@ -173,7 +175,7 @@ export function IconSetManager() {
                         </div>
                     ) : icons.length === 0 ? (
                         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                            <Image className="w-12 h-12 mb-4 opacity-50" />
+                            <ImageIcon className="w-12 h-12 mb-4 opacity-50" />
                             <p>暂无图标</p>
                             <p className="text-sm">点击上方按钮上传图标</p>
                         </div>
@@ -182,13 +184,16 @@ export function IconSetManager() {
                             {icons.map((icon) => (
                                 <div
                                     key={icon.id}
-                                    className="group relative flex flex-col rounded-xl border border-gray-100 dark:border-gray-700/40 bg-white dark:bg-gray-800/30 p-3"
+                                    className="group relative flex flex-col rounded-xl border border-border/40 bg-white dark:bg-gray-800/30 p-3"
                                 >
-                                    <div className="aspect-square w-full flex items-center justify-center rounded-md border border-border/50 bg-muted/30 mb-2 overflow-hidden">
-                                        <img
+                                    <div className="relative aspect-square w-full flex items-center justify-center rounded-md border border-border/50 bg-muted/30 mb-2 overflow-hidden">
+                                        <NextImage
                                             src={icon.url}
                                             alt={icon.name}
-                                            className="max-w-full max-h-full object-contain"
+                                            fill
+                                            sizes="(max-width: 640px) 40vw, (max-width: 1024px) 20vw, 10vw"
+                                            unoptimized
+                                            className="object-contain"
                                         />
                                     </div>
 
@@ -281,7 +286,7 @@ export function IconSetManager() {
                         </div>
                     )}
                 </div>
-            </div>
+            </Card>
 
             <Dialog open={isUploadDialogOpen} onOpenChange={setIsUploadDialogOpen}>
                 <DialogContent>
@@ -355,7 +360,7 @@ export function IconSetManager() {
                     <DialogHeader>
                         <DialogTitle>确认删除</DialogTitle>
                         <DialogDescription>
-                            确定要删除图标 "{deleteConfirmIcon?.name}" 吗？此操作无法撤销。
+                            确定要删除图标 &quot;{deleteConfirmIcon?.name}&quot; 吗？此操作无法撤销。
                         </DialogDescription>
                     </DialogHeader>
                     <DialogFooter>

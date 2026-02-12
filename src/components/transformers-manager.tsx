@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -294,11 +295,11 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       {/* 头部操作 */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
+          <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
             <Code2 className="w-5 h-5 text-blue-500" />
             预定义转换器
           </h2>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+          <p className="text-sm text-muted-foreground mt-1">
             使用 JavaScript 脚本创建可复用的规则转换器
           </p>
         </div>
@@ -316,7 +317,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
-        <div className="card-embossed">
+        <Card>
           <div className="text-center py-16 px-5">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
               <Code2 className="w-10 h-10 text-muted-foreground/40" />
@@ -330,7 +331,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               创建转换器
             </Button>
           </div>
-        </div>
+        </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {transformerList.map(([name, transformer], index) => (
@@ -346,7 +347,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                       <Code2 className="w-5 h-5" />
                     </div>
                     <div>
-                      <h3 className="text-[15px] font-semibold text-gray-800 dark:text-gray-100">{name}</h3>
+                      <h3 className="text-[15px] font-semibold text-foreground">{name}</h3>
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-1" title={transformer.description}>
                         {transformer.description || "无描述"}
                       </p>
@@ -441,7 +442,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                   <TooltipProvider>
                     <Tooltip>
                       <TooltipTrigger>
-                        <HelpCircle className="w-4 h-4 text-gray-400" />
+                        <HelpCircle className="w-4 h-4 text-muted-foreground" />
                       </TooltipTrigger>
                       <TooltipContent side="right" className="max-w-sm">
                         <p>编写 transform(content) 函数处理规则内容</p>
@@ -463,7 +464,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               </div>
 
               {/* 测试区域 */}
-              <div className="border border-gray-200 dark:border-slate-700 rounded-lg p-4 space-y-4">
+              <div className="border border-border rounded-lg p-4 space-y-4">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-2">
                     <Play className="w-4 h-4" />
@@ -475,7 +476,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label className="text-sm text-gray-500">输入内容</Label>
+                    <Label className="text-sm text-muted-foreground">输入内容</Label>
                     <Textarea
                       value={testInput}
                       onChange={(e) => setTestInput(e.target.value)}
@@ -484,7 +485,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                     />
                   </div>
                   <div className="space-y-2">
-                    <Label className="text-sm text-gray-500">输出结果</Label>
+                    <Label className="text-sm text-muted-foreground">输出结果</Label>
                     {testError ? (
                       <div className="p-3 h-32 overflow-auto rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-mono">
                         {testError}
@@ -494,7 +495,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                         value={testOutput}
                         readOnly
                         placeholder="运行测试查看输出..."
-                        className="font-mono text-sm h-32 bg-gray-50 dark:bg-slate-800"
+                        className="font-mono text-sm h-32 bg-muted/50"
                       />
                     )}
                   </div>
@@ -588,7 +589,7 @@ function SimpleMarkdown({ content }: { content: string }) {
       }
       i++; // 跳过结束的 ```
       elements.push(
-        <pre key={key++} className="bg-gray-100 dark:bg-slate-800 p-3 rounded-lg overflow-x-auto text-xs">
+        <pre key={key++} className="bg-muted p-3 rounded-lg overflow-x-auto text-xs">
           <code className={`language-${lang}`}>{codeLines.join('\n')}</code>
         </pre>
       );
@@ -601,7 +602,7 @@ function SimpleMarkdown({ content }: { content: string }) {
       return parts.map((part, idx) => {
         if (part.startsWith('`') && part.endsWith('`')) {
           return (
-            <code key={idx} className="bg-gray-100 dark:bg-slate-800 px-1 py-0.5 rounded text-xs">
+            <code key={idx} className="bg-muted px-1 py-0.5 rounded text-xs">
               {part.slice(1, -1)}
             </code>
           );
@@ -612,16 +613,16 @@ function SimpleMarkdown({ content }: { content: string }) {
 
     // 标题
     if (line.startsWith('####')) {
-      elements.push(<h4 key={key++} className="text-sm font-semibold text-gray-800 dark:text-gray-200 mt-4 mb-2">{processInlineCode(line.slice(4).trim())}</h4>);
+      elements.push(<h4 key={key++} className="text-sm font-semibold text-foreground/80 mt-4 mb-2">{processInlineCode(line.slice(4).trim())}</h4>);
     } else if (line.startsWith('###')) {
-      elements.push(<h3 key={key++} className="text-base font-semibold text-gray-900 dark:text-white mt-4 mb-2">{processInlineCode(line.slice(3).trim())}</h3>);
+      elements.push(<h3 key={key++} className="text-base font-semibold text-foreground mt-4 mb-2">{processInlineCode(line.slice(3).trim())}</h3>);
     } else if (line.startsWith('##')) {
-      elements.push(<h2 key={key++} className="text-lg font-bold text-gray-900 dark:text-white mt-6 mb-3">{processInlineCode(line.slice(2).trim())}</h2>);
+      elements.push(<h2 key={key++} className="text-lg font-bold text-foreground mt-6 mb-3">{processInlineCode(line.slice(2).trim())}</h2>);
     } else if (line.trim() === '') {
       // 空行跳过
     } else {
       // 普通段落
-      elements.push(<p key={key++} className="text-gray-700 dark:text-gray-300 leading-relaxed">{processInlineCode(line)}</p>);
+      elements.push(<p key={key++} className="text-foreground/80 leading-relaxed">{processInlineCode(line)}</p>);
     }
     i++;
   }
