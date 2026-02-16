@@ -6,7 +6,7 @@ import { getDataDir } from "./data-paths";
 const RECORDS_DIR = path.join(getDataDir(), "records");
 const CHANGES_DIR = path.join(RECORDS_DIR, "changes");
 const FAILURES_DIR = path.join(RECORDS_DIR, "failures");
-const RETENTION_DAYS = 7;
+const RETENTION_DAYS = 30;
 
 export interface ChangeRecordMeta {
   id: string;
