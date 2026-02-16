@@ -29,6 +29,7 @@ export function getNextSyncAt(schedule: SyncSchedule, baseDate: Date): string {
       schedule.cronExpression || DEFAULT_CRON_EXPRESSION,
       {
         currentDate: baseDate,
+        tz: "UTC",
       }
     );
     return expression.next().toDate().toISOString();
@@ -38,5 +39,5 @@ export function getNextSyncAt(schedule: SyncSchedule, baseDate: Date): string {
 }
 
 export function validateCronExpression(expression: string): void {
-  CronExpressionParser.parse(expression, { currentDate: new Date() });
+  CronExpressionParser.parse(expression, { currentDate: new Date(), tz: "UTC" });
 }

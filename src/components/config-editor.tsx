@@ -354,7 +354,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                 </div>
                 {syncScheduleNextAt && (
                   <span className="text-xs font-mono text-primary">
-                    下次同步: {new Date(syncScheduleNextAt).toLocaleString("zh-CN")}
+                    下次同步（本地时间）: {new Date(syncScheduleNextAt).toLocaleString()}
                   </span>
                 )}
               </div>
@@ -383,7 +383,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               ) : (
                 <div className="space-y-1">
                   <label className="text-sm font-medium text-foreground">
-                    Cron 表达式（支持 5/6 段）
+                    Cron 表达式（支持 5/6 段，UTC 时间）
                   </label>
                   <input
                     value={cronExpression}
@@ -392,7 +392,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                     placeholder="0 0 * * *"
                   />
                   <p className="text-xs text-muted-foreground">
-                    示例: <span className="font-mono bg-muted px-1 rounded">0 */6 * * *</span> 表示每 6 小时执行一次
+                    示例: <span className="font-mono bg-muted px-1 rounded">0 */6 * * *</span> 表示每 6 小时执行一次（UTC 时间）
                   </p>
                 </div>
               )}
