@@ -41,6 +41,7 @@ import {
   AlertTriangle,
   Tag,
   Pencil,
+  CopyPlus,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
@@ -68,6 +69,23 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+
+  const handleDuplicateRule = (rule: RuleConfig) => {
+    const existingNames = new Set(config?.rules.map((r) => r.name) || []);
+    let newName = `${rule.name}-copy`;
+    let i = 2;
+    while (existingNames.has(newName)) {
+      newName = `${rule.name}-copy-${i}`;
+      i++;
+    }
+    const duplicated: RuleConfig = JSON.parse(JSON.stringify(rule));
+    duplicated.name = newName;
+    if (duplicated.displayName) {
+      duplicated.displayName = `${duplicated.displayName} (副本)`;
+    }
+    setEditingRule(duplicated);
+    setIsEditorOpen(true);
+  };
 
   const fetchConfig = async () => {
     try {
@@ -506,6 +524,23 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   </DropdownMenu>
                 )}
 
+                {/* Duplicate */}
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      className="fab-item text-muted-foreground"
+                      style={{ "--fab-i": 4 } as React.CSSProperties}
+                      onClick={() => {
+                        handleDuplicateRule(rule);
+                        setExpandedCard(null);
+                      }}
+                    >
+                      <CopyPlus className="w-[15px] h-[15px]" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left">复制规则</TooltipContent>
+                </Tooltip>
+
                 {/* Divider */}
                 <div className="fab-divider" />
 
@@ -514,7 +549,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   <TooltipTrigger asChild>
                     <button
                       className="fab-item text-red-500/70 dark:text-red-400/60 hover:!bg-red-50 dark:hover:!bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
-                      style={{ "--fab-i": 4 } as React.CSSProperties}
+                      style={{ "--fab-i": 5 } as React.CSSProperties}
                       onClick={() => {
                         setDeletingRule(rule.name);
                         setExpandedCard(null);
