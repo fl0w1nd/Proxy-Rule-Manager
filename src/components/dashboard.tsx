@@ -320,23 +320,24 @@ export function Dashboard({ onBack }: DashboardProps) {
             className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
           >
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-1">
+              <div className="flex items-center gap-2 mb-1.5">
                 <span className="font-medium text-sm truncate" title={change.ruleName}>
                   {change.ruleName}
                 </span>
                 <Badge variant={getChangeBadgeVariant(change.changeType)} className="text-[10px] shrink-0">
                   {getChangeLabel(change.changeType)}
                 </Badge>
-                {change.client && (
-                  <Badge variant="secondary" className="text-[10px] font-normal">
-                    {getClientDisplayName(change.client)}
-                  </Badge>
-                )}
               </div>
-              <p className="text-xs text-muted-foreground flex items-center justify-between">
+              <div className="text-xs text-muted-foreground flex items-center gap-3">
+                {change.client && (
+                  <span className="flex items-center gap-1">
+                    <Monitor className="w-3 h-3" />
+                    {getClientDisplayName(change.client)}
+                  </span>
+                )}
                 <span>{formatBytes(change.sizeBytes)}</span>
-                <span className="ml-2 font-mono">{formatTimestamp(change.timestamp).split(' ')[0]}</span>
-              </p>
+                <span className="ml-auto font-mono">{formatTimestamp(change.timestamp).split(' ')[0]}</span>
+              </div>
             </div>
             {!compact && (
               <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onViewDiff(change); }}>
