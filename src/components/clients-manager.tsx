@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -23,10 +23,12 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import Editor from "@monaco-editor/react";
+import Editor, { type Monaco } from "@monaco-editor/react";
+import type { editor } from "monaco-editor";
 import { useTheme } from "./theme-provider";
+import { useEditorValidation } from "@/hooks/use-editor-validation";
 import {
     getClients,
     addClient,
@@ -82,6 +84,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isFileLoading, setIsFileLoading] = useState(false);
     const [isFullscreenFileEditor, setIsFullscreenFileEditor] = useState(false);
     const { theme } = useTheme();
+    const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
+    const monacoRef = useRef<Monaco | null>(null);
 
     const fetchClients = async () => {
         try {
@@ -263,6 +267,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             return;
         }
 
+        if (validation.hasErrors) {
+            toast.error(`内容存在 ${validation.errors.length} 个语法错误，请修正后再保存`);
+            return;
+        }
+
         setIsFileSaving(true);
         try {
             if (editingFile) {
@@ -342,6 +351,39 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         return languageMap[extLower] || "plaintext";
     };
 
+    const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
+    const editorTheme = theme === "dark" ? "vs-dark" : "light";
+    const editorLanguage = getEditorLanguage(fileForm.ext);
+    const validation = useEditorValidation(fileContent, editorLanguage);
+
+    // 将语法错误标记到 Monaco Editor
+    useEffect(() => {
+        const model = editorRef.current?.getModel();
+        const monaco = monacoRef.current;
+        if (!model || !monaco) return;
+
+        const markers: editor.IMarkerData[] = validation.errors.map((err) => ({
+            severity: monaco.MarkerSeverity.Error,
+            message: err.message,
+            startLineNumber: err.line,
+            startColumn: err.column,
+            endLineNumber: err.line,
+            endColumn: err.column + 1,
+        }));
+        monaco.editor.setModelMarkers(model, "syntax-validation", markers);
+
+        return () => {
+            if (model && !model.isDisposed()) {
+                monaco.editor.setModelMarkers(model, "syntax-validation", []);
+            }
+        };
+    }, [validation.errors]);
+
+    const handleEditorMount = useCallback((ed: editor.IStandaloneCodeEditor, monaco: Monaco) => {
+        editorRef.current = ed;
+        monacoRef.current = monaco;
+    }, []);
+
     if (isLoading) {
         return (
             <Card>
@@ -351,10 +393,6 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             </Card>
         );
     }
-
-    const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
-    const editorTheme = theme === "dark" ? "vs-dark" : "light";
-    const editorLanguage = getEditorLanguage(fileForm.ext);
 
     // Fullscreen file editor mode
     if (isFullscreenFileEditor) {
@@ -405,31 +443,47 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                     </div>
                 </div>
 
-                <div className="flex-1">
-                    <Editor
-                        height="100%"
-                        language={editorLanguage}
-                        value={fileContent}
-                        onChange={(value) => setFileContent(value || "")}
-                        theme={editorTheme}
-                        options={{
-                            readOnly: isFileLoading || isFileSaving,
-                            minimap: { enabled: true },
-                            fontSize: 14,
-                            lineNumbers: "on",
-                            scrollBeyondLastLine: false,
-                            automaticLayout: true,
-                            tabSize: 2,
-                            wordWrap: "off",
-                            padding: { top: 16 },
-                            scrollbar: {
-                                horizontal: "visible",
-                                vertical: "visible",
-                                horizontalScrollbarSize: 12,
-                                verticalScrollbarSize: 12,
-                            },
-                        }}
-                    />
+                <div className="flex-1 flex flex-col min-h-0">
+                    <div className="flex-1 min-h-0">
+                        <Editor
+                            height="100%"
+                            language={editorLanguage}
+                            value={fileContent}
+                            onChange={(value) => setFileContent(value || "")}
+                            theme={editorTheme}
+                            onMount={handleEditorMount}
+                            options={{
+                                readOnly: isFileLoading || isFileSaving,
+                                minimap: { enabled: true },
+                                fontSize: 14,
+                                lineNumbers: "on",
+                                scrollBeyondLastLine: false,
+                                automaticLayout: true,
+                                tabSize: 2,
+                                wordWrap: "off",
+                                padding: { top: 16 },
+                                scrollbar: {
+                                    horizontal: "visible",
+                                    vertical: "visible",
+                                    horizontalScrollbarSize: 12,
+                                    verticalScrollbarSize: 12,
+                                },
+                            }}
+                        />
+                    </div>
+                    {validation.hasErrors && (
+                        <div className="shrink-0 border-t border-border bg-destructive/5 px-4 py-2 flex items-start gap-2 max-h-28 overflow-y-auto">
+                            <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                            <div className="text-sm space-y-0.5">
+                                {validation.errors.map((err, i) => (
+                                    <p key={i} className="text-destructive">
+                                        <span className="font-mono text-xs opacity-70">行 {err.line}:{err.column}</span>{" "}
+                                        {err.message}
+                                    </p>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
             </div>
         );
@@ -928,6 +982,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     value={fileContent}
                                     onChange={(value) => setFileContent(value || "")}
                                     theme={editorTheme}
+                                    onMount={handleEditorMount}
                                     options={{
                                         readOnly: isFileLoading || isFileSaving,
                                         minimap: { enabled: false },
@@ -947,6 +1002,19 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     }}
                                 />
                             </div>
+                            {validation.hasErrors && (
+                                <div className="mt-2 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 flex items-start gap-2 max-h-24 overflow-y-auto">
+                                    <AlertTriangle className="w-4 h-4 text-destructive shrink-0 mt-0.5" />
+                                    <div className="text-sm space-y-0.5">
+                                        {validation.errors.map((err, i) => (
+                                            <p key={i} className="text-destructive">
+                                                <span className="font-mono text-xs opacity-70">行 {err.line}:{err.column}</span>{" "}
+                                                {err.message}
+                                            </p>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
                     <DialogFooter className="shrink-0 px-6 pb-6 pt-4">
