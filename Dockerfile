@@ -28,6 +28,10 @@ RUN pnpm exec esbuild src/server/index.ts --bundle --platform=node --target=node
 # Production stage
 FROM node:22-alpine AS runner
 
+LABEL org.opencontainers.image.source="https://github.com/fl0w1nd/proxy-rule-manager"
+LABEL org.opencontainers.image.description="代理规则集编排管理 WebUI"
+LABEL org.opencontainers.image.licenses="MIT"
+
 WORKDIR /app
 
 # Copy built frontend static files
