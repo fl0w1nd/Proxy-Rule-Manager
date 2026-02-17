@@ -1,43 +1,5 @@
-<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <defs>
-    <linearGradient id="primary-grad" x1="4" y1="4" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#2563EB" />
-      <stop offset="100%" stop-color="#06B6D4" />
-    </linearGradient>
-    <linearGradient id="accent-grad" x1="36" y1="4" x2="4" y2="36" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#10B981" />
-      <stop offset="100%" stop-color="#3B82F6" />
-    </linearGradient>
-    <filter id="shadow" x="-2" y="-2" width="44" height="44" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feFlood flood-opacity="0" result="BackgroundImageFix"/>
-      <feColorMatrix in="SourceAlpha" type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 127 0" result="hardAlpha"/>
-      <feOffset dy="1.5"/>
-      <feGaussianBlur stdDeviation="1.5"/>
-      <feComposite in2="hardAlpha" operator="out"/>
-      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.15 0"/>
-      <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow"/>
-      <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow" result="shape"/>
-    </filter>
-  </defs>
-
-  <!-- Background Base for Contrast -->
-  <rect x="2" y="2" width="36" height="36" rx="10" fill="white" />
-  
-  <!-- Outer Ring with Depth -->
-  <rect x="4" y="4" width="32" height="32" rx="9" stroke="url(#primary-grad)" stroke-width="2.5" filter="url(#shadow)" />
-
-  <!-- Inner Logic/Routing Symbol (High Contrast) -->
-  <g filter="url(#shadow)">
-    <!-- Path Alpha -->
-    <path d="M12 14C12 14 16 12 20 12C24 12 28 14 28 14V22C28 22 24 20 20 20C16 20 12 22 12 22V14Z" fill="url(#primary-grad)" fill-opacity="0.9" />
-    <!-- Path Beta (Interlocking) -->
-    <path d="M12 26C12 26 16 28 20 28C24 28 28 26 28 26V18C28 18 24 20 20 20C16 20 12 18 12 18V26Z" fill="url(#accent-grad)" fill-opacity="0.85" />
-    
-    <!-- Central Control Node -->
-    <circle cx="20" cy="20" r="4.5" fill="white" />
-    <circle cx="20" cy="20" r="2.5" fill="#1E40AF" />
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 512 512" fill="currentColor">
+  <g transform="translate(0,512) scale(0.1,-0.1)">
+    <path d="M1387 4013 c-4 -3 -7 -576 -7 -1272 l0 -1266 53 55 c28 30 245 267 482 525 l429 470 -167 3 -167 2 -2 743 -3 742 -306 3 c-168 1 -308 -1 -312 -5z M2180 3767 l0 -255 268 -4 c255 -5 271 -6 347 -31 90 -30 164 -81 210 -144 16 -23 32 -42 35 -42 3 0 68 70 145 155 77 85 166 184 198 219 l58 64 -37 33 c-128 113 -285 186 -494 230 -79 16 -149 21 -412 25 l-318 5 0 -255z M3455 3427 c-371 -404 -355 -384 -355 -435 0 -61 -24 -161 -51 -215 -65 -128 -194 -214 -355 -235 l-53 -7 -226 -248 c-124 -136 -225 -251 -225 -255 0 -4 75 -7 167 -7 l166 0 281 -460 281 -460 349 -3 c291 -2 347 0 343 11 -3 8 -143 235 -311 506 -168 270 -306 495 -306 499 0 4 21 18 47 32 142 75 280 193 355 303 155 228 204 553 128 852 -19 74 -89 237 -106 248 -5 2 -63 -54 -129 -126z M1866 1687 c-71 -78 -219 -240 -328 -359 -109 -120 -198 -220 -198 -223 0 -3 150 -4 333 -3 l332 3 3 363 c1 199 -1 362 -5 361 -5 0 -66 -64 -137 -142z"/>
   </g>
-  
-  <!-- Minimalist Corner Detail -->
-  <rect x="30" y="6" width="4" height="4" rx="2" fill="#10B981" />
 </svg>
