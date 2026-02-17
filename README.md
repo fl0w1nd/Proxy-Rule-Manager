@@ -6,15 +6,29 @@
 
 面向代理规则与客户端配置的管理平台，提供规则编辑、客户端管理与公开分发。
 
+## 预览
+
+<p align="center">
+  <img src="public/preview1.png" width="90%" alt="Dashboard Preview">
+</p>
+
+<p align="center">
+  <img src="public/preview2.png" width="90%" alt="Rules Manager Preview">
+</p>
+
+<p align="center">
+  <img src="public/preview3.png" width="90%" alt="Client Config Preview">
+</p>
+
+
 ## 功能
 
-- 规则编辑与管理
-- 客户端管理
-- 配置文件编辑与管理
+- 规则编排与自动化管理，支持本地/远程数据源混合
+- 规则更新记录追溯
+- 客户端配置文件编辑与管理
 - 公开分享与下载
-- 同步
+- 数据源定时从上游同步
 - 备份与恢复
-- 管理员认证
 
 ## 安装（Docker Compose）
 
@@ -34,8 +48,6 @@ services:
       - PORT=3000
       - NODE_ENV=production
       - ADMIN_TOKEN=your-secure-token-here
-      # 可选：自定义初始化模板路径
-      # - INITIAL_CONFIG_PATH=/app/templates/initial-config.json
 ```
 
 ### 环境变量
@@ -45,7 +57,6 @@ services:
 | `PORT` | 服务端口 | `3000` |
 | `DATA_DIR` | 数据目录 | `./data` |
 | `ADMIN_TOKEN` | 管理员令牌（空则无需认证） | 空 |
-| `INITIAL_CONFIG_PATH` | 初始化模板路径（可选） | 空 |
 
 ## 开发者
 
