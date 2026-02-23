@@ -150,11 +150,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const getRuleUrl = (ruleName: string, clientId: string) => {
     const client = getClientConfig(clientId);
     const clientPath = client?.pathName || clientId;
-    return `${window.location.origin}/Rules/${clientPath}/${ruleName}.list`;
+    return `${window.location.origin}/Rules/${encodeURIComponent(clientPath)}/${encodeURIComponent(ruleName)}.list`;
   };
 
   const getConfigUrl = (name: string, ext: string) => {
-    return `${window.location.origin}/client/${name}.${ext}`;
+    return `${window.location.origin}/client/${encodeURIComponent(name)}.${encodeURIComponent(ext)}`;
   };
 
   const copyRuleUrl = async (ruleName: string, clientId?: string) => {
@@ -210,8 +210,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
       } else {
         setPreviewContent("# 文件暂不可用");
       }
-    } catch (error) {
-      setPreviewContent("# 加载失败: " + String(error));
+    } catch {
+      setPreviewContent("# 加载失败，请稍后重试");
     } finally {
       setPreviewLoading(false);
     }
@@ -397,6 +397,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={toggleTheme}
+                  aria-label={theme === "light" ? "切换到深色模式" : "切换到浅色模式"}
                   className="neu-btn w-11 h-11 flex items-center justify-center text-muted-foreground !rounded-[14px]"
                 >
                   {theme === "light" ? (
@@ -447,9 +448,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
               {/* Search */}
               <div className="neu-search flex items-center gap-2 px-4 py-2.5 w-full sm:w-auto sm:min-w-[280px]">
-                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                 <input
-                  type="text"
+                  type="search"
+                  aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
                   placeholder={activeMainTab === "rules" ? "搜索规则..." : activeMainTab === "configs" ? "搜索配置文件..." : "搜索图标..."}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}

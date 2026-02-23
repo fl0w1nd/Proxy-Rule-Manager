@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -217,15 +217,18 @@ export function RuleEditor({
 
   // 动态客户端列表
   const [clientsList, setClientsList] = useState<ClientConfig[]>([]);
+  const clientsListRef = useRef<ClientConfig[]>([]);
 
   const fetchLatestClients = async (): Promise<ClientConfig[]> => {
     try {
       const { clients } = await getClients();
       setClientsList(clients);
+      clientsListRef.current = clients;
       return clients;
     } catch (err) {
       console.error("Failed to load clients:", err);
-      return clientsList;
+      // Use ref to avoid stale closure capturing outdated clientsList state
+      return clientsListRef.current;
     }
   };
 
@@ -1061,22 +1064,28 @@ export function RuleEditor({
               <div className="space-y-2">
                 <Label>输出客户端</Label>
                 <div className="flex flex-wrap gap-3">
-                  {clientsList.map((client) => (
-                    <label
-                      key={client.id}
-                      className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
-                        ? "bg-primary/10 border-primary"
-                        : "bg-muted/30 border-border"
-                        }`}
-                    >
-                      <Checkbox
-                        checked={formData.output.clients.includes(client.id)}
-                        onCheckedChange={() => toggleClient(client.id as ClientType)}
-                      />
-                      <Monitor className="w-4 h-4" />
-                      <span>{client.displayName}</span>
-                    </label>
-                  ))}
+                  {clientsList.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      暂无可用客户端，请先在客户端管理中添加。
+                    </p>
+                  ) : (
+                    clientsList.map((client) => (
+                      <label
+                        key={client.id}
+                        className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
+                          ? "bg-primary/10 border-primary"
+                          : "bg-muted/30 border-border"
+                          }`}
+                      >
+                        <Checkbox
+                          checked={formData.output.clients.includes(client.id)}
+                          onCheckedChange={() => toggleClient(client.id as ClientType)}
+                        />
+                        <Monitor className="w-4 h-4" />
+                        <span>{client.displayName}</span>
+                      </label>
+                    ))
+                  )}
                 </div>
               </div>
 

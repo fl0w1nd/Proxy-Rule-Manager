@@ -145,6 +145,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [deletingTransformer, setDeletingTransformer] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const [testInput, setTestInput] = useState("");
   const [testOutput, setTestOutput] = useState("");
@@ -205,7 +206,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       return;
     }
 
-    // 验证脚本语法
+    // Syntax-only validation: the function is constructed but never called here.
     try {
       new Function("content", data.script + "\nreturn transform(content);");
     } catch (e) {
@@ -213,6 +214,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       return;
     }
 
+    if (isSaving) return;
     setIsSaving(true);
     try {
       const newTransformers = { ...config.transformers };
@@ -246,6 +248,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   const handleDelete = async (name: string) => {
     if (!config) return;
 
+    setIsDeleting(true);
     try {
       const newTransformers = { ...config.transformers };
       delete newTransformers[name];
@@ -261,6 +264,8 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       onRefresh?.();
     } catch (error) {
       toast.error("删除失败: " + String(error));
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -271,8 +276,22 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
     setTestOutput("");
 
     try {
-      const fn = new Function("content", editingTransformer.data.script + "\nreturn transform(content);");
-      const result = fn(testInput);
+      // Shadow common browser globals to limit accidental side-effects in the
+      // test sandbox. This is admin-only code, but defence-in-depth helps.
+      const fn = new Function(
+        "content",
+        "fetch", "XMLHttpRequest", "WebSocket",
+        "localStorage", "sessionStorage", "indexedDB",
+        "document", "window",
+        editingTransformer.data.script + "\nreturn transform(content);"
+      );
+      const result = fn.call(
+        null,
+        testInput,
+        undefined, undefined, undefined,
+        undefined, undefined, undefined,
+        undefined, undefined
+      );
       setTestOutput(String(result));
     } catch (e) {
       setTestError(String(e));
@@ -362,7 +381,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                       ? new Date(transformer.updatedAt).toLocaleDateString("zh-CN")
                       : "未更新"}
                   </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity absolute right-4 bottom-4 bg-card shadow-sm border rounded-md p-0.5">
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity absolute right-4 bottom-4 bg-card shadow-sm border rounded-md p-0.5">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -533,14 +552,15 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3 mt-4">
-            <Button variant="outline" onClick={() => setDeletingTransformer(null)}>
+            <Button variant="outline" onClick={() => setDeletingTransformer(null)} disabled={isDeleting}>
               取消
             </Button>
             <Button
               variant="destructive"
+              disabled={isDeleting}
               onClick={() => deletingTransformer && handleDelete(deletingTransformer)}
             >
-              <Trash2 className="w-4 h-4 mr-1" />
+              {isDeleting ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Trash2 className="w-4 h-4 mr-1" />}
               删除
             </Button>
           </div>

@@ -77,7 +77,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isFileLoading, setIsFileLoading] = useState(false);
     const [isFullscreenFileEditor, setIsFullscreenFileEditor] = useState(false);
     const [deletingFile, setDeletingFile] = useState<ClientFileMeta | null>(null);
+    const [isDeletingFile, setIsDeletingFile] = useState(false);
     const [deletingClient, setDeletingClient] = useState<ClientConfig | null>(null);
+    const [isDeletingClient, setIsDeletingClient] = useState(false);
     const { theme } = useTheme();
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
@@ -306,6 +308,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const confirmDeleteFile = async () => {
         if (!selectedClientId || !deletingFile) return;
+        setIsDeletingFile(true);
         try {
             await deleteClientFile(selectedClientId, deletingFile.id);
             toast.success("配置文件已删除");
@@ -313,6 +316,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             await fetchClientFiles(selectedClientId);
         } catch (error) {
             toast.error(String(error));
+        } finally {
+            setIsDeletingFile(false);
         }
     };
 
@@ -322,6 +327,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const confirmDeleteClient = async () => {
         if (!deletingClient) return;
+        setIsDeletingClient(true);
         try {
             await deleteClient(deletingClient.id);
             toast.success("客户端已删除");
@@ -333,6 +339,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             onRefresh?.();
         } catch (error) {
             toast.error(String(error));
+        } finally {
+            setIsDeletingClient(false);
         }
     };
 
@@ -1050,11 +1058,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeletingFile(null)}>
+                        <Button variant="outline" onClick={() => setDeletingFile(null)} disabled={isDeletingFile}>
                             取消
                         </Button>
-                        <Button variant="destructive" onClick={confirmDeleteFile}>
-                            <Trash2 className="w-4 h-4 mr-2" />
+                        <Button variant="destructive" onClick={confirmDeleteFile} disabled={isDeletingFile}>
+                            {isDeletingFile ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
                             确认删除
                         </Button>
                     </div>
@@ -1078,11 +1086,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end gap-3 mt-4">
-                        <Button variant="outline" onClick={() => setDeletingClient(null)}>
+                        <Button variant="outline" onClick={() => setDeletingClient(null)} disabled={isDeletingClient}>
                             取消
                         </Button>
-                        <Button variant="destructive" onClick={confirmDeleteClient}>
-                            <Trash2 className="w-4 h-4 mr-2" />
+                        <Button variant="destructive" onClick={confirmDeleteClient} disabled={isDeletingClient}>
+                            {isDeletingClient ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Trash2 className="w-4 h-4 mr-2" />}
                             确认删除
                         </Button>
                     </div>

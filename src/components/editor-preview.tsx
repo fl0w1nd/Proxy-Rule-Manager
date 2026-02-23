@@ -111,9 +111,13 @@ export function PreviewDialog({
                     <Button
                       variant="ghost"
                       size="icon"
-                      onClick={() => {
-                        navigator.clipboard.writeText(content);
-                        toast.success("已复制内容");
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(content);
+                          toast.success("已复制内容");
+                        } catch {
+                          toast.error("复制失败，请手动选择内容复制");
+                        }
                       }}
                       className="bg-background/80 hover:bg-background shadow-sm"
                       title="复制内容"

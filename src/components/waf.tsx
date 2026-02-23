@@ -118,6 +118,14 @@ export function WafManager() {
             return;
         }
 
+        if (!isPermanent) {
+            const durationSeconds = parseInt(duration, 10);
+            if (isNaN(durationSeconds) || durationSeconds <= 0) {
+                toast.error("封禁时长必须是正整数（秒）");
+                return;
+            }
+        }
+
         setAdding(true);
         try {
             await addWafBan(
@@ -401,6 +409,7 @@ export function WafManager() {
                                         <Button
                                             variant="ghost"
                                             size="sm"
+                                            aria-label={`解除封禁 ${ban.ip}`}
                                             onClick={() => handleRemoveBan(ban.ip)}
                                         >
                                             <Trash2 className="w-4 h-4" />
@@ -672,6 +681,7 @@ export function WafManager() {
                                                     <Button
                                                         variant="ghost"
                                                         size="sm"
+                                                        aria-label="删除此响应头"
                                                         onClick={() => handleRemoveCustomHeader(index)}
                                                     >
                                                         <Trash2 className="w-4 h-4" />

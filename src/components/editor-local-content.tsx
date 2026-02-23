@@ -28,8 +28,16 @@ export function LocalContentDialog({
   onSave,
   onClose,
 }: LocalContentDialogProps) {
+  const [prevInitialContent, setPrevInitialContent] = useState(initialContent);
   const [draft, setDraft] = useState(initialContent);
   const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Sync draft when initialContent changes (same dialog index, different content).
+  // React-recommended "update state during render" pattern – no effect needed.
+  if (prevInitialContent !== initialContent) {
+    setPrevInitialContent(initialContent);
+    setDraft(initialContent);
+  }
 
   const handleClose = () => {
     setIsFullscreen(false);

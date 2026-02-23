@@ -267,7 +267,8 @@ export function Dashboard({ onBack }: DashboardProps) {
 
       if (activeTab === "overview") {
         // Overview 使用最近日期直接通过 API 过滤，避免客户端对分页数据二次过滤
-        const latestDate = dates.dates[0];
+        // If no dates exist yet (fresh install / no activity), fetch without date filter
+        const latestDate = dates.dates.length > 0 ? dates.dates[0] : undefined;
         const [changes, failures] = await Promise.all([
           getChangeRecords(latestDate, 1, 8),
           getFailureRecords(latestDate, 1, 8),

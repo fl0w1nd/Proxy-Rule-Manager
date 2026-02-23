@@ -156,6 +156,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     try {
       const result = await previewRule(ruleName);
       setPreviewData(result);
+      // Ensure previewClient matches an actual key in the result.
+      // The pre-set value (from rule.output.clients) may not appear in contents
+      // if that client failed or wasn't included in this preview run.
+      const availableClients = Object.keys(result.contents);
+      if (availableClients.length > 0 && !availableClients.includes(clients[0])) {
+        setPreviewClient(availableClients[0] as ClientType);
+      }
     } catch (error) {
       toast.error("预览失败: " + String(error));
       setPreviewingRule(null);
@@ -164,24 +171,22 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
   const copyRuleUrl = async (ruleName: string, client: ClientType) => {
     const clientPath = getClientPathName(client);
-    const url = `${window.location.origin}/Rules/${clientPath}/${ruleName}.list`;
+    const url = `${window.location.origin}/Rules/${encodeURIComponent(clientPath)}/${encodeURIComponent(ruleName)}.list`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("已复制规则 URL");
-    } catch (error) {
-      toast.error("复制失败: " + String(error));
+    } catch {
+      toast.error("复制失败");
     }
   };
 
   const handleDeleteRule = async (ruleName: string) => {
     setIsDeleting(true);
     try {
-      const result = await deleteRule(ruleName);
-      if (result.success) {
-        toast.success(`规则 "${ruleName}" 已删除`);
-        await fetchConfig();
-        onRefresh();
-      }
+      await deleteRule(ruleName);
+      toast.success(`规则 "${ruleName}" 已删除`);
+      await fetchConfig();
+      onRefresh();
     } catch (error) {
       toast.error("删除失败: " + String(error));
     } finally {
@@ -258,11 +263,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => {
+              onClick={async () => {
                 const content = previewData.contents[previewClient];
                 if (content) {
-                  navigator.clipboard.writeText(content);
-                  toast.success("已复制内容");
+                  try {
+                    await navigator.clipboard.writeText(content);
+                    toast.success("已复制内容");
+                  } catch {
+                    toast.error("复制失败");
+                  }
                 }
               }}
             >
@@ -703,9 +712,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => {
-                          navigator.clipboard.writeText(content);
-                          toast.success("已复制内容");
+                        onClick={async () => {
+                          try {
+                            await navigator.clipboard.writeText(content);
+                            toast.success("已复制内容");
+                          } catch {
+                            toast.error("复制失败");
+                          }
                         }}
                         className="bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
                         title="复制内容"

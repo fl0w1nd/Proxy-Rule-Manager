@@ -65,7 +65,12 @@ async function apiRequest<T>(
       ...(options.headers || {}),
     },
   });
-  return response.json();
+  const data = await response.json();
+  // Some endpoints return HTTP 200 but with { success: false, message: "..." }
+  if (data && typeof data === "object" && data.success === false) {
+    throw new Error(data.message || data.error || "Operation failed");
+  }
+  return data as T;
 }
 
 // 配置 API

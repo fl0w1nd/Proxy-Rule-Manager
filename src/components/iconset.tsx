@@ -142,7 +142,8 @@ export function IconSetManager() {
 
     const copyUrl = async (url: string) => {
         try {
-            const fullUrl = `${window.location.origin}${url}`;
+            // Use URL constructor to safely resolve both relative and absolute URLs
+            const fullUrl = new URL(url, window.location.origin).href;
             await navigator.clipboard.writeText(fullUrl);
             toast.success("链接已复制");
         } catch {
@@ -307,7 +308,10 @@ export function IconSetManager() {
                             }}
                             onDragLeave={(e) => {
                                 e.preventDefault();
-                                setIsDragging(false);
+                                // Only clear when leaving the drop zone itself, not a child element
+                                if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                                    setIsDragging(false);
+                                }
                             }}
                             onDrop={(e) => {
                                 e.preventDefault();
