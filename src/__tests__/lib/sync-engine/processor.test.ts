@@ -210,6 +210,7 @@ describe("processRule", () => {
                     client_overrides: {
                         clash_meta: {
                             enabled: true,
+                            useGlobalTransforms: true,
                             transforms: [
                                 { type: "replace", target: "all", pattern: "test", replacement: "clash" },
                             ],
@@ -229,6 +230,7 @@ describe("processRule", () => {
                     client_overrides: {
                         clash_meta: {
                             enabled: false,
+                            useGlobalTransforms: true,
                             transforms: [
                                 { type: "replace", target: "all", pattern: "test", replacement: "nope" },
                             ],
@@ -277,6 +279,7 @@ describe("processRule", () => {
                         clash_meta: {
                             enabled: true,
                             useGlobalTransforms: false,
+                            transforms: [],
                         },
                     },
                 },
@@ -303,6 +306,7 @@ describe("processRule", () => {
                     client_overrides: {
                         clash_meta: {
                             enabled: true,
+                            useGlobalTransforms: true,
                             transforms: [
                                 { type: "replace", target: "all", pattern: "test", replacement: "final" },
                             ],
