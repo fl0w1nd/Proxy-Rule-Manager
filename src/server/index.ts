@@ -14,6 +14,7 @@ import { executeFullSync } from "../lib/sync-engine";
 import { getConfig, getSyncSchedule, updateSyncSchedule } from "../lib/storage-adapter";
 import { getNextSyncAt } from "../lib/sync-schedule";
 import { jsonError } from "./errors";
+import { adminAuth } from "./middleware/admin-auth";
 import { registerClientRoutes } from "./routes/clients";
 import { registerClientFileRoutes } from "./routes/client-files";
 import { registerAuthRoutes } from "./routes/auth";
@@ -33,6 +34,22 @@ const app = new Hono();
 
 // --- Middleware ---
 app.use("*", cors());
+
+// Admin auth with rate limiting – skip public API paths
+const PUBLIC_API_PATHS = new Set([
+  "/api/auth/required",
+  "/api/status",
+  "/api/client-files/public",
+  "/api/waf/my-ip",
+  "/api/iconset",
+]);
+
+app.use("/api/*", async (c, next) => {
+  if (PUBLIC_API_PATHS.has(c.req.path)) {
+    return next();
+  }
+  return adminAuth(c, next);
+});
 
 // --- API Routes ---
 registerConfigRoutes(app);

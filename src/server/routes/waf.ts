@@ -5,7 +5,7 @@
  */
 
 import type { Hono } from "hono";
-import { verifyAdmin, getClientIp } from "../auth";
+import { getClientIp } from "../auth";
 import {
     getAllBans,
     upsertBan,
@@ -24,10 +24,6 @@ export function registerWafRoutes(app: Hono) {
      * 获取所有封禁记录
      */
     app.get("/api/waf/bans", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const bans = await getAllBans();
             return c.json({ bans });
@@ -40,10 +36,6 @@ export function registerWafRoutes(app: Hono) {
      * 手动添加封禁
      */
     app.post("/api/waf/bans", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const body = await c.req.json();
             const { ip, reason, permanent, durationSeconds } = body;
@@ -82,10 +74,6 @@ export function registerWafRoutes(app: Hono) {
      * 移除封禁
      */
     app.delete("/api/waf/bans/:ip", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const ip = decodeURIComponent(c.req.param("ip"));
             const removed = await removeBan(ip);
@@ -104,10 +92,6 @@ export function registerWafRoutes(app: Hono) {
      * 获取 WAF 统计信息
      */
     app.get("/api/waf/stats", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const banStats = await getBanStats();
             const failureRecords = getAllFailureRecords();
@@ -139,10 +123,6 @@ export function registerWafRoutes(app: Hono) {
      * 获取活跃失败记录（调试用）
      */
     app.get("/api/waf/failures", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const records = getAllFailureRecords();
             const now = Date.now();
@@ -174,10 +154,6 @@ export function registerWafRoutes(app: Hono) {
      * 清理过期封禁
      */
     app.post("/api/waf/cleanup", async (c) => {
-        if (!verifyAdmin(c.req.header("authorization"))) {
-            return c.json({ error: "Unauthorized" }, 401);
-        }
-
         try {
             const removed = await cleanupExpiredBans();
             return c.json({

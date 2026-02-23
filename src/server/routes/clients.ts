@@ -1,15 +1,10 @@
 import type { Hono } from "hono";
 import { addClient, deleteClient, getClients, updateClient } from "../../lib/storage-adapter";
 import { ClientConfigSchema } from "../../lib/schema";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 export function registerClientRoutes(app: Hono) {
   app.get("/api/clients", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clients = await getClients();
       return c.json({ clients });
@@ -20,10 +15,6 @@ export function registerClientRoutes(app: Hono) {
   });
 
   app.post("/api/clients", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const body = await c.req.json();
       const client = ClientConfigSchema.parse(body);
@@ -39,10 +30,6 @@ export function registerClientRoutes(app: Hono) {
   });
 
   app.put("/api/clients/:id", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       const body = await c.req.json();
@@ -56,10 +43,6 @@ export function registerClientRoutes(app: Hono) {
   });
 
   app.delete("/api/clients/:id", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       await deleteClient(clientId);

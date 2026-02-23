@@ -12,7 +12,6 @@ import {
   getCdnSettings,
   buildResponseHeaders,
 } from "../../lib/storage-adapter";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 const ClientFileCreateSchema = z.object({
@@ -46,10 +45,6 @@ function validateSegment(value: string, label: string) {
 export function registerClientFileRoutes(app: Hono) {
   // Admin APIs
   app.get("/api/clients/:id/files", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       validateSegment(clientId, "Client ID");
@@ -62,10 +57,6 @@ export function registerClientFileRoutes(app: Hono) {
   });
 
   app.post("/api/clients/:id/files", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       validateSegment(clientId, "Client ID");
@@ -92,10 +83,6 @@ export function registerClientFileRoutes(app: Hono) {
   });
 
   app.get("/api/clients/:id/files/:fileId", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       validateSegment(clientId, "Client ID");
@@ -113,10 +100,6 @@ export function registerClientFileRoutes(app: Hono) {
   });
 
   app.put("/api/clients/:id/files/:fileId", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       validateSegment(clientId, "Client ID");
@@ -145,10 +128,6 @@ export function registerClientFileRoutes(app: Hono) {
   });
 
   app.delete("/api/clients/:id/files/:fileId", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       validateSegment(clientId, "Client ID");

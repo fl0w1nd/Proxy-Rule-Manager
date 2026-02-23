@@ -4,7 +4,6 @@ import * as path from "node:path";
 import { getConfig, getSyncSchedule, saveConfig, updateSyncSchedule } from "../../lib/storage-adapter";
 import { getNextSyncAt } from "../../lib/sync-schedule";
 import { validateConfig } from "../../lib/schema";
-import { verifyAdmin } from "../auth";
 import { AppError, jsonError } from "../errors";
 
 const DEFAULT_TEMPLATE_PATHS = [
@@ -34,10 +33,6 @@ async function loadInitialConfigTemplate(): Promise<string> {
 
 export function registerInitRoutes(app: Hono) {
   app.get("/api/init", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const config = await getConfig();
       return c.json({
@@ -51,10 +46,6 @@ export function registerInitRoutes(app: Hono) {
   });
 
   app.post("/api/init", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const currentConfig = await getConfig();
       if (currentConfig.rules.length > 0) {

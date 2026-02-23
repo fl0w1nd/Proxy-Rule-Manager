@@ -12,15 +12,10 @@ import { executePartialSync } from "../../lib/sync-engine";
 import { recordRuleFileChanges, type ChangeRecordInput } from "../../lib/activity-store";
 import { createLineDiff } from "../../lib/diff";
 import { randomUUID } from "node:crypto";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 export function registerRuleRoutes(app: Hono) {
   app.delete("/api/rules/:ruleName", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const ruleName = decodeURIComponent(c.req.param("ruleName"));
       const config = await getConfig();
@@ -89,10 +84,6 @@ export function registerRuleRoutes(app: Hono) {
   });
 
   app.post("/api/rules/:ruleName/refresh", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const ruleName = decodeURIComponent(c.req.param("ruleName"));
       const result = await executePartialSync(ruleName);
@@ -104,10 +95,6 @@ export function registerRuleRoutes(app: Hono) {
   });
 
   app.put("/api/rules/:ruleName", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const oldName = decodeURIComponent(c.req.param("ruleName"));
       const body = await c.req.json();

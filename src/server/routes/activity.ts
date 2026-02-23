@@ -6,7 +6,6 @@ import {
   listActivityDates,
   clearActivityRecords,
 } from "../../lib/activity-store";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 function parsePageParam(value: string | null, fallback: number): number {
@@ -27,10 +26,6 @@ function isDateKey(value: string): boolean {
 
 export function registerActivityRoutes(app: Hono) {
   app.get("/api/activity/changes", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     const date = c.req.query("date");
     if (date && !isDateKey(date)) {
       return c.json({ error: "Invalid date format" }, 400);
@@ -50,10 +45,6 @@ export function registerActivityRoutes(app: Hono) {
   });
 
   app.get("/api/activity/changes/:date/:fileName", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     const { date, fileName } = c.req.param();
     if (!isDateKey(date)) {
       return c.json({ error: "Invalid date format" }, 400);
@@ -68,10 +59,6 @@ export function registerActivityRoutes(app: Hono) {
   });
 
   app.get("/api/activity/failures", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     const date = c.req.query("date");
     if (date && !isDateKey(date)) {
       return c.json({ error: "Invalid date format" }, 400);
@@ -91,19 +78,11 @@ export function registerActivityRoutes(app: Hono) {
   });
 
   app.get("/api/activity/dates", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     const dates = await listActivityDates();
     return c.json({ dates });
   });
 
   app.post("/api/activity/clear", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       await clearActivityRecords();
       return c.json({ success: true });

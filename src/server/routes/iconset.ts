@@ -3,7 +3,6 @@ import { promises as fs } from "node:fs";
 import * as path from "node:path";
 import { getIconSetDir } from "../../lib/data-paths";
 import { getCdnSettings, buildResponseHeaders } from "../../lib/storage-adapter";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 interface IconInfo {
@@ -119,10 +118,6 @@ export function registerIconSetRoutes(app: Hono) {
   });
 
   app.post("/api/iconset/upload", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const dir = await ensureIconSetDir();
       const formData = await c.req.formData();
@@ -186,10 +181,6 @@ export function registerIconSetRoutes(app: Hono) {
   });
 
   app.put("/api/iconset/:id", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const id = decodeURIComponent(c.req.param("id"));
       const safeId = sanitizeFilename(id);
@@ -242,10 +233,6 @@ export function registerIconSetRoutes(app: Hono) {
   });
 
   app.delete("/api/iconset/:id", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const id = decodeURIComponent(c.req.param("id"));
       const safeId = sanitizeFilename(id);

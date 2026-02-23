@@ -2,15 +2,10 @@ import type { Hono } from "hono";
 import { executeFullSync } from "../../lib/sync-engine";
 import { getSyncSchedule, updateSyncSchedule } from "../../lib/storage-adapter";
 import { getNextSyncAt, validateCronExpression } from "../../lib/sync-schedule";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 export function registerSyncRoutes(app: Hono) {
   app.post("/api/sync/full", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const result = await executeFullSync();
       return c.json(result);
@@ -21,10 +16,6 @@ export function registerSyncRoutes(app: Hono) {
   });
 
   app.get("/api/sync/schedule", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const schedule = await getSyncSchedule();
       return c.json({ schedule });
@@ -35,10 +26,6 @@ export function registerSyncRoutes(app: Hono) {
   });
 
   app.put("/api/sync/schedule", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const body = await c.req.json();
       const { mode, intervalHours, cronExpression } = body;

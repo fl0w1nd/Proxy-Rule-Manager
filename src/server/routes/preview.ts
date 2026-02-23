@@ -2,15 +2,10 @@ import type { Hono } from "hono";
 import { previewRule } from "../../lib/sync-engine";
 import { validateRule, ClientType } from "../../lib/schema";
 import { getConfig } from "../../lib/storage-adapter";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 
 export function registerPreviewRoutes(app: Hono) {
   app.post("/api/preview", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const body = await c.req.json();
     const { ruleName, rule: ruleConfig } = body;

@@ -13,7 +13,6 @@ import {
 } from "../../lib/storage-adapter";
 import { detectCircularDependency } from "../../lib/sync-engine";
 import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
-import { verifyAdmin } from "../auth";
 import { jsonError } from "../errors";
 import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir, getClientFilesDir } from "../../lib/data-paths";
 
@@ -76,10 +75,6 @@ async function atomicWriteFile(filePath: string, content: Buffer): Promise<void>
 
 export function registerConfigRoutes(app: Hono) {
   app.get("/api/config", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const rawParam = c.req.query("raw");
       const useRaw = rawParam === "1" || rawParam === "true";
@@ -93,10 +88,6 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.put("/api/config", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const body = await c.req.json();
       const { config } = body;
@@ -120,10 +111,6 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.get("/api/database/backup", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const zip = new AdmZip();
       const dbPath = getDbFilePath();
@@ -176,10 +163,6 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.post("/api/database/restore", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const form = await c.req.formData();
       const file = form.get("file");
@@ -317,10 +300,6 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.get("/api/config/template/export", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const config = await getConfig();
       const dateTag = new Date().toISOString().split("T")[0];
@@ -336,10 +315,6 @@ export function registerConfigRoutes(app: Hono) {
   });
 
   app.post("/api/config/template/import", async (c) => {
-    if (!verifyAdmin(c.req.header("authorization"))) {
-      return c.json({ error: "Unauthorized" }, 401);
-    }
-
     try {
       const form = await c.req.formData();
       const file = form.get("file");
