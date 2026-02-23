@@ -33,13 +33,16 @@ export function registerActivityRoutes(app: Hono) {
 
     const page = parsePageParam(c.req.query("page") ?? null, 1);
     const pageSize = parsePageSizeParam(c.req.query("pageSize") ?? null, 20);
+    const daysStr = c.req.query("days");
+    const days = daysStr ? parseInt(daysStr, 10) : undefined;
 
     const client = c.req.query("client");
     const result = await listChangeRecords(
       date || undefined,
       page,
       pageSize,
-      client || undefined
+      client || undefined,
+      days
     );
     return c.json(result);
   });
@@ -66,13 +69,16 @@ export function registerActivityRoutes(app: Hono) {
 
     const page = parsePageParam(c.req.query("page") ?? null, 1);
     const pageSize = parsePageSizeParam(c.req.query("pageSize") ?? null, 20);
+    const daysStr = c.req.query("days");
+    const days = daysStr ? parseInt(daysStr, 10) : undefined;
 
     const client = c.req.query("client");
     const result = await listFailureRecords(
       date || undefined,
       page,
       pageSize,
-      client || undefined
+      client || undefined,
+      days
     );
     return c.json(result);
   });

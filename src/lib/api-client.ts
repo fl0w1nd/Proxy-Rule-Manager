@@ -211,11 +211,13 @@ export async function getChangeRecords(
   date?: string,
   page: number = 1,
   pageSize: number = 20,
-  client?: string
+  client?: string,
+  days?: number
 ): Promise<ActivityList<ChangeRecordSummary>> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   if (client) params.set("client", client);
+  if (days) params.set("days", String(days));
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   return apiRequest<ActivityList<ChangeRecordSummary>>(`/activity/changes?${params.toString()}`);
@@ -232,11 +234,13 @@ export async function getFailureRecords(
   date?: string,
   page: number = 1,
   pageSize: number = 20,
-  client?: string
+  client?: string,
+  days?: number
 ): Promise<ActivityList<FailureRecord>> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   if (client) params.set("client", client);
+  if (days) params.set("days", String(days));
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   return apiRequest<ActivityList<FailureRecord>>(`/activity/failures?${params.toString()}`);

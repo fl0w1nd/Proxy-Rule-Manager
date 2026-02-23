@@ -204,10 +204,11 @@ export async function listChangeRecords(
   date?: string,
   page: number = 1,
   pageSize: number = 20,
-  client?: string
+  client?: string,
+  days?: number
 ): Promise<ActivityList<ChangeRecordSummary>> {
   await pruneOldDirs(CHANGES_DIR);
-  const dateKeys = date ? [date] : getRecentDateKeys();
+  const dateKeys = date ? [date] : getRecentDateKeys(days);
   const records: ChangeRecordSummary[] = [];
 
   for (const dateKey of dateKeys) {
@@ -279,10 +280,11 @@ export async function listFailureRecords(
   date?: string,
   page: number = 1,
   pageSize: number = 20,
-  client?: string
+  client?: string,
+  days?: number
 ): Promise<ActivityList<FailureRecord>> {
   await pruneOldDirs(FAILURES_DIR);
-  const dateKeys = date ? [date] : getRecentDateKeys();
+  const dateKeys = date ? [date] : getRecentDateKeys(days);
   const records: FailureRecord[] = [];
 
   for (const dateKey of dateKeys) {

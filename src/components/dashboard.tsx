@@ -266,12 +266,10 @@ export function Dashboard({ onBack }: DashboardProps) {
       setActivityDates(dates.dates);
 
       if (activeTab === "overview") {
-        // Overview 使用最近日期直接通过 API 过滤，避免客户端对分页数据二次过滤
-        // If no dates exist yet (fresh install / no activity), fetch without date filter
-        const latestDate = dates.dates.length > 0 ? dates.dates[0] : undefined;
+        // Overview 获取最近 7 天的记录，最多显示 8 条
         const [changes, failures] = await Promise.all([
-          getChangeRecords(latestDate, 1, 8),
-          getFailureRecords(latestDate, 1, 8),
+          getChangeRecords(undefined, 1, 8, undefined, 7),
+          getFailureRecords(undefined, 1, 8, undefined, 7),
         ]);
         setChangeData(changes);
         setFailureData(failures);
