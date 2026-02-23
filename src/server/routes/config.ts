@@ -237,6 +237,23 @@ export function registerConfigRoutes(app: Hono) {
         return c.json({ error: "Import file missing db.json" }, 400);
       }
 
+      // Pre-validate db.json before any destructive operation
+      let dbJson: Record<string, unknown>;
+      try {
+        dbJson = JSON.parse(dbPayload.toString("utf-8")) as Record<string, unknown>;
+      } catch {
+        return c.json({ error: "Invalid db.json format" }, 400);
+      }
+      dbJson.artifacts = {};
+      dbJson.lastSyncInfo = {
+        lastFullSyncAt: null,
+        lastPartialSyncAt: null,
+        lastSuccessfulSyncAt: null,
+        totalRulesCount: 0,
+        changedRulesCount: 0,
+        failedRulesCount: 0,
+      };
+
       const dataDir = getDataDir();
       // clean all data contents
       try {
@@ -289,16 +306,6 @@ export function registerConfigRoutes(app: Hono) {
         }
       }
 
-      const dbJson = JSON.parse(dbPayload.toString("utf-8")) as Record<string, unknown>;
-      dbJson.artifacts = {};
-      dbJson.lastSyncInfo = {
-        lastFullSyncAt: null,
-        lastPartialSyncAt: null,
-        lastSuccessfulSyncAt: null,
-        totalRulesCount: 0,
-        changedRulesCount: 0,
-        failedRulesCount: 0,
-      };
       await atomicWriteFile(getDbFilePath(), Buffer.from(JSON.stringify(dbJson, null, 2)));
       invalidateCache();
 

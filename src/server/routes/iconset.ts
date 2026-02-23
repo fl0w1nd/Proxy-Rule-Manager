@@ -75,6 +75,18 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+/** Strip any directory components – only allow bare filenames */
+function sanitizeFilename(raw: string): string {
+  return path.basename(raw);
+}
+
+/** Ensure resolved path stays within baseDir */
+function validatePathInDir(filePath: string, baseDir: string): boolean {
+  const resolved = path.resolve(filePath);
+  const resolvedBase = path.resolve(baseDir) + path.sep;
+  return resolved.startsWith(resolvedBase) || resolved === path.resolve(baseDir);
+}
+
 export function registerIconSetRoutes(app: Hono) {
   app.get("/api/iconset", async (c) => {
     try {
@@ -136,7 +148,12 @@ export function registerIconSetRoutes(app: Hono) {
         }
 
         try {
-          const uniqueName = await getUniqueFilename(dir, file.name);
+          const safeName = sanitizeFilename(file.name);
+          if (!safeName || safeName.startsWith('.')) {
+            errors.push({ name: file.name, error: "Invalid filename" });
+            continue;
+          }
+          const uniqueName = await getUniqueFilename(dir, safeName);
           const filePath = path.join(dir, uniqueName);
           const buffer = Buffer.from(await file.arrayBuffer());
           await fs.writeFile(filePath, buffer);
@@ -175,6 +192,11 @@ export function registerIconSetRoutes(app: Hono) {
 
     try {
       const id = decodeURIComponent(c.req.param("id"));
+      const safeId = sanitizeFilename(id);
+      if (safeId !== id) {
+        return c.json({ error: "Invalid icon id" }, 400);
+      }
+
       const body = await c.req.json();
       const { newName } = body;
 
@@ -183,15 +205,19 @@ export function registerIconSetRoutes(app: Hono) {
       }
 
       const dir = await ensureIconSetDir();
-      const oldPath = path.join(dir, id);
+      const oldPath = path.join(dir, safeId);
 
       if (!(await fileExists(oldPath))) {
         return c.json({ error: "Icon not found" }, 404);
       }
 
-      const ext = path.extname(id);
+      const ext = path.extname(safeId);
       const newFilename = newName.endsWith(ext) ? newName : `${newName}${ext}`;
-      const newPath = path.join(dir, newFilename);
+      const safeNewFilename = sanitizeFilename(newFilename);
+      if (safeNewFilename !== newFilename) {
+        return c.json({ error: "Invalid new name" }, 400);
+      }
+      const newPath = path.join(dir, safeNewFilename);
 
       if (oldPath !== newPath && (await fileExists(newPath))) {
         return c.json({ error: "An icon with this name already exists" }, 409);
@@ -201,9 +227,9 @@ export function registerIconSetRoutes(app: Hono) {
 
       const stat = await fs.stat(newPath);
       const icon: IconInfo = {
-        id: newFilename,
-        name: path.basename(newFilename, ext),
-        url: `/IconSet/${encodeURIComponent(newFilename)}`,
+        id: safeNewFilename,
+        name: path.basename(safeNewFilename, ext),
+        url: `/IconSet/${encodeURIComponent(safeNewFilename)}`,
         size: stat.size,
         createdAt: stat.birthtime.toISOString(),
       };
@@ -222,8 +248,13 @@ export function registerIconSetRoutes(app: Hono) {
 
     try {
       const id = decodeURIComponent(c.req.param("id"));
+      const safeId = sanitizeFilename(id);
+      if (safeId !== id) {
+        return c.json({ error: "Invalid icon id" }, 400);
+      }
+
       const dir = await ensureIconSetDir();
-      const filePath = path.join(dir, id);
+      const filePath = path.join(dir, safeId);
 
       if (!(await fileExists(filePath))) {
         return c.json({ error: "Icon not found" }, 404);
@@ -231,7 +262,7 @@ export function registerIconSetRoutes(app: Hono) {
 
       await fs.unlink(filePath);
 
-      return c.json({ success: true, deleted: id });
+      return c.json({ success: true, deleted: safeId });
     } catch (error) {
       console.error("Failed to delete icon:", error);
       return jsonError(c, error, "Failed to delete icon");
@@ -241,11 +272,15 @@ export function registerIconSetRoutes(app: Hono) {
   app.get("/IconSet/:filename", async (c) => {
     try {
       const filename = decodeURIComponent(c.req.param("filename"));
-      const dir = getIconSetDir();
-      const filePath = path.join(dir, filename);
+      const safeFilename = sanitizeFilename(filename);
+      if (safeFilename !== filename) {
+        return c.text("Invalid path", 400);
+      }
 
-      const normalizedPath = path.normalize(filePath);
-      if (!normalizedPath.startsWith(dir)) {
+      const dir = getIconSetDir();
+      const filePath = path.join(dir, safeFilename);
+
+      if (!validatePathInDir(filePath, dir)) {
         return c.text("Invalid path", 400);
       }
 

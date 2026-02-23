@@ -7,8 +7,10 @@
 import { promises as fs } from "node:fs";
 import * as path from "node:path";
 
-const DATA_DIR = path.join(process.cwd(), "data", "waf");
-const BANS_FILE = path.join(DATA_DIR, "bans.json");
+import { getDataDir } from "./data-paths";
+
+const WAF_DIR = path.join(getDataDir(), "waf");
+const BANS_FILE = path.join(WAF_DIR, "bans.json");
 
 export interface BanRecord {
     ip: string;
@@ -27,7 +29,7 @@ interface BansData {
  */
 async function ensureDir(): Promise<void> {
     try {
-        await fs.mkdir(DATA_DIR, { recursive: true });
+        await fs.mkdir(WAF_DIR, { recursive: true });
     } catch {
         // 目录可能已存在
     }
