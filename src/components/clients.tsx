@@ -44,6 +44,7 @@ import {
 } from "@/lib/api-client";
 import { Transform, ScriptTransformer, ClientFileMeta } from "@/lib/schema";
 import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
+import { createListItemKey, createListItemKeys } from "@/lib/utils";
 
 interface ClientsManagerProps {
     onRefresh?: () => void;
@@ -54,14 +55,6 @@ interface ClientFormData {
     displayName: string;
     pathName: string;
     transforms: Transform[];
-}
-
-function createListItemKey(): string {
-    return Math.random().toString(36).slice(2, 10);
-}
-
-function createListItemKeys(count: number): string[] {
-    return Array.from({ length: count }, () => createListItemKey());
 }
 
 export function ClientsManager({ onRefresh }: ClientsManagerProps) {
@@ -83,6 +76,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isFileSaving, setIsFileSaving] = useState(false);
     const [isFileLoading, setIsFileLoading] = useState(false);
     const [isFullscreenFileEditor, setIsFullscreenFileEditor] = useState(false);
+    const [deletingFile, setDeletingFile] = useState<ClientFileMeta | null>(null);
+    const [deletingClient, setDeletingClient] = useState<ClientConfig | null>(null);
     const { theme } = useTheme();
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
@@ -306,12 +301,15 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const handleDeleteFile = async (file: ClientFileMeta) => {
         if (!selectedClientId) return;
-        if (!confirm(`确定要删除配置文件 "${file.displayName}" 吗？`)) {
-            return;
-        }
+        setDeletingFile(file);
+    };
+
+    const confirmDeleteFile = async () => {
+        if (!selectedClientId || !deletingFile) return;
         try {
-            await deleteClientFile(selectedClientId, file.id);
+            await deleteClientFile(selectedClientId, deletingFile.id);
             toast.success("配置文件已删除");
+            setDeletingFile(null);
             await fetchClientFiles(selectedClientId);
         } catch (error) {
             toast.error(String(error));
@@ -319,17 +317,19 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     const handleDelete = async (client: ClientConfig) => {
-        if (!confirm(`确定要删除客户端 "${client.displayName}" 吗？这将删除所有相关规则文件！`)) {
-            return;
-        }
+        setDeletingClient(client);
+    };
 
+    const confirmDeleteClient = async () => {
+        if (!deletingClient) return;
         try {
-            await deleteClient(client.id);
+            await deleteClient(deletingClient.id);
             toast.success("客户端已删除");
-            await fetchClients();
-            if (selectedClientId === client.id) {
+            if (selectedClientId === deletingClient.id) {
                 setSelectedClientId(null);
             }
+            setDeletingClient(null);
+            await fetchClients();
             onRefresh?.();
         } catch (error) {
             toast.error(String(error));
@@ -1032,6 +1032,60 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             )}
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete File Confirm Dialog */}
+            <Dialog open={!!deletingFile} onOpenChange={(open) => !open && setDeletingFile(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                            确认删除配置文件
+                        </DialogTitle>
+                        <DialogDescription>
+                            确定要删除配置文件{" "}
+                            <strong className="text-foreground">{deletingFile?.displayName}</strong> 吗？
+                            <span className="block mt-1 text-destructive text-xs">此操作不可恢复。</span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeletingFile(null)}>
+                            取消
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDeleteFile}>
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            确认删除
+                        </Button>
+                    </div>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Client Confirm Dialog */}
+            <Dialog open={!!deletingClient} onOpenChange={(open) => !open && setDeletingClient(null)}>
+                <DialogContent className="max-w-md">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <AlertTriangle className="w-5 h-5 text-destructive" />
+                            确认删除客户端
+                        </DialogTitle>
+                        <DialogDescription>
+                            确定要删除客户端{" "}
+                            <strong className="text-foreground">{deletingClient?.displayName}</strong> 吗？
+                            <span className="block mt-1 text-destructive text-xs">
+                                这将删除所有相关规则文件，且无法恢复。
+                            </span>
+                        </DialogDescription>
+                    </DialogHeader>
+                    <div className="flex justify-end gap-3 mt-4">
+                        <Button variant="outline" onClick={() => setDeletingClient(null)}>
+                            取消
+                        </Button>
+                        <Button variant="destructive" onClick={confirmDeleteClient}>
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            确认删除
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </>

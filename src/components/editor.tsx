@@ -16,13 +16,7 @@ import {
 } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-} from "@/components/ui/dialog";
+
 import {
   Tooltip,
   TooltipContent,
@@ -36,7 +30,6 @@ import {
   ChevronDown,
   ChevronRight,
   HelpCircle,
-  Copy,
   Link2,
   FileText,
   FolderInput,
@@ -47,12 +40,8 @@ import {
   Settings2,
   Monitor,
   Eye,
-  CheckCircle,
-  XCircle,
   X,
   Tag,
-  Maximize2,
-  Minimize2,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -64,12 +53,14 @@ import {
   MergeStrategy,
   ScriptTransformer,
 } from "@/lib/schema";
-import { saveConfig, renameRule, previewRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
+import { saveConfig, getConfig, renameRule, previewRule, refreshRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
+import { LocalContentDialog } from "./editor-local-content";
+import { PreviewDialog } from "./editor-preview";
 import { createTransformByType } from "@/lib/transform-utils";
+import { createListItemKey, createListItemKeys } from "@/lib/utils";
 import { toast } from "sonner";
 import { IconPicker } from "@/components/icon-picker";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import Editor from "@monaco-editor/react";
+
 import { useTheme } from "./theme-provider";
 
 interface RuleEditorProps {
@@ -103,14 +94,6 @@ const SOURCE_TYPE_ICONS = {
   ref: FolderInput,
   local: FileText,
 };
-
-function createListItemKey(): string {
-  return Math.random().toString(36).slice(2, 10);
-}
-
-function createListItemKeys(count: number): string[] {
-  return Array.from({ length: count }, () => createListItemKey());
-}
 
 // 规范化规则数据
 function migrateRule(rule: RuleConfig): RuleConfig {
@@ -147,7 +130,7 @@ function HelpIcon({ text }: { text: string }) {
     <TooltipProvider delayDuration={200}>
       <Tooltip>
         <TooltipTrigger asChild>
-          <HelpCircle className="w-4 h-4 text-gray-400 hover:text-blue-500 cursor-help inline-flex" />
+          <HelpCircle className="w-4 h-4 text-muted-foreground hover:text-primary cursor-help inline-flex" />
         </TooltipTrigger>
         <TooltipContent side="top" className="max-w-xs">
           <p className="text-sm">{text}</p>
@@ -224,16 +207,13 @@ export function RuleEditor({
   );
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingLocalContent, setEditingLocalContent] = useState<number | null>(null);
-  const [localContentDraft, setLocalContentDraft] = useState("");
   const [tagInput, setTagInput] = useState("");
-  const [isFullscreenLocalEditor, setIsFullscreenLocalEditor] = useState(false);
   const { theme } = useTheme();
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
-  const [previewClient, setPreviewClient] = useState<ClientType>("clash_meta");
 
   // 动态客户端列表
   const [clientsList, setClientsList] = useState<ClientConfig[]>([]);
@@ -355,7 +335,6 @@ export function RuleEditor({
       }
 
       // 重新获取最新配置（重命名后可能已更新引用关系），防止覆盖后端的更新
-      const { getConfig } = await import("@/lib/api-client");
       const { config: latestConfig } = await getConfig();
 
       // 基于最新配置应用本地编辑
@@ -377,7 +356,6 @@ export function RuleEditor({
 
       // 保存成功后自动刷新该规则
       try {
-        const { refreshRule } = await import("@/lib/api-client");
         await refreshRule(cleanedData.name);
         toast.success("规则保存并刷新成功");
       } catch (refreshErr) {
@@ -412,10 +390,6 @@ export function RuleEditor({
     try {
       const result = await previewRule(undefined, formData);
       setPreviewData(result);
-      // 设置默认预览客户端为第一个可用的
-      if (result.contents && Object.keys(result.contents).length > 0) {
-        setPreviewClient(Object.keys(result.contents)[0] as ClientType);
-      }
     } catch (error) {
       toast.error("预览失败: " + String(error));
       setIsPreviewOpen(false);
@@ -882,7 +856,6 @@ export function RuleEditor({
                             size="sm"
                             className="h-8"
                             onClick={() => {
-                              setLocalContentDraft(source.content || "");
                               setEditingLocalContent(index);
                             }}
                           >
@@ -943,7 +916,7 @@ export function RuleEditor({
         </div>
 
         {/* 后处理操作 */}
-        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <SectionHeader
             title="后处理操作"
             help={HELP_TEXTS.transforms}
@@ -958,7 +931,7 @@ export function RuleEditor({
             }
           />
           {expandedSections.has("transforms") && (
-            <div className="p-4 space-y-3 bg-white dark:bg-slate-900">
+            <div className="p-4 space-y-3 bg-card">
               {/* 操作列表 */}
               {formData.transforms?.map((transform, index) => (
                 <TransformCard
@@ -976,8 +949,8 @@ export function RuleEditor({
               ))}
 
               {/* 添加操作按钮 */}
-              <div className="p-4 rounded-lg border border-dashed border-gray-300 dark:border-slate-600 bg-gray-50 dark:bg-slate-800">
-                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3 flex items-center gap-2">
+              <div className="p-4 rounded-lg border border-dashed border-border bg-muted/30">
+                <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                   添加后处理操作
                   <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
                 </p>
@@ -1018,7 +991,7 @@ export function RuleEditor({
         </div>
 
         {/* 合并配置 */}
-        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <SectionHeader
             title="合并配置"
             help={HELP_TEXTS.merge}
@@ -1026,7 +999,7 @@ export function RuleEditor({
             onToggle={() => toggleSection("merge")}
           />
           {expandedSections.has("merge") && (
-            <div className="p-4 bg-white dark:bg-slate-900">
+            <div className="p-4 bg-card">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -1067,7 +1040,7 @@ export function RuleEditor({
                         }))
                       }
                     />
-                    <span className="text-sm text-gray-500">合并后去重</span>
+                    <span className="text-sm text-muted-foreground">合并后去重</span>
                   </div>
                 </div>
               </div>
@@ -1076,7 +1049,7 @@ export function RuleEditor({
         </div>
 
         {/* 输出配置 */}
-        <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+        <div className="rounded-lg border border-border overflow-hidden">
           <SectionHeader
             title="输出配置"
             help={HELP_TEXTS.outputClients}
@@ -1084,7 +1057,7 @@ export function RuleEditor({
             onToggle={() => toggleSection("output")}
           />
           {expandedSections.has("output") && (
-            <div className="p-4 space-y-4 bg-white dark:bg-slate-900">
+            <div className="p-4 space-y-4 bg-card">
               <div className="space-y-2">
                 <Label>输出客户端</Label>
                 <div className="flex flex-wrap gap-3">
@@ -1092,8 +1065,8 @@ export function RuleEditor({
                     <label
                       key={client.id}
                       className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
-                        ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
-                        : "bg-gray-50 dark:bg-slate-800 border-gray-200 dark:border-slate-700"
+                        ? "bg-primary/10 border-primary"
+                        : "bg-muted/30 border-border"
                         }`}
                     >
                       <Checkbox
@@ -1141,208 +1114,27 @@ export function RuleEditor({
 
       </div>
 
-      {/* 本地内容编辑对话框 */}
-      <Dialog
+      <LocalContentDialog
+        key={editingLocalContent ?? "closed"}
         open={editingLocalContent !== null}
-        onOpenChange={(open) => {
-          if (!open) {
-            setIsFullscreenLocalEditor(false);
-            setEditingLocalContent(null);
+        initialContent={editingLocalContent !== null ? (formData.sources?.[editingLocalContent]?.content ?? "") : ""}
+        editorTheme={editorTheme}
+        onSave={(content) => {
+          if (editingLocalContent !== null) {
+            updateSource(editingLocalContent, { content });
           }
         }}
-      >
-        <DialogContent
-          onEscapeKeyDown={(event) => {
-            if (isFullscreenLocalEditor) {
-              event.preventDefault();
-              setIsFullscreenLocalEditor(false);
-            }
-          }}
-          onPointerDownOutside={(event) => {
-            if (isFullscreenLocalEditor) {
-              event.preventDefault();
-            }
-          }}
-          className={`flex flex-col min-h-0${isFullscreenLocalEditor ? " !fixed !inset-0 !w-screen !h-screen !max-w-none !max-h-none !left-0 !top-0 !translate-x-0 !translate-y-0 !rounded-none !transform-none" : " max-w-3xl max-h-[80vh]"}`}
-        >
-          <DialogHeader className={isFullscreenLocalEditor ? "shrink-0" : undefined}>
-            <DialogTitle className="flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
-              编辑本地内容
-            </DialogTitle>
-            <DialogDescription>
-              编辑规则的本地内容数据来源
-            </DialogDescription>
-          </DialogHeader>
-          <div className={`flex-1 min-h-0 space-y-2${isFullscreenLocalEditor ? " flex flex-col" : ""}`}>
-            <div className="flex items-center justify-between px-1">
-              <Label className="text-sm">内容</Label>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setIsFullscreenLocalEditor(!isFullscreenLocalEditor)}
-                className="h-7 px-2"
-                title={isFullscreenLocalEditor ? "退出全屏 (ESC)" : "全屏编辑 (ESC 退出)"}
-              >
-                {isFullscreenLocalEditor ? (
-                  <Minimize2 className="w-3.5 h-3.5 mr-1" />
-                ) : (
-                  <Maximize2 className="w-3.5 h-3.5 mr-1" />
-                )}
-                {isFullscreenLocalEditor ? "退出全屏" : "全屏"}
-              </Button>
-            </div>
-            <div className={`relative border border-border rounded-lg overflow-hidden ${isFullscreenLocalEditor ? "flex-1 min-h-0" : ""}`}>
-              <Editor
-                height={isFullscreenLocalEditor ? "100%" : "400px"}
-                language="plaintext"
-                value={localContentDraft}
-                onChange={(value) => setLocalContentDraft(value || "")}
-                theme={editorTheme}
-                options={{
-                  minimap: { enabled: isFullscreenLocalEditor },
-                  fontSize: 13,
-                  lineNumbers: "on",
-                  scrollBeyondLastLine: false,
-                  automaticLayout: true,
-                  tabSize: 2,
-                  wordWrap: "off",
-                  padding: { top: 12, bottom: 12 },
-                  scrollbar: {
-                    horizontal: "visible",
-                    vertical: "visible",
-                    horizontalScrollbarSize: 10,
-                    verticalScrollbarSize: 10,
-                  },
-                }}
-              />
-            </div>
-          </div>
-          <div className={`flex justify-end gap-3 pt-4${isFullscreenLocalEditor ? " shrink-0" : ""}`}>
-            <Button
-              variant="outline"
-              onClick={() => {
-                setIsFullscreenLocalEditor(false);
-                setEditingLocalContent(null);
-              }}
-            >
-              取消
-            </Button>
-            <Button
-              onClick={() => {
-                if (editingLocalContent !== null) {
-                  updateSource(editingLocalContent, { content: localContentDraft });
-                  setIsFullscreenLocalEditor(false);
-                  setEditingLocalContent(null);
-                }
-              }}
-            >
-              确定
-            </Button>
-          </div>
-        </DialogContent>
-      </Dialog>
+        onClose={() => setEditingLocalContent(null)}
+      />
 
-      {/* 预览对话框 */}
-      <Dialog open={isPreviewOpen} onOpenChange={setIsPreviewOpen}>
-        <DialogContent className="max-w-4xl w-[90vw] h-[70vh] bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-gray-200 dark:border-slate-700 shrink-0">
-            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-              <Eye className="w-5 h-5 text-blue-500" />
-              预览: {formData.name || "未命名规则"}
-            </DialogTitle>
-          </DialogHeader>
-
-          {isPreviewLoading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
-            </div>
-          ) : previewData ? (
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {/* 数据源状态 */}
-              {previewData.diagnostics.sourceResults.length > 0 && (
-                <div className="px-6 py-3 bg-gray-50 dark:bg-slate-900 border-b border-gray-200 dark:border-slate-700 shrink-0">
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">数据源状态:</p>
-                  <div className="flex flex-wrap gap-4">
-                    {previewData.diagnostics.sourceResults.map((source, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        {source.success ? (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-red-500" />
-                        )}
-                        <span className="text-xs font-medium text-gray-500 dark:text-gray-400">#{i + 1}</span>
-                        <span className="text-gray-700 dark:text-gray-300 truncate max-w-xs">
-                          {source.url}
-                        </span>
-                        {source.size !== undefined && source.size > 0 && (
-                          <span className="text-gray-500">({(source.size / 1024).toFixed(1)} KB)</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* 内容 Tabs */}
-              <Tabs
-                value={previewClient}
-                onValueChange={(v) => setPreviewClient(v as ClientType)}
-                className="flex-1 flex flex-col min-h-0"
-              >
-                <div className="px-6 py-3 border-b border-gray-200 dark:border-slate-700 flex items-center justify-between shrink-0">
-                  <TabsList className="bg-gray-100 dark:bg-slate-900">
-                    {Object.keys(previewData.contents).map((client) => (
-                      <TabsTrigger
-                        key={client}
-                        value={client}
-                        className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800"
-                      >
-                        {clientsList.find(c => c.id === client)?.displayName || client}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  <span className="text-sm text-gray-500 dark:text-gray-400">
-                    {previewData.contents[previewClient]?.split('\n').length || 0} 行
-                  </span>
-                </div>
-                {Object.entries(previewData.contents).map(([client, content]) => (
-                  <TabsContent
-                    key={client}
-                    value={client}
-                    className="flex-1 m-0 relative min-h-0 overflow-hidden"
-                  >
-                    <div className="absolute top-2 right-2 z-10">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => {
-                          navigator.clipboard.writeText(content);
-                          toast.success("已复制内容");
-                        }}
-                        className="bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
-                        title="复制内容"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                    </div>
-                    <div className="h-full overflow-auto bg-gray-50 dark:bg-slate-900">
-                      <pre className="p-4 text-sm font-mono text-gray-800 dark:text-gray-200 whitespace-pre">
-                        {content || "暂无内容"}
-                      </pre>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center text-gray-500">
-              无预览数据
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
-
+      <PreviewDialog
+        open={isPreviewOpen}
+        onOpenChange={setIsPreviewOpen}
+        ruleName={formData.name}
+        isLoading={isPreviewLoading}
+        previewData={previewData}
+        clientsList={clientsList}
+      />
     </div>
   );
 }
@@ -1408,10 +1200,10 @@ function TransformCard({
   return (
     <div
       onDragOver={onDragOver}
-      className={`rounded-lg border border-gray-200 dark:border-slate-700 bg-gray-50 dark:bg-slate-800 transition-all ${isDragging ? "opacity-50 scale-95" : ""
+      className={`rounded-lg border border-border bg-muted/30 transition-all ${isDragging ? "opacity-50 scale-95" : ""
         }`}
     >
-      <div className="flex items-center justify-between p-3 border-b border-gray-200 dark:border-slate-700">
+      <div className="flex items-center justify-between p-3 border-b border-border">
         <div className="flex items-center gap-2">
           {draggable && (
             <button
@@ -1419,7 +1211,7 @@ function TransformCard({
               draggable
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
-              className="cursor-grab active:cursor-grabbing text-gray-400 hover:text-gray-600"
+              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
               title="拖动排序"
             >
               <GripVertical className="w-4 h-4" />
@@ -1431,12 +1223,12 @@ function TransformCard({
             className="flex items-center gap-2"
           >
             {expanded ? (
-              <ChevronDown className="w-4 h-4 text-gray-500" />
+              <ChevronDown className="w-4 h-4 text-muted-foreground" />
             ) : (
-              <ChevronRight className="w-4 h-4 text-gray-500" />
+              <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
-            <Icon className="w-4 h-4 text-blue-500" />
-            <span className="font-medium text-gray-900 dark:text-white">{getTypeLabel()}</span>
+            <Icon className="w-4 h-4 text-primary" />
+            <span className="font-medium text-foreground">{getTypeLabel()}</span>
           </button>
           {showTarget && (
             <Badge variant="outline" className="text-xs">
@@ -1450,7 +1242,7 @@ function TransformCard({
             variant="ghost"
             size="icon"
             onClick={onRemove}
-            className="w-8 h-8 text-gray-400 hover:text-red-500"
+            className="w-8 h-8 text-muted-foreground hover:text-destructive"
             title="删除"
           >
             <Trash2 className="w-4 h-4" />
@@ -1463,7 +1255,7 @@ function TransformCard({
           {/* 目标来源选择 */}
           {showTarget && (
             <div className="space-y-2">
-              <Label className="text-sm text-gray-500 flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground flex items-center gap-2">
                 处理目标
                 <HelpIcon text={HELP_TEXTS.transformTarget} />
               </Label>
@@ -1496,8 +1288,8 @@ function TransformCard({
                       <label
                         key={idx}
                         className={`flex items-center gap-1 px-2 py-1 rounded border cursor-pointer text-sm ${isSelected
-                          ? "bg-blue-50 dark:bg-blue-900/20 border-blue-500"
-                          : "bg-white dark:bg-slate-900 border-gray-200 dark:border-slate-700"
+                          ? "bg-primary/10 border-primary"
+                          : "bg-background border-border"
                           }`}
                       >
                         <Checkbox
@@ -1524,7 +1316,7 @@ function TransformCard({
           {/* 类型特定字段 */}
           {transform.type === "use" && (
             <div className="space-y-2">
-              <Label className="text-sm text-gray-500 flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground flex items-center gap-2">
                 选择转换器
                 <HelpIcon text={HELP_TEXTS.useTransformer} />
               </Label>
@@ -1552,7 +1344,7 @@ function TransformCard({
           {transform.type === "replace" && (
             <div className="space-y-3">
               <div className="space-y-2">
-                <Label className="text-sm text-gray-500">正则标志</Label>
+                <Label className="text-sm text-muted-foreground">正则标志</Label>
                 <Select
                   value={transform.flags || "g"}
                   onValueChange={(value) => onChange({ flags: value })}
@@ -1569,7 +1361,7 @@ function TransformCard({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-2">
-                  <Label className="text-sm text-gray-500 flex items-center gap-2">
+                  <Label className="text-sm text-muted-foreground flex items-center gap-2">
                     正则表达式
                     <HelpIcon text={HELP_TEXTS.replace} />
                   </Label>
@@ -1580,7 +1372,7 @@ function TransformCard({
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm text-gray-500">替换为</Label>
+                  <Label className="text-sm text-muted-foreground">替换为</Label>
                   <Input
                     value={transform.replacement || ""}
                     onChange={(e) => onChange({ replacement: e.target.value })}
@@ -1593,7 +1385,7 @@ function TransformCard({
 
           {transform.type === "remove_lines" && (
             <div className="space-y-2">
-              <Label className="text-sm text-gray-500 flex items-center gap-2">
+              <Label className="text-sm text-muted-foreground flex items-center gap-2">
                 正则表达式
                 <HelpIcon text={HELP_TEXTS.removeLines} />
               </Label>
@@ -1644,21 +1436,21 @@ function ClientOverrideSection({
   const hasGlobalTransforms = clientGlobalTransforms.length > 0;
 
   return (
-    <div className="rounded-lg border border-gray-200 dark:border-slate-700 overflow-hidden">
+    <div className="rounded-lg border border-border overflow-hidden">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between p-3 bg-gray-50 dark:bg-slate-800">
+      <div className="flex items-center justify-between p-3 bg-muted/30">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
           className="flex items-center gap-2 flex-1 min-w-0"
         >
           {expanded ? (
-            <ChevronDown className="w-4 h-4 text-gray-500 shrink-0" />
+            <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
           ) : (
-            <ChevronRight className="w-4 h-4 text-gray-500 shrink-0" />
+            <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
           )}
           <Monitor className="w-4 h-4 shrink-0" />
-          <span className="font-medium text-gray-900 dark:text-white truncate">
+          <span className="font-medium text-foreground truncate">
             {clientsList.find(c => c.id === client)?.displayName || client}
           </span>
           {transforms.length > 0 && (
@@ -1673,16 +1465,16 @@ function ClientOverrideSection({
               checked={config?.enabled ?? true}
               onCheckedChange={onToggle}
             />
-            <span className="text-sm text-gray-500">启用</span>
+            <span className="text-sm text-muted-foreground">启用</span>
           </div>
         </div>
       </div>
 
       {/* 展开内容 */}
       {expanded && (config?.enabled ?? true) && (
-        <div className="p-3 bg-white dark:bg-slate-900 space-y-4 border-t border-gray-200 dark:border-slate-700">
+        <div className="p-3 bg-card space-y-4 border-t border-border">
           {/* 全局转换继承开关 */}
-          <div className="flex items-start gap-2 p-2 rounded bg-gray-50 dark:bg-slate-800/50">
+          <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
             <Checkbox
               checked={useGlobalTransforms}
               onCheckedChange={(c) => onToggleUseGlobal(!!c)}
@@ -1690,7 +1482,7 @@ function ClientOverrideSection({
             />
             <div className="space-y-1">
               <span className="text-sm font-medium">应用全局客户端转换</span>
-              <p className="text-xs text-gray-500">
+              <p className="text-xs text-muted-foreground">
                 如果开启，将先应用客户端全局配置中的转换操作，再应用此处的自定义操作。
               </p>
               {hasGlobalTransforms ? (

@@ -54,14 +54,7 @@ import {
     type CdnSettings,
 } from "@/lib/api-client";
 import { toast } from "sonner";
-
-function createListItemKey(): string {
-    return Math.random().toString(36).slice(2, 10);
-}
-
-function createListItemKeys(count: number): string[] {
-    return Array.from({ length: count }, () => createListItemKey());
-}
+import { createListItemKey, createListItemKeys } from "@/lib/utils";
 
 export function WafManager() {
     const [bans, setBans] = useState<BanRecord[]>([]);

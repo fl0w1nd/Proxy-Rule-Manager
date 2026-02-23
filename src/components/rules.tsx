@@ -45,7 +45,7 @@ import {
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
-import { RuleEditor } from "./rule-editor";
+import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
 

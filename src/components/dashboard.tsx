@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { formatTimestamp, formatBytes } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,12 +49,12 @@ import {
   getFailureRecords,
   getActivityDates,
 } from "@/lib/api-client";
-import { RulesManager } from "./rules-manager";
-import { ConfigEditor } from "./config-editor";
-import { TransformersManager } from "./transformers-manager";
-import { ClientsManager } from "./clients-manager";
-import { WafManager } from "./waf-manager";
-import { IconSetManager } from "./iconset-manager";
+import { RulesManager } from "./rules";
+import { ConfigEditor } from "./config";
+import { TransformersManager } from "./transformers";
+import { ClientsManager } from "./clients";
+import { WafManager } from "./waf";
+import { IconSetManager } from "./iconset";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -64,6 +65,85 @@ import {
 } from "@/components/ui/dialog";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DiffViewer } from "@/components/diff-viewer";
+
+// --- Module-level pure helpers ---
+
+function getChangeLabel(changeType: ChangeRecordSummary["changeType"]) {
+  if (changeType === "created") return "新增";
+  if (changeType === "deleted") return "删除";
+  return "更新";
+}
+
+function getChangeBadgeVariant(changeType: ChangeRecordSummary["changeType"]) {
+  if (changeType === "created") return "emerald" as const;
+  if (changeType === "deleted") return "rose" as const;
+  return "blue" as const;
+}
+
+interface ActivityFeedProps {
+  compact?: boolean;
+  items: ChangeRecordSummary[];
+  onViewDiff: (change: ChangeRecordSummary) => void;
+  getClientDisplayName: (id: string) => string;
+}
+
+function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName }: ActivityFeedProps) {
+  return (
+    <div className="space-y-3">
+      {items.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
+          <p className="text-sm font-medium text-muted-foreground">暂无活动记录</p>
+          <p className="text-xs text-muted-foreground/70 mt-1">同步操作后将在此显示变更日志</p>
+        </div>
+      ) : (
+        items.map((change) => (
+          <div
+            key={change.id}
+            onClick={() => onViewDiff(change)}
+            className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
+          >
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span className="font-medium text-sm truncate" title={change.ruleName}>
+                  {change.ruleName}
+                </span>
+                <Badge variant={getChangeBadgeVariant(change.changeType)} className="text-[10px] shrink-0">
+                  {getChangeLabel(change.changeType)}
+                </Badge>
+              </div>
+              <div className="text-xs text-muted-foreground flex items-center gap-3">
+                {change.client && (
+                  <span className="flex items-center gap-1">
+                    <Monitor className="w-3 h-3" />
+                    {getClientDisplayName(change.client)}
+                  </span>
+                )}
+                <span>{formatBytes(change.sizeBytes)}</span>
+                <span className="ml-auto font-mono">{formatTimestamp(change.timestamp).split(" ")[0]}</span>
+              </div>
+            </div>
+            {!compact && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onViewDiff(change);
+                }}
+              >
+                <FileText className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------
 
 interface DashboardProps {
   onBack?: () => void;
@@ -93,6 +173,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [activityDates, setActivityDates] = useState<string[]>([]);
   const [activityTab, setActivityTab] = useState("changes");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isClearActivityDialogOpen, setIsClearActivityDialogOpen] = useState(false);
 
   const fetchStatus = async () => {
     try {
@@ -116,28 +197,6 @@ export function Dashboard({ onBack }: DashboardProps) {
   const getClientDisplayName = (clientId: string): string => {
     const client = clients.find(c => c.id === clientId);
     return client?.displayName || clientId;
-  };
-
-  const formatTimestamp = (value: string) =>
-    new Date(value).toLocaleString("zh-CN");
-
-  const formatBytes = (value?: number): string => {
-    if (!value && value !== 0) return "-";
-    if (value < 1024) return `${value} B`;
-    if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-    return `${(value / (1024 * 1024)).toFixed(1)} MB`;
-  };
-
-  const getChangeLabel = (changeType: ChangeRecordSummary["changeType"]) => {
-    if (changeType === "created") return "新增";
-    if (changeType === "deleted") return "删除";
-    return "更新";
-  };
-
-  const getChangeBadgeVariant = (changeType: ChangeRecordSummary["changeType"]) => {
-    if (changeType === "created") return "emerald" as const;
-    if (changeType === "deleted") return "rose" as const;
-    return "blue" as const;
   };
 
   const handleInit = async () => {
@@ -203,17 +262,28 @@ export function Dashboard({ onBack }: DashboardProps) {
     if (activeTab !== "activity" && activeTab !== "overview") return;
 
     try {
-      const dateParam = activityDate === "all" ? undefined : activityDate;
-      const clientParam = activityClient === "all" ? undefined : activityClient;
-
-      const [changes, failures, dates] = await Promise.all([
-        getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
-        getFailureRecords(dateParam, failurePage, activityPageSize, clientParam),
-        getActivityDates(),
-      ]);
-      setChangeData(changes);
-      setFailureData(failures);
+      const dates = await getActivityDates();
       setActivityDates(dates.dates);
+
+      if (activeTab === "overview") {
+        // Overview 使用最近日期直接通过 API 过滤，避免客户端对分页数据二次过滤
+        const latestDate = dates.dates[0];
+        const [changes, failures] = await Promise.all([
+          getChangeRecords(latestDate, 1, 8),
+          getFailureRecords(latestDate, 1, 8),
+        ]);
+        setChangeData(changes);
+        setFailureData(failures);
+      } else {
+        const dateParam = activityDate === "all" ? undefined : activityDate;
+        const clientParam = activityClient === "all" ? undefined : activityClient;
+        const [changes, failures] = await Promise.all([
+          getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
+          getFailureRecords(dateParam, failurePage, activityPageSize, clientParam),
+        ]);
+        setChangeData(changes);
+        setFailureData(failures);
+      }
     } catch (error) {
       console.error("Failed to fetch activity:", error);
       if (activeTab === "activity") toast.error("获取活动记录失败");
@@ -252,9 +322,6 @@ export function Dashboard({ onBack }: DashboardProps) {
   };
 
   const handleClearActivity = async () => {
-    if (!confirm("确定要清空所有活动记录吗？此操作不可恢复。")) {
-      return;
-    }
     setIsClearingActivity(true);
     try {
       await clearActivityRecords();
@@ -274,6 +341,8 @@ export function Dashboard({ onBack }: DashboardProps) {
   const recentDateOptions = activityDates;
   const changeItems = changeData?.items || [];
   const failureItems = failureData?.items || [];
+  const filteredChangeItems = changeItems;
+  const filteredFailureItems = failureItems;
   const changeTotalPages = Math.max(1, Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize)));
   const failureTotalPages = Math.max(1, Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize)));
 
@@ -284,71 +353,6 @@ export function Dashboard({ onBack }: DashboardProps) {
       </div>
     );
   }
-
-  // 7-day filter for overview
-  const last7Dates = activityDates.slice(0, 7);
-  const filteredChangeItems = activeTab === "overview" && activityDates.length > 0
-    ? changeItems.filter(item => last7Dates.includes(item.date))
-    : changeItems;
-
-  const filteredFailureItems = activeTab === "overview" && activityDates.length > 0
-    ? failureItems.filter(item => last7Dates.includes(new Date(item.timestamp).toISOString().split('T')[0]))
-    : failureItems;
-
-  // Activity Feed Component
-  const ActivityFeed = ({
-    compact = false,
-    items = changeItems.slice(0, 5),
-    onViewDiff = openChangeDiff
-  }: {
-    compact?: boolean,
-    items?: ChangeRecordSummary[],
-    onViewDiff?: (c: ChangeRecordSummary) => void
-  }) => (
-    <div className="space-y-3">
-      {items.length === 0 ? (
-        <div className="flex flex-col items-center justify-center py-12 text-center">
-          <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm font-medium text-muted-foreground">暂无活动记录</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">同步操作后将在此显示变更日志</p>
-        </div>
-      ) : (
-        items.map((change) => (
-          <div
-            key={change.id}
-            onClick={() => onViewDiff(change)}
-            className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 mb-1.5">
-                <span className="font-medium text-sm truncate" title={change.ruleName}>
-                  {change.ruleName}
-                </span>
-                <Badge variant={getChangeBadgeVariant(change.changeType)} className="text-[10px] shrink-0">
-                  {getChangeLabel(change.changeType)}
-                </Badge>
-              </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-3">
-                {change.client && (
-                  <span className="flex items-center gap-1">
-                    <Monitor className="w-3 h-3" />
-                    {getClientDisplayName(change.client)}
-                  </span>
-                )}
-                <span>{formatBytes(change.sizeBytes)}</span>
-                <span className="ml-auto font-mono">{formatTimestamp(change.timestamp).split(' ')[0]}</span>
-              </div>
-            </div>
-            {!compact && (
-              <Button variant="ghost" size="icon" className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => { e.stopPropagation(); onViewDiff(change); }}>
-                <FileText className="w-3 h-3" />
-              </Button>
-            )}
-          </div>
-        ))
-      )}
-    </div>
-  );
 
   return (
     <div className="flex h-screen bg-background overflow-hidden relative">
@@ -537,7 +541,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                             </h3>
                           </div>
                           <div className="flex-1 overflow-y-auto">
-                            <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} />
+                            <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
                           </div>
                         </div>
 
@@ -663,7 +667,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <Button
                       variant="outline"
                       size="sm"
-                      onClick={handleClearActivity}
+                      onClick={() => setIsClearActivityDialogOpen(true)}
                       disabled={isClearingActivity}
                       className="h-9"
                     >
@@ -697,7 +701,7 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                     <TabsContent value="changes" className="flex-1 mt-0 outline-none">
                       <div className="border rounded-lg bg-background/50 overflow-hidden">
-                        <ActivityFeed items={changeItems} onViewDiff={openChangeDiff} />
+                        <ActivityFeed items={changeItems} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
                       </div>
                     </TabsContent>
                     <TabsContent value="failures" className="flex-1 mt-0 outline-none">
@@ -763,6 +767,46 @@ export function Dashboard({ onBack }: DashboardProps) {
             ) : (
               <DiffViewer content={diffContent || "无变更内容或无法加载"} className="border-0 rounded-none h-full" />
             )}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Clear Activity Confirm Dialog */}
+      <Dialog open={isClearActivityDialogOpen} onOpenChange={setIsClearActivityDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="w-5 h-5 text-destructive" />
+              确认清空活动记录
+            </DialogTitle>
+            <DialogDescription>
+              确定要清空所有活动记录吗？
+              <span className="block mt-1 text-destructive">此操作不可恢复。</span>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setIsClearActivityDialogOpen(false)}
+              disabled={isClearingActivity}
+            >
+              取消
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={isClearingActivity}
+              onClick={async () => {
+                setIsClearActivityDialogOpen(false);
+                await handleClearActivity();
+              }}
+            >
+              {isClearingActivity ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Trash2 className="w-4 h-4 mr-2" />
+              )}
+              确认清空
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

@@ -3,7 +3,7 @@
 import { useState, useEffect, useSyncExternalStore, useCallback } from "react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AuthProvider, useAuth } from "@/components/auth-provider";
-import { PublicRulesPage } from "@/components/public-rules-page";
+import { PublicRulesPage } from "@/components/home";
 import { LoginForm } from "@/components/login-form";
 import { Dashboard } from "@/components/dashboard";
 import { Loader2 } from "lucide-react";
@@ -31,7 +31,6 @@ function AppContent() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    // 检测客户端挂载 - 这是标准的 hydration 检测模式
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setMounted(true);
   }, []);

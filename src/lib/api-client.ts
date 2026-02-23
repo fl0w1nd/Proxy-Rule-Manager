@@ -20,27 +20,22 @@ export function clearToken(): void {
   localStorage.removeItem("admin_token");
 }
 
-// 通用请求函数
-async function apiRequest<T>(
+/** 构建 fetch，统一错误处理，返回原始 Response。auth=false 时跳过鉴权头 */
+async function apiFetch(
   endpoint: string,
-  options: RequestInit = {}
-): Promise<T> {
-  const token = getToken();
-
-  const headers: HeadersInit = {
-    "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
-
+  init: RequestInit = {},
+  options: { auth?: boolean } = {}
+): Promise<Response> {
+  const { auth = true } = options;
+  const token = auth ? getToken() : null;
+  const headers: Record<string, string> = {};
   if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
+    headers["Authorization"] = `Bearer ${token}`;
   }
-
   const response = await fetch(`${API_BASE}${endpoint}`, {
-    ...options,
-    headers,
+    ...init,
+    headers: { ...headers, ...(init.headers as Record<string, string> | undefined) },
   });
-
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
     const message =
@@ -48,16 +43,28 @@ async function apiRequest<T>(
         ? error.error
         : error?.error?.message || error.message || "Request failed";
     const code =
-      typeof error.error === "object" && error.error
-        ? error.error.code
-        : error.code;
+      typeof error.error === "object" && error.error ? error.error.code : error.code;
     const err = new Error(message);
     if (code) {
       (err as Error & { code?: string }).code = code;
     }
     throw err;
   }
+  return response;
+}
 
+// 通用 JSON 请求函数
+async function apiRequest<T>(
+  endpoint: string,
+  options: RequestInit = {}
+): Promise<T> {
+  const response = await apiFetch(endpoint, {
+    ...options,
+    headers: {
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
   return response.json();
 }
 
@@ -83,86 +90,26 @@ export async function saveConfig(config: RulesConfig): Promise<{ success: boolea
 }
 
 export async function backupDatabase(): Promise<Blob> {
-  const token = getToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-  const response = await fetch(`${API_BASE}/database/backup`, { headers });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message =
-      typeof error.error === "string"
-        ? error.error
-        : error?.error?.message || error.message || "Request failed";
-    throw new Error(message);
-  }
+  const response = await apiFetch("/database/backup");
   return response.blob();
 }
 
 export async function restoreDatabase(file: File): Promise<{ success: boolean }> {
-  const token = getToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_BASE}/database/restore`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message =
-      typeof error.error === "string"
-        ? error.error
-        : error?.error?.message || error.message || "Request failed";
-    throw new Error(message);
-  }
+  const response = await apiFetch("/database/restore", { method: "POST", body: formData });
   return response.json();
 }
 
 export async function exportConfigTemplate(): Promise<Blob> {
-  const token = getToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
-  const response = await fetch(`${API_BASE}/config/template/export`, { headers });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message =
-      typeof error.error === "string"
-        ? error.error
-        : error?.error?.message || error.message || "Request failed";
-    throw new Error(message);
-  }
+  const response = await apiFetch("/config/template/export");
   return response.blob();
 }
 
 export async function importConfigTemplate(file: File): Promise<{ success: boolean; rev: number }> {
-  const token = getToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
   const formData = new FormData();
   formData.append("file", file);
-  const response = await fetch(`${API_BASE}/config/template/import`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message =
-      typeof error.error === "string"
-        ? error.error
-        : error?.error?.message || error.message || "Request failed";
-    throw new Error(message);
-  }
+  const response = await apiFetch("/config/template/import", { method: "POST", body: formData });
   return response.json();
 }
 
@@ -250,7 +197,9 @@ export interface PublicStatusResponse {
 }
 
 export async function getPublicStatus(): Promise<PublicStatusResponse> {
-  return apiRequest<PublicStatusResponse>("/status");
+  // 公开接口不携带 admin token，确保服务端返回公开数据结构
+  const response = await apiFetch("/status", {}, { auth: false });
+  return response.json();
 }
 
 export async function getChangeRecords(
@@ -628,29 +577,14 @@ export async function listIcons(): Promise<{ icons: IconMeta[] }> {
   return apiRequest<{ icons: IconMeta[] }>("/iconset");
 }
 
-export async function uploadIcons(files: FileList | File[]): Promise<{ success: boolean; uploaded: IconMeta[]; renamed: { original: string; renamed: string }[] }> {
-  const token = getToken();
-  const headers: HeadersInit = {};
-  if (token) {
-    (headers as Record<string, string>)["Authorization"] = `Bearer ${token}`;
-  }
+export async function uploadIcons(
+  files: FileList | File[]
+): Promise<{ success: boolean; uploaded: IconMeta[]; renamed: { original: string; renamed: string }[] }> {
   const formData = new FormData();
   for (const file of files) {
     formData.append("files", file);
   }
-  const response = await fetch(`${API_BASE}/iconset/upload`, {
-    method: "POST",
-    headers,
-    body: formData,
-  });
-  if (!response.ok) {
-    const error = await response.json().catch(() => ({}));
-    const message =
-      typeof error.error === "string"
-        ? error.error
-        : error?.error?.message || error.message || "Request failed";
-    throw new Error(message);
-  }
+  const response = await apiFetch("/iconset/upload", { method: "POST", body: formData });
   return response.json();
 }
 
