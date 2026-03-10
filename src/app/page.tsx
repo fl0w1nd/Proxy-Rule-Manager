@@ -47,8 +47,8 @@ function AppContent() {
   // 客户端挂载前或检查认证状态时显示加载
   if (!mounted || (showAdmin && isLoading)) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-slate-900">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }

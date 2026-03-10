@@ -119,8 +119,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             {/* Navigation */}
             <div className="flex-1 py-6 px-3 space-y-1 overflow-y-auto">
                 {!isCollapsed && (
-                    <div className="mb-2 px-3 text-xs font-semibold text-muted-foreground/70 uppercase tracking-wider">
-                        Platform
+                    <div className="mb-2 px-3 text-xs font-semibold text-muted-foreground/70 tracking-wider">
+                        功能
                     </div>
                 )}
                 {NAV_ITEMS.map((item, index) => {
@@ -185,8 +185,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                     <>
                         <div className="flex items-center gap-2 p-2 rounded-md bg-sidebar-accent/50 border border-sidebar-border/50">
                             <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-sidebar-foreground truncate">Administrator</p>
-                                <p className="text-xs text-muted-foreground truncate">System Access</p>
+                                <p className="text-sm font-medium text-sidebar-foreground truncate">管理员</p>
+                                <p className="text-xs text-muted-foreground truncate">系统访问</p>
                             </div>
                             <Button
                                 onClick={toggleTheme}

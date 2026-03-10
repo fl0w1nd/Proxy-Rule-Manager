@@ -176,6 +176,31 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+}
+
+@layer utilities {
+  .neu-btn:focus-visible,
+  .neu-pill-active:focus-visible,
+  .neu-badge:focus-visible,
+  .glass-float button:focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+    box-shadow:
+      0 0 0 4px oklch(0.488 0.243 264.376 / 15%);
+  }
+
+  .dark .neu-btn:focus-visible,
+  .dark .neu-pill-active:focus-visible,
+  .dark .neu-badge:focus-visible,
+  .dark .glass-float button:focus-visible {
+    box-shadow:
+      0 0 0 4px oklch(0.7 0.15 264.376 / 20%);
+  }
 }
 
 @layer utilities {
@@ -557,11 +582,11 @@
 
   .glass-card:hover {
     box-shadow:
-      10px 10px 24px 0 rgba(0, 0, 0, 0.08),
-      -5px -5px 14px 0 rgba(255, 255, 255, 0.85),
+      9px 9px 22px 0 rgba(0, 0, 0, 0.06),
+      -4px -4px 12px 0 rgba(255, 255, 255, 0.8),
       inset 0 1px 1px rgba(255, 255, 255, 0.8),
       inset 0 -1px 1px rgba(0, 0, 0, 0.02);
-    transform: translateY(-2px) scale(1.005);
+    transform: translateY(-1px);
   }
 
   .dark .glass-card {
@@ -578,11 +603,11 @@
 
   .dark .glass-card:hover {
     box-shadow:
-      10px 10px 24px 0 rgba(0, 0, 0, 0.4),
-      -5px -5px 14px 0 rgba(255, 255, 255, 0.03),
+      9px 9px 22px 0 rgba(0, 0, 0, 0.35),
+      -4px -4px 12px 0 rgba(255, 255, 255, 0.025),
       inset 0 1px 1px rgba(255, 255, 255, 0.05),
       inset 0 -1px 1px rgba(0, 0, 0, 0.1);
-    transform: translateY(-2px) scale(1.005);
+    transform: translateY(-1px);
   }
 
   /* Neumorphic icon bubble */
@@ -989,10 +1014,9 @@
   .card-embossed:hover {
     box-shadow:
       0 0 0 1px rgba(0, 0, 0, 0.04),
-      0 4px 8px -2px rgba(0, 0, 0, 0.06),
-      0 12px 28px -6px rgba(0, 0, 0, 0.08),
+      0 3px 6px -2px rgba(0, 0, 0, 0.05),
+      0 10px 24px -6px rgba(0, 0, 0, 0.07),
       0 -2px 6px -1px rgba(255, 255, 255, 0.8);
-    transform: translateY(-1px);
   }
 
   .dark .card-embossed {
@@ -1007,10 +1031,10 @@
 
   .dark .card-embossed:hover {
     box-shadow:
-      0 0 0 1px rgba(80, 110, 200, 0.08),
-      0 4px 8px -2px rgba(0, 0, 0, 0.25),
-      0 12px 28px -6px rgba(0, 0, 0, 0.35),
-      0 -1px 3px 0px rgba(255, 255, 255, 0.03);
+      0 0 0 1px rgba(80, 110, 200, 0.07),
+      0 3px 6px -2px rgba(0, 0, 0, 0.22),
+      0 10px 24px -6px rgba(0, 0, 0, 0.3),
+      0 -1px 3px 0px rgba(255, 255, 255, 0.025);
   }
 
   /*
@@ -1204,7 +1228,7 @@
   @keyframes slide-up {
     from {
       opacity: 0;
-      transform: translateY(8px);
+      transform: translateY(5px);
     }
 
     to {
@@ -1219,40 +1243,40 @@
 
   .ambient-grain {
     background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
-    opacity: 0.04;
+    opacity: 0.025;
     background-size: 200px 200px;
   }
 
   .dark .ambient-grain {
-    opacity: 0.06;
+    opacity: 0.04;
   }
 
   .ambient-flow {
     background:
-      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(190, 150, 230, 0.12) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(130, 175, 235, 0.10) 0%, transparent 70%),
-      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(150, 190, 220, 0.08) 0%, transparent 60%);
-    filter: saturate(1.1);
-    animation: ambient-drift 20s ease-in-out infinite;
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(190, 150, 230, 0.07) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(130, 175, 235, 0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(150, 190, 220, 0.05) 0%, transparent 60%);
+    filter: saturate(0.95);
+    animation: ambient-drift 28s ease-in-out infinite;
   }
 
   .dark .ambient-flow {
     background:
-      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(110, 75, 175, 0.12) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(55, 95, 175, 0.10) 0%, transparent 70%),
-      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(75, 105, 160, 0.09) 0%, transparent 60%);
-    filter: saturate(1.1);
+      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(110, 75, 175, 0.08) 0%, transparent 70%),
+      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(55, 95, 175, 0.06) 0%, transparent 70%),
+      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(75, 105, 160, 0.06) 0%, transparent 60%);
+    filter: saturate(0.95);
   }
 
   .ambient-orb {
     border-radius: 50%;
-    filter: blur(110px);
+    filter: blur(100px);
     will-change: transform;
-    opacity: 0.7;
+    opacity: 0.4;
   }
 
   .dark .ambient-orb {
-    opacity: 0.85;
+    opacity: 0.5;
   }
 
   .ambient-orb-1 {
@@ -1260,8 +1284,8 @@
     height: 500px;
     top: -15%;
     left: 10%;
-    background: radial-gradient(circle, rgba(180, 120, 210, 0.35) 0%, rgba(150, 130, 230, 0.1) 50%, transparent 70%);
-    animation: orb-wander-1 12s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(180, 120, 210, 0.2) 0%, rgba(150, 130, 230, 0.06) 50%, transparent 70%);
+    animation: orb-wander-1 16s ease-in-out infinite;
   }
 
   .ambient-orb-2 {
@@ -1269,8 +1293,8 @@
     height: 450px;
     bottom: -10%;
     right: 5%;
-    background: radial-gradient(circle, rgba(80, 150, 250, 0.3) 0%, rgba(100, 170, 240, 0.1) 50%, transparent 70%);
-    animation: orb-wander-2 15s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(80, 150, 250, 0.18) 0%, rgba(100, 170, 240, 0.06) 50%, transparent 70%);
+    animation: orb-wander-2 20s ease-in-out infinite;
   }
 
   .ambient-orb-3 {
@@ -1278,8 +1302,8 @@
     height: 350px;
     top: 30%;
     right: 20%;
-    background: radial-gradient(circle, rgba(80, 200, 190, 0.25) 0%, rgba(100, 210, 200, 0.08) 50%, transparent 70%);
-    animation: orb-wander-3 18s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(80, 200, 190, 0.14) 0%, rgba(100, 210, 200, 0.04) 50%, transparent 70%);
+    animation: orb-wander-3 24s ease-in-out infinite;
   }
 
   .ambient-orb-4 {
@@ -1287,46 +1311,46 @@
     height: 220px;
     bottom: 20%;
     left: 40%;
-    background: radial-gradient(circle, rgba(230, 180, 80, 0.3) 0%, rgba(240, 200, 120, 0.1) 50%, transparent 70%);
-    animation: orb-wander-4 10s ease-in-out infinite;
+    background: radial-gradient(circle, rgba(230, 180, 80, 0.16) 0%, rgba(240, 200, 120, 0.05) 50%, transparent 70%);
+    animation: orb-wander-4 14s ease-in-out infinite;
   }
 
   .dark .ambient-orb-1 {
-    background: radial-gradient(circle, rgba(140, 60, 190, 0.4) 0%, rgba(110, 80, 210, 0.12) 50%, transparent 70%);
+    background: radial-gradient(circle, rgba(140, 60, 190, 0.22) 0%, rgba(110, 80, 210, 0.07) 50%, transparent 70%);
   }
 
   .dark .ambient-orb-2 {
-    background: radial-gradient(circle, rgba(40, 110, 220, 0.35) 0%, rgba(60, 140, 210, 0.1) 50%, transparent 70%);
+    background: radial-gradient(circle, rgba(40, 110, 220, 0.2) 0%, rgba(60, 140, 210, 0.06) 50%, transparent 70%);
   }
 
   .dark .ambient-orb-3 {
-    background: radial-gradient(circle, rgba(40, 170, 160, 0.3) 0%, rgba(60, 180, 170, 0.1) 50%, transparent 70%);
+    background: radial-gradient(circle, rgba(40, 170, 160, 0.16) 0%, rgba(60, 180, 170, 0.05) 50%, transparent 70%);
   }
 
   .dark .ambient-orb-4 {
-    background: radial-gradient(circle, rgba(210, 160, 50, 0.35) 0%, rgba(220, 180, 90, 0.12) 50%, transparent 70%);
+    background: radial-gradient(circle, rgba(210, 160, 50, 0.2) 0%, rgba(220, 180, 90, 0.07) 50%, transparent 70%);
   }
 
   .ambient-mesh {
     position: absolute;
     inset: -25%;
     background: conic-gradient(from 0deg at 50% 50%,
-        rgba(180, 140, 220, 0.03) 0deg,
-        rgba(100, 170, 230, 0.02) 90deg,
-        rgba(80, 200, 190, 0.03) 180deg,
-        rgba(220, 180, 100, 0.02) 270deg,
-        rgba(180, 140, 220, 0.03) 360deg);
-    animation: ambient-mesh-rotate 30s linear infinite;
+        rgba(180, 140, 220, 0.02) 0deg,
+        rgba(100, 170, 230, 0.015) 90deg,
+        rgba(80, 200, 190, 0.02) 180deg,
+        rgba(220, 180, 100, 0.015) 270deg,
+        rgba(180, 140, 220, 0.02) 360deg);
+    animation: ambient-mesh-rotate 45s linear infinite;
     pointer-events: none;
   }
 
   .dark .ambient-mesh {
     background: conic-gradient(from 0deg at 50% 50%,
-        rgba(120, 80, 180, 0.04) 0deg,
-        rgba(50, 110, 200, 0.03) 90deg,
-        rgba(40, 160, 150, 0.04) 180deg,
-        rgba(200, 150, 60, 0.03) 270deg,
-        rgba(120, 80, 180, 0.04) 360deg);
+        rgba(120, 80, 180, 0.025) 0deg,
+        rgba(50, 110, 200, 0.02) 90deg,
+        rgba(40, 160, 150, 0.025) 180deg,
+        rgba(200, 150, 60, 0.02) 270deg,
+        rgba(120, 80, 180, 0.025) 360deg);
   }
 
   @keyframes ambient-drift {
@@ -1447,5 +1471,33 @@
     to {
       transform: rotate(360deg) scale(1.5);
     }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .ambient-orb,
+  .ambient-flow,
+  .ambient-mesh,
+  .ambient-grain {
+    display: none !important;
+  }
+
+  .hover-lift:hover {
+    transform: none;
+  }
+
+  .glass-card:hover,
+  .card-embossed:hover {
+    transform: none;
   }
 }

@@ -482,8 +482,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             {/* Tag Filter */}
             {activeMainTab === "rules" && allTags.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0">
-                  <Tag className="w-3.5 h-3.5" />
+                <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0" role="img" aria-label="标签筛选">
+                  <Tag className="w-3.5 h-3.5" aria-hidden="true" />
                 </div>
                 {allTags.map((tag) => (
                   <button

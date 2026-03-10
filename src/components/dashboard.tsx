@@ -98,10 +98,11 @@ function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName
         </div>
       ) : (
         items.map((change) => (
-          <div
+          <button
+            type="button"
             key={change.id}
             onClick={() => onViewDiff(change)}
-            className="flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
+            className="w-full text-left flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1.5">
@@ -124,19 +125,14 @@ function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName
               </div>
             </div>
             {!compact && (
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onViewDiff(change);
-                }}
+              <span
+                className="h-6 w-6 flex items-center justify-center rounded-md opacity-0 group-hover:opacity-100 transition-opacity hover:bg-accent"
+                aria-hidden="true"
               >
                 <FileText className="w-3 h-3" />
-              </Button>
+              </span>
             )}
-          </div>
+          </button>
         ))
       )}
     </div>
@@ -371,9 +367,9 @@ export function Dashboard({ onBack }: DashboardProps) {
         {/* Header */}
         <header className="h-16 shrink-0 border-b flex items-center justify-between px-6 bg-background/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-4">
-            <h2 className="text-lg font-semibold capitalize tracking-tight flex items-center gap-2">
+            <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-              {activeTab === 'overview' ? 'Dashboard' : activeTab}
+              {{ overview: "概览", rules: "规则管理", activity: "活动记录", transformers: "转换器", clients: "客户端", security: "安全防护", iconset: "图标集", config: "系统配置" }[activeTab] ?? activeTab}
             </h2>
           </div>
           <div className="flex items-center gap-3">
