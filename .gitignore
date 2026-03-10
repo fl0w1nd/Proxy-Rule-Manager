@@ -47,7 +47,7 @@ next-env.d.ts
 /dist/
 
 # agent
-/.agent
+/.agents
 .aider*
 /local
 
