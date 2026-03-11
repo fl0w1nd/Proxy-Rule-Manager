@@ -189,7 +189,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -226,7 +226,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         />
         <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
           <div className="flex items-center gap-3">
-            <Code className="w-5 h-5 text-blue-500" />
+            <Code className="w-5 h-5 text-primary" />
             <span className="font-semibold text-foreground">YAML 配置编辑器</span>
             <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
               只读
@@ -427,7 +427,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <h3 className="text-base font-medium text-foreground flex items-center gap-2">
-                <Code className="w-5 h-5 text-blue-500" />
+                <Code className="w-5 h-5 text-primary" />
                 YAML 配置编辑器
               </h3>
               <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
@@ -484,7 +484,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         <Card>
           <div className="px-5 pt-5 pb-3">
             <h3 className="text-base font-medium text-foreground flex items-center gap-2">
-              <FileText className="w-5 h-5 text-blue-500" />
+              <FileText className="w-5 h-5 text-primary" />
               配置模板
             </h3>
             <p className="text-sm text-muted-foreground">
@@ -584,8 +584,8 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           <div>
             <h4 className="font-medium text-foreground mb-2">支持的转换类型</h4>
             <ul className="space-y-1 list-disc list-inside text-gray-600 dark:text-gray-400">
-              <li><code className="text-blue-600 dark:text-blue-400">replace</code> - 正则替换</li>
-              <li><code className="text-blue-600 dark:text-blue-400">remove_lines</code> - 删除匹配行</li>
+              <li><code className="text-primary">replace</code> - 正则替换</li>
+              <li><code className="text-primary">remove_lines</code> - 删除匹配行</li>
             </ul>
           </div>
 

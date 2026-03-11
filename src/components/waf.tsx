@@ -263,7 +263,7 @@ export function WafManager() {
                 <Card className="p-4">
                     <p className="text-xs text-muted-foreground mb-1">临时追踪</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-blue-500" />
+                        <Clock className="w-5 h-5 text-primary" />
                         {stats?.temporary.totalTracked || 0}
                     </div>
                 </Card>
@@ -477,7 +477,7 @@ export function WafManager() {
                             <div className="flex items-center justify-between">
                                 <div>
                                     <h3 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                                        <Cloud className="w-5 h-5 text-blue-500" />
+                                        <Cloud className="w-5 h-5 text-primary" />
                                         CDN 缓存设置
                                     </h3>
                                     <p className="text-sm text-muted-foreground mt-1">

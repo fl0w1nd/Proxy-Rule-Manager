@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import NextImage from "next/image";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
@@ -321,21 +322,23 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             <span className="text-sm text-muted-foreground">
               {previewContent.split('\n').length} 行
             </span>
-            <button
-              className="neu-btn px-4 py-2 text-sm text-muted-foreground flex items-center gap-1.5"
+            <Button
+              variant="neu"
+              className="px-4 py-2 text-sm flex items-center gap-1.5"
               onClick={() => {
                 void copyToClipboard(previewContent, () => undefined, "已复制内容");
               }}
             >
               <Copy className="w-4 h-4" />
               复制
-            </button>
-            <button
-              className="neu-btn w-10 h-10 flex items-center justify-center text-muted-foreground"
+            </Button>
+            <Button
+              variant="neu"
+              size="icon-lg"
               onClick={() => setIsPreviewFullscreen(false)}
             >
               <X className="w-5 h-5" />
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -395,24 +398,27 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button
+                <Button
+                  variant="neu"
+                  size="icon-lg"
                   onClick={toggleTheme}
                   aria-label={theme === "light" ? "切换到深色模式" : "切换到浅色模式"}
-                  className="neu-btn w-11 h-11 flex items-center justify-center text-muted-foreground !rounded-[14px]"
+                  className="w-11 h-11"
                 >
                   {theme === "light" ? (
                     <Moon className="w-[18px] h-[18px]" />
                   ) : (
                     <Sun className="w-[18px] h-[18px]" />
                   )}
-                </button>
-                <button
+                </Button>
+                <Button
+                  variant="neu"
                   onClick={onAdminClick}
-                  className="neu-btn h-11 px-4 flex items-center gap-2 text-muted-foreground text-sm !rounded-[14px]"
+                  className="h-11 px-4 text-sm"
                 >
                   <Settings className="w-4 h-4" />
                   <span className="hidden sm:inline">管理</span>
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -687,8 +693,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         </div>
                       </div>
                       <div className="flex gap-3 mt-5">
-                        <button
-                          className="neu-btn flex-1 h-10 text-[13px] text-muted-foreground flex items-center justify-center gap-1.5"
+                        <Button
+                          variant="neu"
+                          className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
                           onClick={() => handlePreview({
                             type: "config",
                             name: file.configId,
@@ -699,7 +706,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         >
                           <Eye className="w-3.5 h-3.5" />
                           预览
-                        </button>
+                        </Button>
                         <button
                           className={`flex-1 h-10 text-[13px] font-medium flex items-center justify-center gap-1.5 rounded-[14px] transition-all duration-200 ${
                             copiedConfig === file.id
@@ -836,7 +843,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
         {/* Preview Dialog */}
         <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none bg-[#e7ebf8] dark:bg-[#191d2b]">
+          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none neu-inset">
             <DialogHeader className="px-6 pt-6 pb-4 glass-header !border-b-0">
               <DialogTitle className="flex items-center gap-3 text-foreground font-semibold">
                 {(() => {
@@ -870,22 +877,26 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       {previewContent.split('\n').length} 行
                     </span>
                     <div className="flex items-center gap-2">
-                      <button
-                        className="neu-btn px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5 !rounded-lg"
+                      <Button
+                        variant="neu"
+                        size="sm"
+                        className="text-xs flex items-center gap-1.5"
                         onClick={() => {
                           void copyToClipboard(previewContent, () => undefined, "已复制内容");
                         }}
                       >
                         <Copy className="w-3.5 h-3.5" />
                         复制
-                      </button>
-                      <button
-                        className="neu-btn px-3 py-1.5 text-xs text-muted-foreground flex items-center gap-1.5 !rounded-lg"
+                      </Button>
+                      <Button
+                        variant="neu"
+                        size="sm"
+                        className="text-xs flex items-center gap-1.5"
                         onClick={() => setIsPreviewFullscreen(true)}
                       >
                         <Maximize2 className="w-3.5 h-3.5" />
                         全屏
-                      </button>
+                      </Button>
                     </div>
                   </div>
                   {/* 内容区域 - 带行号 */}

@@ -304,7 +304,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -315,7 +315,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-            <Code2 className="w-5 h-5 text-blue-500" />
+            <Code2 className="w-5 h-5 text-primary" />
             预定义转换器
           </h2>
           <p className="text-sm text-muted-foreground mt-1">
@@ -416,7 +416,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
         <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Code2 className="w-5 h-5 text-blue-500" />
+              <Code2 className="w-5 h-5 text-primary" />
               {editingTransformer?.isNew ? "新建转换器" : "编辑转换器"}
             </DialogTitle>
             <DialogDescription>
@@ -572,7 +572,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
         <DialogContent className="max-w-5xl w-[95vw] max-h-[80vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5 text-blue-500" />
+              <BookOpen className="w-5 h-5 text-primary" />
               预定义转换器帮助文档
             </DialogTitle>
             <DialogDescription>

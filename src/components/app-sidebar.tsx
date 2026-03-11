@@ -140,10 +140,10 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                             )}
                             title={isCollapsed ? item.title : undefined}
                         >
-                            <item.icon className={cn("w-4 h-4 transition-colors flex-shrink-0", isActive ? "text-blue-600/80 dark:text-blue-300/80" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
+                            <item.icon className={cn("w-4 h-4 transition-colors flex-shrink-0", isActive ? "text-sidebar-primary/80" : "text-muted-foreground group-hover:text-sidebar-accent-foreground")} />
                             {!isCollapsed && <span>{item.title}</span>}
                             {!isCollapsed && isActive && (
-                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-500/60 dark:bg-blue-400/60 animate-pulse" />
+                                <div className="ml-auto w-1.5 h-1.5 rounded-full bg-sidebar-primary/60 animate-pulse" />
                             )}
                         </Button>
                     );

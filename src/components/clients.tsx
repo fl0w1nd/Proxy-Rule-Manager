@@ -396,7 +396,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         return (
             <Card>
                 <div className="flex items-center justify-center py-8">
-                    <Loader2 className="w-6 h-6 animate-spin text-blue-500" />
+                    <Loader2 className="w-6 h-6 animate-spin text-primary" />
                 </div>
             </Card>
         );

@@ -391,13 +391,13 @@ export function Dashboard({ onBack }: DashboardProps) {
             {(needsInit || (needsFirstSync && !needsInit)) && (
               <div className="grid gap-4">
                 {needsInit && (
-                  <Card className="border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/10">
+                  <Card className="border-destructive/20 bg-destructive/5">
                     <CardContent className="py-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <AlertTriangle className="w-5 h-5 text-amber-600" />
+                        <AlertTriangle className="w-5 h-5 text-destructive" />
                         <div>
-                          <h3 className="font-medium text-amber-900 dark:text-amber-100">系统未初始化</h3>
-                          <p className="text-xs text-amber-700 dark:text-amber-300">检测到暂无规则配置，建议立即初始化。</p>
+                          <h3 className="font-medium text-foreground">系统未初始化</h3>
+                          <p className="text-xs text-muted-foreground">检测到暂无规则配置，建议立即初始化。</p>
                         </div>
                       </div>
                       <Button variant="success" size="sm" onClick={handleInit} disabled={isInitializing}>
@@ -407,16 +407,16 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </Card>
                 )}
                 {needsFirstSync && !needsInit && (
-                  <Card className="border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/10">
+                  <Card className="border-primary/20 bg-primary/5">
                     <CardContent className="py-4 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <RefreshCw className="w-5 h-5 text-blue-600" />
+                        <RefreshCw className="w-5 h-5 text-primary" />
                         <div>
-                          <h3 className="font-medium text-blue-900 dark:text-blue-100">待首次同步</h3>
-                          <p className="text-xs text-blue-700 dark:text-blue-300">规则已就绪，请同步以生成配置文件。</p>
+                          <h3 className="font-medium text-foreground">待首次同步</h3>
+                          <p className="text-xs text-muted-foreground">规则已就绪，请同步以生成配置文件。</p>
                         </div>
                       </div>
-                      <Button size="sm" onClick={handleFullSync} disabled={isSyncing} className="bg-blue-600 text-white hover:bg-blue-700">
+                      <Button size="sm" onClick={handleFullSync} disabled={isSyncing}>
                         立即同步
                       </Button>
                     </CardContent>
@@ -440,7 +440,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </Card>
                   <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">生成文件</p>
-                    <div className="text-2xl font-mono font-bold text-amber-500">{status?.ruleFilesCount || 0}</div>
+                    <div className="text-2xl font-mono font-bold text-accent-foreground">{status?.ruleFilesCount || 0}</div>
                   </Card>
                   <Card className="p-4 flex flex-col justify-center">
                     <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">异常记录</p>
@@ -455,7 +455,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </div>
                     <div>
                       <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
-                      <p className="text-xs font-mono text-emerald-600 dark:text-emerald-400 truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
+                      <p className="text-xs font-mono text-primary truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}
                       </p>
                     </div>

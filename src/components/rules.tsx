@@ -232,7 +232,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -373,7 +373,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               tabIndex={0}
               aria-pressed={selectedTags.includes(tag)}
               className={`cursor-pointer transition-colors flex-shrink-0 ${selectedTags.includes(tag)
-                ? "bg-blue-500 hover:bg-blue-600 text-white"
+                ? "bg-primary hover:bg-primary/90 text-primary-foreground"
                 : "hover:bg-accent"
                 }`}
               onClick={() => toggleTag(tag)}
@@ -746,7 +746,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
           )}
         </DialogContent>
@@ -802,7 +802,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               variant="destructive"
               onClick={() => deletingRule && handleDeleteRule(deletingRule)}
               disabled={isDeleting}
-              className="bg-red-500 hover:bg-red-600"
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
             >
               {isDeleting ? (
                 <>

@@ -46,8 +46,8 @@ export function LoginForm({ onBack }: LoginFormProps) {
               返回
             </Button>
           )}
-          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-blue-500 to-cyan-500 rounded-xl flex items-center justify-center mb-4">
-            <Lock className="w-6 h-6 text-white" />
+          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center mb-4">
+            <Lock className="w-6 h-6 text-primary-foreground" />
           </div>
           <CardTitle className="text-2xl font-bold text-foreground">
             管理后台
@@ -71,7 +71,7 @@ export function LoginForm({ onBack }: LoginFormProps) {
                 className="bg-muted/50 border-border"
               />
               {error && (
-                <p className="text-sm text-red-500">{error}</p>
+                <p className="text-sm text-destructive">{error}</p>
               )}
             </div>
             <Button
