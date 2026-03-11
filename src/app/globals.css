@@ -1270,7 +1270,7 @@
 
   .ambient-orb {
     border-radius: 50%;
-    filter: blur(100px);
+    filter: blur(60px);
     will-change: transform;
     opacity: 0.4;
   }
@@ -1471,6 +1471,20 @@
     to {
       transform: rotate(360deg) scale(1.5);
     }
+  }
+}
+
+@media (max-width: 768px) {
+  .ambient-orb-3,
+  .ambient-orb-4,
+  .ambient-mesh {
+    display: none !important;
+  }
+
+  .ambient-orb-1,
+  .ambient-orb-2 {
+    width: 250px;
+    height: 250px;
   }
 }
 

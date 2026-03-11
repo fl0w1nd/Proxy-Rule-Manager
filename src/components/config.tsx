@@ -23,7 +23,7 @@ import {
 } from "@/lib/api-client";
 import { RulesConfig } from "@/lib/schema";
 import { toast } from "sonner";
-import Editor from "@monaco-editor/react";
+import { LazyMonacoEditor } from "./lazy-monaco";
 import YAML from "yaml";
 import { useTheme } from "./theme-provider";
 
@@ -245,7 +245,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         </div>
 
         <div className="flex-1">
-          <Editor
+          <LazyMonacoEditor
             height="100%"
             defaultLanguage="yaml"
             value={yamlContent}
@@ -450,7 +450,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             >
               <Maximize2 className="w-4 h-4" />
             </Button>
-            <Editor
+            <LazyMonacoEditor
               height="600px"
               defaultLanguage="yaml"
               value={yamlContent}

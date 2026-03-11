@@ -11,7 +11,7 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 import { FileText, Maximize2, Minimize2 } from "lucide-react";
-import Editor from "@monaco-editor/react";
+import { LazyMonacoEditor } from "./lazy-monaco";
 
 interface LocalContentDialogProps {
   open: boolean;
@@ -92,7 +92,7 @@ export function LocalContentDialog({
           <div
             className={`relative border border-border rounded-lg overflow-hidden ${isFullscreen ? "flex-1 min-h-0" : ""}`}
           >
-            <Editor
+            <LazyMonacoEditor
               height={isFullscreen ? "100%" : "400px"}
               language="plaintext"
               value={draft}

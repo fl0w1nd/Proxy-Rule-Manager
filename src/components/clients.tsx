@@ -25,8 +25,9 @@ import {
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X, AlertTriangle } from "lucide-react";
 import { toast } from "sonner";
-import Editor, { type Monaco } from "@monaco-editor/react";
+import { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
+import { LazyMonacoEditor } from "./lazy-monaco";
 import { useTheme } from "./theme-provider";
 import { useEditorValidation } from "@/hooks/use-editor-validation";
 import {
@@ -453,7 +454,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
                 <div className="flex-1 flex flex-col min-h-0">
                     <div className="flex-1 min-h-0">
-                        <Editor
+                        <LazyMonacoEditor
                             height="100%"
                             language={editorLanguage}
                             value={fileContent}
@@ -984,7 +985,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 </Button>
                             </div>
                             <div className="relative border border-border rounded-lg overflow-hidden">
-                                <Editor
+                                <LazyMonacoEditor
                                     height="300px"
                                     language={editorLanguage}
                                     value={fileContent}
