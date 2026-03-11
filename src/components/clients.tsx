@@ -673,7 +673,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                                 </p>
                                                             </div>
                                                             <div className="flex items-center gap-2">
-                                                                <Button variant="ghost" size="icon" onClick={() => openEditFileDialog(file)}>
+                                                                <Button variant="ghost" size="icon" onClick={() => openEditFileDialog(file)} aria-label="编辑配置文件">
                                                                     <Pencil className="w-4 h-4" />
                                                                 </Button>
                                                                 <Button
@@ -681,6 +681,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                                     size="icon"
                                                                     className="text-destructive hover:text-destructive"
                                                                     onClick={() => handleDeleteFile(file)}
+                                                                    aria-label="删除配置文件"
                                                                 >
                                                                     <Trash2 className="w-4 h-4" />
                                                                 </Button>
@@ -781,7 +782,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                 variant="ghost"
                                                 size="icon"
                                                 onClick={() => removeTransform(index)}
-                                                className="w-6 h-6 text-muted-foreground hover:text-red-500"
+                                                className="w-6 h-6 text-muted-foreground hover:text-destructive"
+                                                aria-label="删除转换器"
                                             >
                                                 <Trash2 className="w-3 h-3" />
                                             </Button>

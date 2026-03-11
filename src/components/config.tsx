@@ -312,7 +312,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         </div>
         <div className="card-embossed p-4">
           <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">预定义转换器</p>
-          <div className="text-3xl font-mono font-bold tracking-tight text-orange-500">
+          <div className="text-3xl font-mono font-bold tracking-tight text-accent-foreground">
             {Object.keys(config?.transformers || {}).length}
           </div>
         </div>
@@ -445,7 +445,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(true)}
-              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
+              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background shadow-sm"
               title="全屏查看 (ESC 退出)"
             >
               <Maximize2 className="w-4 h-4" />
@@ -583,7 +583,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
 
           <div>
             <h4 className="font-medium text-foreground mb-2">支持的转换类型</h4>
-            <ul className="space-y-1 list-disc list-inside text-gray-600 dark:text-gray-400">
+            <ul className="space-y-1 list-disc list-inside text-muted-foreground">
               <li><code className="text-primary">replace</code> - 正则替换</li>
               <li><code className="text-primary">remove_lines</code> - 删除匹配行</li>
             </ul>

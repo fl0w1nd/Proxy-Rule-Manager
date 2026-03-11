@@ -315,7 +315,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           <div className="px-4 py-2 border-b border-border shrink-0">
             <TabsList className="bg-muted">
               {Object.keys(previewData.contents).map((client) => (
-                <TabsTrigger key={client} value={client} className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-700">
+                <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
                   {getClientDisplayName(client)}
                 </TabsTrigger>
               ))}
@@ -696,7 +696,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <div className="px-6 py-3 border-b border-border flex items-center justify-between">
                   <TabsList className="bg-muted">
                     {Object.keys(previewData.contents).map((client) => (
-                      <TabsTrigger key={client} value={client} className="data-[state=active]:bg-white dark:data-[state=active]:bg-slate-800">
+                      <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
                         {getClientDisplayName(client)}
                       </TabsTrigger>
                     ))}
@@ -720,7 +720,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                             toast.error("复制失败");
                           }
                         }}
-                        className="bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
+                        className="bg-background/80 hover:bg-background shadow-sm"
                         title="复制内容"
                       >
                         <Copy className="w-4 h-4" />
@@ -729,7 +729,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                         variant="ghost"
                         size="icon"
                         onClick={() => setIsPreviewFullscreen(true)}
-                        className="bg-white/80 dark:bg-slate-800/80 hover:bg-white dark:hover:bg-slate-700 shadow-sm"
+                        className="bg-background/80 hover:bg-background shadow-sm"
                         title="全屏预览 (ESC 退出)"
                       >
                         <Maximize2 className="w-4 h-4" />
@@ -780,14 +780,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       <Dialog open={!!deletingRule} onOpenChange={(open) => !open && setDeletingRule(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+            <DialogTitle className="text-foreground flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-destructive" />
               确认删除规则
             </DialogTitle>
-            <DialogDescription className="text-gray-500 dark:text-gray-400">
-              确定要删除规则 <strong className="text-gray-900 dark:text-white">{deletingRule}</strong> 吗？
+            <DialogDescription className="text-muted-foreground">
+              确定要删除规则 <strong className="text-foreground">{deletingRule}</strong> 吗？
               <br />
-              <span className="text-red-500">此操作将同时删除所有客户端的规则文件，且无法恢复。</span>
+              <span className="text-destructive">此操作将同时删除所有客户端的规则文件，且无法恢复。</span>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3 mt-4">

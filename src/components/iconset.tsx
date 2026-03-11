@@ -185,7 +185,7 @@ export function IconSetManager() {
                             {icons.map((icon) => (
                                 <div
                                     key={icon.id}
-                                    className="group relative flex flex-col rounded-xl border border-border/40 bg-white dark:bg-gray-800/30 p-3"
+                                    className="group relative flex flex-col rounded-xl border border-border/40 bg-card p-3"
                                 >
                                     <div className="relative aspect-square w-full flex items-center justify-center rounded-md border border-border/50 bg-muted/30 mb-2 overflow-hidden">
                                         <NextImage
@@ -220,6 +220,7 @@ export function IconSetManager() {
                                                 className="h-7 w-7 shrink-0"
                                                 onClick={() => saveRename(icon)}
                                                 disabled={isSavingRename}
+                                                aria-label="确认重命名"
                                             >
                                                 {isSavingRename ? (
                                                     <Loader2 className="w-3 h-3 animate-spin" />
@@ -233,6 +234,7 @@ export function IconSetManager() {
                                                 className="h-7 w-7 shrink-0"
                                                 onClick={cancelRename}
                                                 disabled={isSavingRename}
+                                                aria-label="取消重命名"
                                             >
                                                 <X className="w-3 h-3" />
                                             </Button>

@@ -506,7 +506,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                   <div className="space-y-2">
                     <Label className="text-sm text-muted-foreground">输出结果</Label>
                     {testError ? (
-                      <div className="p-3 h-32 overflow-auto rounded bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 text-sm font-mono">
+                      <div className="p-3 h-32 overflow-auto rounded bg-destructive/5 border border-destructive/20 text-destructive text-sm font-mono">
                         {testError}
                       </div>
                     ) : (
@@ -542,13 +542,13 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-red-500" />
+              <AlertTriangle className="w-5 h-5 text-destructive" />
               确认删除
             </DialogTitle>
             <DialogDescription>
               确定要删除转换器 <strong>{deletingTransformer}</strong> 吗？
               <br />
-              <span className="text-red-500">此操作无法恢复，使用此转换器的规则将无法正常工作。</span>
+              <span className="text-destructive">此操作无法恢复，使用此转换器的规则将无法正常工作。</span>
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-3 mt-4">
