@@ -934,131 +934,31 @@
   }
 
   /* ============================================
-     Ambient Flowing Background (simplified: flow + 2 orbs)
+     Ambient Mesh Gradient Background
      ============================================ */
 
-  .ambient-flow {
+  .ambient-mesh {
     background:
-      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(190, 150, 230, 0.07) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(130, 175, 235, 0.06) 0%, transparent 70%),
-      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(150, 190, 220, 0.05) 0%, transparent 60%);
-    filter: saturate(0.95);
-    animation: ambient-drift 28s ease-in-out infinite;
+      radial-gradient(ellipse 80% 50% at 0% 0%, oklch(0.92 0.02 280 / 40%) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 70% at 100% 0%, oklch(0.93 0.015 220 / 30%) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 60% at 50% 100%, oklch(0.94 0.01 200 / 25%) 0%, transparent 50%);
   }
 
-  .dark .ambient-flow {
+  .dark .ambient-mesh {
     background:
-      radial-gradient(ellipse 80% 60% at 20% 80%, rgba(110, 75, 175, 0.08) 0%, transparent 70%),
-      radial-gradient(ellipse 60% 80% at 80% 20%, rgba(55, 95, 175, 0.06) 0%, transparent 70%),
-      radial-gradient(ellipse 70% 50% at 50% 50%, rgba(75, 105, 160, 0.06) 0%, transparent 60%);
-    filter: saturate(0.95);
+      radial-gradient(ellipse 80% 50% at 0% 0%, oklch(0.22 0.025 280 / 50%) 0%, transparent 60%),
+      radial-gradient(ellipse 60% 70% at 100% 0%, oklch(0.20 0.02 220 / 40%) 0%, transparent 55%),
+      radial-gradient(ellipse 70% 60% at 50% 100%, oklch(0.18 0.015 200 / 30%) 0%, transparent 50%);
   }
 
-  .ambient-orb {
-    border-radius: 50%;
-    filter: blur(60px);
-    will-change: transform;
-    opacity: 0.4;
+  .ambient-noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+    background-repeat: repeat;
+    background-size: 200px 200px;
   }
 
-  .dark .ambient-orb {
-    opacity: 0.5;
-  }
-
-  .ambient-orb-1 {
-    width: 500px;
-    height: 500px;
-    top: -15%;
-    left: 10%;
-    background: radial-gradient(circle, rgba(180, 120, 210, 0.2) 0%, rgba(150, 130, 230, 0.06) 50%, transparent 70%);
-    animation: orb-wander-1 16s ease-in-out infinite;
-  }
-
-  .ambient-orb-2 {
-    width: 450px;
-    height: 450px;
-    bottom: -10%;
-    right: 5%;
-    background: radial-gradient(circle, rgba(80, 150, 250, 0.18) 0%, rgba(100, 170, 240, 0.06) 50%, transparent 70%);
-    animation: orb-wander-2 20s ease-in-out infinite;
-  }
-
-  .dark .ambient-orb-1 {
-    background: radial-gradient(circle, rgba(140, 60, 190, 0.22) 0%, rgba(110, 80, 210, 0.07) 50%, transparent 70%);
-  }
-
-  .dark .ambient-orb-2 {
-    background: radial-gradient(circle, rgba(40, 110, 220, 0.2) 0%, rgba(60, 140, 210, 0.06) 50%, transparent 70%);
-  }
-
-  @keyframes ambient-drift {
-    0% {
-      transform: scale(1) translate(0, 0) rotate(0deg);
-    }
-
-    33% {
-      transform: scale(1.06) translate(-3%, 2%) rotate(1deg);
-    }
-
-    66% {
-      transform: scale(0.97) translate(2%, -2%) rotate(-1deg);
-    }
-
-    100% {
-      transform: scale(1) translate(0, 0) rotate(0deg);
-    }
-  }
-
-  @keyframes orb-wander-1 {
-    0% {
-      transform: translate(0, 0) scale(1);
-    }
-
-    25% {
-      transform: translate(30vw, 20vh) scale(1.15);
-    }
-
-    50% {
-      transform: translate(15vw, 50vh) scale(0.9);
-    }
-
-    75% {
-      transform: translate(-10vw, 25vh) scale(1.1);
-    }
-
-    100% {
-      transform: translate(0, 0) scale(1);
-    }
-  }
-
-  @keyframes orb-wander-2 {
-    0% {
-      transform: translate(0, 0) scale(1);
-    }
-
-    25% {
-      transform: translate(-25vw, -30vh) scale(1.1);
-    }
-
-    50% {
-      transform: translate(-10vw, -55vh) scale(0.85);
-    }
-
-    75% {
-      transform: translate(15vw, -20vh) scale(1.2);
-    }
-
-    100% {
-      transform: translate(0, 0) scale(1);
-    }
-  }
-}
-
-@media (max-width: 768px) {
-  .ambient-orb-1,
-  .ambient-orb-2 {
-    width: 250px;
-    height: 250px;
+  .dark .ambient-noise {
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
   }
 }
 
@@ -1071,11 +971,6 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
-  }
-
-  .ambient-orb,
-  .ambient-flow {
-    display: none !important;
   }
 
   .card-embossed:hover {

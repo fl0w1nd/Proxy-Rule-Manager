@@ -125,7 +125,7 @@ export function PreviewDialog({
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="h-full overflow-auto bg-muted/30">
+                  <div className="h-full overflow-auto bg-white/80 dark:bg-zinc-900/80">
                     <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre">
                       {content || "暂无内容"}
                     </pre>
