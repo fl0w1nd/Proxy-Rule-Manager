@@ -44,6 +44,10 @@ test: ## Run tests
 lint: ## Run linter
 	pnpm run lint
 
+.PHONY: typecheck
+typecheck: ## Run TypeScript type checking
+	pnpm run typecheck
+
 .PHONY: build-dev
 build-dev: ## Build the local development image
 	@echo "$(CYAN)Building development image...$(NC)"

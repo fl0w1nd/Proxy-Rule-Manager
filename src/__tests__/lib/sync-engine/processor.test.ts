@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { processRule } from "@/lib/sync-engine/processor";
-import type { RuleConfig, TransformersConfig, ClientConfig, ClientType } from "@/lib/schema";
+import type { RuleConfig, ClientConfig, ClientType } from "@/lib/schema";
 
 // Mock 外部依赖
 vi.mock("@/lib/sync-engine/fetcher", () => ({
