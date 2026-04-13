@@ -33,6 +33,7 @@ import {
   Image as ImageIcon,
   Github,
   Clock,
+  Download,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
@@ -72,7 +73,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [previewContent, setPreviewContent] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
   const [copiedRule, setCopiedRule] = useState<string | null>(null);
-  const [copiedConfig, setCopiedConfig] = useState<string | null>(null);
+  
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -172,13 +173,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return getClientConfig(clientId)?.displayName || clientId;
   };
 
-  const copyConfigUrl = async (file: ClientFileMeta) => {
-    const url = getConfigUrl(file.configId, file.ext);
-    await copyToClipboard(url, () => {
-      setCopiedConfig(file.id);
-      setTimeout(() => setCopiedConfig(null), 2000);
-    });
-  };
+  
 
   const getIconFullUrl = (icon: IconMeta) => {
     return `${window.location.origin}${icon.url}`;
@@ -722,28 +717,19 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <Eye className="w-3.5 h-3.5" />
                           预览
                         </Button>
-                        <button
-                          className={`flex-1 h-10 text-[13px] font-medium flex items-center justify-center gap-1.5 rounded-[14px] transition-all duration-200 ${
-                            copiedConfig === file.id
-                              ? "bg-green-400/20 text-green-600 dark:text-green-400 shadow-[inset_2px_2px_5px_rgba(0,0,0,0.04),inset_-2px_-2px_5px_rgba(255,255,255,0.4)]"
-                              : "neu-pill-active"
-                          }`}
-                          onClick={() => {
-                            void copyConfigUrl(file);
-                          }}
+                        <Button
+                          variant="neu"
+                          className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
+                          asChild
                         >
-                          {copiedConfig === file.id ? (
-                            <>
-                              <CheckCircle className="w-3.5 h-3.5" />
-                              已复制
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3.5 h-3.5" />
-                              复制链接
-                            </>
-                          )}
-                        </button>
+                          <a
+                            href={getConfigUrl(file.configId, file.ext)}
+                            download={`${file.configId}.${file.ext}`}
+                          >
+                            <Download className="w-3.5 h-3.5" />
+                            下载
+                          </a>
+                        </Button>
                       </div>
                     </Card>
                   );
