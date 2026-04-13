@@ -293,6 +293,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 });
                 toast.success("配置文件已创建");
             }
+            setIsFullscreenFileEditor(false);
             setIsFileDialogOpen(false);
             await fetchClientFiles(selectedClientId);
         } catch (error) {

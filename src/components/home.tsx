@@ -47,6 +47,7 @@ import {
   getPublicClientFiles,
 } from "@/lib/api-client";
 import { AmbientBackground } from "./ambient-background";
+import { CodeViewer } from "./code-viewer";
 
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
@@ -344,26 +345,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
         {/* 内容 - 带行号 */}
         <div className="flex-1 overflow-auto m-4">
-          <div className="rounded-2xl bg-white/80 dark:bg-zinc-900/80 border border-border p-0 overflow-hidden">
-            {previewLoading ? (
-              <div className="flex items-center justify-center h-64">
-                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
-              </div>
-            ) : (
-              <div className="flex text-sm font-mono min-w-max">
-                {/* 行号 */}
-                <div className="py-4 pl-4 pr-3 text-right text-muted-foreground/60 select-none sticky left-0 bg-muted/30 dark:bg-zinc-800/40">
-                  {previewContent.split('\n').map((_, i) => (
-                    <div key={i}>{i + 1}</div>
-                  ))}
-                </div>
-                {/* 内容 */}
-                <pre className="py-4 px-4 text-foreground whitespace-pre">
-                  {previewContent || "暂无内容"}
-                </pre>
-              </div>
-            )}
-          </div>
+          <CodeViewer content={previewContent} loading={previewLoading} />
         </div>
       </div>
     );
@@ -907,20 +889,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
                   </div>
                   {/* 内容区域 - 带行号 */}
-                  <div className="flex-1 overflow-auto rounded-2xl bg-white/80 dark:bg-zinc-900/80 border border-border">
-                    <div className="flex text-sm font-mono min-w-max">
-                      {/* 行号 */}
-                      <div className="py-4 pl-4 pr-3 text-right text-muted-foreground/60 select-none sticky left-0 bg-muted/30 dark:bg-zinc-800/40">
-                        {previewContent.split('\n').map((_, i) => (
-                          <div key={i}>{i + 1}</div>
-                        ))}
-                      </div>
-                      {/* 内容 */}
-                      <pre className="py-4 px-4 text-foreground whitespace-pre">
-                        {previewContent || "暂无内容"}
-                      </pre>
-                    </div>
-                  </div>
+                  <CodeViewer content={previewContent} className="flex-1" />
                 </>
               )}
             </div>

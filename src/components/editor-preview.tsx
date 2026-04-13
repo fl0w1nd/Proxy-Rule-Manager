@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Copy, Eye, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
+import { CodeViewer } from "./code-viewer";
 import { ClientType } from "@/lib/schema";
 import { PreviewResponse, ClientConfig } from "@/lib/api-client";
 
@@ -125,11 +126,11 @@ export function PreviewDialog({
                       <Copy className="w-4 h-4" />
                     </Button>
                   </div>
-                  <div className="h-full overflow-auto bg-white/80 dark:bg-zinc-900/80">
-                    <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre">
-                      {content || "暂无内容"}
-                    </pre>
-                  </div>
+                  <CodeViewer
+                    content={content}
+                    showLineNumbers={false}
+                    className="h-full !rounded-none !border-none"
+                  />
                 </TabsContent>
               ))}
             </Tabs>
