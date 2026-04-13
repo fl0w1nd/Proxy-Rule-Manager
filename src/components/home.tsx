@@ -26,13 +26,13 @@ import {
   FileText,
   Globe,
   Loader2,
-  ExternalLink,
   CheckCircle,
   Maximize2,
   X,
   Tag,
   Image as ImageIcon,
-  Sparkles,
+  Github,
+  Clock,
 } from "lucide-react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
@@ -398,6 +398,39 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </div>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
+                {lastSyncAt && (
+                  <Tooltip delayDuration={100}>
+                    <TooltipTrigger asChild>
+                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground/70 px-3 py-1.5 neu-badge cursor-default">
+                        <Clock className="w-3 h-3" />
+                        <span>{new Date(lastSyncAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="text-xs">
+                      上次同步: {new Date(lastSyncAt).toLocaleString("zh-CN")}
+                    </TooltipContent>
+                  </Tooltip>
+                )}
+                <Tooltip delayDuration={100}>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="neu"
+                      size="icon-lg"
+                      asChild
+                      className="w-11 h-11"
+                    >
+                      <a
+                        href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label="GitHub"
+                      >
+                        <Github className="w-[18px] h-[18px]" />
+                      </a>
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="text-xs">GitHub</TooltipContent>
+                </Tooltip>
                 <Button
                   variant="neu"
                   size="icon-lg"
@@ -803,14 +836,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
           {/* Stats */}
           <div className="mt-10 flex justify-center">
-            <div className="neu-stats px-6 py-2.5 text-center text-sm text-muted-foreground/80 space-y-0.5">
+            <div className="neu-stats px-6 py-2.5 text-center text-sm text-muted-foreground/80">
               {activeMainTab === "rules" ? (
-                <>
-                  <p>共 {clientRules.length} 条规则</p>
-                  {lastSyncAt && (
-                    <p className="text-xs opacity-70">上次更新: {new Date(lastSyncAt).toLocaleString("zh-CN")}</p>
-                  )}
-                </>
+                <p>共 {clientRules.length} 条规则</p>
               ) : activeMainTab === "configs" ? (
                 <p>共 {clientPublicFiles.length} 个配置文件</p>
               ) : (
@@ -819,27 +847,6 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             </div>
           </div>
         </main>
-
-        {/* Footer */}
-        <footer className="mt-12 pb-8">
-          <div className="container mx-auto px-4 sm:px-6 text-center">
-            <div className="neu-footer inline-flex flex-col items-center gap-1.5 px-8 py-4">
-              <div className="flex items-center gap-2 text-sm text-amber-800/50 dark:text-amber-200/40">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Proxy Rule Manager</span>
-              </div>
-              <a
-                href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-amber-700/40 dark:text-amber-300/30 hover:text-amber-700/60 dark:hover:text-amber-300/50 inline-flex items-center gap-1 text-xs transition-colors"
-              >
-                <ExternalLink className="w-3 h-3" />
-                GitHub
-              </a>
-            </div>
-          </div>
-        </footer>
 
         {/* Preview Dialog */}
         <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
