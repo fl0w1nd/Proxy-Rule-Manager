@@ -20,6 +20,9 @@ filter_unconventional = false
 split_commits = false
 topo_order = false
 sort_commits = "oldest"
+commit_preprocessors = [
+  { pattern = '(?s)\n.*$', replace = '' },
+]
 commit_parsers = [
   { message = '.*bump version to .*', skip = true },
   { message = '^Merge .*', skip = true },
