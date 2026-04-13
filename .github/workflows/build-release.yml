@@ -1,0 +1,223 @@
+name: Build Release Docker Image
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+concurrency:
+  group: build-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
+    outputs:
+      image: ${{ steps.vars.outputs.image }}
+      version: ${{ steps.versions.outputs.current_version }}
+      should_build: ${{ steps.decision.outputs.should_build }}
+      tags: ${{ steps.tags.outputs.tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Compare package.json versions
+        id: versions
+        env:
+          BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          CURRENT_VERSION=$(node -p "require('./package.json').version")
+          PREVIOUS_VERSION=""
+
+          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
+            PREVIOUS_PACKAGE_JSON=$(git show "${BEFORE_SHA}:package.json" 2>/dev/null || true)
+            if [ -n "$PREVIOUS_PACKAGE_JSON" ]; then
+              PREVIOUS_VERSION=$(printf '%s' "$PREVIOUS_PACKAGE_JSON" | node -e "let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(input).version || '')}catch{}})")
+            fi
+          fi
+
+          VERSION_CHANGED=false
+          if [ -n "$CURRENT_VERSION" ] && [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+            VERSION_CHANGED=true
+          fi
+
+          echo "current_version=${CURRENT_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "previous_version=${PREVIOUS_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "version_changed=${VERSION_CHANGED}" >> "$GITHUB_OUTPUT"
+
+          echo "Current version: ${CURRENT_VERSION}"
+          echo "Previous version: ${PREVIOUS_VERSION}"
+          echo "Version changed: ${VERSION_CHANGED}"
+
+      - name: Vars (lowercased image)
+        id: vars
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Image: ${IMAGE}"
+
+      - name: Check if release image already exists
+        id: exists
+        if: steps.versions.outputs.version_changed == 'true'
+        run: |
+          IMAGE="${{ steps.vars.outputs.image }}"
+          VERSION="v${{ steps.versions.outputs.current_version }}"
+
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -H "Authorization: Bearer ${{ secrets.GITHUB_TOKEN }}" \
+            "https://ghcr.io/v2/${IMAGE#ghcr.io/}/manifests/${VERSION}" 2>/dev/null || echo "000")
+
+          EXISTS=false
+          if [ "$STATUS" = "200" ]; then
+            EXISTS=true
+          fi
+
+          echo "exists=${EXISTS}" >> "$GITHUB_OUTPUT"
+          echo "Version ${VERSION} exists: ${EXISTS}"
+
+      - name: Decide build execution
+        id: decision
+        run: |
+          SHOULD_BUILD=false
+
+          if [ "${{ steps.versions.outputs.version_changed }}" = "true" ] && [ "${{ steps.exists.outputs.exists }}" != "true" ]; then
+            SHOULD_BUILD=true
+          fi
+
+          echo "should_build=${SHOULD_BUILD}" >> "$GITHUB_OUTPUT"
+          echo "Should build: ${SHOULD_BUILD}"
+
+      - name: Prepare release tags
+        id: tags
+        run: |
+          IMAGE="${{ steps.vars.outputs.image }}"
+          VERSION="v${{ steps.versions.outputs.current_version }}"
+          TAGS=$(printf '%s\n%s\n' "${IMAGE}:${VERSION}" "${IMAGE}:latest")
+
+          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$TAGS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: prepare
+    if: needs.prepare.outputs.should_build == 'true'
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          outputs: |
+            type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,scope=${{ matrix.arch }},mode=max
+          provenance: false
+          sbom: false
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "Exported digest: $digest"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+  manifest:
+    needs: [prepare, build]
+    if: needs.prepare.outputs.should_build == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Create and push multi-arch manifests
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          TAGS: ${{ needs.prepare.outputs.tags }}
+        run: |
+          digests=()
+
+          for digest_file in /tmp/digests/*; do
+            digest="sha256:$(basename "$digest_file")"
+            digests+=("${IMAGE}@${digest}")
+            echo "Found digest: $digest"
+          done
+
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "Publishing manifest: ${tag}"
+            docker buildx imagetools create \
+              -t "${tag}" \
+              "${digests[@]}"
+          done <<< "${TAGS}"
