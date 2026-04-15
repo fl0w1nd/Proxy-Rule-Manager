@@ -300,11 +300,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
                 </div>
               ) : (
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <FileText className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                  <FileText className="w-5 h-5 text-primary" />
                 </div>
               );
             })()}
@@ -360,7 +360,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary shadow-[var(--shadow-xs)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white shadow-[var(--shadow-xs)]">
                   <NextImage src="/logo.svg" alt="Logo" width={22} height={22} className="w-[22px] h-[22px]" />
                 </div>
                 <div className="min-w-0">
@@ -372,7 +372,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       Proxy Rule Manager
                     </p>
                     {version && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground dark:text-primary">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
                         v{version}
                       </span>
                     )}
@@ -504,7 +504,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className={cn(
                       "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
                       selectedTags.includes(tag)
-                        ? "border-primary/30 bg-primary-soft text-primary-foreground dark:text-primary"
+                        ? "border-primary/30 bg-primary-soft text-primary"
                         : "border-border bg-surface-subtle text-muted-foreground hover:text-foreground"
                     )}
                   >
@@ -596,9 +596,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-primary-foreground dark:text-primary" />
+                          <FileText className="w-[18px] h-[18px] text-primary" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1 pr-16">
@@ -803,11 +803,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary-foreground dark:text-primary" />
+                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary" />
                     </div>
                   ) : (
                     <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
-                      <FileText className="w-4 h-4 text-primary-foreground dark:text-primary" />
+                      <FileText className="w-4 h-4 text-primary" />
                     </div>
                   );
                 })()}

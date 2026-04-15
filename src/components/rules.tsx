@@ -242,11 +242,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               const rule = config?.rules.find(r => r.name === previewingRule);
               return rule?.icon ? (
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
                 </div>
               ) : (
                 <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <FileText className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                  <FileText className="w-5 h-5 text-primary" />
                 </div>
               );
             })()}
@@ -591,9 +591,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               <div className="flex items-start gap-3 pr-8">
                 <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-soft">
                   {rule.icon ? (
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
                   ) : (
-                    <FileText className="w-[18px] h-[18px] text-primary-foreground dark:text-primary" />
+                    <FileText className="w-[18px] h-[18px] text-primary" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -681,11 +681,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 const rule = config?.rules.find(r => r.name === previewingRule);
                 return rule?.icon ? (
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
-                    <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary-foreground dark:text-primary" />
+                    <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary" />
                   </div>
                 ) : (
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
-                    <FileText className="w-4 h-4 text-primary-foreground dark:text-primary" />
+                    <FileText className="w-4 h-4 text-primary" />
                   </div>
                 );
               })()}

@@ -109,9 +109,9 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                         </div>
                         <div className="flex-1 min-w-0 overflow-hidden">
                             <div className="flex items-baseline gap-2">
-                                <h1 className="font-bold text-sidebar-foreground tracking-tight leading-tight truncate">后台管理</h1>
+                                <h1 className="font-bold text-sidebar-foreground tracking-tight leading-tight truncate">Admin</h1>
                                 {version && (
-                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary-foreground font-mono leading-none shrink-0">
+                                    <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-mono leading-none shrink-0">
                                         {version}
                                     </span>
                                 )}
