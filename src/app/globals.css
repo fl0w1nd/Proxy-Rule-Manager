@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@import "./brand-themes.css";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -79,9 +80,11 @@
    Design Tokens — Light
    Wise-inspired: lime green, warm near-black,
    off-white canvas, ring shadows, bold confidence
+   Applied to :root (default) and [data-theme="wise"]
    ============================================ */
 
-:root {
+:root,
+:root[data-theme="wise"] {
   --radius: 0.625rem;
 
   --background: #fafaf8;
@@ -152,7 +155,8 @@
    Design Tokens — Dark
    ============================================ */
 
-.dark {
+.dark,
+:root[data-theme="wise"].dark {
   --background: #0e0f0c;
   --foreground: #f5f5f2;
 

@@ -33,7 +33,7 @@ interface ConfigEditorProps {
 }
 
 export function ConfigEditor({ onSave }: ConfigEditorProps) {
-  const { theme } = useTheme();
+  const { mode } = useTheme();
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [yamlContent, setYamlContent] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -185,7 +185,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
     }
   };
 
-  const editorTheme = theme === "dark" ? "vs-dark" : "light";
+  const editorTheme = mode === "dark" ? "vs-dark" : "light";
 
   if (isLoading) {
     return (

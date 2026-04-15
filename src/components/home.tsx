@@ -62,7 +62,7 @@ const MAIN_TABS = [
 const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
 
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
-  const { theme, toggleTheme } = useTheme();
+  const { mode, toggleMode } = useTheme();
   const [rules, setRules] = useState<PublicRuleInfo[]>([]);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
@@ -341,8 +341,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         </div>
 
         {/* 内容 - 带行号 */}
-        <div className="flex-1 overflow-auto m-4">
-          <CodeViewer content={previewContent} loading={previewLoading} />
+        <div className="m-4 flex-1 min-h-0">
+          <CodeViewer content={previewContent} loading={previewLoading} className="h-full" height="100%" />
         </div>
       </div>
     );
@@ -417,10 +417,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 <Button
                   variant="secondary"
                   size="icon"
-                  onClick={toggleTheme}
-                  aria-label={theme === "light" ? "切换到深色模式" : "切换到浅色模式"}
+                  onClick={toggleMode}
+                  aria-label={mode === "light" ? "切换到深色模式" : "切换到浅色模式"}
                 >
-                  {theme === "light" ? (
+                  {mode === "light" ? (
                     <Moon className="w-4 h-4" />
                   ) : (
                     <Sun className="w-4 h-4" />
@@ -855,7 +855,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
                   </div>
                   {/* 内容区域 - 带行号 */}
-                  <CodeViewer content={previewContent} className="flex-1" />
+                  <CodeViewer content={previewContent} className="flex-1 min-h-0" height="100%" />
                 </>
               )}
             </div>

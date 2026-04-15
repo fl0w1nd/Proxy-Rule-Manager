@@ -25,9 +25,10 @@ export function CodeViewer({
   height,
 }: CodeViewerProps) {
   const text = content ?? "";
-  const { theme } = useTheme();
-  const editorTheme = theme === "dark" ? "vs-dark" : "light";
+  const { mode } = useTheme();
+  const editorTheme = mode === "dark" ? "vs-dark" : "light";
   const lines = text.split("\n").length;
+  const resolvedHeight = height || `${Math.max(Math.min(lines * 20 + 40, 800), 120)}px`;
 
   if (loading) {
     return (
@@ -65,7 +66,7 @@ export function CodeViewer({
       )}
     >
       <LazyMonacoEditor
-        height={height || `${Math.max(Math.min(lines * 20 + 40, 800), 120)}px`}
+        height={resolvedHeight}
         language={language}
         value={text}
         theme={editorTheme}
@@ -73,11 +74,13 @@ export function CodeViewer({
           readOnly: true,
           minimap: { enabled: false },
           fontSize: 13,
+          lineHeight: 20,
           lineNumbers: showLineNumbers ? "on" : "off",
+          lineNumbersMinChars: showLineNumbers ? 4 : 0,
           scrollBeyondLastLine: false,
           automaticLayout: true,
           tabSize: 2,
-          wordWrap: "on",
+          wordWrap: "off",
           renderLineHighlight: "none",
           overviewRulerBorder: false,
           hideCursorInOverviewRuler: true,
@@ -93,7 +96,6 @@ export function CodeViewer({
           selectionHighlight: false,
           occurrencesHighlight: "off",
           folding: false,
-          lineDecorationsWidth: 0,
           contextmenu: false,
         }}
       />

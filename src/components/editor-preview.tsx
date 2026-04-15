@@ -129,6 +129,7 @@ export function PreviewDialog({
                     content={content}
                     showLineNumbers={false}
                     className="h-full rounded-none border-none"
+                    height="100%"
                   />
                 </TabsContent>
               ))}

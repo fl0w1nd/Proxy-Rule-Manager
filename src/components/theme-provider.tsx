@@ -1,44 +1,76 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
 
-type Theme = "light" | "dark";
+type Mode = "light" | "dark";
+type Brand = "wise" | "linear" | "vercel" | "stripe" | "supabase";
+
+export type { Brand };
+
+export const BRAND_LIST: { id: Brand; label: string; accent: string }[] = [
+  { id: "wise", label: "Wise", accent: "#9fe870" },
+  { id: "linear", label: "Linear", accent: "#5e6ad2" },
+  { id: "vercel", label: "Vercel", accent: "#171717" },
+  { id: "stripe", label: "Stripe", accent: "#533afd" },
+  { id: "supabase", label: "Supabase", accent: "#3ecf8e" },
+];
 
 interface ThemeContextType {
-  theme: Theme;
-  toggleTheme: () => void;
-  setTheme: (theme: Theme) => void;
+  mode: Mode;
+  brand: Brand;
+  toggleMode: () => void;
+  setMode: (mode: Mode) => void;
+  setBrand: (brand: Brand) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType>({
-  theme: "light",
-  toggleTheme: () => {},
-  setTheme: () => {},
+  mode: "light",
+  brand: "wise",
+  toggleMode: () => {},
+  setMode: () => {},
+  setBrand: () => {},
 });
 
+function applyTheme(mode: Mode, brand: Brand) {
+  const root = document.documentElement;
+  root.classList.toggle("dark", mode === "dark");
+  root.setAttribute("data-theme", brand);
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
+  const [mode, setModeState] = useState<Mode>(() => {
     if (typeof window === "undefined") return "light";
-    const savedTheme = localStorage.getItem("theme") as Theme | null;
-    return savedTheme || "light";
+    return (localStorage.getItem("theme-mode") as Mode) || "light";
+  });
+
+  const [brand, setBrandState] = useState<Brand>(() => {
+    if (typeof window === "undefined") return "wise";
+    return (localStorage.getItem("theme-brand") as Brand) || "wise";
   });
 
   useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-  }, [theme]);
+    applyTheme(mode, brand);
+  }, [mode, brand]);
 
-  const setTheme = (newTheme: Theme) => {
-    setThemeState(newTheme);
-    localStorage.setItem("theme", newTheme);
-    document.documentElement.classList.toggle("dark", newTheme === "dark");
-  };
+  const setMode = useCallback((m: Mode) => {
+    setModeState(m);
+    localStorage.setItem("theme-mode", m);
+  }, []);
 
-  const toggleTheme = () => {
-    setTheme(theme === "light" ? "dark" : "light");
-  };
+  const toggleMode = useCallback(() => {
+    setModeState((prev) => {
+      const next = prev === "light" ? "dark" : "light";
+      localStorage.setItem("theme-mode", next);
+      return next;
+    });
+  }, []);
 
-  // 避免 SSR 水合不匹配
-  const value: ThemeContextType = { theme, toggleTheme, setTheme };
+  const setBrand = useCallback((b: Brand) => {
+    setBrandState(b);
+    localStorage.setItem("theme-brand", b);
+  }, []);
+
+  const value: ThemeContextType = { mode, brand, toggleMode, setMode, setBrand };
 
   return (
     <ThemeContext.Provider value={value}>

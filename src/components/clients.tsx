@@ -82,7 +82,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isDeletingFile, setIsDeletingFile] = useState(false);
     const [deletingClient, setDeletingClient] = useState<ClientConfig | null>(null);
     const [isDeletingClient, setIsDeletingClient] = useState(false);
-    const { theme } = useTheme();
+    const { mode } = useTheme();
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
 
@@ -363,7 +363,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     const selectedClient = clients.find((client) => client.id === selectedClientId) || null;
-    const editorTheme = theme === "dark" ? "vs-dark" : "light";
+    const editorTheme = mode === "dark" ? "vs-dark" : "light";
     const editorLanguage = getEditorLanguage(fileForm.ext);
     const validation = useEditorValidation(fileContent, editorLanguage);
 

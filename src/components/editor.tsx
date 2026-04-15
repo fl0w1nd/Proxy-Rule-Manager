@@ -208,7 +208,7 @@ export function RuleEditor({
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [editingLocalContent, setEditingLocalContent] = useState<number | null>(null);
   const [tagInput, setTagInput] = useState("");
-  const { theme } = useTheme();
+  const { mode } = useTheme();
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
@@ -653,7 +653,7 @@ export function RuleEditor({
     }));
   };
 
-  const editorTheme = theme === "dark" ? "vs-dark" : "light";
+  const editorTheme = mode === "dark" ? "vs-dark" : "light";
 
   return (
     <div className="flex flex-col h-full bg-background">

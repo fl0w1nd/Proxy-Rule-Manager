@@ -11,15 +11,13 @@ import {
     Monitor,
     Settings,
     Shield,
-    Sun,
-    Moon,
     Home,
     Image as ImageIcon
 } from "lucide-react";
 import NextImage from "next/image";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-import { useTheme } from "./theme-provider";
+import { ThemeSwitcher } from "./theme-switcher";
 
 export interface SidebarNavProps {
     activeTab: string;
@@ -76,7 +74,6 @@ const NAV_ITEMS = [
 ];
 
 export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome, version, isCollapsed, onToggle }: SidebarNavProps) {
-    const { theme, toggleTheme } = useTheme();
 
     return (
         <div className={cn(
@@ -172,15 +169,7 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
             <div className={cn("border-t border-sidebar-border", isCollapsed ? "p-2" : "p-3")}>
                 {isCollapsed ? (
                     <div className="flex flex-col items-center gap-1">
-                        <Button
-                            onClick={toggleTheme}
-                            variant="ghost"
-                            size="icon"
-                            className="h-9 w-9 rounded-full"
-                            title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
-                        >
-                            {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
-                        </Button>
+                        <ThemeSwitcher compact />
                         <Button
                             onClick={onHome}
                             variant="ghost"
@@ -209,15 +198,9 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                                 <p className="text-sm font-semibold text-sidebar-foreground truncate">管理员</p>
                                 <p className="text-xs text-muted-foreground truncate">系统访问</p>
                             </div>
-                            <Button
-                                onClick={toggleTheme}
-                                variant="ghost"
-                                size="icon-sm"
-                                title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
-                            >
-                                {theme === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
-                            </Button>
                         </div>
+
+                        <ThemeSwitcher />
 
                         <div className="flex gap-1.5">
                             <Button
