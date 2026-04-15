@@ -13,6 +13,7 @@ import {
 import { GeositeProviderSchema } from "../../lib/schema";
 import { getClients, getConfig } from "../../lib/storage-adapter";
 import { getPrimaryGeositeSource, isGeositeRule } from "../../lib/rule-classification";
+import { executePartialSync } from "../../lib/sync-engine";
 import { jsonError } from "../errors";
 
 const ImportAllSchema = z.object({
@@ -33,6 +34,35 @@ const ImportSelectedSchema = z.object({
     ])
   ).min(1),
 });
+
+export async function syncImportedGeositeRules(ruleNames: string[]): Promise<{
+  syncedRules: string[];
+  failedRules: { name: string; error: string }[];
+}> {
+  const uniqueRuleNames = Array.from(new Set(ruleNames));
+  const syncedRules: string[] = [];
+  const failedRules: { name: string; error: string }[] = [];
+
+  for (const ruleName of uniqueRuleNames) {
+    const result = await executePartialSync(ruleName);
+    if (result.success) {
+      syncedRules.push(ruleName);
+      continue;
+    }
+
+    failedRules.push(
+      ...result.failedRules.map((item) => ({
+        name: item.name,
+        error: item.error,
+      }))
+    );
+  }
+
+  return {
+    syncedRules,
+    failedRules,
+  };
+}
 
 export function registerGeositeRoutes(app: Hono) {
   app.get("/api/geosite/providers", async (c) => {
@@ -121,9 +151,11 @@ export function registerGeositeRoutes(app: Hono) {
         return c.json({ error: `Client "${parsed.clientId}" not found` }, 400);
       }
       const result = await importAllGeositeRules(parsed.provider, parsed.clientId);
+      const syncResult = await syncImportedGeositeRules(result.ruleNames);
       return c.json({
         success: true,
         ...result,
+        sync: syncResult,
       });
     } catch (error) {
       return jsonError(c, error, "Failed to import geosite rules");
@@ -139,9 +171,11 @@ export function registerGeositeRoutes(app: Hono) {
         return c.json({ error: `Client "${parsed.clientId}" not found` }, 400);
       }
       const result = await importSelectedGeositeRules(parsed.provider, parsed.clientId, parsed.lists);
+      const syncResult = await syncImportedGeositeRules(result.ruleNames);
       return c.json({
         success: true,
         ...result,
+        sync: syncResult,
       });
     } catch (error) {
       return jsonError(c, error, "Failed to import selected geosite rules");
