@@ -656,11 +656,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {clientRules.map((rule, index) => (
-                  <Card
-                    key={rule.name}
-                    className="group relative p-5 animate-slide-up opacity-0 hover:shadow-[var(--shadow-md)] transition-shadow duration-200"
-                    style={{ animationDelay: `${index * 40}ms` }}
-                  >
+                    <Card
+                      key={rule.name}
+                      className="group relative h-full p-5 animate-slide-up opacity-0 transition-shadow duration-200 hover:shadow-[var(--shadow-md)]"
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
                         {rule.icon ? (
@@ -673,53 +673,54 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
                           {rule.displayName || rule.name}
                         </h3>
-                        {rule.displayName && (
-                          <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{rule.name}</p>
-                        )}
-                        {rule.description && (
-                          <Tooltip delayDuration={300}>
-                            <TooltipTrigger asChild>
-                              <div className="mt-1.5 cursor-default">
-                                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
-                                  {rule.description}
-                                </p>
-                              </div>
-                            </TooltipTrigger>
-                            <TooltipContent
-                              side="bottom"
-                              align="start"
-                              showArrow={false}
-                              className="max-w-[300px] bg-foreground text-background shadow-[var(--shadow-lg)] rounded-lg"
-                            >
-                              <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
-                                {rule.description}
-                              </p>
-                            </TooltipContent>
-                          </Tooltip>
-                        )}
+                        <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{rule.name}</p>
                       </div>
                     </div>
 
-                    {/* Tags */}
-                    {rule.tags && rule.tags.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-3">
-                        {rule.tags.slice(0, 4).map((tag) => (
-                          <Badge
-                            key={tag}
-                            variant={getTagBadgeVariant(tag)}
-                            className="text-[10px]"
+                    <div className="min-h-5 mt-1.5 pl-[3.25rem]">
+                      {rule.description && (
+                        <Tooltip delayDuration={300}>
+                          <TooltipTrigger asChild>
+                            <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed cursor-default">
+                              {rule.description}
+                            </p>
+                          </TooltipTrigger>
+                          <TooltipContent
+                            side="bottom"
+                            align="start"
+                            showArrow={false}
+                            className="max-w-[300px] bg-foreground text-background shadow-[var(--shadow-lg)] rounded-lg"
                           >
-                            {tag}
-                          </Badge>
-                        ))}
-                        {rule.tags.length > 4 && (
-                          <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
-                        )}
-                      </div>
-                    )}
+                            <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
+                              {rule.description}
+                            </p>
+                          </TooltipContent>
+                        </Tooltip>
+                      )}
+                    </div>
 
-                    {/* Actions - Always Visible */}
-                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                    <div className="min-h-5 mt-2">
+                      {rule.tags && rule.tags.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {rule.tags.slice(0, 4).map((tag) => (
+                            <Badge
+                              key={tag}
+                              variant={getTagBadgeVariant(tag)}
+                              className="text-[10px]"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                          {rule.tags.length > 4 && (
+                            <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex-1 min-h-2" />
+
+                    <div className="flex items-center gap-2 border-t border-border pt-4">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -770,11 +771,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {filteredGeositeRules.map((rule, index) => (
-                  <Card
-                    key={`${rule.provider}-${rule.outputName}`}
-                    className="group relative p-5 animate-slide-up opacity-0 hover:shadow-[var(--shadow-md)] transition-shadow duration-200"
-                    style={{ animationDelay: `${index * 40}ms` }}
-                  >
+                    <Card
+                      key={`${rule.provider}-${rule.outputName}`}
+                      className="group relative h-full p-5 animate-slide-up opacity-0 transition-shadow duration-200 hover:shadow-[var(--shadow-md)]"
+                      style={{ animationDelay: `${index * 40}ms` }}
+                    >
                     <div className="flex items-start gap-3">
                       <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
                         <Globe className="w-[18px] h-[18px] text-primary" />
@@ -786,22 +787,29 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">
                           {rule.provider}/{rule.outputName}
                         </p>
-                        {rule.description && (
-                          <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
-                            {rule.description}
-                          </p>
-                        )}
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 mt-3">
-                      <Badge variant="outline">{rule.provider}</Badge>
-                      {rule.attrs.map((attr) => (
-                        <Badge key={`${rule.outputName}-${attr}`} variant="secondary">@{attr}</Badge>
-                      ))}
+                    <div className="min-h-5 mt-1.5 pl-[3.25rem]">
+                      {rule.description && (
+                        <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                          {rule.description}
+                        </p>
+                      )}
                     </div>
 
-                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                    <div className="min-h-5 mt-2">
+                      <div className="flex items-center gap-2">
+                        <Badge variant="outline">{rule.provider}</Badge>
+                        {rule.attrs.map((attr) => (
+                          <Badge key={`${rule.outputName}-${attr}`} variant="secondary">@{attr}</Badge>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="flex-1 min-h-2" />
+
+                    <div className="flex items-center gap-2 border-t border-border pt-4">
                       <Button
                         variant="secondary"
                         size="sm"
@@ -856,7 +864,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   return (
                     <Card
                       key={file.id}
-                      className="p-5 animate-slide-up opacity-0"
+                      className="h-full p-5 animate-slide-up opacity-0"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                       <div className="flex items-start gap-3">
@@ -870,14 +878,17 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           <p className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
                             /client/{file.clientId}/{file.configId}.{file.ext}
                           </p>
-                          {file.description && (
-                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
-                              {file.description}
-                            </p>
-                          )}
                         </div>
                       </div>
-                      <div className="flex gap-2 mt-4">
+                      <div className="min-h-5 mt-1.5 pl-[3.25rem]">
+                        {file.description && (
+                          <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
+                            {file.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex-1 min-h-2" />
+                      <div className="flex items-center gap-2 border-t border-border pt-4">
                         <Button
                           variant="secondary"
                           size="sm"
