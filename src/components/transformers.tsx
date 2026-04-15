@@ -356,7 +356,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
           {transformerList.map(([name, transformer], index) => (
             <div
               key={name}
-              className="card-embossed group relative overflow-hidden animate-in fade-in slide-in-from-bottom-4"
+              className="bg-card border border-border rounded-2xl group relative overflow-hidden shadow-[var(--shadow-sm)] animate-in fade-in slide-in-from-bottom-4"
               style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
             >
               <div className="px-5 pt-5 pb-3 z-10 relative">

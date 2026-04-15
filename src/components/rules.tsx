@@ -557,7 +557,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
-                      className="fab-item text-red-500/70 dark:text-red-400/60 hover:!bg-red-50 dark:hover:!bg-red-900/20 hover:text-red-600 dark:hover:text-red-400"
+                      className="fab-item text-destructive/70 hover:bg-destructive/8 hover:text-destructive"
                       style={{ "--fab-i": 5 } as React.CSSProperties}
                       onClick={() => {
                         setDeletingRule(rule.name);

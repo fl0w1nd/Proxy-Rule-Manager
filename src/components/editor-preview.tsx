@@ -129,7 +129,7 @@ export function PreviewDialog({
                   <CodeViewer
                     content={content}
                     showLineNumbers={false}
-                    className="h-full !rounded-none !border-none"
+                    className="h-full rounded-none border-none"
                   />
                 </TabsContent>
               ))}

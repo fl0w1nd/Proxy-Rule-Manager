@@ -30,7 +30,12 @@ import {
   Monitor,
   CalendarDays,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  History,
+  Code2,
+  Shield,
+  ImageIcon,
+  type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
 import {
@@ -66,7 +71,16 @@ import {
 import { AppSidebar } from "@/components/app-sidebar";
 import { DiffViewer } from "@/components/diff-viewer";
 
-// --- Module-level pure helpers ---
+const TAB_META: Record<string, { label: string; icon: LucideIcon }> = {
+  overview: { label: "概览", icon: LayoutDashboard },
+  rules: { label: "规则管理", icon: FileText },
+  activity: { label: "活动记录", icon: History },
+  transformers: { label: "转换器", icon: Code2 },
+  clients: { label: "客户端", icon: Monitor },
+  security: { label: "安全防护", icon: Shield },
+  iconset: { label: "图标集", icon: ImageIcon },
+  config: { label: "系统配置", icon: Settings },
+};
 
 function getChangeLabel(changeType: ChangeRecordSummary["changeType"]) {
   if (changeType === "created") return "新增";
@@ -138,8 +152,6 @@ function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName
     </div>
   );
 }
-
-// ---------------------------------
 
 interface DashboardProps {
   onBack?: () => void;
@@ -380,8 +392,16 @@ export function Dashboard({ onBack }: DashboardProps) {
         <header className="h-16 shrink-0 border-b flex items-center justify-between px-6 bg-background/80 backdrop-blur-md sticky top-0 z-20">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
-              <LayoutDashboard className="w-5 h-5 text-muted-foreground" />
-              {{ overview: "概览", rules: "规则管理", activity: "活动记录", transformers: "转换器", clients: "客户端", security: "安全防护", iconset: "图标集", config: "系统配置" }[activeTab] ?? activeTab}
+              {(() => {
+                const meta = TAB_META[activeTab];
+                const Icon = meta?.icon ?? LayoutDashboard;
+                return (
+                  <>
+                    <Icon className="w-5 h-5 text-muted-foreground" />
+                    {meta?.label ?? activeTab}
+                  </>
+                );
+              })()}
             </h2>
           </div>
           <div className="flex items-center gap-3">
@@ -766,7 +786,7 @@ export function Dashboard({ onBack }: DashboardProps) {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden rounded border bg-card text-card-foreground p-0 font-mono text-sm overflow-y-auto shadow-inner">
+          <div className="flex-1 overflow-hidden rounded border bg-muted/30 text-card-foreground p-0 font-mono text-sm overflow-y-auto">
             {isDiffLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="animate-spin w-8 h-8 text-muted-foreground" />

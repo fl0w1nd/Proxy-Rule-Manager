@@ -302,15 +302,15 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         }}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="card-embossed p-4">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
           <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">配置版本</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
         </div>
-        <div className="card-embossed p-4">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
           <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">规则数量</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
         </div>
-        <div className="card-embossed p-4">
+        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
           <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">预定义转换器</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-accent-foreground">
             {Object.keys(config?.transformers || {}).length}

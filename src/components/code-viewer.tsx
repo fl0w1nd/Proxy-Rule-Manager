@@ -24,7 +24,7 @@ export function CodeViewer({
   return (
     <div
       className={cn(
-        "overflow-auto rounded-2xl bg-white/80 dark:bg-zinc-900/80 border border-border",
+        "overflow-auto rounded-xl bg-surface-elevated/80 border border-border",
         className,
       )}
     >
@@ -35,7 +35,7 @@ export function CodeViewer({
       ) : (
         <div className="flex text-sm font-mono min-w-max">
           {showLineNumbers && (
-            <div className="py-4 pl-4 pr-3 text-right text-muted-foreground/60 select-none sticky left-0 bg-muted/30 dark:bg-zinc-800/40">
+            <div className="py-4 pl-4 pr-3 text-right text-muted-foreground/60 select-none sticky left-0 bg-surface-subtle">
               {lines.map((_, i) => (
                 <div key={i}>{i + 1}</div>
               ))}

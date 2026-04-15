@@ -355,7 +355,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="neu-icon !w-11 !h-11 !rounded-[16px]">
+                <div className="neu-icon w-11 h-11 rounded-2xl">
                   <NextImage src="/logo.svg" alt="Logo" width={24} height={24} className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
@@ -367,7 +367,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       Proxy Rule Manager
                     </p>
                     {version && (
-                      <span className="neu-badge !text-[10px] !px-2 !py-0 font-mono leading-relaxed">
+                      <span className="text-[10px] px-2 py-0.5 font-mono rounded-full bg-surface-subtle border border-border text-muted-foreground">
                         v{version}
                       </span>
                     )}
@@ -537,7 +537,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           ) : activeMainTab === "rules" ? (
             clientRules.length === 0 ? (
               <div className="text-center py-24">
-                <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
+                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
                   <Globe className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
@@ -663,7 +663,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           ) : activeMainTab === "configs" ? (
             clientPublicFiles.length === 0 ? (
               <div className="text-center py-24">
-                <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
+                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
                   <FileText className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
@@ -740,7 +740,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             /* Icons Tab */
             filteredIcons.length === 0 ? (
               <div className="text-center py-24">
-                <div className="neu-raised w-24 h-24 mx-auto mb-6 flex items-center justify-center !rounded-[28px]">
+                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
                   <ImageIcon className="w-10 h-10 text-primary/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
@@ -777,7 +777,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       className={`w-full mt-2 h-7 text-[11px] font-medium rounded-lg flex items-center justify-center gap-1 transition-all duration-200 ${
                         copiedIcon === icon.id
                           ? "bg-green-400/20 text-green-600 dark:text-green-400"
-                          : "neu-pill-active !rounded-lg"
+                          : "bg-primary/10 text-primary rounded-lg border border-primary/20 font-medium"
                       }`}
                       onClick={() => {
                         void copyIconUrl(icon);
@@ -818,17 +818,17 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
         {/* Preview Dialog */}
         <Dialog open={!!previewItem && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 !rounded-2xl overflow-hidden border-none neu-inset">
-            <DialogHeader className="px-6 pt-6 pb-4 glass-header !border-b-0">
+          <DialogContent className="max-w-5xl w-[90vw] h-[80vh] flex flex-col p-0 overflow-hidden">
+            <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
               <DialogTitle className="flex items-center gap-3 text-foreground font-semibold">
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
-                    <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
+                    <div className="neu-icon w-9 h-9 rounded-xl">
                       <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary/60" />
                     </div>
                   ) : (
-                    <div className="neu-icon !w-9 !h-9 !rounded-[10px]">
+                    <div className="neu-icon w-9 h-9 rounded-xl">
                       <FileText className="w-4 h-4 text-primary/60" />
                     </div>
                   );
