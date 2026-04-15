@@ -230,14 +230,24 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
     font-feature-settings: "calt";
-    font-weight: 500;
+    font-weight: 400;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.3s ease, color 0.3s ease;
   }
 
   :focus-visible {
     outline: 2px solid var(--ring);
     outline-offset: 2px;
+  }
+
+  /* Hide scrollbar for utility class */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
   }
 }
 
@@ -255,7 +265,9 @@
   }
 
   .dark .badge-active {
-    color: #9fe870;
+    background: rgba(159, 232, 112, 0.2);
+    border-color: rgba(159, 232, 112, 0.35);
+    color: #b8f08e;
   }
 
   /* --- Colored badge variants --- */

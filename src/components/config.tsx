@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -224,7 +225,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             e.currentTarget.value = "";
           }}
         />
-        <div className="flex items-center justify-between border-b border-border/70 bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
+        <div className="flex items-center justify-between border-b border-border bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
           <div className="flex items-center gap-3">
             <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
               <Code className="w-5 h-5 text-primary/75" />
@@ -307,20 +308,20 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         }}
       />
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
-          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">配置版本</p>
+        <Card className="p-5 flex flex-col justify-center gap-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">配置版本</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
-          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">规则数量</p>
+        </Card>
+        <Card className="p-5 flex flex-col justify-center gap-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">规则数量</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
-        </div>
-        <div className="bg-card border border-border rounded-xl p-4 shadow-[var(--shadow-xs)]">
-          <p className="text-muted-foreground text-xs uppercase tracking-wider font-medium mb-1">预定义转换器</p>
+        </Card>
+        <Card className="p-5 flex flex-col justify-center gap-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">预定义转换器</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-accent-foreground">
             {Object.keys(config?.transformers || {}).length}
           </div>
-        </div>
+        </Card>
       </div>
 
       <Card>
@@ -390,10 +391,10 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                   <label className="text-sm font-medium text-foreground">
                     Cron 表达式（支持 5/6 段，UTC 时间）
                   </label>
-                  <input
+                  <Input
                     value={cronExpression}
                     onChange={(e) => setCronExpression(e.target.value)}
-                    className="w-full rounded-xl border border-input bg-background/70 px-3 py-2 text-sm font-mono text-foreground outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
+                    className="font-mono"
                     placeholder="0 0 * * *"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -445,12 +446,12 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </p>
         </div>
         <div className="px-5 pb-5 space-y-4">
-          <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface-elevated shadow-[var(--shadow-xs)]">
+          <div className="relative overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-[var(--shadow-xs)]">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(true)}
-              className="absolute top-2 right-2 z-10 border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+              className="absolute top-2 right-2 z-10 border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
               title="全屏查看 (ESC 退出)"
             >
               <Maximize2 className="w-4 h-4" />

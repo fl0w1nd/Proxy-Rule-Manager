@@ -24,8 +24,7 @@ export function DiffViewer({ content, className, defaultDiffStyle = "unified" }:
             <div className="flex items-center justify-end gap-1 border-b border-border bg-surface-subtle px-2 py-1.5">
                 <Button
                     variant={diffStyle === "unified" ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-6 w-6"
+                    size="icon-sm"
                     onClick={() => setDiffStyle("unified")}
                     title="统一视图"
                 >
@@ -33,8 +32,7 @@ export function DiffViewer({ content, className, defaultDiffStyle = "unified" }:
                 </Button>
                 <Button
                     variant={diffStyle === "split" ? "secondary" : "ghost"}
-                    size="icon"
-                    className="h-6 w-6"
+                    size="icon-sm"
                     onClick={() => setDiffStyle("split")}
                     title="并排视图"
                 >

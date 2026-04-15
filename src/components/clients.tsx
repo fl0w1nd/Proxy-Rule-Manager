@@ -24,6 +24,7 @@ import {
     SelectValue,
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X, AlertTriangle } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { type Monaco } from "@monaco-editor/react";
 import type { editor } from "monaco-editor";
@@ -408,7 +409,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     if (isFullscreenFileEditor) {
         return (
             <div className="fixed inset-0 z-50 bg-background flex flex-col">
-                <div className="flex items-center justify-between border-b border-border/70 bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
+                <div className="flex items-center justify-between border-b border-border bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
                     <div className="flex items-center gap-3">
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
                             <FileText className="w-5 h-5 text-primary/75" />
@@ -527,19 +528,12 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 </div>
                 <div className="px-5 pb-5">
                     {clients.length === 0 ? (
-                        <div className="py-16 text-center">
-                            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                                <Monitor className="w-10 h-10 text-primary/55" />
-                            </div>
-                            <p className="text-lg font-medium text-foreground">暂无客户端配置</p>
-                            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                                客户端用于定义不同代理软件的规则输出格式和转换规则
-                            </p>
-                            <Button onClick={openAddDialog} className="mt-6">
-                                <Plus className="w-4 h-4 mr-2" />
-                                添加客户端
-                            </Button>
-                        </div>
+                    <EmptyState
+                      icon={Monitor}
+                      title="暂无客户端配置"
+                      description="客户端用于定义不同代理软件的规则输出格式和转换规则"
+                      action={<Button onClick={openAddDialog}><Plus className="w-4 h-4 mr-2" />添加客户端</Button>}
+                    />
                     ) : (
                         <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
                             <div className="space-y-2">
@@ -552,7 +546,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                             onClick={() => setSelectedClientId(client.id)}
                                             className={`w-full rounded-xl border p-3 text-left transition-all animate-in fade-in slide-in-from-left-4 ${isActive
                                                 ? "border-primary/25 bg-primary-soft/60 shadow-[var(--shadow-xs)]"
-                                                : "border-border/60 bg-card hover:border-border hover:bg-accent/30"
+                                                : "border-border/50 bg-card hover:border-border hover:bg-accent/30"
                                                 }`}
                                             style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                         >
@@ -580,7 +574,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <div className="space-y-4">
                                 {selectedClient ? (
                                     <>
-                                        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-surface-subtle/70 p-5 shadow-[var(--shadow-xs)]">
+                                        <div className="flex flex-col gap-4 rounded-2xl border border-border bg-surface-subtle/70 p-5 shadow-[var(--shadow-xs)]">
                                             <div className="flex items-start justify-between gap-4">
                                                 <div>
                                                     <div className="flex items-center gap-2">
@@ -615,7 +609,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-[var(--shadow-xs)]">
+                                        <div className="rounded-2xl border border-border bg-card p-5 shadow-[var(--shadow-xs)]">
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="font-medium text-foreground flex items-center gap-2">
@@ -638,18 +632,17 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                                                     </div>
                                                 ) : clientFiles.length === 0 ? (
-                                                    <div className="py-12 text-center">
-                                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface-subtle shadow-[var(--shadow-xs)]">
-                                                            <FileText className="w-8 h-8 text-muted-foreground/55" />
-                                                        </div>
-                                                        <p className="text-sm font-medium text-foreground">暂无配置文件</p>
-                                                        <p className="text-xs text-muted-foreground mt-1">点击「新建配置文件」添加配置文件</p>
-                                                    </div>
+                                                    <EmptyState
+                                                      icon={FileText}
+                                                      title="暂无配置文件"
+                                                      description="点击「新建配置文件」添加配置文件"
+                                                      className="py-12"
+                                                    />
                                                 ) : (
                                                     clientFiles.map((file, index) => (
                                                         <div
                                                             key={file.id}
-                                                            className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors animate-in fade-in slide-in-from-bottom-2 hover:bg-accent/20"
+                                                            className="flex items-center justify-between rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors animate-in fade-in slide-in-from-bottom-2 hover:bg-accent/20"
                                                             style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                                         >
                                                             <div className="min-w-0">
@@ -700,7 +693,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="rounded-2xl border border-dashed border-border/60 bg-surface-subtle/50 py-14 text-center text-muted-foreground">
+                                    <div className="rounded-2xl border border-dashed border-border/50 bg-surface-subtle/50 py-14 text-center text-muted-foreground">
                                         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-background shadow-[var(--shadow-xs)]">
                                             <Monitor className="h-8 w-8 text-muted-foreground/40" />
                                         </div>
@@ -781,13 +774,13 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             {/* 转换器列表 */}
                             <div className="space-y-2">
                                 {formData.transforms.length === 0 ? (
-                                    <div className="rounded-2xl border border-dashed border-border/70 bg-surface-subtle/40 px-4 py-5 text-sm text-muted-foreground">
+                                    <div className="rounded-2xl border border-dashed border-border bg-surface-subtle/40 px-4 py-5 text-sm text-muted-foreground">
                                         还没有全局转换器。添加后，规则会默认继承这些处理步骤。
                                     </div>
                                 ) : formData.transforms.map((transform, index) => (
                                     <div
                                         key={transformKeys[index] ?? `transform-${index}`}
-                                        className="space-y-3 rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)]"
+                                        className="space-y-3 rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)]"
                                     >
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-2">
@@ -980,7 +973,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 disabled={isFileLoading || isFileSaving}
                             />
                         </div>
-                        <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface-subtle/60 px-4 py-3 shadow-[var(--shadow-xs)]">
+                        <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-surface-subtle/60 px-4 py-3 shadow-[var(--shadow-xs)]">
                             <div className="space-y-0.5">
                                 <p className="text-sm font-medium text-foreground">公开访问</p>
                                 <p className="text-xs text-muted-foreground">开启后可通过公开 URL 访问</p>
@@ -1005,7 +998,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     全屏
                                 </Button>
                             </div>
-                            <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface-elevated shadow-[var(--shadow-xs)]">
+                            <div className="relative overflow-hidden rounded-2xl border border-border bg-surface-elevated shadow-[var(--shadow-xs)]">
                                 <LazyMonacoEditor
                                     height="300px"
                                     language={editorLanguage}

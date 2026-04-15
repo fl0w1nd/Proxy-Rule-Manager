@@ -462,32 +462,32 @@ export function Dashboard({ onBack }: DashboardProps) {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {/* Top Row: Stats & System Status */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">规则总数</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">规则总数</p>
                     <div className="text-3xl font-mono font-bold tracking-tight">{status?.rulesCount || 0}</div>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">今日变更</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日变更</p>
                     <div className="text-3xl font-mono font-bold tracking-tight">{status?.todayStats?.ruleFilesChanged || 0}</div>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">生成文件</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">生成文件</p>
                     <div className="text-3xl font-mono font-bold tracking-tight">{status?.ruleFilesCount || 0}</div>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">异常记录</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">异常记录</p>
                     <div className={cn("text-3xl font-mono font-bold tracking-tight", (status?.todayStats?.failureRecords || 0) > 0 ? "text-destructive" : "")}>{status?.todayStats?.failureRecords || 0}</div>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-3">
                     <div>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">上次全量同步</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">上次全量同步</p>
                       <p className="text-xs font-mono mt-0.5 truncate" title={status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
                       <p className="text-xs font-mono mt-0.5 truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}
                       </p>
@@ -498,7 +498,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                 {/* Content Columns: Active Rules & Activity Feed */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                   {/* Rules List */}
-                  <Card className="flex flex-col h-[600px]">
+                  <Card className="flex flex-col min-h-[400px] max-h-[600px]">
                     <CardHeader className="flex-row items-center justify-between border-b border-border shrink-0">
                       <div className="space-y-1">
                         <CardTitle className="flex items-center gap-2">
@@ -548,7 +548,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </Card>
 
                   {/* Recent Activity Feed - Two Column Layout */}
-                  <Card className="flex flex-col h-[600px]">
+                  <Card className="flex flex-col min-h-[400px] max-h-[600px]">
                     <CardHeader className="border-b border-border shrink-0">
                       <CardTitle className="flex items-center gap-2">
                         <Activity className="w-4 h-4 text-muted-foreground" />
@@ -712,16 +712,14 @@ export function Dashboard({ onBack }: DashboardProps) {
                 </CardHeader>
                 <div className="flex-1 p-6">
                   <Tabs defaultValue="changes" value={activityTab} onValueChange={setActivityTab} className="w-full h-full flex flex-col">
-                    <TabsList className="w-full justify-start border-b rounded-none bg-transparent p-0 mb-6 h-auto">
+                    <TabsList className="w-full justify-start mb-6">
                       <TabsTrigger
                         value="changes"
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 text-muted-foreground data-[state=active]:text-foreground transition-none shadow-none"
                       >
                         变更记录
                       </TabsTrigger>
                       <TabsTrigger
                         value="failures"
-                        className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-4 py-2 text-muted-foreground data-[state=active]:text-foreground transition-none shadow-none"
                       >
                         失败日志
                       </TabsTrigger>

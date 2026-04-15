@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   BookOpen,
 } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { getConfig, saveConfig } from "@/lib/api-client";
 import { RulesConfig, ScriptTransformer } from "@/lib/schema";
 import { toast } from "sonner";
@@ -337,19 +338,12 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
         <Card>
-          <div className="text-center py-16 px-5">
-            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-              <Code2 className="w-10 h-10 text-primary/55" />
-            </div>
-            <p className="text-lg font-medium text-foreground">暂无预定义转换器</p>
-            <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-              转换器可用于处理规则内容，如去重、排序、正则替换等
-            </p>
-            <Button onClick={handleCreate} className="mt-6">
-              <Plus className="w-4 h-4 mr-2" />
-              创建转换器
-            </Button>
-          </div>
+          <EmptyState
+            icon={Code2}
+            title="暂无预定义转换器"
+            description="转换器可用于处理规则内容，如去重、排序、正则替换等"
+            action={<Button onClick={handleCreate}><Plus className="w-4 h-4 mr-2" />创建转换器</Button>}
+          />
         </Card>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -381,7 +375,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                       ? new Date(transformer.updatedAt).toLocaleDateString("zh-CN")
                       : "未更新"}
                   </span>
-                  <div className="absolute right-4 bottom-4 flex gap-1 rounded-lg border border-border/60 bg-card/95 p-0.5 opacity-100 shadow-[var(--shadow-xs)] transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
+                  <div className="absolute right-4 bottom-4 flex gap-1 rounded-lg border border-border/50 bg-card/95 p-0.5 opacity-100 shadow-[var(--shadow-xs)] transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"
@@ -483,7 +477,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               </div>
 
               {/* 测试区域 */}
-              <div className="space-y-4 rounded-2xl border border-border/70 bg-surface-subtle/35 p-4 shadow-[var(--shadow-xs)]">
+              <div className="space-y-4 rounded-2xl border border-border bg-surface-subtle/35 p-4 shadow-[var(--shadow-xs)]">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-2">
                     <Play className="w-4 h-4" />

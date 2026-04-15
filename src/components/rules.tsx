@@ -4,7 +4,8 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -29,7 +30,6 @@ import {
   Eye,
   MoreVertical,
   Plus,
-  Search,
   Copy,
   Loader2,
   FileText,
@@ -318,9 +318,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         {/* 客户端标签 */}
         <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
           <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
-            <TabsList className="bg-surface-subtle shadow-[var(--shadow-xs)]">
+            <TabsList>
               {Object.keys(previewData.contents).map((client) => (
-                <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
+                <TabsTrigger key={client} value={client}>
                   {getClientDisplayName(client)}
                 </TabsTrigger>
               ))}
@@ -345,15 +345,12 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     <div className="space-y-6">
       {/* Search and Actions */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-4 flex-wrap">
-        <div className="relative w-full sm:w-auto sm:flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <Input
-            placeholder="搜索规则..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="pl-10 bg-background"
-          />
-        </div>
+        <SearchInput
+          placeholder="搜索规则..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          fullWidth
+        />
         <Button
           variant="success"
           onClick={() => {
@@ -669,28 +666,16 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       </div>
 
       {filteredRules?.length === 0 && (
-        <div className="text-center py-20">
-          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-subtle">
-            <FileText className="w-8 h-8 text-muted-foreground/40" />
-          </div>
-          <p className="text-lg font-medium text-foreground">
-            {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
-          </p>
-          <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-            {searchQuery || selectedTags.length > 0
-              ? "尝试调整搜索条件或清除筛选标签"
-              : "点击右上角「添加规则」按钮创建第一条规则"}
-          </p>
-          {!searchQuery && selectedTags.length === 0 && (
-            <Button
-              onClick={() => { setEditingRule(null); setIsEditorOpen(true); }}
-              className="mt-6"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              添加规则
+        <EmptyState
+          icon={FileText}
+          title={searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
+          description={searchQuery || selectedTags.length > 0 ? "尝试调整搜索条件或清除筛选标签" : "点击右上角「添加规则」按钮创建第一条规则"}
+          action={!searchQuery && selectedTags.length === 0 ? (
+            <Button onClick={() => { setEditingRule(null); setIsEditorOpen(true); }}>
+              <Plus className="w-4 h-4 mr-2" />添加规则
             </Button>
-          )}
-        </div>
+          ) : undefined}
+        />
       )}
 
       {/* Preview Dialog */}
@@ -747,9 +732,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               {/* Content Tabs */}
               <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0">
                 <div className="flex items-center justify-between border-b border-border px-6 py-3">
-                  <TabsList className="bg-surface-subtle shadow-[var(--shadow-xs)]">
+                  <TabsList>
                     {Object.keys(previewData.contents).map((client) => (
-                      <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
+                      <TabsTrigger key={client} value={client}>
                         {getClientDisplayName(client)}
                       </TabsTrigger>
                     ))}
@@ -769,7 +754,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                           toast.error("复制失败");
                         }
                       }}
-                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+                      className="border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                       title="复制内容"
                     >
                       <Copy className="w-4 h-4" />
@@ -778,7 +763,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       variant="ghost"
                       size="icon"
                       onClick={() => setIsPreviewFullscreen(true)}
-                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+                      className="border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                       title="全屏预览 (ESC 退出)"
                     >
                       <Maximize2 className="w-4 h-4" />

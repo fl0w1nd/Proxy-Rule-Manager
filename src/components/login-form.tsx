@@ -76,7 +76,7 @@ export function LoginForm({ onBack }: LoginFormProps) {
                 placeholder="ADMIN_TOKEN"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
-                className="h-12 text-base"
+                className="h-11 text-base"
               />
               {error && (
                 <p className="text-sm font-medium text-destructive">{error}</p>
@@ -85,7 +85,7 @@ export function LoginForm({ onBack }: LoginFormProps) {
             <Button
               type="submit"
               disabled={isLoading || !token}
-              className="w-full h-12 text-base"
+              className="w-full h-11 text-base"
             >
               {isLoading ? (
                 <>

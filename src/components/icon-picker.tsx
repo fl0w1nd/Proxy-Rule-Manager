@@ -122,7 +122,7 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
               placeholder="输入关键词搜索，如 youtube, telegram, cloud..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 pr-9"
+              className="pl-9"
               autoFocus
             />
             {loading && (

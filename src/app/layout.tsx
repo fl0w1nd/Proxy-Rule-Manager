@@ -39,7 +39,12 @@ export default function RootLayout({
         className={`${inter.variable} ${jetbrainsMono.variable} antialiased min-h-screen bg-background relative`}
         style={{ fontFeatureSettings: '"calt"' }}
       >
+        <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:rounded-full focus:bg-primary focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-primary-foreground focus:shadow-[var(--shadow-md)]">
+          Skip to main content
+        </a>
+        <div id="main-content">
         {children}
+        </div>
         <Toaster richColors position="top-right" />
       </body>
     </html>

@@ -18,7 +18,6 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import {
-  Search,
   Copy,
   Eye,
   Sun,
@@ -50,6 +49,8 @@ import {
 } from "@/lib/api-client";
 import { AmbientBackground } from "./ambient-background";
 import { CodeViewer } from "./code-viewer";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 
 const MAIN_TABS = [
@@ -443,10 +444,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {/* Main Tabs & Search */}
           <div className="mb-8 space-y-5">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="inline-flex w-fit items-center gap-1 rounded-full bg-surface-subtle p-1">
+              <div className="inline-flex w-fit items-center gap-1 rounded-full bg-surface-subtle p-1" role="tablist" aria-label="内容类型">
                 {MAIN_TABS.map((tab) => (
                 <button
                   key={tab.key}
+                  role="tab"
+                  aria-selected={activeMainTab === tab.key}
                   onClick={() => setActiveMainTab(tab.key)}
                   className={cn(
                     "rounded-full px-5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
@@ -460,25 +463,22 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               ))}
               </div>
 
-              <div className="flex w-full items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 shadow-[var(--shadow-xs)] sm:w-auto sm:min-w-[280px]">
-                <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                <input
-                  type="search"
-                  aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                  placeholder={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
-                />
-              </div>
+              <SearchInput
+                aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                placeholder={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
             </div>
 
             {/* Client Tabs */}
             {activeMainTab !== "icons" && (
-              <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-surface-subtle p-1 scrollbar-hide">
+              <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-surface-subtle p-1 scrollbar-hide" role="tablist" aria-label="客户端选择">
                 {clients.map((client) => (
                   <button
                     key={client.id}
+                    role="tab"
+                    aria-selected={activeClient === client.id}
                     onClick={() => setActiveClient(client.id)}
                     className={cn(
                       "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
@@ -535,19 +535,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             </div>
           ) : activeMainTab === "rules" ? (
             clientRules.length === 0 ? (
-              <div className="text-center py-24">
-                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
-                  <Globe className="w-8 h-8 text-muted-foreground/40" />
-                </div>
-                <p className="text-lg font-semibold text-foreground">
-                  {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  {searchQuery || selectedTags.length > 0
-                    ? "尝试调整搜索条件或清除筛选标签"
-                    : "该客户端暂无可用规则"}
-                </p>
-              </div>
+              <EmptyState
+                icon={Globe}
+                title={searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
+                description={searchQuery || selectedTags.length > 0 ? "尝试调整搜索条件或清除筛选标签" : "该客户端暂无可用规则"}
+                className="py-24"
+              />
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {clientRules.map((rule, index) => (
@@ -663,19 +656,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             )
           ) : activeMainTab === "configs" ? (
             clientPublicFiles.length === 0 ? (
-              <div className="text-center py-24">
-                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
-                  <FileText className="w-8 h-8 text-muted-foreground/40" />
-                </div>
-                <p className="text-lg font-semibold text-foreground">
-                  {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  {searchQuery
-                    ? "尝试使用其他关键词搜索"
-                    : "该客户端暂无公开的配置文件"}
-                </p>
-              </div>
+              <EmptyState
+                icon={FileText}
+                title={searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
+                description={searchQuery ? "尝试使用其他关键词搜索" : "该客户端暂无公开的配置文件"}
+                className="py-24"
+              />
             ) : (
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {clientPublicFiles.map((file, index) => {
@@ -742,19 +728,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           ) : (
             /* Icons Tab */
             filteredIcons.length === 0 ? (
-              <div className="text-center py-24">
-                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
-                  <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
-                </div>
-                <p className="text-lg font-semibold text-foreground">
-                  {searchQuery ? "未找到匹配的图标" : "暂无图标"}
-                </p>
-                <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
-                  {searchQuery
-                    ? "尝试使用其他关键词搜索"
-                    : "图标集暂无图标"}
-                </p>
-              </div>
+              <EmptyState
+                icon={ImageIcon}
+                title={searchQuery ? "未找到匹配的图标" : "暂无图标"}
+                description={searchQuery ? "尝试使用其他关键词搜索" : "图标集暂无图标"}
+                className="py-24"
+              />
             ) : (
               <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-5">
                 {filteredIcons.map((icon, index) => (

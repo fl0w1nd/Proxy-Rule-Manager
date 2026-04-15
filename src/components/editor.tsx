@@ -157,7 +157,7 @@ function SectionHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between border-b border-border/60 bg-surface-subtle/80 px-4 py-3 transition-colors">
+    <div className="flex items-center justify-between border-b border-border/50 bg-surface-subtle/80 px-4 py-3 transition-colors">
       <button
         type="button"
         onClick={onToggle}
@@ -658,7 +658,7 @@ export function RuleEditor({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
-      <div className="z-20 flex-none border-b border-border/70 bg-background/92 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
+      <div className="z-20 flex-none border-b border-border bg-background/92 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
             <h2 className="text-lg font-semibold tracking-tight">{formData.name || (rule ? rule.name : "新建规则")}</h2>
@@ -680,7 +680,7 @@ export function RuleEditor({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* 基本信息 */}
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-sm)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-sm)]">
           <SectionHeader
             title="基本信息"
             expanded={expandedSections.has("basic")}
@@ -793,7 +793,7 @@ export function RuleEditor({
         </div>
 
         {/* 数据来源 */}
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-sm)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-sm)]">
           <SectionHeader
             title="数据来源"
             help={HELP_TEXTS.sources}
@@ -815,7 +815,7 @@ export function RuleEditor({
                 return (
                   <div
                     key={sourceKeys[index] ?? `source-${index}`}
-                    className="flex items-start gap-3 rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors hover:bg-accent/20"
+                    className="flex items-start gap-3 rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors hover:bg-accent/20"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <Badge variant="outline" className="shrink-0 gap-1 bg-background">
@@ -921,7 +921,7 @@ export function RuleEditor({
         </div>
 
         {/* 后处理操作 */}
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="后处理操作"
             help={HELP_TEXTS.transforms}
@@ -954,7 +954,7 @@ export function RuleEditor({
               ))}
 
               {/* 添加操作按钮 */}
-              <div className="rounded-2xl border border-dashed border-border/70 bg-surface-subtle/70 p-4 shadow-[var(--shadow-xs)]">
+              <div className="rounded-2xl border border-dashed border-border bg-surface-subtle/70 p-4 shadow-[var(--shadow-xs)]">
                 <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                   添加后处理操作
                   <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
@@ -996,7 +996,7 @@ export function RuleEditor({
         </div>
 
         {/* 合并配置 */}
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="合并配置"
             help={HELP_TEXTS.merge}
@@ -1054,7 +1054,7 @@ export function RuleEditor({
         </div>
 
         {/* 输出配置 */}
-        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
+        <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="输出配置"
             help={HELP_TEXTS.outputClients}
@@ -1076,7 +1076,7 @@ export function RuleEditor({
                         key={client.id}
                         className={`flex items-center gap-2 rounded-xl border p-3 cursor-pointer transition-all ${formData.output.clients.includes(client.id)
                           ? "border-primary/25 bg-primary-soft/70 shadow-[var(--shadow-xs)]"
-                          : "border-border/60 bg-surface-subtle/60 hover:bg-accent/20"
+                          : "border-border/50 bg-surface-subtle/60 hover:bg-accent/20"
                           }`}
                       >
                         <Checkbox
@@ -1211,10 +1211,10 @@ function TransformCard({
   return (
     <div
       onDragOver={onDragOver}
-      className={`rounded-2xl border border-border/70 bg-surface-subtle/60 shadow-[var(--shadow-xs)] transition-all ${isDragging ? "scale-95 opacity-50" : ""
+      className={`rounded-2xl border border-border bg-surface-subtle/60 shadow-[var(--shadow-xs)] transition-all ${isDragging ? "scale-95 opacity-50" : ""
         }`}
     >
-      <div className="flex items-center justify-between border-b border-border/70 bg-background/55 p-3">
+      <div className="flex items-center justify-between border-b border-border bg-background/55 p-3">
         <div className="flex items-center gap-2">
           {draggable && (
             <button
@@ -1222,7 +1222,7 @@ function TransformCard({
               draggable
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
-            className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
+            className="cursor-grab text-muted-foreground/50 hover:text-foreground active:cursor-grabbing rounded p-0.5 hover:bg-accent/50 transition-colors"
               title="拖动排序"
             >
               <GripVertical className="w-4 h-4" />
@@ -1447,9 +1447,9 @@ function ClientOverrideSection({
   const hasGlobalTransforms = clientGlobalTransforms.length > 0;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
+    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between border-b border-border/60 bg-surface-subtle/80 p-3">
+      <div className="flex items-center justify-between border-b border-border/50 bg-surface-subtle/80 p-3">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
@@ -1483,9 +1483,9 @@ function ClientOverrideSection({
 
       {/* 展开内容 */}
       {expanded && (config?.enabled ?? true) && (
-        <div className="space-y-4 border-t border-border/60 bg-card p-3">
+        <div className="space-y-4 border-t border-border/50 bg-card p-3">
           {/* 全局转换继承开关 */}
-          <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)]">
+          <div className="flex items-start gap-2 rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)]">
             <Checkbox
               checked={useGlobalTransforms}
               onCheckedChange={(c) => onToggleUseGlobal(!!c)}

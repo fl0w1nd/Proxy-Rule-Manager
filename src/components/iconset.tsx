@@ -15,6 +15,7 @@ import {
 import NextImage from "next/image";
 
 import { Trash2, Loader2, Image as ImageIcon, Upload, Copy, Pencil, Check, X } from "lucide-react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { listIcons, uploadIcons, renameIcon, deleteIcon, IconMeta } from "@/lib/api-client";
 
@@ -175,21 +176,19 @@ export function IconSetManager() {
                             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : icons.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                                <ImageIcon className="w-10 h-10 text-primary/55" />
-                            </div>
-                            <p className="text-lg font-medium text-foreground">暂无图标</p>
-                            <p className="mt-2 text-sm text-muted-foreground">点击上方按钮上传图标</p>
-                        </div>
+                    <EmptyState
+                      icon={ImageIcon}
+                      title="暂无图标"
+                      description="点击上方按钮上传图标"
+                    />
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                             {icons.map((icon) => (
                                 <div
                                     key={icon.id}
-                                    className="group relative flex flex-col rounded-2xl border border-border/60 bg-card p-3 shadow-[var(--shadow-xs)] transition-all duration-200 hover:border-border hover:shadow-[var(--shadow-sm)]"
+                                    className="group relative flex flex-col rounded-2xl border border-border/50 bg-card p-3 shadow-[var(--shadow-xs)] transition-all duration-200 hover:border-border hover:shadow-[var(--shadow-sm)]"
                                 >
-                                    <div className="relative mb-3 flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface-subtle">
+                                    <div className="relative mb-3 flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border/50 bg-surface-subtle">
                                         <NextImage
                                             src={icon.url}
                                             alt={icon.name}

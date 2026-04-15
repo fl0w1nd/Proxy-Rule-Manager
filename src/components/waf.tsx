@@ -246,29 +246,29 @@ export function WafManager() {
         <div className="space-y-6">
             {/* 统计卡片 */}
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">持久化封禁</p>
+                <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">持久化封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Ban className="w-5 h-5 text-destructive" />
                         {stats?.bans.total || 0}
                     </div>
                 </Card>
-                <Card className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">永久封禁</p>
+                <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">永久封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <ShieldAlert className="w-5 h-5 text-warning" />
                         {stats?.bans.permanent || 0}
                     </div>
                 </Card>
-                <Card className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">临时追踪</p>
+                <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">临时追踪</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Clock className="w-5 h-5 text-primary" />
                         {stats?.temporary.totalTracked || 0}
                     </div>
                 </Card>
-                <Card className="p-4">
-                    <p className="text-xs text-muted-foreground mb-1">当前阻塞</p>
+                <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">当前阻塞</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
                         <Shield className="w-5 h-5 text-warning" />
                         {stats?.temporary.currentlyBlocked || 0}
@@ -385,7 +385,7 @@ export function WafManager() {
                                 {bans.map((ban) => (
                                     <div
                                         key={ban.ip}
-                                        className="flex items-center justify-between p-3 rounded-lg border bg-card hover:bg-accent/50 transition-colors"
+                                        className="flex items-center justify-between p-3 rounded-xl border bg-card hover:bg-accent/50 transition-colors"
                                     >
                                         <div className="flex-1">
                                             <div className="flex items-center gap-2">
@@ -445,7 +445,7 @@ export function WafManager() {
                                 {failures.map((failure) => (
                                     <div
                                         key={failure.ip}
-                                        className="flex items-center justify-between p-3 rounded-lg border bg-card"
+                                        className="flex items-center justify-between p-3 rounded-xl border bg-card"
                                     >
                                         <div>
                                             <div className="flex items-center gap-2">
@@ -496,7 +496,7 @@ export function WafManager() {
                         </div>
                         <div className="px-5 pb-5 space-y-6">
                             {/* 启用开关 */}
-                            <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
+                            <div className="flex items-center justify-between rounded-2xl border border-border/50 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
                                 <div className="space-y-0.5">
                                     <Label className="text-base">启用自定义响应头</Label>
                                     <p className="text-sm text-muted-foreground">
@@ -523,7 +523,7 @@ export function WafManager() {
                                             }
                                             className="space-y-1"
                                         >
-                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                            <div className="flex items-center space-x-3 p-3 rounded-xl border hover:bg-accent/50 cursor-pointer">
                                                 <RadioGroupItem value="no-cache" id="cache-no-cache" />
                                                 <Label htmlFor="cache-no-cache" className="flex-1 cursor-pointer">
                                                     <div className="font-medium">协商缓存 + 备用缓存</div>
@@ -534,7 +534,7 @@ export function WafManager() {
                                                 </Label>
                                                 <Badge variant="secondary" className="text-xs">推荐</Badge>
                                             </div>
-                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                            <div className="flex items-center space-x-3 p-3 rounded-xl border hover:bg-accent/50 cursor-pointer">
                                                 <RadioGroupItem value="no-store" id="cache-no-store" />
                                                 <Label htmlFor="cache-no-store" className="flex-1 cursor-pointer">
                                                     <div className="font-medium">完全不缓存</div>
@@ -544,7 +544,7 @@ export function WafManager() {
                                                     </div>
                                                 </Label>
                                             </div>
-                                            <div className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-accent/50 cursor-pointer">
+                                            <div className="flex items-center space-x-3 p-3 rounded-xl border hover:bg-accent/50 cursor-pointer">
                                                 <RadioGroupItem value="custom" id="cache-custom" />
                                                 <Label htmlFor="cache-custom" className="flex-1 cursor-pointer">
                                                     <div className="font-medium">自定义</div>
@@ -714,7 +714,7 @@ export function WafManager() {
                                     </div>
 
                                     {/* 预览 */}
-                                    <div className="space-y-2 rounded-2xl border border-border/60 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
+                                    <div className="space-y-2 rounded-2xl border border-border/50 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
                                         <Label className="text-sm text-muted-foreground">当前配置将生成的响应头预览：</Label>
                                         <Textarea
                                             readOnly

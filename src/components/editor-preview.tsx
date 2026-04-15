@@ -86,12 +86,11 @@ export function PreviewDialog({
               className="flex-1 flex flex-col min-h-0"
             >
               <div className="px-6 py-3 border-b border-border flex items-center justify-between shrink-0">
-                <TabsList className="bg-muted">
+                <TabsList>
                   {Object.keys(previewData.contents).map((client) => (
                     <TabsTrigger
                       key={client}
                       value={client}
-                      className="data-[state=active]:bg-background"
                     >
                       {getDisplayName(client)}
                     </TabsTrigger>
@@ -120,7 +119,7 @@ export function PreviewDialog({
                           toast.error("复制失败，请手动选择内容复制");
                         }
                       }}
-                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+                      className="border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                       title="复制内容"
                     >
                       <Copy className="w-4 h-4" />
