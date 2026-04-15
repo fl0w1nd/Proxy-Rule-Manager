@@ -212,20 +212,20 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                             <Button
                                 onClick={onHome}
                                 variant="ghost"
-                                className="flex-1 h-9 text-sm"
+                                className="h-9 min-w-0 flex-1 shrink justify-start px-3 text-sm"
                             >
                                 <Home className="w-4 h-4" />
-                                返回首页
+                                <span className="truncate">首页</span>
                             </Button>
 
                             {onLogout && (
                                 <Button
                                     onClick={onLogout}
                                     variant="ghost"
-                                    className="flex-1 h-9 text-sm"
+                                    className="h-9 min-w-0 flex-1 shrink justify-start px-3 text-sm"
                                 >
                                     <LogOut className="w-4 h-4" />
-                                    退出登录
+                                    <span className="truncate">退出</span>
                                 </Button>
                             )}
                         </div>
