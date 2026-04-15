@@ -4,6 +4,9 @@ import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -16,6 +19,7 @@ import {
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
@@ -42,8 +46,10 @@ import {
   Tag,
   Pencil,
   CopyPlus,
+  ChevronDown,
+  HelpCircle,
 } from "lucide-react";
-import { getConfig, refreshRule, previewRule, deleteRule, getClients, PreviewResponse, ClientConfig } from "@/lib/api-client";
+import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
@@ -70,6 +76,16 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
+  const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
+  const [isMultiSelectMode, setIsMultiSelectMode] = useState(false);
+  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
+  const [batchTagInput, setBatchTagInput] = useState("");
+  const [batchAddTags, setBatchAddTags] = useState(true);
+  const [batchReplaceTags, setBatchReplaceTags] = useState(false);
+  const [batchClientIds, setBatchClientIds] = useState<string[]>([]);
+  const [batchAddClients, setBatchAddClients] = useState(true);
+  const [batchReplaceClients, setBatchReplaceClients] = useState(false);
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
 
   const handleDuplicateRule = (rule: RuleConfig) => {
     if (isGeositeRule(rule)) {
@@ -116,6 +132,10 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   useEffect(() => {
     fetchConfig();
   }, []);
+
+  useEffect(() => {
+    setSelectedRuleNames((current) => current.filter((name) => config?.rules.some((rule) => rule.name === name)));
+  }, [config?.rules]);
 
   // ESC 键退出全屏
   useEffect(() => {
@@ -199,6 +219,156 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     setIsPreviewFullscreen(false);
   };
 
+  const toggleRuleSelection = (ruleName: string) => {
+    setSelectedRuleNames((current) =>
+      current.includes(ruleName) ? current.filter((name) => name !== ruleName) : [...current, ruleName]
+    );
+  };
+
+  const toggleMultiSelectMode = () => {
+    setIsMultiSelectMode((current) => {
+      if (current) {
+        setSelectedRuleNames([]);
+      }
+      return !current;
+    });
+    setExpandedCard(null);
+  };
+
+  const openBatchDialog = () => {
+    setBatchTagInput("");
+    setBatchAddTags(true);
+    setBatchReplaceTags(false);
+    setBatchClientIds([]);
+    setBatchAddClients(true);
+    setBatchReplaceClients(false);
+    setIsBatchDialogOpen(true);
+  };
+
+  const toggleBatchClient = (clientId: string) => {
+    setBatchClientIds((current) =>
+      current.includes(clientId) ? current.filter((id) => id !== clientId) : [...current, clientId]
+    );
+  };
+
+  const updateBatchTagMode = (mode: "add" | "replace", checked: boolean) => {
+    if (mode === "add") {
+      setBatchAddTags(checked);
+      if (checked) {
+        setBatchReplaceTags(false);
+      }
+      return;
+    }
+    setBatchReplaceTags(checked);
+    if (checked) {
+      setBatchAddTags(false);
+    }
+  };
+
+  const updateBatchClientMode = (mode: "add" | "replace", checked: boolean) => {
+    if (mode === "add") {
+      setBatchAddClients(checked);
+      if (checked) {
+        setBatchReplaceClients(false);
+      }
+      return;
+    }
+    setBatchReplaceClients(checked);
+    if (checked) {
+      setBatchAddClients(false);
+    }
+  };
+
+  const handleBatchSave = async () => {
+    if (!config || selectedRuleNames.length === 0) return;
+
+    const nextTags = Array.from(
+      new Set(
+        batchTagInput
+          .split(/[\n,，]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (nextTags.length > 0 && !batchAddTags && !batchReplaceTags) {
+      toast.error("请选择 TAG 处理方式");
+      return;
+    }
+
+    if (batchClientIds.length > 0 && !batchAddClients && !batchReplaceClients) {
+      toast.error("请选择客户端处理方式");
+      return;
+    }
+
+    const shouldUpdateTags = nextTags.length > 0 && (batchAddTags || batchReplaceTags);
+    const shouldUpdateClients = batchClientIds.length > 0 && (batchAddClients || batchReplaceClients);
+
+    if (!shouldUpdateTags && !shouldUpdateClients) {
+      toast.error("请至少设置一项");
+      return;
+    }
+
+    setIsBatchSaving(true);
+    try {
+      const { config: latestConfig } = await getConfig();
+      const selectedSet = new Set(selectedRuleNames);
+      const updatedRules = latestConfig.rules.map((rule) => {
+        if (!selectedSet.has(rule.name) || isGeositeRule(rule)) {
+          return rule;
+        }
+
+        const mergedTags = shouldUpdateTags
+          ? (batchReplaceTags
+            ? nextTags
+            : Array.from(new Set([...(rule.tags || []), ...nextTags])))
+          : rule.tags;
+
+        const mergedClients = shouldUpdateClients
+          ? (batchReplaceClients
+            ? batchClientIds
+            : Array.from(new Set([...rule.output.clients, ...batchClientIds])))
+          : rule.output.clients;
+
+        return {
+          ...rule,
+          tags: mergedTags,
+          output: {
+            ...rule.output,
+            clients: mergedClients,
+          },
+        };
+      });
+
+      await saveConfig({
+        ...latestConfig,
+        rules: updatedRules,
+      });
+
+      let refreshFailed = 0;
+      if (shouldUpdateClients) {
+        const results = await Promise.allSettled(selectedRuleNames.map((name) => refreshRule(name)));
+        refreshFailed = results.filter((result) => result.status === "rejected").length;
+      }
+
+      setIsBatchDialogOpen(false);
+      setIsMultiSelectMode(false);
+      setSelectedRuleNames([]);
+      await fetchConfig();
+      onRefresh();
+
+      if (refreshFailed > 0) {
+        toast.warning(`已处理 ${selectedRuleNames.length} 条规则，${refreshFailed} 条刷新失败`);
+      } else {
+        toast.success(`已处理 ${selectedRuleNames.length} 条规则`);
+      }
+    } catch (error) {
+      toast.error("批量处理失败: " + String(error));
+    } finally {
+      setIsBatchSaving(false);
+    }
+  };
+
   // 提取所有唯一标签
   const allTags = useMemo(() => {
     return Array.from(
@@ -230,6 +400,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       return matchesSearch && matchesTags;
     });
   }, [config?.rules, searchQuery, selectedTags]);
+
+  const allVisibleSelected = !!filteredRules?.length && filteredRules.every((rule) => selectedRuleNames.includes(rule.name));
 
   if (isLoading) {
     return (
@@ -363,6 +535,24 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           <Plus className="w-4 h-4 mr-2" />
           添加规则
         </Button>
+        {filteredRules && filteredRules.length > 0 ? (
+          <Button variant={isMultiSelectMode ? "default" : "outline"} size="sm" onClick={toggleMultiSelectMode}>
+            {isMultiSelectMode ? "取消多选" : "多选"}
+          </Button>
+        ) : null}
+        {isMultiSelectMode && filteredRules && filteredRules.length > 0 ? (
+          <Button variant="outline" size="sm" onClick={() => {
+            const allNames = filteredRules.map((rule) => rule.name);
+            setSelectedRuleNames(allVisibleSelected ? [] : allNames);
+          }}>
+            {allVisibleSelected ? "取消全选" : "全选"}
+          </Button>
+        ) : null}
+        {isMultiSelectMode && selectedRuleNames.length > 0 ? (
+          <Button variant="outline" size="sm" onClick={openBatchDialog}>
+            批量处理 ({selectedRuleNames.length})
+          </Button>
+        ) : null}
       </div>
 
       {/* 标签筛选器 */}
@@ -411,17 +601,26 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
         {filteredRules?.map((rule, index) => {
           const isExpanded = expandedCard === rule.name;
+          const isSelected = selectedRuleNames.includes(rule.name);
           return (
             <Card
               key={rule.name}
-              className={`p-5 animate-slide-up opacity-0 flex flex-col relative transition-[z-index] ${isExpanded ? "z-50" : "z-0"
+              onClick={() => {
+                if (isMultiSelectMode) {
+                  toggleRuleSelection(rule.name);
+                }
+              }}
+              className={`group p-5 animate-slide-up opacity-0 flex flex-col relative transition-[z-index,box-shadow,border-color,background-color,transform] ${isMultiSelectMode ? "cursor-pointer hover:border-primary/25 hover:shadow-[var(--shadow-md)]" : ""} ${isSelected ? "border-primary/80 bg-primary-soft/40 before:pointer-events-none before:absolute before:inset-0 before:rounded-[inherit] before:border-2 before:border-primary/75 before:shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--primary)_40%,transparent)] after:pointer-events-none after:absolute after:inset-[1px] after:rounded-[calc(var(--radius-2xl)-1px)] after:bg-primary/8 dark:after:bg-primary/12 shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_55%,transparent),0_0_0_4px_color-mix(in_srgb,var(--primary)_18%,transparent),0_16px_36px_-16px_color-mix(in_srgb,var(--primary)_45%,transparent)] dark:shadow-[0_0_0_1px_color-mix(in_srgb,var(--primary)_85%,transparent),0_0_0_4px_color-mix(in_srgb,var(--primary)_30%,transparent),0_0_28px_color-mix(in_srgb,var(--primary)_28%,transparent)]" : ""} ${isExpanded ? "z-50" : "z-0"
                 }`}
               style={{ animationDelay: `${index * 50}ms` }}
             >
               {/* Trigger button – top right */}
               <button
                 type="button"
-                onClick={() => setExpandedCard(isExpanded ? null : rule.name)}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setExpandedCard(isExpanded ? null : rule.name);
+                }}
                 aria-expanded={isExpanded}
                 aria-label={isExpanded ? `收起 ${rule.displayName || rule.name} 操作` : `展开 ${rule.displayName || rule.name} 操作`}
                 className={`fab-trigger flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-250 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15 ${isExpanded
@@ -437,7 +636,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               </button>
 
               {/* Floating toolbar – slides down from trigger */}
-              <div className={`fab-toolbar ${isExpanded ? "open" : ""}`}>
+              <div className={`fab-toolbar ${isExpanded ? "open" : ""}`} onClick={(event) => event.stopPropagation()}>
                 {/* Edit */}
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -639,7 +838,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 </div>
               </div>
 
-              <div className="mt-4 flex gap-2">
+              <div className="mt-4 flex gap-2" onClick={(event) => event.stopPropagation()}>
                 <Button
                   variant="secondary"
                   size="sm"
@@ -815,6 +1014,116 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={isBatchDialogOpen} onOpenChange={setIsBatchDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              批量处理
+              <HelpIcon text="TAG 支持新增和覆盖；输出客户端支持新增和覆盖。" />
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <Label htmlFor="rules-batch-tags">TAG</Label>
+              <Input
+                id="rules-batch-tags"
+                value={batchTagInput}
+                onChange={(event) => setBatchTagInput(event.target.value)}
+                placeholder="tag1, tag2"
+              />
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rules-batch-tag-add"
+                    checked={batchAddTags}
+                    onCheckedChange={(checked) => updateBatchTagMode("add", checked === true)}
+                  />
+                  <Label htmlFor="rules-batch-tag-add">新增</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rules-batch-tag-replace"
+                    checked={batchReplaceTags}
+                    onCheckedChange={(checked) => updateBatchTagMode("replace", checked === true)}
+                  />
+                  <Label htmlFor="rules-batch-tag-replace">覆盖</Label>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>输出客户端</Label>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left shadow-[var(--shadow-xs)] transition-colors hover:border-primary/20"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {batchClientIds.length > 0 ? (
+                        batchClientIds.map((clientId) => (
+                          <Badge key={clientId} variant="blue">
+                            {getClientDisplayName(clientId)}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">选择客户端</span>
+                      )}
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-72">
+                  {clients.map((client) => (
+                    <DropdownMenuCheckboxItem
+                      key={client.id}
+                      checked={batchClientIds.includes(client.id)}
+                      onCheckedChange={() => toggleBatchClient(client.id)}
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      {client.displayName}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rules-batch-client-add"
+                    checked={batchAddClients}
+                    onCheckedChange={(checked) => updateBatchClientMode("add", checked === true)}
+                  />
+                  <Label htmlFor="rules-batch-client-add">新增</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="rules-batch-client-replace"
+                    checked={batchReplaceClients}
+                    onCheckedChange={(checked) => updateBatchClientMode("replace", checked === true)}
+                  />
+                  <Label htmlFor="rules-batch-client-replace">覆盖</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex justify-end gap-3">
+            <Button variant="outline" onClick={() => setIsBatchDialogOpen(false)} disabled={isBatchSaving}>
+              取消
+            </Button>
+            <Button onClick={handleBatchSave} disabled={isBatchSaving}>
+              {isBatchSaving ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  保存中...
+                </>
+              ) : (
+                "保存"
+              )}
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Delete Confirmation Dialog */}
       <Dialog open={!!deletingRule} onOpenChange={(open) => !open && setDeletingRule(null)}>
         <DialogContent className="max-w-md">
@@ -859,5 +1168,18 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+function HelpIcon({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <HelpCircle className="h-4 w-4 cursor-help text-muted-foreground transition-colors hover:text-primary" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-sm">{text}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }

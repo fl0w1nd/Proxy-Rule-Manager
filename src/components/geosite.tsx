@@ -8,6 +8,7 @@ import {
   Copy,
   Eye,
   Globe,
+  HelpCircle,
   Loader2,
   Pencil,
   Plus,
@@ -19,9 +20,18 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -30,6 +40,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Select,
   SelectContent,
@@ -47,7 +62,9 @@ import {
   lookupGeositeDomain,
   previewGeosite,
   previewRule,
+  refreshRule,
   refreshGeositeProvider,
+  saveConfig,
   deleteRule,
   executeFullSync,
   type ClientConfig,
@@ -154,6 +171,19 @@ function buildCatalogGroups(items: GeositeCatalogItem[]): CatalogGroup[] {
   return buildNameGroups(items, (item) => item.name);
 }
 
+function HelpIcon({ text }: { text: string }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <HelpCircle className="h-4 w-4 cursor-help text-muted-foreground transition-colors hover:text-primary" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p className="text-sm">{text}</p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [providers, setProviders] = useState<GeositeProviderStatus[]>([]);
   const [provider, setProvider] = useState<GeositeProvider>("v2fly");
@@ -185,6 +215,14 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
   const [isBatchDeleting, setIsBatchDeleting] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isBatchDialogOpen, setIsBatchDialogOpen] = useState(false);
+  const [batchTagInput, setBatchTagInput] = useState("");
+  const [batchAddTags, setBatchAddTags] = useState(true);
+  const [batchReplaceTags, setBatchReplaceTags] = useState(false);
+  const [batchClientIds, setBatchClientIds] = useState<string[]>([]);
+  const [batchAddClients, setBatchAddClients] = useState(true);
+  const [batchReplaceClients, setBatchReplaceClients] = useState(false);
+  const [isBatchSaving, setIsBatchSaving] = useState(false);
 
   const fetchAll = useCallback(async (selectedProvider: GeositeProvider = provider) => {
     try {
@@ -334,6 +372,141 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     await fetchAll(provider);
     onRefresh?.();
     setIsBatchDeleting(false);
+  };
+
+  const openBatchDialog = () => {
+    setBatchTagInput("");
+    setBatchAddTags(true);
+    setBatchReplaceTags(false);
+    setBatchClientIds([]);
+    setBatchAddClients(true);
+    setBatchReplaceClients(false);
+    setIsBatchDialogOpen(true);
+  };
+
+  const toggleBatchClient = (targetClientId: string) => {
+    setBatchClientIds((current) =>
+      current.includes(targetClientId)
+        ? current.filter((id) => id !== targetClientId)
+        : [...current, targetClientId]
+    );
+  };
+
+  const updateBatchTagMode = (mode: "add" | "replace", checked: boolean) => {
+    if (mode === "add") {
+      setBatchAddTags(checked);
+      if (checked) {
+        setBatchReplaceTags(false);
+      }
+      return;
+    }
+    setBatchReplaceTags(checked);
+    if (checked) {
+      setBatchAddTags(false);
+    }
+  };
+
+  const updateBatchClientMode = (mode: "add" | "replace", checked: boolean) => {
+    if (mode === "add") {
+      setBatchAddClients(checked);
+      if (checked) {
+        setBatchReplaceClients(false);
+      }
+      return;
+    }
+    setBatchReplaceClients(checked);
+    if (checked) {
+      setBatchAddClients(false);
+    }
+  };
+
+  const handleBatchSave = async () => {
+    if (selectedRuleNames.length === 0) return;
+
+    const nextTags = Array.from(
+      new Set(
+        batchTagInput
+          .split(/[\n,，]/)
+          .map((item) => item.trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (nextTags.length > 0 && !batchAddTags && !batchReplaceTags) {
+      toast.error("请选择 TAG 处理方式");
+      return;
+    }
+
+    if (batchClientIds.length > 0 && !batchAddClients && !batchReplaceClients) {
+      toast.error("请选择客户端处理方式");
+      return;
+    }
+
+    const shouldUpdateTags = nextTags.length > 0 && (batchAddTags || batchReplaceTags);
+    const shouldUpdateClients = batchClientIds.length > 0 && (batchAddClients || batchReplaceClients);
+
+    if (!shouldUpdateTags && !shouldUpdateClients) {
+      toast.error("请至少设置一项");
+      return;
+    }
+
+    setIsBatchSaving(true);
+    try {
+      const { config: latestConfig } = await getConfig();
+      const selectedSet = new Set(selectedRuleNames);
+      const updatedRules = latestConfig.rules.map((rule) => {
+        if (!selectedSet.has(rule.name) || !isGeositeRule(rule)) {
+          return rule;
+        }
+
+        const mergedTags = shouldUpdateTags
+          ? (batchReplaceTags
+            ? nextTags
+            : Array.from(new Set([...(rule.tags || []), ...nextTags])))
+          : rule.tags;
+
+        const mergedClients = shouldUpdateClients
+          ? (batchReplaceClients
+            ? batchClientIds
+            : Array.from(new Set([...rule.output.clients, ...batchClientIds])))
+          : rule.output.clients;
+
+        return {
+          ...rule,
+          tags: mergedTags,
+          output: {
+            ...rule.output,
+            clients: mergedClients,
+          },
+        };
+      });
+
+      await saveConfig({
+        ...latestConfig,
+        rules: updatedRules,
+      });
+
+      let refreshFailed = 0;
+      if (shouldUpdateClients) {
+        const results = await Promise.allSettled(selectedRuleNames.map((name) => refreshRule(name)));
+        refreshFailed = results.filter((result) => result.status === "rejected").length;
+      }
+
+      setIsBatchDialogOpen(false);
+      setSelectedRuleNames([]);
+      await fetchAll(provider);
+      onRefresh?.();
+
+      if (refreshFailed > 0) {
+        toast.warning(`已处理 ${selectedRuleNames.length} 条规则，${refreshFailed} 条刷新失败`);
+      } else {
+        toast.success(`已处理 ${selectedRuleNames.length} 条规则`);
+      }
+    } catch (error) {
+      toast.error("批量处理失败: " + String(error));
+    } finally {
+      setIsBatchSaving(false);
+    }
   };
 
   const visibleCatalog = useMemo(() => {
@@ -696,6 +869,11 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
                   <>全选</>
                 )}
               </Button>
+              {selectedRuleNames.length > 0 && (
+                <Button variant="outline" size="sm" onClick={openBatchDialog}>
+                  批量处理 ({selectedRuleNames.length})
+                </Button>
+              )}
               {selectedRuleNames.length > 0 && (
                 <Button variant="destructive" size="sm" onClick={() => setIsDeleteDialogOpen(true)}>
                   <Trash2 className="mr-1.5 h-3.5 w-3.5" />
@@ -1102,6 +1280,110 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
           </DialogContent>
         </Dialog>
       ) : null}
+
+      <Dialog open={isBatchDialogOpen} onOpenChange={setIsBatchDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              批量处理
+              <HelpIcon text="TAG 支持新增和覆盖；输出客户端支持新增和覆盖。" />
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-5">
+            <div className="space-y-3">
+              <Label htmlFor="geosite-batch-tags">TAG</Label>
+              <Input
+                id="geosite-batch-tags"
+                value={batchTagInput}
+                onChange={(event) => setBatchTagInput(event.target.value)}
+                placeholder="tag1, tag2"
+              />
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="geosite-batch-tag-add"
+                    checked={batchAddTags}
+                    onCheckedChange={(checked) => updateBatchTagMode("add", checked === true)}
+                  />
+                  <Label htmlFor="geosite-batch-tag-add">新增</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="geosite-batch-tag-replace"
+                    checked={batchReplaceTags}
+                    onCheckedChange={(checked) => updateBatchTagMode("replace", checked === true)}
+                  />
+                  <Label htmlFor="geosite-batch-tag-replace">覆盖</Label>
+                </div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <Label>输出客户端</Label>
+              <DropdownMenu modal={false}>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    className="flex min-h-11 w-full items-center justify-between gap-3 rounded-xl border border-border bg-card px-3 py-2 text-left shadow-[var(--shadow-xs)] transition-colors hover:border-primary/20"
+                  >
+                    <div className="flex flex-wrap gap-2">
+                      {batchClientIds.length > 0 ? (
+                        batchClientIds.map((selectedClientId) => (
+                          <Badge key={selectedClientId} variant="blue">
+                            {clients.find((client) => client.id === selectedClientId)?.displayName || selectedClientId}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-muted-foreground">选择客户端</span>
+                      )}
+                    </div>
+                    <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="min-w-72">
+                  {clients.map((client) => (
+                    <DropdownMenuCheckboxItem
+                      key={client.id}
+                      checked={batchClientIds.includes(client.id)}
+                      onCheckedChange={() => toggleBatchClient(client.id)}
+                      onSelect={(event) => event.preventDefault()}
+                    >
+                      {client.displayName}
+                    </DropdownMenuCheckboxItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              <div className="flex flex-wrap items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="geosite-batch-client-add"
+                    checked={batchAddClients}
+                    onCheckedChange={(checked) => updateBatchClientMode("add", checked === true)}
+                  />
+                  <Label htmlFor="geosite-batch-client-add">新增</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="geosite-batch-client-replace"
+                    checked={batchReplaceClients}
+                    onCheckedChange={(checked) => updateBatchClientMode("replace", checked === true)}
+                  />
+                  <Label htmlFor="geosite-batch-client-replace">覆盖</Label>
+                </div>
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="mt-6 gap-3">
+            <Button variant="outline" onClick={() => setIsBatchDialogOpen(false)} disabled={isBatchSaving}>
+              取消
+            </Button>
+            <Button onClick={handleBatchSave} disabled={isBatchSaving}>
+              {isBatchSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+              保存
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Batch Delete Confirmation Dialog */}
       <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
