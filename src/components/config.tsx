@@ -224,12 +224,17 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
             e.currentTarget.value = "";
           }}
         />
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+        <div className="flex items-center justify-between border-b border-border/70 bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
           <div className="flex items-center gap-3">
-            <Code className="w-5 h-5 text-primary" />
+            <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+              <Code className="w-5 h-5 text-primary/75" />
+            </div>
             <span className="font-semibold text-foreground">YAML 配置编辑器</span>
             <Badge variant="outline" className="border-muted-foreground/30 text-muted-foreground">
               只读
+            </Badge>
+            <Badge variant="outline" className="hidden font-mono text-muted-foreground sm:inline-flex">
+              {yamlContent.split("\n").length} 行
             </Badge>
           </div>
           <div className="flex items-center gap-2">
@@ -237,7 +242,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(false)}
-              className="ml-2"
+              className="ml-2 rounded-full"
             >
               <X className="w-5 h-5" />
             </Button>
@@ -388,11 +393,11 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                   <input
                     value={cronExpression}
                     onChange={(e) => setCronExpression(e.target.value)}
-                    className="w-full px-3 py-2 rounded-md border border-input bg-background/50 text-foreground text-sm font-mono focus:ring-2 focus:ring-ring"
+                    className="w-full rounded-xl border border-input bg-background/70 px-3 py-2 text-sm font-mono text-foreground outline-none transition-[border-color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/15"
                     placeholder="0 0 * * *"
                   />
                   <p className="text-xs text-muted-foreground">
-                    示例: <span className="font-mono bg-muted px-1 rounded">0 */6 * * *</span> 表示每 6 小时执行一次（UTC 时间）
+                    示例: <span className="rounded bg-surface-subtle px-1 font-mono">0 */6 * * *</span> 表示每 6 小时执行一次（UTC 时间）
                   </p>
                 </div>
               )}
@@ -405,7 +410,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
                     isScheduleUpdating ||
                     (scheduleMode === "cron" && !cronExpression.trim())
                   }
-                  className="bg-background hover:bg-muted font-medium"
+                  className="bg-background font-medium hover:bg-accent"
                 >
                   {isScheduleUpdating ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
@@ -440,12 +445,12 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           </p>
         </div>
         <div className="px-5 pb-5 space-y-4">
-          <div className="relative border border-border rounded-lg overflow-hidden">
+          <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface-elevated shadow-[var(--shadow-xs)]">
             <Button
               variant="ghost"
               size="icon"
               onClick={() => setIsFullscreen(true)}
-              className="absolute top-2 right-2 z-10 bg-background/80 hover:bg-background shadow-sm"
+              className="absolute top-2 right-2 z-10 border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
               title="全屏查看 (ESC 退出)"
             >
               <Maximize2 className="w-4 h-4" />

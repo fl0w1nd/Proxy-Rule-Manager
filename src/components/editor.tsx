@@ -658,20 +658,22 @@ export function RuleEditor({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
-      <div className="z-20 flex-none flex items-center justify-between border-b border-border/70 bg-background/92 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight">{formData.name || (rule ? rule.name : "新建规则")}</h2>
-          <p className="text-xs text-muted-foreground">配置规则详情与转换逻辑</p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Button variant="outline" onClick={onCancel} disabled={isSaving}>取消</Button>
-          <Button variant="outline" onClick={handlePreview} disabled={isSaving}>
-            <Eye className="w-4 h-4 mr-1" />
-            预览
-          </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
-            {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存规则"}
-          </Button>
+      <div className="z-20 flex-none border-b border-border/70 bg-background/92 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-semibold tracking-tight">{formData.name || (rule ? rule.name : "新建规则")}</h2>
+            <p className="text-xs text-muted-foreground">配置规则详情与转换逻辑</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 md:justify-end">
+            <Button variant="outline" onClick={onCancel} disabled={isSaving}>取消</Button>
+            <Button variant="outline" onClick={handlePreview} disabled={isSaving}>
+              <Eye className="w-4 h-4 mr-1" />
+              预览
+            </Button>
+            <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存规则"}
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -747,7 +749,7 @@ export function RuleEditor({
                     <Badge
                       key={`${tag}-${index}`}
                       variant="secondary"
-                      className="group flex items-center gap-1 pr-1 hover:bg-muted"
+                      className="group flex items-center gap-1 pr-1 hover:bg-accent"
                     >
                       {tag}
                       <button

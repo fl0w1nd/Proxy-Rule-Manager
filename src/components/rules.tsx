@@ -242,14 +242,18 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/50">
+        <div className="flex items-center justify-between border-b border-border/70 bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
           <div className="flex items-center gap-3">
             {(() => {
               const rule = config?.rules.find(r => r.name === previewingRule);
               return rule?.icon ? (
-                <RuleIcon icon={rule.icon} className="w-6 h-6 text-muted-foreground" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/75" />
+                </div>
               ) : (
-                <FileText className="w-5 h-5 text-muted-foreground" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                  <FileText className="w-5 h-5 text-primary/75" />
+                </div>
               );
             })()}
             <span className="font-semibold text-foreground">预览: {previewingRule}</span>
@@ -261,7 +265,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           </div>
           <div className="flex items-center gap-2">
             <Button
-              variant="ghost"
+              variant="secondary"
               size="sm"
               onClick={async () => {
                 const content = previewData.contents[previewClient];
@@ -279,8 +283,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               复制
             </Button>
             <Button
-              variant="ghost"
+              variant="secondary"
               size="icon"
+              className="rounded-full"
               onClick={() => setIsPreviewFullscreen(false)}
             >
               <X className="w-5 h-5" />
@@ -290,7 +295,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 数据源状态 */}
         {previewData.diagnostics.sourceResults.length > 0 && (
-          <div className="px-4 py-2 bg-muted/50 border-b border-border">
+          <div className="border-b border-border/70 bg-surface-subtle/60 px-4 py-2">
             <div className="flex flex-wrap gap-4">
               {previewData.diagnostics.sourceResults.map((source, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
@@ -312,14 +317,17 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 客户端标签 */}
         <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="px-4 py-2 border-b border-border shrink-0">
-            <TabsList className="bg-muted">
+          <div className="flex items-center justify-between border-b border-border/70 px-4 py-2.5 shrink-0">
+            <TabsList className="bg-surface-subtle shadow-[var(--shadow-xs)]">
               {Object.keys(previewData.contents).map((client) => (
                 <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
                   {getClientDisplayName(client)}
                 </TabsTrigger>
               ))}
             </TabsList>
+            <span className="text-xs font-mono text-muted-foreground">
+              {previewData.contents[previewClient]?.split("\n").length || 0} 行
+            </span>
           </div>
           {Object.entries(previewData.contents).map(([client, content]) => (
             <TabsContent key={client} value={client} className="flex-1 m-0 min-h-0 overflow-auto">
@@ -373,8 +381,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               tabIndex={0}
               aria-pressed={selectedTags.includes(tag)}
               className={`cursor-pointer transition-colors flex-shrink-0 ${selectedTags.includes(tag)
-                ? "bg-primary hover:bg-primary/90 text-primary-foreground"
-                : "hover:bg-accent"
+                ? "bg-primary text-primary-foreground hover:bg-primary/90"
+                : "bg-surface-subtle/70 hover:bg-accent"
                 }`}
               onClick={() => toggleTag(tag)}
               onKeyDown={(e) => {
@@ -631,6 +639,30 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   ))}
                 </div>
               </div>
+
+              <div className="mt-4 flex gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => handlePreviewRule(rule.name, rule.output.clients)}
+                >
+                  <Eye className="w-3.5 h-3.5" />
+                  预览
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-1"
+                  onClick={() => {
+                    setEditingRule(rule);
+                    setIsEditorOpen(true);
+                  }}
+                >
+                  <Pencil className="w-3.5 h-3.5" />
+                  编辑
+                </Button>
+              </div>
             </Card>
           );
         })}
@@ -665,13 +697,17 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       <Dialog open={!!previewingRule && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
         <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] flex flex-col p-0">
           <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-            <DialogTitle className="flex items-center gap-2">
+            <DialogTitle className="flex items-center gap-3">
               {(() => {
                 const rule = config?.rules.find(r => r.name === previewingRule);
                 return rule?.icon ? (
-                  <RuleIcon icon={rule.icon} className="w-6 h-6 text-muted-foreground" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/75" />
+                  </div>
                 ) : (
-                  <FileText className="w-5 h-5 text-muted-foreground" />
+                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                    <FileText className="w-5 h-5 text-primary/75" />
+                  </div>
                 );
               })()}
               预览: {previewingRule}
@@ -687,7 +723,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {/* Source Results */}
               {previewData.diagnostics.sourceResults.length > 0 && (
-                <div className="px-6 py-3 bg-muted/50 border-b border-border">
+                <div className="border-b border-border/70 bg-surface-subtle/60 px-6 py-3">
                   <p className="text-sm text-muted-foreground mb-2">数据源状态:</p>
                   <div className="flex flex-wrap gap-4">
                     {previewData.diagnostics.sourceResults.map((source, i) => (
@@ -710,48 +746,47 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
               {/* Content Tabs */}
               <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0">
-                <div className="px-6 py-3 border-b border-border flex items-center justify-between">
-                  <TabsList className="bg-muted">
+                <div className="flex items-center justify-between border-b border-border px-6 py-3">
+                  <TabsList className="bg-surface-subtle shadow-[var(--shadow-xs)]">
                     {Object.keys(previewData.contents).map((client) => (
                       <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
                         {getClientDisplayName(client)}
                       </TabsTrigger>
                     ))}
                   </TabsList>
-                  <span className="text-sm text-muted-foreground">
-                    {previewData.contents[previewClient]?.split('\n').length || 0} 行
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-muted-foreground">
+                      {previewData.contents[previewClient]?.split('\n').length || 0} 行
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={async () => {
+                        try {
+                          await navigator.clipboard.writeText(previewData.contents[previewClient] || "");
+                          toast.success("已复制内容");
+                        } catch {
+                          toast.error("复制失败");
+                        }
+                      }}
+                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+                      title="复制内容"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setIsPreviewFullscreen(true)}
+                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
+                      title="全屏预览 (ESC 退出)"
+                    >
+                      <Maximize2 className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
                 {Object.entries(previewData.contents).map(([client, content]) => (
                   <TabsContent key={client} value={client} className="flex-1 m-0 relative min-h-0 overflow-hidden">
-                    {/* 全屏和复制按钮 - 内容区域右上角 */}
-                    <div className="absolute top-2 right-2 z-10 flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={async () => {
-                          try {
-                            await navigator.clipboard.writeText(content);
-                            toast.success("已复制内容");
-                          } catch {
-                            toast.error("复制失败");
-                          }
-                        }}
-                        className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
-                        title="复制内容"
-                      >
-                        <Copy className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setIsPreviewFullscreen(true)}
-                        className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
-                        title="全屏预览 (ESC 退出)"
-                      >
-                        <Maximize2 className="w-4 h-4" />
-                      </Button>
-                    </div>
                     <div className="h-full overflow-auto bg-surface-subtle/60">
                       <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre min-w-max">
                         {content || "暂无内容"}

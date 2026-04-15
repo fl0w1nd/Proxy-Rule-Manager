@@ -356,7 +356,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
           {transformerList.map(([name, transformer], index) => (
             <div
               key={name}
-              className="bg-card border border-border rounded-2xl group relative overflow-hidden shadow-[var(--shadow-sm)] animate-in fade-in slide-in-from-bottom-4"
+              className="group relative overflow-hidden rounded-2xl border border-border bg-card shadow-[var(--shadow-sm)] animate-in fade-in slide-in-from-bottom-4"
               style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
             >
               <div className="px-5 pt-5 pb-3 z-10 relative">
@@ -381,12 +381,12 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                       ? new Date(transformer.updatedAt).toLocaleDateString("zh-CN")
                       : "未更新"}
                   </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 focus-within:opacity-100 transition-opacity absolute right-4 bottom-4 bg-card shadow-sm border rounded-md p-0.5">
+                  <div className="absolute right-4 bottom-4 flex gap-1 rounded-lg border border-border/60 bg-card/95 p-0.5 opacity-100 shadow-[var(--shadow-xs)] transition-opacity md:opacity-0 md:group-hover:opacity-100 md:focus-within:opacity-100">
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleEdit(name)}
-                      className="w-7 h-7 hover:bg-muted"
+                      className="w-7 h-7 hover:bg-accent"
                       title="编辑"
                     >
                       <Edit3 className="w-3.5 h-3.5" />
@@ -426,7 +426,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
           {editingTransformer && (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>转换器名称 *</Label>
                   <Input
@@ -483,7 +483,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               </div>
 
               {/* 测试区域 */}
-              <div className="border border-border rounded-lg p-4 space-y-4">
+              <div className="space-y-4 rounded-2xl border border-border/70 bg-surface-subtle/35 p-4 shadow-[var(--shadow-xs)]">
                 <div className="flex items-center justify-between">
                   <Label className="flex items-center gap-2">
                     <Play className="w-4 h-4" />
@@ -493,7 +493,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                     运行测试
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
                   <div className="space-y-2">
                     <Label className="text-sm text-muted-foreground">输入内容</Label>
                     <Textarea
@@ -506,7 +506,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                   <div className="space-y-2">
                     <Label className="text-sm text-muted-foreground">输出结果</Label>
                     {testError ? (
-                      <div className="p-3 h-32 overflow-auto rounded bg-destructive/5 border border-destructive/20 text-destructive text-sm font-mono">
+                      <div className="h-32 overflow-auto rounded-xl border border-destructive/20 bg-destructive/6 p-3 text-sm font-mono text-destructive">
                         {testError}
                       </div>
                     ) : (
@@ -514,7 +514,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
                         value={testOutput}
                         readOnly
                         placeholder="运行测试查看输出..."
-                        className="font-mono text-sm h-32 bg-muted/50"
+                        className="h-32 bg-surface-subtle/60 font-mono text-sm"
                       />
                     )}
                   </div>

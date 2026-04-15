@@ -93,7 +93,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                     onToggle ? (
                         <Button
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
+                            className="h-9 w-9 rounded-full"
                             onClick={onToggle}
                             title="展开侧栏"
                         >
@@ -122,9 +123,9 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                         {onToggle && (
                             <Button
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon"
                                 onClick={onToggle}
-                                className="ml-auto flex-shrink-0"
+                                className="ml-auto h-9 w-9 flex-shrink-0 rounded-full"
                                 title="收起侧栏"
                             >
                                 <ChevronLeft className="w-4 h-4" />
@@ -151,7 +152,7 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                             variant="ghost"
                             className={cn(
                                 "w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-all duration-200 group animate-fade-in opacity-0",
-                                isCollapsed && "justify-center",
+                                isCollapsed && "h-11 justify-center px-0",
                                 isActive
                                     ? "rounded-xl border border-primary/15 bg-primary-soft text-primary shadow-[var(--shadow-xs)]"
                                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
@@ -172,7 +173,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                         <Button
                             onClick={toggleTheme}
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
+                            className="h-9 w-9 rounded-full"
                             title={theme === "light" ? "切换到暗色模式" : "切换到亮色模式"}
                         >
                             {theme === "light" ? <Moon className="w-4 h-4" /> : <Sun className="w-4 h-4" />}
@@ -180,7 +182,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                         <Button
                             onClick={onHome}
                             variant="ghost"
-                            size="icon-sm"
+                            size="icon"
+                            className="h-9 w-9 rounded-full"
                             title="返回首页"
                         >
                             <Home className="w-4 h-4" />
@@ -189,7 +192,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                             <Button
                                 onClick={onLogout}
                                 variant="ghost"
-                                size="icon-sm"
+                                size="icon"
+                                className="h-9 w-9 rounded-full"
                                 title="退出登录"
                             >
                                 <LogOut className="w-4 h-4" />
