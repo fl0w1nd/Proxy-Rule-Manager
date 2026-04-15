@@ -42,7 +42,7 @@ const NAV_ITEMS = [
         icon: FileText,
     },
     {
-        title: "活动记录",
+        title: "活动日志",
         value: "activity",
         icon: History,
     },
@@ -62,7 +62,7 @@ const NAV_ITEMS = [
         icon: Shield,
     },
     {
-        title: "图标集",
+        title: "图标资源",
         value: "iconset",
         icon: ImageIcon,
     },

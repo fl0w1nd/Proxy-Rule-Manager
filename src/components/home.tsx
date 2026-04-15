@@ -51,12 +51,12 @@ import { AmbientBackground } from "./ambient-background";
 import { CodeViewer } from "./code-viewer";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { cn } from "@/lib/utils";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 const MAIN_TABS = [
-  { key: "rules", label: "规则" },
-  { key: "configs", label: "配置文件" },
-  { key: "icons", label: "图标集" },
+  { key: "rules", label: "规则订阅" },
+  { key: "configs", label: "客户端配置" },
+  { key: "icons", label: "图标资源" },
 ] as const;
 
 const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
@@ -472,22 +472,33 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             {/* Client Tabs */}
             {activeMainTab !== "icons" && (
               <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-surface-subtle p-1 scrollbar-hide" role="tablist" aria-label="客户端选择">
-                {clients.map((client) => (
-                  <button
-                    key={client.id}
-                    role="tab"
-                    aria-selected={activeClient === client.id}
-                    onClick={() => setActiveClient(client.id)}
-                    className={cn(
-                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
-                      activeClient === client.id
-                        ? "bg-foreground text-background shadow-[var(--shadow-xs)]"
-                        : "text-muted-foreground hover:text-foreground"
-                    )}
-                  >
-                    {client.displayName}
-                  </button>
-                ))}
+                {clients.map((client) => {
+                  const count = activeMainTab === "rules"
+                    ? rules.filter(r => r.clients.includes(client.id)).length
+                    : clientFiles.filter(f => f.clientId === client.id).length;
+                  return (
+                    <button
+                      key={client.id}
+                      role="tab"
+                      aria-selected={activeClient === client.id}
+                      onClick={() => setActiveClient(client.id)}
+                      className={cn(
+                        "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
+                        activeClient === client.id
+                          ? "bg-foreground text-background shadow-[var(--shadow-xs)]"
+                          : "text-muted-foreground hover:text-foreground"
+                      )}
+                    >
+                      {client.displayName}
+                      <span className={cn(
+                        "ml-1.5 text-xs",
+                        activeClient === client.id ? "opacity-70" : "opacity-50"
+                      )}>
+                        {count}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             )}
 
@@ -523,6 +534,30 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             )}
           </div>
 
+          {/* Result Summary Bar */}
+          {!isLoading && (
+            <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+              <span>
+                {activeMainTab === "rules" ? (
+                  <>
+                    {getClientDisplayName(activeClient)} · {clientRules.length} 条规则
+                    {(searchQuery || selectedTags.length > 0) && ` (共 ${rules.filter(r => r.clients.includes(activeClient)).length} 条)`}
+                  </>
+                ) : activeMainTab === "configs" ? (
+                  <>{getClientDisplayName(activeClient)} · {clientPublicFiles.length} 个配置</>
+                ) : (
+                  <>{filteredIcons.length} 个图标</>
+                )}
+              </span>
+              {lastSyncAt && (
+                <span className="flex items-center gap-1">
+                  <Clock className="w-3 h-3" />
+                  同步于 {formatRelativeTime(lastSyncAt)}
+                </span>
+              )}
+            </div>
+          )}
+
           {/* Content Grid */}
           {isLoading ? (
             <div className="flex items-center justify-center py-24">
@@ -547,64 +582,21 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className="group relative p-5 animate-slide-up opacity-0 hover:shadow-[var(--shadow-md)] transition-shadow duration-200"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
-                    {/* Floating action buttons */}
-                    <div className="absolute right-4 top-4 flex translate-y-1 items-center gap-1 rounded-full border border-border bg-background p-1 opacity-0 shadow-[var(--shadow-sm)] transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
-                      <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                          <button
-                            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15"
-                            onClick={() => handlePreview({
-                              type: "rule",
-                              name: rule.name,
-                              clientId: activeClient,
-                              fileName: rule.name,
-                            })}
-                          >
-                            <Eye className="w-3.5 h-3.5" />
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          查看内容
-                        </TooltipContent>
-                      </Tooltip>
-                      <Tooltip delayDuration={100}>
-                        <TooltipTrigger asChild>
-                          <button
-                            className={cn(
-                              "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
-                              copiedRule === rule.name
-                                ? "border border-success/20 bg-success-soft text-success"
-                                : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                            )}
-                            onClick={() => {
-                              void copyRuleUrl(rule.name);
-                            }}
-                          >
-                            {copiedRule === rule.name ? (
-                              <CheckCircle className="w-3.5 h-3.5" />
-                            ) : (
-                              <Copy className="w-3.5 h-3.5" />
-                            )}
-                          </button>
-                        </TooltipTrigger>
-                        <TooltipContent side="top" className="text-xs">
-                          {copiedRule === rule.name ? "已复制" : "复制 URL"}
-                        </TooltipContent>
-                      </Tooltip>
-                    </div>
-
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
                         {rule.icon ? (
                           <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
                         ) : (
                           <FileText className="w-[18px] h-[18px] text-primary" />
                         )}
                       </div>
-                      <div className="min-w-0 flex-1 pr-16">
+                      <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
                           {rule.displayName || rule.name}
                         </h3>
+                        {rule.displayName && (
+                          <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">{rule.name}</p>
+                        )}
                         {rule.description && (
                           <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
@@ -630,9 +622,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
 
                     {/* Tags */}
-                    <div className="flex flex-wrap items-center gap-1.5 mt-4">
-                      {rule.tags && rule.tags.length > 0 ? (
-                        rule.tags.slice(0, 4).map((tag) => (
+                    {rule.tags && rule.tags.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-3">
+                        {rule.tags.slice(0, 4).map((tag) => (
                           <Badge
                             key={tag}
                             variant={getTagBadgeVariant(tag)}
@@ -640,13 +632,49 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           >
                             {tag}
                           </Badge>
-                        ))
-                      ) : (
-                        <span className="text-[11px] text-muted-foreground/70">—</span>
-                      )}
-                      {rule.tags && rule.tags.length > 4 && (
-                        <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
-                      )}
+                        ))}
+                        {rule.tags.length > 4 && (
+                          <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Actions - Always Visible */}
+                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => handlePreview({
+                          type: "rule",
+                          name: rule.name,
+                          clientId: activeClient,
+                          fileName: rule.name,
+                        })}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        预览
+                      </Button>
+                      <Button
+                        variant={copiedRule === rule.name ? "success" : "default"}
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => {
+                          void copyRuleUrl(rule.name);
+                        }}
+                      >
+                        {copiedRule === rule.name ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            复制订阅
+                          </>
+                        )}
+                      </Button>
                     </div>
                   </Card>
                 ))}
@@ -780,18 +808,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           )
           }
 
-          {/* Stats */}
-          <div className="mt-12 flex justify-center">
-            <div className="rounded-full px-6 py-2 text-center text-xs font-medium text-muted-foreground">
-              {activeMainTab === "rules" ? (
-                <p>共 {clientRules.length} 条规则</p>
-              ) : activeMainTab === "configs" ? (
-                <p>共 {clientPublicFiles.length} 个配置文件</p>
-              ) : (
-                <p>共 {filteredIcons.length} 个图标</p>
-              )}
-            </div>
-          </div>
+          <div className="h-12" />
         </main>
 
         {/* Preview Dialog */}

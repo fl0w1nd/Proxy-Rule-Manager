@@ -28,3 +28,20 @@ export function formatBytes(value?: number): string {
   return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+/** 将 ISO 时间字符串格式化为相对时间（中文） */
+export function formatRelativeTime(value: string): string {
+  const now = Date.now();
+  const then = new Date(value).getTime();
+  const diff = now - then;
+  if (diff < 0) return "刚刚";
+  const seconds = Math.floor(diff / 1000);
+  if (seconds < 60) return "刚刚";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes} 分钟前`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时前`;
+  const days = Math.floor(hours / 24);
+  if (days <= 7) return `${days} 天前`;
+  return formatTimestamp(value);
+}
+
