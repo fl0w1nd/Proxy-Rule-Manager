@@ -11,13 +11,20 @@ import packageJson from "../../../package.json";
 import { countChangeRecords, countFailureRecords } from "../../lib/activity-store";
 import { checkAuth, getClientIp, verifyAdminWithRateLimit } from "../auth";
 import { jsonError } from "../errors";
+import { getGeositeOutputName, getPrimaryGeositeSource, isGeositeRule } from "../../lib/rule-classification";
 
-function countRuleFiles(config: RulesConfig): number {
+function countRuleFiles(config: RulesConfig, filter?: (rule: RulesConfig["rules"][number]) => boolean): number {
   let count = 0;
   for (const rule of config.rules) {
+    if (filter && !filter(rule)) continue;
     count += rule.output.clients.length;
   }
   return count;
+}
+
+function countRules(config: RulesConfig, filter?: (rule: RulesConfig["rules"][number]) => boolean): number {
+  if (!filter) return config.rules.length;
+  return config.rules.filter(filter).length;
 }
 
 export function registerStatusRoutes(app: Hono) {
@@ -49,28 +56,60 @@ export function registerStatusRoutes(app: Hono) {
     try {
       const config = await getConfigRaw();
       const artifactMetas = await getAllArtifactMetas();
-      const ruleFilesCount = countRuleFiles(config);
+      const ruleFilesCount = countRuleFiles(config, (r) => !isGeositeRule(r));
+      const geositeRuleFilesCount = countRuleFiles(config, isGeositeRule);
+      const rulesCount = countRules(config, (r) => !isGeositeRule(r));
+      const geositeRulesCount = countRules(config, isGeositeRule);
 
-      const rulesStatus = config.rules.map((rule) => {
-        const metas = artifactMetas.filter((m) => m.ruleName === rule.name);
-        return {
-          name: rule.name,
-          displayName: rule.displayName,
-          description: rule.description,
-          icon: rule.icon,
-          tags: rule.tags || [],
-          clients: rule.output.clients,
-          lastUpdated:
-            metas.length > 0
-              ? metas.reduce((latest, m) => {
-                return new Date(m.lastUpdatedAt) > new Date(latest)
-                  ? m.lastUpdatedAt
-                  : latest;
-              }, metas[0].lastUpdatedAt)
-              : null,
-          hasError: false,
-        };
-      });
+      const rulesStatus = config.rules
+        .filter((rule) => !isGeositeRule(rule))
+        .map((rule) => {
+          const metas = artifactMetas.filter((m) => m.ruleName === rule.name);
+          return {
+            name: rule.name,
+            displayName: rule.displayName,
+            description: rule.description,
+            icon: rule.icon,
+            tags: rule.tags || [],
+            clients: rule.output.clients,
+            lastUpdated:
+              metas.length > 0
+                ? metas.reduce((latest, m) => {
+                  return new Date(m.lastUpdatedAt) > new Date(latest)
+                    ? m.lastUpdatedAt
+                    : latest;
+                }, metas[0].lastUpdatedAt)
+                : null,
+            hasError: false,
+          };
+        });
+
+      const geositeRules = config.rules
+        .filter((rule) => isGeositeRule(rule))
+        .map((rule) => {
+          const metas = artifactMetas.filter((m) => m.ruleName === rule.name);
+          const source = getPrimaryGeositeSource(rule)!;
+          return {
+            name: source.list || rule.name,
+            displayName: rule.displayName,
+            description: rule.description,
+            icon: rule.icon,
+            tags: rule.tags || [],
+            clients: rule.output.clients,
+            provider: source.provider || "v2fly",
+            list: source.list || rule.name,
+            attrs: source.attrs || [],
+            outputName: getGeositeOutputName(source),
+            lastUpdated:
+              metas.length > 0
+                ? metas.reduce((latest, m) => {
+                  return new Date(m.lastUpdatedAt) > new Date(latest)
+                    ? m.lastUpdatedAt
+                    : latest;
+                }, metas[0].lastUpdatedAt)
+                : null,
+          };
+        });
 
       if (!isAdmin) {
         const lastSyncInfo = await getLastSyncInfo();
@@ -80,9 +119,11 @@ export function registerStatusRoutes(app: Hono) {
           displayName: c.displayName,
         }));
         return c.json({
-          rulesCount: config.rules.length,
+          rulesCount,
+          geositeRulesCount,
           lastSyncAt: lastSyncInfo.lastSuccessfulSyncAt || lastSyncInfo.lastFullSyncAt,
           rules: rulesStatus,
+          geositeRules,
           clients: publicClients,
           version: packageJson.version,
         });
@@ -101,8 +142,10 @@ export function registerStatusRoutes(app: Hono) {
       }));
 
       return c.json({
-        rulesCount: config.rules.length,
+        rulesCount,
+        geositeRulesCount,
         ruleFilesCount,
+        geositeRuleFilesCount,
         lastSync: lastSyncInfo,
         needsInit: config.rules.length === 0,
         todayStats: {
@@ -111,6 +154,7 @@ export function registerStatusRoutes(app: Hono) {
           failureRecords: todayFailureCount,
         },
         rules: rulesStatus,
+        geositeRules,
         clients: clientsList,
         version: packageJson.version,
       });

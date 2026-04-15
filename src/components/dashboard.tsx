@@ -34,6 +34,7 @@ import {
   Code2,
   Shield,
   ImageIcon,
+  Globe,
   Clock,
   ArrowUpRight,
   type LucideIcon,
@@ -61,6 +62,7 @@ import { TransformersManager } from "./transformers";
 import { ClientsManager } from "./clients";
 import { WafManager } from "./waf";
 import { IconSetManager } from "./iconset";
+import { GeositeManager } from "./geosite";
 import { toast } from "sonner";
 import {
   Dialog,
@@ -81,6 +83,7 @@ const TAB_META: Record<string, { label: string; icon: LucideIcon }> = {
   clients: { label: "客户端", icon: Monitor },
   security: { label: "安全防护", icon: Shield },
   iconset: { label: "图标资源", icon: ImageIcon },
+  geosite: { label: "Geosite", icon: Globe },
   config: { label: "系统配置", icon: Settings },
 };
 
@@ -193,9 +196,9 @@ export function Dashboard({ onBack }: DashboardProps) {
       ]);
       setStatus(data);
       setClients(clientList);
-      setNeedsInit((data.needsInit ?? false) || data.rulesCount === 0);
+      setNeedsInit((data.needsInit ?? false) || (data.rulesCount + data.geositeRulesCount) === 0);
       const hasNeverSynced = !data.lastSync?.lastFullSyncAt && !data.lastSync?.lastSuccessfulSyncAt;
-      setNeedsFirstSync(data.rulesCount > 0 && hasNeverSynced);
+      setNeedsFirstSync((data.rulesCount + data.geositeRulesCount) > 0 && hasNeverSynced);
     } catch (error) {
       console.error("Failed to fetch status:", error);
       toast.error("获取状态失败");
@@ -367,15 +370,18 @@ export function Dashboard({ onBack }: DashboardProps) {
   const changeTotalPages = Math.max(1, Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize)));
   const failureTotalPages = Math.max(1, Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize)));
 
-  // 客户端覆盖分布
+  // 客户端覆盖分布（规则和 Geosite 分开统计）
   const clientDistribution = useMemo(() => {
-    if (!status?.rules || clients.length === 0) return [];
+    if (!status || clients.length === 0) return [];
+    const normalRules = status.rules || [];
+    const geositeRulesList = status.geositeRules || [];
     return clients.map((client) => ({
       id: client.id,
       displayName: client.displayName,
-      ruleCount: status.rules.filter((r) => r.clients.includes(client.id)).length,
+      ruleCount: normalRules.filter((r) => r.clients.includes(client.id)).length,
+      geositeCount: geositeRulesList.filter((r) => r.clients.includes(client.id)).length,
     }));
-  }, [status?.rules, clients]);
+  }, [status, clients]);
 
   // 最近更新的规则（按 lastUpdated 降序，取前 6 条）
   const recentlyUpdatedRules = useMemo(() => {
@@ -449,8 +455,8 @@ export function Dashboard({ onBack }: DashboardProps) {
         </header>
 
         {/* Scrollable Content */}
-        <main className="flex-1 overflow-y-auto p-6 scroll-smooth bg-muted/5">
-          <div className="max-w-screen-2xl mx-auto space-y-6">
+        <main className={cn("flex-1 p-6 scroll-smooth bg-muted/5", activeTab === "geosite" ? "overflow-hidden" : "overflow-y-auto")}>
+          <div className={cn("max-w-screen-2xl mx-auto space-y-6", activeTab === "geosite" && "h-full")}>
             {/* Urgent Alerts */}
             {(needsInit || (needsFirstSync && !needsInit)) && (
               <div className="grid gap-4">
@@ -539,14 +545,14 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                   {/* KPI Cards */}
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日同步</p>
-                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.todayStats?.syncCount || 0}</div>
-                    <p className="text-[11px] text-muted-foreground">处理 {status?.todayStats?.totalRulesProcessed || 0} 条规则</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">规则数量</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.rulesCount || 0}</div>
+                    <p className="text-[11px] text-muted-foreground">输出文件 {status?.ruleFilesCount || 0}</p>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日变更文件</p>
-                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.todayStats?.ruleFilesChanged || 0}</div>
-                    <p className="text-[11px] text-muted-foreground">变更规则 {status?.todayStats?.rulesChanged || 0} 条</p>
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Geosite 数量</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.geositeRulesCount || 0}</div>
+                    <p className="text-[11px] text-muted-foreground">输出文件 {status?.geositeRuleFilesCount || 0}</p>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日异常</p>
@@ -561,29 +567,48 @@ export function Dashboard({ onBack }: DashboardProps) {
                 <div className="grid grid-cols-1 items-stretch lg:grid-cols-3 gap-4 lg:gap-6">
                   {/* Client Distribution + Recently Updated Rules */}
                   <div className="space-y-4 lg:space-y-6 lg:h-[640px] lg:flex lg:flex-col">
-                    {/* Client Coverage */}
+                    {/* Client Rules */}
                     <Card className="p-5">
                       <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">客户端覆盖</p>
-                        <span className="text-xs text-muted-foreground font-mono">
-                          规则 {status?.rulesCount || 0} / 文件 {status?.ruleFilesCount || 0}
-                        </span>
+                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">客户端规则</p>
+                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
+                          <span>普通 {status?.rulesCount || 0}</span>
+                          <span className="text-border">|</span>
+                          <span>Geosite {status?.geositeRulesCount || 0}</span>
+                        </div>
                       </div>
                       <div className="space-y-3">
                         {clientDistribution.map((client) => {
-                          const total = status?.rulesCount || 1;
-                          const pct = Math.round((client.ruleCount / total) * 100);
+                          const normalTotal = Math.max(status?.rulesCount || 0, 1);
+                          const geositeTotal = Math.max(status?.geositeRulesCount || 0, 1);
+                          const rulePct = Math.round((client.ruleCount / normalTotal) * 100);
+                          const geositePct = Math.round((client.geositeCount / geositeTotal) * 100);
                           return (
                             <div key={client.id}>
                               <div className="flex items-center justify-between mb-1.5">
                                 <span className="text-sm font-medium">{client.displayName}</span>
-                                <span className="text-xs text-muted-foreground font-mono">{client.ruleCount} 条</span>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
+                                  <span>{client.ruleCount} 普通</span>
+                                  <span>{client.geositeCount} Geosite</span>
+                                </div>
                               </div>
-                              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                <div
-                                  className="h-full rounded-full bg-primary transition-all duration-500"
-                                  style={{ width: `${pct}%` }}
-                                />
+                              <div className="space-y-1">
+                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-primary transition-all duration-500"
+                                    style={{ width: `${rulePct}%` }}
+                                  />
+                                </div>
+                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                                  <div
+                                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
+                                    style={{ width: `${geositePct}%` }}
+                                  />
+                                </div>
+                                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
+                                  <span>普通 {client.ruleCount}/{status?.rulesCount || 0}</span>
+                                  <span>Geosite {client.geositeCount}/{status?.geositeRulesCount || 0}</span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -690,6 +715,7 @@ export function Dashboard({ onBack }: DashboardProps) {
             {activeTab === 'clients' && <ClientsManager />}
             {activeTab === 'security' && <WafManager />}
             {activeTab === 'iconset' && <IconSetManager />}
+            {activeTab === 'geosite' && <GeositeManager onRefresh={fetchStatus} />}
             {activeTab === 'config' && <ConfigEditor onSave={fetchStatus} />}
 
             {/* Activity Full View */}

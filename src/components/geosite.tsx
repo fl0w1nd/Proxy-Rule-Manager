@@ -1,0 +1,1132 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  CheckCircle2,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Eye,
+  Globe,
+  Loader2,
+  Pencil,
+  Plus,
+  RefreshCw,
+  Trash2,
+  Square,
+  CheckSquare,
+  MinusSquare,
+} from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SearchInput } from "@/components/ui/search-input";
+import { EmptyState } from "@/components/ui/empty-state";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { cn, formatTimestamp } from "@/lib/utils";
+import {
+  getClients,
+  getConfig,
+  getGeositeCatalog,
+  getGeositeProviders,
+  importSelectedGeositeRules,
+  lookupGeositeDomain,
+  previewGeosite,
+  previewRule,
+  refreshGeositeProvider,
+  deleteRule,
+  executeFullSync,
+  type ClientConfig,
+  type GeositeCatalogItem,
+  type GeositeProviderStatus,
+} from "@/lib/api-client";
+import type { ClientType, GeositeProvider, RuleConfig, RulesConfig } from "@/lib/schema";
+import { RuleEditor } from "./editor";
+import { toast } from "sonner";
+import { getPrimaryGeositeSource, isGeositeRule } from "@/lib/rule-classification";
+
+const PROVIDERS: Array<{ id: GeositeProvider; label: string }> = [
+  { id: "v2fly", label: "v2fly" },
+  { id: "loyalsoldier", label: "Loyalsoldier" },
+];
+
+interface GeositeManagerProps {
+  onRefresh?: () => void;
+}
+
+interface CatalogGroup {
+  id: string;
+  label: string;
+  items: GeositeCatalogItem[];
+}
+
+interface RuleGroup {
+  id: string;
+  label: string;
+  rules: RuleConfig[];
+}
+
+interface PreviewState {
+  title: string;
+  clientLabel: string;
+  content: string;
+  lineCount: number;
+}
+
+interface SelectedImportItem {
+  list: string;
+  attrs?: string[];
+}
+
+function buildNameGroups<T>(items: T[], getName: (item: T) => string): Array<{ id: string; label: string; items: T[] }> {
+  const prefixCounts = new Map<string, number>();
+  for (const item of items) {
+    const name = getName(item).toLowerCase();
+    const [prefix, second] = name.split("-");
+    if (prefix && second && prefix.length >= 3) {
+      prefixCounts.set(prefix, (prefixCounts.get(prefix) || 0) + 1);
+    }
+  }
+
+  const groupedPrefixes = new Set(
+    Array.from(prefixCounts.entries())
+      .filter(([, count]) => count >= 2)
+      .map(([prefix]) => prefix)
+  );
+
+  const groups = new Map<string, T[]>();
+  for (const item of items) {
+    const lower = getName(item).toLowerCase();
+    let key = "";
+    if (lower.startsWith("geolocation-")) {
+      key = "geolocation";
+    } else if (lower.startsWith("category-")) {
+      key = "category";
+    } else {
+      const [prefix] = lower.split("-");
+      if (prefix && groupedPrefixes.has(prefix)) {
+        key = prefix;
+      } else {
+        const initial = lower.charAt(0).toUpperCase();
+        key = /^[A-Z]$/.test(initial) ? initial : "#";
+      }
+    }
+    const bucket = groups.get(key) || [];
+    bucket.push(item);
+    groups.set(key, bucket);
+  }
+
+  const order = (value: string) => {
+    if (value === "geolocation") return 0;
+    if (value === "category") return 1;
+    if (/^[A-Z#]$/.test(value)) return 3;
+    return 2;
+  };
+
+  return Array.from(groups.entries())
+    .sort((a, b) => {
+      const diff = order(a[0]) - order(b[0]);
+      if (diff !== 0) return diff;
+      return a[0].localeCompare(b[0]);
+    })
+    .map(([label, groupItems]) => ({
+      id: label,
+      label,
+      items: groupItems.sort((a, b) => getName(a).localeCompare(getName(b))),
+    }));
+}
+
+function buildCatalogGroups(items: GeositeCatalogItem[]): CatalogGroup[] {
+  return buildNameGroups(items, (item) => item.name);
+}
+
+export function GeositeManager({ onRefresh }: GeositeManagerProps) {
+  const [providers, setProviders] = useState<GeositeProviderStatus[]>([]);
+  const [provider, setProvider] = useState<GeositeProvider>("v2fly");
+  const [clientId, setClientId] = useState("");
+  const [clients, setClients] = useState<ClientConfig[]>([]);
+  const [catalog, setCatalog] = useState<GeositeCatalogItem[]>([]);
+  const [config, setConfig] = useState<RulesConfig | null>(null);
+  const [resolvedVersion, setResolvedVersion] = useState("");
+  const [fetchedAt, setFetchedAt] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [rulesSearch, setRulesSearch] = useState("");
+  const [editingRule, setEditingRule] = useState<RuleConfig | null>(null);
+  const [previewState, setPreviewState] = useState<PreviewState | null>(null);
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [listSearch, setListSearch] = useState("");
+  const [domainQuery, setDomainQuery] = useState("");
+  const [domainMatches, setDomainMatches] = useState<string[]>([]);
+  const [isLookupLoading, setIsLookupLoading] = useState(false);
+  const [selectedImportNames, setSelectedImportNames] = useState<string[]>([]);
+  const [selectedImportAttrs, setSelectedImportAttrs] = useState<Record<string, string[]>>({});
+  const [focusedListName, setFocusedListName] = useState("");
+  const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [expandedRuleGroups, setExpandedRuleGroups] = useState<string[]>([]);
+  const [selectedRuleNames, setSelectedRuleNames] = useState<string[]>([]);
+  const [isBatchDeleting, setIsBatchDeleting] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+
+  const fetchAll = useCallback(async (selectedProvider: GeositeProvider = provider) => {
+    try {
+      const [{ providers: providerList }, { clients: clientList }, { config: latestConfig }] = await Promise.all([
+        getGeositeProviders(),
+        getClients(),
+        getConfig(),
+      ]);
+
+      setProviders(providerList);
+      setClients(clientList);
+      setConfig(latestConfig);
+      if (clientList.length > 0) {
+        setClientId((current) => current || clientList[0].id);
+      }
+
+      const activeProvider = providerList.find((item) => item.provider === selectedProvider);
+      if (activeProvider?.ready) {
+        const catalogResult = await getGeositeCatalog(selectedProvider);
+        setCatalog(catalogResult.catalog);
+        setResolvedVersion(catalogResult.resolvedVersion);
+        setFetchedAt(catalogResult.fetchedAt);
+      } else {
+        setCatalog([]);
+        setResolvedVersion("");
+        setFetchedAt("");
+      }
+    } catch (error) {
+      toast.error("加载 Geosite 失败: " + String(error));
+    } finally {
+      setIsLoading(false);
+    }
+  }, [provider]);
+
+  useEffect(() => {
+    void fetchAll();
+  }, [fetchAll]);
+
+  useEffect(() => {
+    if (!isLoading) {
+      void fetchAll(provider);
+    }
+  }, [fetchAll, isLoading, provider]);
+
+  const providerStatus = useMemo(
+    () => providers.find((item) => item.provider === provider) || null,
+    [provider, providers]
+  );
+
+  const importedCount = useMemo(() => catalog.filter((item) => item.imported).length, [catalog]);
+
+  const managedRules = useMemo(() => {
+    const query = rulesSearch.trim().toLowerCase();
+    return (config?.rules || [])
+      .filter((rule) => {
+        if (!isGeositeRule(rule)) return false;
+        const source = getPrimaryGeositeSource(rule);
+        if (!source || source.provider !== provider) return false;
+        if (clientId && !rule.output.clients.includes(clientId)) return false;
+        if (query.length === 0) return true;
+        return [rule.name, rule.displayName || "", source.list || ""].some((value) =>
+          value.toLowerCase().includes(query)
+        );
+      })
+      .sort((a, b) => {
+        const aName = getPrimaryGeositeSource(a)?.list || a.displayName || a.name;
+        const bName = getPrimaryGeositeSource(b)?.list || b.displayName || b.name;
+        return aName.localeCompare(bName);
+      });
+  }, [clientId, config?.rules, provider, rulesSearch]);
+
+  const importedRuleGroups = useMemo((): RuleGroup[] => {
+    if (managedRules.length === 0) return [];
+    const getRuleListName = (rule: RuleConfig) => {
+      const source = getPrimaryGeositeSource(rule);
+      return source?.list || rule.displayName || rule.name;
+    };
+    return buildNameGroups(managedRules, getRuleListName).map((g) => ({
+      ...g,
+      rules: g.items as RuleConfig[],
+    }));
+  }, [managedRules]);
+
+  useEffect(() => {
+    setExpandedRuleGroups((current) => {
+      const valid = current.filter((id) => importedRuleGroups.some((g) => g.id === id));
+      if (valid.length > 0) return valid;
+      return importedRuleGroups.slice(0, 8).map((g) => g.id);
+    });
+  }, [importedRuleGroups]);
+
+  // Clear selection when managed rules change
+  useEffect(() => {
+    setSelectedRuleNames((current) => current.filter((name) => managedRules.some((r) => r.name === name)));
+  }, [managedRules]);
+
+  const toggleRuleSelection = (name: string) => {
+    setSelectedRuleNames((current) =>
+      current.includes(name) ? current.filter((n) => n !== name) : [...current, name]
+    );
+  };
+
+  const toggleRuleGroupSelection = (group: RuleGroup) => {
+    const groupNames = group.rules.map((r) => r.name);
+    const everySelected = groupNames.every((name) => selectedRuleNames.includes(name));
+    if (everySelected) {
+      setSelectedRuleNames((current) => current.filter((name) => !groupNames.includes(name)));
+    } else {
+      setSelectedRuleNames((current) => Array.from(new Set([...current, ...groupNames])));
+    }
+  };
+
+  const selectAllRules = () => {
+    const allNames = managedRules.map((r) => r.name);
+    const allSelected = allNames.length > 0 && allNames.every((name) => selectedRuleNames.includes(name));
+    setSelectedRuleNames(allSelected ? [] : allNames);
+  };
+
+  const getGroupSelectionState = (group: RuleGroup): "all" | "some" | "none" => {
+    const groupNames = group.rules.map((r) => r.name);
+    const selectedInGroup = groupNames.filter((name) => selectedRuleNames.includes(name)).length;
+    if (selectedInGroup === 0) return "none";
+    if (selectedInGroup === groupNames.length) return "all";
+    return "some";
+  };
+
+  const handleBatchDelete = async () => {
+    if (selectedRuleNames.length === 0) return;
+    setIsBatchDeleting(true);
+    let succeeded = 0;
+    let failed = 0;
+    for (const name of selectedRuleNames) {
+      try {
+        await deleteRule(name);
+        succeeded++;
+      } catch {
+        failed++;
+      }
+    }
+    if (failed > 0) {
+      toast.warning(`已删除 ${succeeded} 条，${failed} 条失败`);
+    } else {
+      toast.success(`已删除 ${succeeded} 条规则`);
+    }
+    setSelectedRuleNames([]);
+    setIsDeleteDialogOpen(false);
+    await fetchAll(provider);
+    onRefresh?.();
+    setIsBatchDeleting(false);
+  };
+
+  const visibleCatalog = useMemo(() => {
+    const query = listSearch.trim().toLowerCase();
+    const matchSet = domainQuery.trim() ? new Set(domainMatches) : null;
+    return catalog.filter((item) => {
+      const matchesSearch = query.length === 0 || item.name.toLowerCase().includes(query);
+      const matchesDomain = !matchSet || matchSet.has(item.name);
+      return matchesSearch && matchesDomain;
+    });
+  }, [catalog, domainMatches, domainQuery, listSearch]);
+
+  const catalogGroups = useMemo(() => buildCatalogGroups(visibleCatalog), [visibleCatalog]);
+
+  useEffect(() => {
+    setExpandedGroups((current) => {
+      const valid = current.filter((id) => catalogGroups.some((group) => group.id === id));
+      if (valid.length > 0) return valid;
+      return catalogGroups.slice(0, 8).map((group) => group.id);
+    });
+  }, [catalogGroups]);
+
+  useEffect(() => {
+    if (!isImportDialogOpen) return;
+
+    const trimmed = domainQuery.trim();
+    if (!trimmed) {
+      setDomainMatches([]);
+      setIsLookupLoading(false);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setIsLookupLoading(true);
+      void lookupGeositeDomain(provider, trimmed)
+        .then(({ matches }) => {
+          setDomainMatches(matches);
+          if (matches[0]) {
+            setFocusedListName(matches[0]);
+          }
+        })
+        .catch((error) => {
+          toast.error("域名查询失败: " + String(error));
+          setDomainMatches([]);
+        })
+        .finally(() => {
+          setIsLookupLoading(false);
+        });
+    }, 250);
+
+    return () => window.clearTimeout(timer);
+  }, [domainQuery, isImportDialogOpen, provider]);
+
+  useEffect(() => {
+    if (!isImportDialogOpen) return;
+    if (visibleCatalog.some((item) => item.name === focusedListName)) return;
+    setFocusedListName(visibleCatalog[0]?.name || "");
+  }, [focusedListName, isImportDialogOpen, visibleCatalog]);
+
+  const getSelectedAttrs = (name: string) => selectedImportAttrs[name] || [];
+  const isSelected = (name: string) => selectedImportNames.includes(name);
+
+  const toggleListSelection = (name: string) => {
+    setSelectedImportNames((current) => {
+      if (current.includes(name)) {
+        return current.filter((item) => item !== name);
+      }
+      return [...current, name];
+    });
+    const item = catalog.find((catalogItem) => catalogItem.name === name);
+    setSelectedImportAttrs((current) => ({
+      ...current,
+      [name]: item?.attrs || [],
+    }));
+    setFocusedListName(name);
+  };
+
+  const toggleAttrSelection = (name: string, attr: string) => {
+    setSelectedImportAttrs((current) => {
+      const nextAttrs = current[name]?.includes(attr)
+        ? current[name].filter((item) => item !== attr)
+        : [...(current[name] || []), attr];
+      const normalized = Array.from(new Set(nextAttrs)).sort();
+      return { ...current, [name]: normalized };
+    });
+  };
+
+  const toggleGroupSelection = (group: CatalogGroup) => {
+    setSelectedImportNames((current) => {
+      const groupNames = group.items.map((item) => item.name);
+      const everySelected = groupNames.every((name) => current.includes(name));
+      if (everySelected) {
+        return current.filter((name) => !groupNames.includes(name));
+      }
+      return Array.from(new Set([...current, ...groupNames]));
+    });
+    setSelectedImportAttrs((current) => {
+      const next = { ...current };
+      for (const item of group.items) {
+        next[item.name] = item.attrs;
+      }
+      return next;
+    });
+    if (group.items[0]) {
+      setFocusedListName(group.items[0].name);
+    }
+  };
+
+  const isGroupFullySelected = (group: CatalogGroup) => group.items.every((item) => selectedImportNames.includes(item.name));
+  const groupSelectedCount = (group: CatalogGroup) => group.items.filter((item) => selectedImportNames.includes(item.name)).length;
+
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroups((current) =>
+      current.includes(groupId) ? current.filter((item) => item !== groupId) : [...current, groupId]
+    );
+  };
+
+  const handleRefreshProvider = async () => {
+    setIsRefreshing(true);
+    try {
+      const result = await refreshGeositeProvider(provider);
+      toast.success(`已刷新 ${provider} 上游缓存，共 ${result.catalogCount} 个列表`);
+      await fetchAll(provider);
+    } catch (error) {
+      toast.error("刷新失败: " + String(error));
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
+
+  const handleUpdateImported = async () => {
+    setIsUpdating(true);
+    try {
+      const result = await refreshGeositeProvider(provider);
+      await fetchAll(provider);
+      const syncResult = await executeFullSync();
+      if (syncResult.success) {
+        toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，同步变更 ${syncResult.changedRules.length} 条规则`);
+      } else {
+        toast.warning(`${provider} 缓存已刷新，但同步有 ${syncResult.failedRules.length} 条失败`);
+      }
+      await fetchAll(provider);
+      onRefresh?.();
+    } catch (error) {
+      toast.error("更新失败: " + String(error));
+    } finally {
+      setIsUpdating(false);
+    }
+  };
+
+  const handleImportSelection = async () => {
+    if (!clientId) {
+      toast.error("请选择客户端");
+      return;
+    }
+    if (selectedImportNames.length === 0) {
+      toast.error("请选择要导入的列表");
+      return;
+    }
+
+    setIsImporting(true);
+    try {
+      const selectedItems: SelectedImportItem[] = selectedImportNames.flatMap((list) => {
+        const attrs = getSelectedAttrs(list);
+        const items: SelectedImportItem[] = [{ list }];
+        for (const attr of attrs) {
+          items.push({ list, attrs: [attr] });
+        }
+        return items;
+      });
+      const result = await importSelectedGeositeRules(provider, clientId, selectedItems);
+      toast.success(`新增 ${result.created}，更新 ${result.updated}`);
+      setIsImportDialogOpen(false);
+      await fetchAll(provider);
+      onRefresh?.();
+    } catch (error) {
+      toast.error("导入失败: " + String(error));
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  const openImportDialog = () => {
+    setSelectedImportNames([]);
+    setSelectedImportAttrs({});
+    setFocusedListName("");
+    setListSearch("");
+    setDomainQuery("");
+    setDomainMatches([]);
+    setIsImportDialogOpen(true);
+  };
+
+  const handleOpenRulePreview = async (rule: RuleConfig) => {
+    setIsPreviewLoading(true);
+    setPreviewState({
+      title: rule.displayName || rule.name,
+      clientLabel: clients.find((item) => item.id === clientId)?.displayName || clientId,
+      content: "",
+      lineCount: 0,
+    });
+
+    try {
+      const result = await previewRule(rule.name);
+      const availableClients = Object.keys(result.contents);
+      const targetClient = availableClients.includes(clientId) ? clientId : availableClients[0];
+      const content = targetClient ? result.contents[targetClient as ClientType] || "" : "";
+      setPreviewState({
+        title: rule.displayName || rule.name,
+        clientLabel: clients.find((item) => item.id === targetClient)?.displayName || targetClient || "无客户端",
+        content,
+        lineCount: content ? content.split("\n").length : 0,
+      });
+    } catch (error) {
+      toast.error("预览失败: " + String(error));
+      setPreviewState(null);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleOpenCatalogPreview = async (listName: string) => {
+    if (!clientId) {
+      toast.error("请选择客户端");
+      return;
+    }
+
+    setIsPreviewLoading(true);
+    setPreviewState({
+      title: `${provider}/${listName}`,
+      clientLabel: clients.find((item) => item.id === clientId)?.displayName || clientId,
+      content: "",
+      lineCount: 0,
+    });
+
+    try {
+      const result = await previewGeosite(provider, listName, clientId);
+      setPreviewState({
+        title: `${provider}/${listName}`,
+        clientLabel: clients.find((item) => item.id === clientId)?.displayName || clientId,
+        content: result.content,
+        lineCount: result.content ? result.content.split("\n").length : 0,
+      });
+    } catch (error) {
+      toast.error("预览失败: " + String(error));
+      setPreviewState(null);
+    } finally {
+      setIsPreviewLoading(false);
+    }
+  };
+
+  const handleCopyUrl = async (rule: RuleConfig) => {
+    if (!clientId || !rule.output.clients.includes(clientId)) {
+      toast.error("当前客户端没有这条规则");
+      return;
+    }
+
+    const source = getPrimaryGeositeSource(rule);
+    if (!source?.list) {
+      toast.error("规则缺少来源");
+      return;
+    }
+
+    const outputName = source.attrs && source.attrs.length > 0
+      ? `${source.list}@${Array.from(new Set(source.attrs.map((item) => item.trim().toLowerCase()).filter(Boolean))).sort().join("+")}`
+      : source.list;
+    const url = `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.list`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("已复制 URL");
+    } catch {
+      toast.error("复制失败");
+    }
+  };
+
+  const selectedCount = selectedImportNames.length;
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full min-h-0 items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col gap-6 overflow-hidden">
+      <Card className="shrink-0 border border-border/70">
+        <CardContent className="flex flex-col gap-4 px-5 py-5">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex flex-wrap gap-2">
+              {PROVIDERS.map((item) => (
+                <Button
+                  key={item.id}
+                  variant={provider === item.id ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setProvider(item.id)}
+                >
+                  {item.label}
+                </Button>
+              ))}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Select value={clientId} onValueChange={setClientId}>
+                <SelectTrigger className="w-[220px]">
+                  <SelectValue placeholder="选择客户端" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clients.map((client) => (
+                    <SelectItem key={client.id} value={client.id}>
+                      {client.displayName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={handleUpdateImported} disabled={isUpdating}>
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                立即更新
+              </Button>
+              <Button variant="success" onClick={openImportDialog} disabled={catalog.length === 0}>
+                <Plus className="mr-2 h-4 w-4" />
+                导入
+              </Button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Badge variant="outline">
+              <Globe className="mr-1 h-3 w-3" />
+              {provider}
+            </Badge>
+            <Badge variant="secondary">{catalog.length} 列表</Badge>
+            <Badge variant="secondary">{importedCount} 已导入</Badge>
+            <Badge variant="secondary">{resolvedVersion || "未缓存"}</Badge>
+            <Badge variant="secondary">{fetchedAt ? formatTimestamp(fetchedAt) : "未刷新"}</Badge>
+            {providerStatus?.ready ? <Badge variant="emerald">可用</Badge> : <Badge variant="outline">待刷新</Badge>}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="flex min-h-0 flex-1 flex-col border border-border/70">
+        <CardHeader className="shrink-0 gap-3 pb-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <CardTitle>已导入规则</CardTitle>
+            <div className="flex w-full max-w-md items-center gap-2">
+              <SearchInput
+                placeholder="搜索已导入规则..."
+                value={rulesSearch}
+                onChange={(event) => setRulesSearch(event.target.value)}
+                fullWidth
+              />
+            </div>
+          </div>
+          {managedRules.length > 0 && (
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <Button variant="outline" size="sm" onClick={selectAllRules}>
+                {managedRules.length > 0 && managedRules.every((r) => selectedRuleNames.includes(r.name)) ? (
+                  <>取消全选</>
+                ) : (
+                  <>全选</>
+                )}
+              </Button>
+              {selectedRuleNames.length > 0 && (
+                <Button variant="destructive" size="sm" onClick={() => setIsDeleteDialogOpen(true)}>
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  删除 ({selectedRuleNames.length})
+                </Button>
+              )}
+              <Badge variant="secondary">{managedRules.length} 条</Badge>
+              {selectedRuleNames.length > 0 && (
+                <Badge variant="blue">已选 {selectedRuleNames.length}</Badge>
+              )}
+            </div>
+          )}
+        </CardHeader>
+        <CardContent className="min-h-0 flex-1 pt-0">
+          {managedRules.length === 0 ? (
+            <div className="flex h-full items-center justify-center">
+              <EmptyState icon={Plus} title="当前 Provider 还没有规则" action={<Button onClick={openImportDialog}><Plus className="mr-2 h-4 w-4" />导入</Button>} />
+            </div>
+          ) : (
+            <ScrollArea className="h-full pr-2">
+              <div className="space-y-3 pb-4">
+                {importedRuleGroups.map((group) => {
+                  const expanded = expandedRuleGroups.includes(group.id);
+                  const selState = getGroupSelectionState(group);
+                  const selectedInGroup = group.rules.filter((r) => selectedRuleNames.includes(r.name)).length;
+                  return (
+                    <div
+                      key={group.id}
+                      className={cn(
+                        "group rounded-2xl border border-border/70 transition-colors",
+                        selState === "all" && "border-success/30 bg-success/5",
+                        selState === "some" && "border-primary/20 bg-primary/3"
+                      )}
+                    >
+                      <div className="flex items-center justify-between gap-3 px-4 py-3">
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setExpandedRuleGroups((current) =>
+                              current.includes(group.id)
+                                ? current.filter((id) => id !== group.id)
+                                : [...current, group.id]
+                            )
+                          }
+                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                        >
+                          {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                          <span className="truncate text-sm font-semibold text-foreground">{group.label}</span>
+                          <Badge variant="secondary">{group.rules.length}</Badge>
+                          {selectedInGroup > 0 && <Badge variant="emerald">{selectedInGroup}</Badge>}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => toggleRuleGroupSelection(group)}
+                          className={cn(
+                            "shrink-0 transition-colors p-1",
+                            selState === "none" ? "opacity-0 group-hover:opacity-100" : "opacity-100"
+                          )}
+                          title={selState === "all" ? "取消选择分组" : "选择分组"}
+                        >
+                          {selState === "all" ? <CheckSquare className="h-4 w-4 text-success" /> : selState === "some" ? <MinusSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+                        </button>
+                      </div>
+
+                      {expanded && (
+                        <div className="border-t border-border/70 px-4 py-3 space-y-3">
+                          {group.rules.map((rule) => {
+                            const source = getPrimaryGeositeSource(rule);
+                            const listName = rule.displayName || source?.list || rule.name;
+                            const attrLabel = source?.attrs?.length ? source.attrs.join(", ") : "";
+                            const selected = selectedRuleNames.includes(rule.name);
+                            return (
+                              <div
+                                key={rule.name}
+                                className={cn(
+                                  "group/grid-item grid gap-3 rounded-2xl border px-4 py-4 transition-colors lg:grid-cols-[28px_minmax(0,1fr)_220px_260px]",
+                                  selected ? "border-success/30 bg-success/5" : "border-border/70"
+                                )}
+                              >
+                                <div className="flex items-center justify-center pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => toggleRuleSelection(rule.name)}
+                                    className={cn(
+                                      "transition-opacity",
+                                      selected ? "opacity-100" : "opacity-0 group-hover/grid-item:opacity-100"
+                                    )}
+                                  >
+                                    {selected
+                                      ? <CheckSquare className="h-4 w-4 text-success" />
+                                      : <Square className="h-4 w-4 text-muted-foreground" />
+                                    }
+                                  </button>
+                                </div>
+                                <div className="min-w-0">
+                                  <div className="truncate text-base font-semibold text-foreground">{listName}</div>
+                                  <div className="mt-1 truncate text-xs text-muted-foreground">{rule.name}</div>
+                                  {attrLabel ? <div className="mt-1 truncate text-xs text-muted-foreground">attrs: {attrLabel}</div> : null}
+                                </div>
+
+                                <div className="flex flex-wrap content-start gap-2">
+                                  {rule.output.clients.map((client) => (
+                                    <Badge key={`${rule.name}-${client}`} variant={client === clientId ? "blue" : "secondary"}>
+                                      {clients.find((item) => item.id === client)?.displayName || client}
+                                    </Badge>
+                                  ))}
+                                </div>
+
+                                <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
+                                  <Button variant="outline" size="sm" onClick={() => handleOpenRulePreview(rule)}>
+                                    <Eye className="mr-1 h-3.5 w-3.5" />
+                                    预览
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => handleCopyUrl(rule)}>
+                                    <Copy className="mr-1 h-3.5 w-3.5" />
+                                    URL
+                                  </Button>
+                                  <Button variant="outline" size="sm" onClick={() => setEditingRule(rule)}>
+                                    <Pencil className="mr-1 h-3.5 w-3.5" />
+                                    编辑
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          )}
+        </CardContent>
+      </Card>
+
+      <Dialog open={isImportDialogOpen} onOpenChange={setIsImportDialogOpen}>
+        <DialogContent className="flex h-[86vh] max-w-7xl flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0 border-b border-border px-6 py-5 pr-12">
+            <div className="flex items-center gap-3">
+              <DialogTitle>导入</DialogTitle>
+              <Button variant="outline" size="sm" onClick={handleRefreshProvider} disabled={isRefreshing}>
+                {isRefreshing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                刷新
+              </Button>
+            </div>
+          </DialogHeader>
+
+          <div className="shrink-0 border-b border-border px-6 py-4">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+              <Badge variant="outline">
+                <Globe className="mr-1 h-3 w-3" />
+                {provider}
+              </Badge>
+              <Badge variant="secondary">
+                {clients.find((client) => client.id === clientId)?.displayName || clientId || "未选择客户端"}
+              </Badge>
+            </div>
+          </div>
+
+          <div className="grid min-h-0 flex-1 gap-6 px-6 py-6 xl:grid-cols-[420px_minmax(0,1fr)]">
+            <Card className="flex min-h-0 flex-col border border-border/70">
+              <CardHeader className="shrink-0 pb-4">
+                <CardTitle>域名查询</CardTitle>
+              </CardHeader>
+              <CardContent className="flex min-h-0 flex-1 flex-col gap-4">
+                <SearchInput
+                  placeholder="输入域名，例如 steampowered.com.8686c.com"
+                  value={domainQuery}
+                  onChange={(event) => setDomainQuery(event.target.value)}
+                  fullWidth
+                />
+
+                <div className="min-h-0 flex-1 overflow-hidden rounded-2xl border border-border/70">
+                  <ScrollArea className="h-full">
+                    <div className="p-4">
+                      {isLookupLoading ? (
+                        <div className="flex items-center justify-center py-12">
+                          <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                        </div>
+                      ) : domainQuery.trim().length === 0 ? (
+                        <div className="py-4 text-sm text-muted-foreground">输入域名进行查询</div>
+                      ) : domainMatches.length === 0 ? (
+                        <div className="py-4 text-sm text-muted-foreground">没有匹配结果</div>
+                      ) : (
+                        <div className="space-y-2">
+                          {domainMatches.map((name) => (
+                            <button
+                              key={name}
+                              type="button"
+                              onClick={() => setFocusedListName(name)}
+                              className={cn(
+                                "flex w-full items-center justify-between rounded-xl px-3 py-2 text-left transition-colors",
+                                focusedListName === name ? "bg-primary/8" : "hover:bg-accent"
+                              )}
+                            >
+                              <span className="truncate text-sm font-medium text-foreground">{name}</span>
+                              <span className="text-xs text-muted-foreground">匹配</span>
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="flex min-h-0 flex-col border border-border/70">
+              <CardHeader className="shrink-0 gap-4 pb-4">
+                <div className="flex items-center gap-3">
+                  <SearchInput
+                    placeholder="搜索分组名称..."
+                    value={listSearch}
+                    onChange={(event) => setListSearch(event.target.value)}
+                    fullWidth
+                  />
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="shrink-0"
+                      onClick={() => {
+                        const allNames = visibleCatalog.map((item) => item.name);
+                        const allSelected = allNames.length > 0 && allNames.every((name) => selectedImportNames.includes(name));
+                        setSelectedImportNames(allSelected ? [] : allNames);
+                        setSelectedImportAttrs((current) => {
+                          const next = { ...current };
+                          for (const item of visibleCatalog) {
+                            next[item.name] = item.attrs;
+                          }
+                          return next;
+                        });
+                      }}
+                    >
+                      {visibleCatalog.length > 0 && visibleCatalog.every((item) => selectedImportNames.includes(item.name)) ? "取消全选" : "全选"}
+                    </Button>
+                </div>
+              </CardHeader>
+              <CardContent className="min-h-0 flex-1 pt-0">
+                <ScrollArea className="h-full pr-2">
+                  <div className="space-y-3 pb-4">
+                    {catalogGroups.map((group) => {
+                      const expanded = expandedGroups.includes(group.id);
+                      const fullySelected = isGroupFullySelected(group);
+                      const selectedInGroup = groupSelectedCount(group);
+                      return (
+                        <div
+                          key={group.id}
+                          className={cn(
+                            "rounded-2xl border border-border/70 transition-colors",
+                            fullySelected && "border-success/30 bg-success/5"
+                          )}
+                        >
+                          <div className="flex items-center justify-between gap-3 px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => toggleGroupExpanded(group.id)}
+                              className="flex min-w-0 flex-1 items-center gap-2 text-left"
+                            >
+                              {expanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
+                              <span className="truncate text-sm font-semibold text-foreground">{group.label}</span>
+                              <Badge variant="secondary">{group.items.length}</Badge>
+                              {selectedInGroup > 0 ? <Badge variant="emerald">{selectedInGroup}</Badge> : null}
+                            </button>
+                            <Button variant="ghost" size="sm" className="shrink-0" onClick={() => toggleGroupSelection(group)}>
+                              {fullySelected ? "取消分组" : "选中分组"}
+                            </Button>
+                          </div>
+
+                          {expanded ? (
+                            <div className="border-t border-border/70 px-2 py-2">
+                              {group.items.map((item) => {
+                                const selected = isSelected(item.name);
+                                const focused = focusedListName === item.name;
+                                return (
+                                  <div
+                                    key={item.name}
+                                    className={cn(
+                                      "group flex items-center gap-3 rounded-xl px-3 py-2 transition-colors",
+                                      selected && "bg-success/10",
+                                      !selected && focused && "bg-primary/8",
+                                      !selected && !focused && "hover:bg-accent",
+                                      item.imported && !selected && "text-success"
+                                    )}
+                                  >
+                                    <button
+                                      type="button"
+                                      onClick={() => toggleListSelection(item.name)}
+                                      className="min-w-0 flex-1 text-left"
+                                    >
+                                      <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                          <div className="truncate text-sm font-medium">{item.name}</div>
+                                          {getSelectedAttrs(item.name).length > 0 ? (
+                                            <div className="mt-2 text-[11px] text-primary">
+                                              将导入基础规则 + {getSelectedAttrs(item.name).length} 个属性规则
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                        <Badge variant="secondary" className="shrink-0 text-[10px]">{item.entryCount}</Badge>
+                                      </div>
+                                      <div className="mt-2 flex flex-wrap gap-1">
+                                        {item.attrs.slice(0, 6).map((attr) => (
+                                          <button
+                                            key={`${item.name}-${attr}`}
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation();
+                                              toggleAttrSelection(item.name, attr);
+                                            }}
+                                            className="inline-flex"
+                                          >
+                                            <Badge
+                                              variant={getSelectedAttrs(item.name).includes(attr) ? "blue" : "outline"}
+                                              className="text-[10px]"
+                                            >
+                                              @{attr}
+                                            </Badge>
+                                          </button>
+                                        ))}
+                                        {item.attrs.length > 6 ? (
+                                          <Badge variant="outline" className="text-[10px]">+{item.attrs.length - 6}</Badge>
+                                        ) : null}
+                                      </div>
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                      {item.imported ? <CheckCircle2 className="h-4 w-4 text-success" /> : null}
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-7 px-2 opacity-0 transition-opacity group-hover:opacity-100"
+                                        onClick={() => handleOpenCatalogPreview(item.name)}
+                                        disabled={!clientId}
+                                      >
+                                        <Eye className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter className="shrink-0 border-t border-border px-6 py-4">
+            <Button variant="outline" onClick={() => setIsImportDialogOpen(false)}>
+              关闭
+            </Button>
+            <Button variant="success" onClick={handleImportSelection} disabled={isImporting || selectedCount === 0 || !clientId}>
+              {isImporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
+              导入
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!previewState} onOpenChange={(open) => !open && setPreviewState(null)}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle className="flex flex-wrap items-center gap-2">
+              <span>{previewState?.title}</span>
+              <Badge variant="secondary">{previewState?.clientLabel}</Badge>
+              <Badge variant="outline">{previewState?.lineCount || 0} 行</Badge>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="rounded-2xl border border-border/70 bg-surface-subtle">
+            <ScrollArea className="h-[70vh]">
+              <div className="p-4">
+                {isPreviewLoading ? (
+                  <div className="flex items-center justify-center py-16">
+                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                  </div>
+                ) : (
+                  <pre className="whitespace-pre-wrap break-all text-sm leading-6 text-foreground">
+                    {previewState?.content || ""}
+                  </pre>
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {editingRule && config ? (
+        <Dialog open={!!editingRule} onOpenChange={(open) => !open && setEditingRule(null)}>
+          <DialogContent className="max-h-[92vh] max-w-6xl overflow-auto p-0">
+            <RuleEditor
+              rule={editingRule}
+              config={config}
+              onSave={async () => {
+                setEditingRule(null);
+                await fetchAll(provider);
+                onRefresh?.();
+              }}
+              onCancel={() => setEditingRule(null)}
+            />
+          </DialogContent>
+        </Dialog>
+      ) : null}
+
+      {/* Batch Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Trash2 className="h-5 w-5 text-destructive" />
+              确认批量删除
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            确定要删除 <strong className="text-foreground">{selectedRuleNames.length}</strong> 条 Geosite 规则吗？
+          </p>
+          <p className="text-xs text-destructive">此操作将同时删除所有客户端的规则文件，且无法恢复。</p>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isBatchDeleting}>
+              取消
+            </Button>
+            <Button variant="destructive" onClick={handleBatchDelete} disabled={isBatchDeleting}>
+              {isBatchDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

@@ -23,6 +23,7 @@ import {
   updateSyncSchedule,
 } from "@/lib/api-client";
 import { RulesConfig } from "@/lib/schema";
+import { isGeositeRule } from "@/lib/rule-classification";
 import { toast } from "sonner";
 import { LazyMonacoEditor } from "./lazy-monaco";
 import YAML from "yaml";
@@ -307,14 +308,18 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
           e.currentTarget.value = "";
         }}
       />
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         <Card className="p-5 flex flex-col justify-center gap-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">配置版本</p>
           <div className="text-3xl font-mono font-bold tracking-tight text-foreground">v{config?.version || 1}</div>
         </Card>
         <Card className="p-5 flex flex-col justify-center gap-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">规则数量</p>
-          <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.length || 0}</div>
+          <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.filter((r) => !isGeositeRule(r)).length || 0}</div>
+        </Card>
+        <Card className="p-5 flex flex-col justify-center gap-1">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Geosite 数量</p>
+          <div className="text-3xl font-mono font-bold tracking-tight text-primary">{config?.rules?.filter((r) => isGeositeRule(r)).length || 0}</div>
         </Card>
         <Card className="p-5 flex flex-col justify-center gap-1">
           <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">预定义转换器</p>

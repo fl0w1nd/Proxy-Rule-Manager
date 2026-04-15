@@ -46,8 +46,14 @@ export function updateClientMappings(clients: ClientConfig[]): void {
   }
 }
 
+export const GeositeProviderSchema = z.enum(["v2fly", "loyalsoldier"]);
+export type GeositeProvider = z.infer<typeof GeositeProviderSchema>;
+
+export const GeositeRenderProfileSchema = z.enum(["mihomo-classical"]);
+export type GeositeRenderProfile = z.infer<typeof GeositeRenderProfileSchema>;
+
 // 数据来源类型
-export const SourceTypeSchema = z.enum(["url", "ref", "local"]);
+export const SourceTypeSchema = z.enum(["url", "ref", "local", "geosite"]);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 
 // 统一的数据来源配置
@@ -61,6 +67,11 @@ export const SourceConfigSchema = z.object({
   content: z.string().optional(),
   // 本地内容引用（外部文件）
   contentRef: z.string().optional(),
+  // Geosite 来源
+  provider: GeositeProviderSchema.optional(),
+  list: z.string().optional(),
+  attrs: z.array(z.string()).optional(),
+  renderProfile: GeositeRenderProfileSchema.optional(),
   // 来源名称/备注
   name: z.string().optional(),
 });

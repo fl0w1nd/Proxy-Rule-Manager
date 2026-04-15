@@ -2,6 +2,7 @@ import { RuleConfig, ClientType, TransformersConfig, ClientConfig } from "../sch
 import { applyNewTransforms, mergeContents } from "../transformer";
 import { fetchSource } from "./fetcher";
 import { readLocalSourceContent } from "../local-source-store";
+import { renderGeositeSource } from "../geosite";
 
 interface RuleProcessResult {
   ruleName: string;
@@ -43,6 +44,13 @@ export async function processRule(
           if (content !== null) {
             staticContents.set(i, content);
           }
+        }
+      } else if (sourceType === "geosite") {
+        try {
+          const content = await renderGeositeSource(source);
+          staticContents.set(i, content);
+        } catch (error) {
+          result.errors.push(`Geosite ${source.provider || "unknown"}/${source.list || "unknown"}: ${String(error)}`);
         }
       }
     }

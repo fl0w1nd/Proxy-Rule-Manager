@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +42,7 @@ import {
   Eye,
   X,
   Tag,
+  Globe,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -53,13 +54,14 @@ import {
   MergeStrategy,
   ScriptTransformer,
 } from "@/lib/schema";
-import { saveConfig, getConfig, renameRule, previewRule, refreshRule, PreviewResponse, getClients, ClientConfig } from "@/lib/api-client";
+import { saveConfig, getConfig, renameRule, previewRule, refreshRule, PreviewResponse, getClients, ClientConfig, getGeositeCatalog, type GeositeCatalogItem } from "@/lib/api-client";
 import { LocalContentDialog } from "./editor-local-content";
 import { PreviewDialog } from "./editor-preview";
 import { createTransformByType } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
 import { toast } from "sonner";
 import { IconPicker } from "@/components/icon-picker";
+import { isGeositeRule } from "@/lib/rule-classification";
 
 import { useTheme } from "./theme-provider";
 
@@ -74,10 +76,11 @@ interface RuleEditorProps {
 const HELP_TEXTS = {
   ruleName: "规则的唯一标识符，用于生成文件路径。例如：YouTube 会生成 /Rules/clash_meta/YouTube.list",
   description: "对规则的简短描述，方便管理和查找",
-  sources: "添加数据来源，支持三种类型：URL（远程规则）、引用（已有规则）、本地（自定义内容）",
+  sources: "添加数据来源，支持四种类型：URL（远程规则）、引用（已有规则）、本地（自定义内容）、Geosite（上游地理站点规则）",
   sourceUrl: "从远程 URL 获取规则内容",
   sourceRef: "引用项目中已存在的其他规则",
   sourceLocal: "直接编写本地规则内容",
+  sourceGeosite: "选择 geosite provider 与列表，系统会渲染成目标客户端规则",
   transforms: "对来源数据进行处理，可指定处理特定来源或全部",
   transformTarget: "选择要处理的数据来源，可以是特定来源或全部",
   merge: "多个数据来源的合并方式",
@@ -93,6 +96,7 @@ const SOURCE_TYPE_ICONS = {
   url: Link2,
   ref: FolderInput,
   local: FileText,
+  geosite: Globe,
 };
 
 // 规范化规则数据
@@ -103,7 +107,7 @@ function migrateRule(rule: RuleConfig): RuleConfig {
   if (newRule.sources) {
     newRule.sources = newRule.sources.map((s) => ({
       ...s,
-      type: s.type || (s.url ? "url" : s.ref ? "ref" : "local"),
+      type: s.type || (s.provider && s.list ? "geosite" : s.url ? "url" : s.ref ? "ref" : "local"),
     }));
   }
 
@@ -186,6 +190,7 @@ export function RuleEditor({
   onCancel,
 }: RuleEditorProps) {
   const initialFormData = rule ? migrateRule(rule) : createDefaultRule();
+  const isLockedGeositeRule = !!rule && isGeositeRule(initialFormData);
   const [formData, setFormData] = useState<RuleConfig>(initialFormData);
   const [sourceKeys, setSourceKeys] = useState<string[]>(() =>
     createListItemKeys(initialFormData.sources?.length ?? 0)
@@ -218,6 +223,7 @@ export function RuleEditor({
   // 动态客户端列表
   const [clientsList, setClientsList] = useState<ClientConfig[]>([]);
   const clientsListRef = useRef<ClientConfig[]>([]);
+  const [geositeCatalogs, setGeositeCatalogs] = useState<Record<string, GeositeCatalogItem[]>>({});
 
   const fetchLatestClients = async (): Promise<ClientConfig[]> => {
     try {
@@ -255,6 +261,32 @@ export function RuleEditor({
       });
   }, [rule]);
 
+  const ensureGeositeCatalog = useCallback(async (provider: "v2fly" | "loyalsoldier") => {
+    if (geositeCatalogs[provider]) {
+      return geositeCatalogs[provider];
+    }
+    const result = await getGeositeCatalog(provider);
+    setGeositeCatalogs((prev) => ({
+      ...prev,
+      [provider]: result.catalog,
+    }));
+    return result.catalog;
+  }, [geositeCatalogs]);
+
+  useEffect(() => {
+    const geositeProviders = Array.from(
+      new Set(
+        (formData.sources || [])
+          .filter((source) => source.type === "geosite")
+          .map((source) => source.provider || "v2fly")
+      )
+    ) as Array<"v2fly" | "loyalsoldier">;
+
+    for (const provider of geositeProviders) {
+      void ensureGeositeCatalog(provider);
+    }
+  }, [ensureGeositeCatalog, formData.sources]);
+
 
 
   const toggleSection = (section: string) => {
@@ -283,7 +315,7 @@ export function RuleEditor({
     setIsSaving(true);
     try {
       const oldName = rule?.name;
-      const newName = formData.name.trim();
+      const newName = isLockedGeositeRule ? (oldName || formData.name.trim()) : formData.name.trim();
       const nameChanged = oldName && oldName !== newName;
 
       const latestClients = await fetchLatestClients();
@@ -310,7 +342,8 @@ export function RuleEditor({
         sources: formData.sources?.filter((s) =>
           (s.type === "url" && s.url) ||
           (s.type === "ref" && s.ref) ||
-          (s.type === "local" && s.content)
+          (s.type === "local" && s.content) ||
+          (s.type === "geosite" && s.provider && s.list)
         ),
       };
 
@@ -321,6 +354,24 @@ export function RuleEditor({
         }
         if (cleanedData.output.clients.length === 0) {
           toast.error("客户端列表已变更，请重新选择输出客户端");
+          setIsSaving(false);
+          return;
+        }
+      }
+
+      const geositeSources = (formData.sources || []).filter((source) => source.type === "geosite");
+      for (const source of geositeSources) {
+        const provider = (source.provider || "v2fly") as "v2fly" | "loyalsoldier";
+        const catalog = await ensureGeositeCatalog(provider);
+        const item = catalog.find((entry) => entry.name === (source.list || "").trim());
+        if (!item) {
+          toast.error(`Geosite 列表不存在: ${provider}/${source.list || ""}`);
+          setIsSaving(false);
+          return;
+        }
+        const invalidAttrs = (source.attrs || []).filter((attr) => !item.attrs.includes(attr));
+        if (invalidAttrs.length > 0) {
+          toast.error(`Geosite 属性不存在: ${provider}/${item.name} -> ${invalidAttrs.join(", ")}`);
           setIsSaving(false);
           return;
         }
@@ -407,6 +458,12 @@ export function RuleEditor({
     if (type === "url") newSource.url = "";
     if (type === "ref") newSource.ref = "";
     if (type === "local") newSource.content = "";
+    if (type === "geosite") {
+      newSource.provider = "v2fly";
+      newSource.list = "";
+      newSource.attrs = [];
+      newSource.renderProfile = "mihomo-classical";
+    }
 
     setFormData((prev) => ({
       ...prev,
@@ -629,6 +686,11 @@ export function RuleEditor({
   const availableRules = config?.rules.filter((r) => r.name !== formData.name) || [];
   const transformers = config?.transformers || {};
 
+  const getGeositeCatalogItem = (source: SourceConfig) => {
+    const provider = source.provider || "v2fly";
+    return (geositeCatalogs[provider] || []).find((item) => item.name === (source.list || "").trim());
+  };
+
   // 标签处理逻辑
   const handleAddTag = () => {
     const newTag = tagInput.trim();
@@ -699,8 +761,11 @@ export function RuleEditor({
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                     placeholder="例如: YouTube"
                     className="font-mono"
+                    disabled={isLockedGeositeRule}
                   />
-                  <p className="text-[10px] text-muted-foreground">修改后将同时重命名规则文件</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    {isLockedGeositeRule ? "Geosite 规则 ID 由系统管理" : "修改后将同时重命名规则文件"}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">显示名称（可选）</Label>
@@ -809,6 +874,11 @@ export function RuleEditor({
           />
           {expandedSections.has("sources") && (
             <div className="p-4 space-y-3">
+              {isLockedGeositeRule ? (
+                <p className="text-xs text-muted-foreground">
+                  Geosite 规则的数据来源由系统管理，规则 ID 与来源保持一一对应。
+                </p>
+              ) : null}
               {/* 来源列表 */}
               {formData.sources?.map((source, index) => {
                 const Icon = SOURCE_TYPE_ICONS[source.type || "url"];
@@ -829,6 +899,7 @@ export function RuleEditor({
                           onChange={(e) => updateSource(index, { url: e.target.value })}
                           placeholder="https://example.com/rules.list"
                           className="flex-1 h-8 text-sm"
+                          disabled={isLockedGeositeRule}
                         />
                       )}
 
@@ -836,6 +907,7 @@ export function RuleEditor({
                         <Select
                           value={source.ref || ""}
                           onValueChange={(value) => updateSource(index, { ref: value })}
+                          disabled={isLockedGeositeRule}
                         >
                           <SelectTrigger className="flex-1 min-w-0 h-8">
                             <SelectValue placeholder="选择引用规则" className="truncate" />
@@ -863,10 +935,80 @@ export function RuleEditor({
                             onClick={() => {
                               setEditingLocalContent(index);
                             }}
+                            disabled={isLockedGeositeRule}
                           >
                             <Edit3 className="w-3 h-3 mr-1" />
                             编辑
                           </Button>
+                        </div>
+                      )}
+
+                      {source.type === "geosite" && (
+                        <div className="flex-1 grid gap-2 md:grid-cols-[140px_minmax(0,1fr)]">
+                          <Select
+                            value={source.provider || "v2fly"}
+                            onValueChange={(value) => {
+                              updateSource(index, {
+                                provider: value as "v2fly" | "loyalsoldier",
+                                list: "",
+                                attrs: [],
+                              });
+                              void ensureGeositeCatalog(value as "v2fly" | "loyalsoldier");
+                            }}
+                            disabled={isLockedGeositeRule}
+                          >
+                            <SelectTrigger className="h-8">
+                              <SelectValue placeholder="Provider" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="v2fly">v2fly</SelectItem>
+                              <SelectItem value="loyalsoldier">Loyalsoldier</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <div className="space-y-2">
+                            <Input
+                              value={source.list || ""}
+                              onChange={(e) => updateSource(index, { list: e.target.value, attrs: [] })}
+                              placeholder="搜索 geosite 列表，例如 google"
+                              className="h-8 text-sm"
+                              list={`geosite-list-${index}`}
+                              disabled={isLockedGeositeRule}
+                            />
+                            <datalist id={`geosite-list-${index}`}>
+                              {(geositeCatalogs[source.provider || "v2fly"] || []).map((item) => (
+                                <option key={`${source.provider || "v2fly"}-${item.name}`} value={item.name} />
+                              ))}
+                            </datalist>
+                            {source.list && !getGeositeCatalogItem(source) ? (
+                              <p className="text-[10px] text-destructive">该 geosite 列表不存在</p>
+                            ) : null}
+                            {getGeositeCatalogItem(source)?.attrs?.length ? (
+                              <div className="flex flex-wrap gap-1">
+                                {getGeositeCatalogItem(source)!.attrs.map((attr) => {
+                                  const selected = (source.attrs || []).includes(attr);
+                                  return (
+                                    <button
+                                      key={`${source.provider || "v2fly"}-${source.list}-${attr}`}
+                                      type="button"
+                                      onClick={() => updateSource(index, {
+                                        attrs: selected
+                                          ? (source.attrs || []).filter((item) => item !== attr)
+                                          : [...(source.attrs || []), attr].sort(),
+                                      })}
+                                      className="inline-flex"
+                                      disabled={isLockedGeositeRule}
+                                    >
+                                      <Badge variant={selected ? "blue" : "outline"} className="text-[10px]">
+                                        @{attr}
+                                      </Badge>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : source.list ? (
+                              <p className="text-[10px] text-muted-foreground">该列表没有可选 attrs</p>
+                            ) : null}
+                          </div>
                         </div>
                       )}
                     </div>
@@ -876,6 +1018,7 @@ export function RuleEditor({
                       size="icon"
                       onClick={() => removeSource(index)}
                       className="shrink-0 h-8 w-8 text-muted-foreground hover:text-destructive"
+                      disabled={isLockedGeositeRule}
                     >
                       <Trash2 className="w-4 h-4" />
                     </Button>
@@ -891,6 +1034,7 @@ export function RuleEditor({
                   size="sm"
                   onClick={() => addSource("url")}
                   className="bg-background hover:bg-accent"
+                  disabled={isLockedGeositeRule}
                 >
                   <Link2 className="w-3 h-3 mr-1" />
                   URL 来源
@@ -901,6 +1045,7 @@ export function RuleEditor({
                   size="sm"
                   onClick={() => addSource("ref")}
                   className="bg-background hover:bg-accent"
+                  disabled={isLockedGeositeRule}
                 >
                   <FolderInput className="w-3 h-3 mr-1" />
                   引用规则
@@ -911,9 +1056,21 @@ export function RuleEditor({
                   size="sm"
                   onClick={() => addSource("local")}
                   className="bg-background hover:bg-accent"
+                  disabled={isLockedGeositeRule}
                 >
                   <FileText className="w-3 h-3 mr-1" />
                   本地内容
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => addSource("geosite")}
+                  className="bg-background hover:bg-accent"
+                  disabled={isLockedGeositeRule}
+                >
+                  <Globe className="w-3 h-3 mr-1" />
+                  Geosite
                 </Button>
               </div>
             </div>

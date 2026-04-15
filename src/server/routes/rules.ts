@@ -2,9 +2,11 @@ import type { Hono } from "hono";
 import {
   deleteArtifactMeta,
   deleteRuleContent,
+  deleteGeositeRuleContent,
   getArtifactMeta,
   getConfig,
   getRuleContent,
+  getGeositeRuleContent,
   saveConfig,
   renameRule,
 } from "../../lib/storage-adapter";
@@ -13,6 +15,7 @@ import { recordRuleFileChanges, type ChangeRecordInput } from "../../lib/activit
 import { createLineDiff } from "../../lib/diff";
 import { randomUUID } from "node:crypto";
 import { jsonError } from "../errors";
+import { isGeositeRule, getGeositeOutputName, getPrimaryGeositeSource } from "../../lib/rule-classification";
 
 export function registerRuleRoutes(app: Hono) {
   app.delete("/api/rules/:ruleName", async (c) => {
@@ -48,11 +51,20 @@ export function registerRuleRoutes(app: Hono) {
       const changeRecords: ChangeRecordInput[] = [];
 
       for (const client of clients) {
-        const [previousContent, meta] = await Promise.all([
-          getRuleContent(ruleName, client),
-          getArtifactMeta(ruleName, client),
-        ]);
-        await deleteRuleContent(ruleName, client);
+        const isGeosite = isGeositeRule(rule);
+        const geositeSource = isGeosite ? getPrimaryGeositeSource(rule) : undefined;
+        const geositeOutputName = geositeSource ? getGeositeOutputName(geositeSource) : undefined;
+
+        const previousContent = isGeosite && geositeSource
+          ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
+          : await getRuleContent(ruleName, client);
+        const meta = await getArtifactMeta(ruleName, client);
+
+        if (isGeosite && geositeSource) {
+          await deleteGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!);
+        } else {
+          await deleteRuleContent(ruleName, client);
+        }
         await deleteArtifactMeta(ruleName, client);
 
         if (previousContent || meta) {
@@ -99,6 +111,15 @@ export function registerRuleRoutes(app: Hono) {
       const oldName = decodeURIComponent(c.req.param("ruleName"));
       const body = await c.req.json();
       const { newName } = body;
+
+      const config = await getConfig();
+      const existingRule = config.rules.find((rule) => rule.name === oldName);
+      if (!existingRule) {
+        return c.json({ error: "Rule not found" }, 404);
+      }
+      if (isGeositeRule(existingRule)) {
+        return c.json({ error: `Rule "${oldName}" is system-managed and cannot be renamed` }, 400);
+      }
 
       if (!newName || typeof newName !== "string") {
         return c.json({ error: "newName is required" }, 400);

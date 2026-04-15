@@ -29,6 +29,7 @@ import { registerActivityRoutes } from "./routes/activity";
 import { registerWafRoutes } from "./routes/waf";
 import { registerCdnSettingsRoutes } from "./routes/cdn-settings";
 import { registerIconSetRoutes } from "./routes/iconset";
+import { registerGeositeRoutes } from "./routes/geosite";
 
 const app = new Hono();
 
@@ -63,6 +64,7 @@ registerPreviewRoutes(app);
 registerInitRoutes(app);
 registerWafRoutes(app);
 registerCdnSettingsRoutes(app);
+registerGeositeRoutes(app);
 
 // --- IconSet Routes (before client files to avoid /:clientId/:file conflict) ---
 registerIconSetRoutes(app);

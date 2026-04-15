@@ -11,11 +11,17 @@ vi.mock("@/lib/local-source-store", () => ({
     readLocalSourceContent: vi.fn(),
 }));
 
+vi.mock("@/lib/geosite", () => ({
+    renderGeositeSource: vi.fn(),
+}));
+
 import { fetchSource } from "@/lib/sync-engine/fetcher";
 import { readLocalSourceContent } from "@/lib/local-source-store";
+import { renderGeositeSource } from "@/lib/geosite";
 
 const mockedFetchSource = vi.mocked(fetchSource);
 const mockedReadLocal = vi.mocked(readLocalSourceContent);
+const mockedRenderGeositeSource = vi.mocked(renderGeositeSource);
 
 function createRule(overrides: Partial<RuleConfig> = {}): RuleConfig {
     return {
@@ -94,6 +100,17 @@ describe("processRule", () => {
             });
             const result = await processRule(rule, {}, new Map());
             expect(result.errors.some((e) => e.includes("No sources fetched"))).toBe(true);
+        });
+    });
+
+    describe("geosite sources", () => {
+        it("renders geosite source content", async () => {
+            mockedRenderGeositeSource.mockResolvedValueOnce("DOMAIN-SUFFIX,google.com");
+            const rule = createRule({
+                sources: [{ type: "geosite", provider: "v2fly", list: "google", renderProfile: "mihomo-classical", attrs: [] }],
+            });
+            const result = await processRule(rule, {}, new Map());
+            expect(result.contents.get("clash_meta")).toBe("DOMAIN-SUFFIX,google.com");
         });
     });
 

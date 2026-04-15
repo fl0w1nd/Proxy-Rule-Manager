@@ -12,7 +12,8 @@ import {
     Settings,
     Shield,
     Home,
-    Image as ImageIcon
+    Image as ImageIcon,
+    Globe
 } from "lucide-react";
 import NextImage from "next/image";
 import { cn } from "@/lib/utils";
@@ -65,6 +66,11 @@ const NAV_ITEMS = [
         title: "图标资源",
         value: "iconset",
         icon: ImageIcon,
+    },
+    {
+        title: "Geosite",
+        value: "geosite",
+        icon: Globe,
     },
     {
         title: "系统配置",

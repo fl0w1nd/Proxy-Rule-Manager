@@ -44,6 +44,7 @@ import {
   IconMeta,
   ClientConfig,
   PublicRuleInfo,
+  PublicGeositeInfo,
   getPublicStatus,
   getPublicClientFiles,
 } from "@/lib/api-client";
@@ -55,6 +56,7 @@ import { cn, formatRelativeTime } from "@/lib/utils";
 
 const MAIN_TABS = [
   { key: "rules", label: "规则订阅" },
+  { key: "geosite", label: "Geosite" },
   { key: "configs", label: "客户端配置" },
   { key: "icons", label: "图标资源" },
 ] as const;
@@ -64,22 +66,24 @@ const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
   const { mode, toggleMode } = useTheme();
   const [rules, setRules] = useState<PublicRuleInfo[]>([]);
+  const [geositeRules, setGeositeRules] = useState<PublicGeositeInfo[]>([]);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
   const [version, setVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeMainTab, setActiveMainTab] = useState<"rules" | "configs" | "icons">("rules");
+  const [activeMainTab, setActiveMainTab] = useState<"rules" | "geosite" | "configs" | "icons">("rules");
   const [icons, setIcons] = useState<IconMeta[]>([]);
   const [copiedIcon, setCopiedIcon] = useState<string | null>(null);
   const [activeClient, setActiveClient] = useState<string>("");
   const [previewItem, setPreviewItem] = useState<{
-    type: "rule" | "config";
+    type: "rule" | "geosite" | "config";
     name: string;
     clientId: string;
     fileName: string;
     ext?: string;
+    provider?: string;
   } | null>(null);
   const [previewContent, setPreviewContent] = useState<string>("");
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -88,11 +92,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [selectedGeositeProvider, setSelectedGeositeProvider] = useState<string>("all");
   const [isScrolled, setIsScrolled] = useState(false);
 
-  // 切换主标签时清空已选标签
+  // 切换主标签时清空已选标签和来源
   useEffect(() => {
     setSelectedTags([]);
+    setSelectedGeositeProvider("all");
   }, [activeMainTab]);
 
   useEffect(() => {
@@ -141,6 +147,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
       ]);
 
       setRules(statusResult.rules || []);
+      setGeositeRules(statusResult.geositeRules || []);
       setLastSyncAt(statusResult.lastSyncAt || null);
       setVersion(statusResult.version || "");
       if (statusResult.clients && statusResult.clients.length > 0) {
@@ -165,6 +172,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/${encodeURIComponent(ruleName)}.list`;
   };
 
+  const getGeositeUrl = (provider: string, outputName: string, clientId: string) => {
+    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.list`;
+  };
+
   const getConfigUrl = (clientId: string, name: string, ext: string) => {
     return `${window.location.origin}/client/${encodeURIComponent(clientId)}/${encodeURIComponent(name)}.${encodeURIComponent(ext)}`;
   };
@@ -174,6 +185,15 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     const url = getRuleUrl(ruleName, target);
     await copyToClipboard(url, () => {
       setCopiedRule(ruleName);
+      setTimeout(() => setCopiedRule(null), 2000);
+    });
+  };
+
+  const copyGeositeUrl = async (provider: string, outputName: string, clientId?: string) => {
+    const target = clientId || activeClient;
+    const url = getGeositeUrl(provider, outputName, target);
+    await copyToClipboard(url, () => {
+      setCopiedRule(`${provider}/${outputName}`);
       setTimeout(() => setCopiedRule(null), 2000);
     });
   };
@@ -196,11 +216,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   };
 
   const handlePreview = async (item: {
-    type: "rule" | "config";
+    type: "rule" | "geosite" | "config";
     name: string;
     clientId: string;
     fileName: string;
     ext?: string;
+    provider?: string;
   }) => {
     setPreviewItem(item);
     setPreviewLoading(true);
@@ -209,6 +230,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     try {
       const response = item.type === "rule"
         ? await fetch(getRuleUrl(item.name, item.clientId))
+        : item.type === "geosite"
+          ? await fetch(getGeositeUrl(item.provider || "", item.name, item.clientId))
         : await fetch(getConfigUrl(item.clientId, item.name, item.ext || ""));
       if (response.ok) {
         const text = await response.text();
@@ -255,6 +278,24 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const clientRules = filteredRules.filter((rule) =>
     rule.clients.includes(activeClient)
   );
+
+  const geositeProviders = useMemo(() => {
+    const providers = Array.from(new Set(geositeRules.map((r) => r.provider))).sort();
+    return providers;
+  }, [geositeRules]);
+
+  const filteredGeositeRules = useMemo(() => {
+    return geositeRules.filter((rule) => {
+      const matchesSearch =
+        rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.description?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.attrs.join(" ").toLowerCase().includes(searchQuery.toLowerCase()) ||
+        rule.provider.toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesProvider = selectedGeositeProvider === "all" || rule.provider === selectedGeositeProvider;
+      return matchesSearch && matchesProvider && rule.clients.includes(activeClient);
+    });
+  }, [geositeRules, searchQuery, activeClient, selectedGeositeProvider]);
 
   const filteredClientFiles = clientFiles.filter((file) => {
     const query = searchQuery.toLowerCase();
@@ -462,8 +503,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               </div>
 
               <SearchInput
-                aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                placeholder={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "geosite" ? "搜索 Geosite" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                placeholder={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "geosite" ? "搜索 Geosite" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
@@ -475,6 +516,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {clients.map((client) => {
                   const count = activeMainTab === "rules"
                     ? rules.filter(r => r.clients.includes(client.id)).length
+                    : activeMainTab === "geosite"
+                      ? geositeRules.filter(r => r.clients.includes(client.id)).length
                     : clientFiles.filter(f => f.clientId === client.id).length;
                   return (
                     <button
@@ -532,6 +575,40 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 )}
               </div>
             )}
+
+            {/* Geosite Provider Filter */}
+            {activeMainTab === "geosite" && geositeProviders.length > 1 && (
+              <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                <div className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="img" aria-label="来源筛选">
+                  <Globe className="w-3.5 h-3.5" aria-hidden="true" />
+                </div>
+                <button
+                  onClick={() => setSelectedGeositeProvider("all")}
+                  className={cn(
+                    "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
+                    selectedGeositeProvider === "all"
+                      ? "border-primary/30 bg-primary-soft text-primary"
+                      : "border-border bg-surface-subtle text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  全部
+                </button>
+                {geositeProviders.map((provider) => (
+                  <button
+                    key={provider}
+                    onClick={() => setSelectedGeositeProvider(provider)}
+                    className={cn(
+                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
+                      selectedGeositeProvider === provider
+                        ? "border-primary/30 bg-primary-soft text-primary"
+                        : "border-border bg-surface-subtle text-muted-foreground hover:text-foreground"
+                    )}
+                  >
+                    {provider}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Result Summary Bar */}
@@ -543,6 +620,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     {getClientDisplayName(activeClient)} · {clientRules.length} 条规则
                     {(searchQuery || selectedTags.length > 0) && ` (共 ${rules.filter(r => r.clients.includes(activeClient)).length} 条)`}
                   </>
+                ) : activeMainTab === "geosite" ? (
+                  <>{getClientDisplayName(activeClient)} · {filteredGeositeRules.length} 条 Geosite</>
                 ) : activeMainTab === "configs" ? (
                   <>{getClientDisplayName(activeClient)} · {clientPublicFiles.length} 个配置</>
                 ) : (
@@ -664,6 +743,89 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         }}
                       >
                         {copiedRule === rule.name ? (
+                          <>
+                            <CheckCircle className="w-3.5 h-3.5" />
+                            已复制
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="w-3.5 h-3.5" />
+                            复制订阅
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )
+          ) : activeMainTab === "geosite" ? (
+            filteredGeositeRules.length === 0 ? (
+              <EmptyState
+                icon={Globe}
+                title={searchQuery ? "未找到匹配的 Geosite" : "暂无 Geosite"}
+                description={searchQuery ? "尝试使用其他关键词搜索" : "该客户端暂无可用 Geosite 规则"}
+                className="py-24"
+              />
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {filteredGeositeRules.map((rule, index) => (
+                  <Card
+                    key={`${rule.provider}-${rule.outputName}`}
+                    className="group relative p-5 animate-slide-up opacity-0 hover:shadow-[var(--shadow-md)] transition-shadow duration-200"
+                    style={{ animationDelay: `${index * 40}ms` }}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
+                        <Globe className="w-[18px] h-[18px] text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
+                          {rule.displayName || rule.list}
+                        </h3>
+                        <p className="text-[11px] text-muted-foreground/60 font-mono truncate mt-0.5">
+                          {rule.provider}/{rule.outputName}
+                        </p>
+                        {rule.description && (
+                          <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
+                            {rule.description}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-3">
+                      <Badge variant="outline">{rule.provider}</Badge>
+                      {rule.attrs.map((attr) => (
+                        <Badge key={`${rule.outputName}-${attr}`} variant="secondary">@{attr}</Badge>
+                      ))}
+                    </div>
+
+                    <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => handlePreview({
+                          type: "geosite",
+                          name: rule.outputName,
+                          provider: rule.provider,
+                          clientId: activeClient,
+                          fileName: `${rule.provider}/${rule.outputName}`,
+                        })}
+                      >
+                        <Eye className="w-3.5 h-3.5" />
+                        预览
+                      </Button>
+                      <Button
+                        variant={copiedRule === `${rule.provider}/${rule.outputName}` ? "success" : "default"}
+                        size="sm"
+                        className="flex-1 text-xs"
+                        onClick={() => {
+                          void copyGeositeUrl(rule.provider, rule.outputName);
+                        }}
+                      >
+                        {copiedRule === `${rule.provider}/${rule.outputName}` ? (
                           <>
                             <CheckCircle className="w-3.5 h-3.5" />
                             已复制

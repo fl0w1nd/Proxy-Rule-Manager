@@ -1,4 +1,4 @@
-import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta } from "./schema";
+import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider } from "./schema";
 
 // API 客户端 - 用于前端调用后端 API
 
@@ -150,7 +150,9 @@ export interface ActivityList<T> {
 
 export interface StatusResponse {
   rulesCount: number;
+  geositeRulesCount: number;
   ruleFilesCount: number;
+  geositeRuleFilesCount: number;
   needsInit?: boolean;
   lastSync: {
     lastFullSyncAt: string | null;
@@ -172,11 +174,14 @@ export interface StatusResponse {
   };
   rules: {
     name: string;
+    displayName?: string;
     description?: string;
     clients: ClientType[];
     lastUpdated: string | null;
     hasError: boolean;
   }[];
+  geositeRules: PublicGeositeInfo[];
+  clients: Pick<ClientConfig, "id" | "displayName">[];
   version?: string;
 }
 
@@ -193,10 +198,20 @@ export interface PublicRuleInfo {
   clients: ClientType[];
 }
 
+export interface PublicGeositeInfo extends PublicRuleInfo {
+  provider: GeositeProvider;
+  list: string;
+  attrs: string[];
+  outputName: string;
+  lastUpdated: string | null;
+}
+
 export interface PublicStatusResponse {
   rulesCount: number;
+  geositeRulesCount: number;
   lastSyncAt: string | null;
   rules: PublicRuleInfo[];
+  geositeRules: PublicGeositeInfo[];
   clients: Pick<ClientConfig, "id" | "displayName">[];
   version?: string;
 }
@@ -205,6 +220,111 @@ export async function getPublicStatus(): Promise<PublicStatusResponse> {
   // 公开接口不携带 admin token，确保服务端返回公开数据结构
   const response = await apiFetch("/status", {}, { auth: false });
   return response.json();
+}
+
+export interface GeositeProviderStatus {
+  provider: GeositeProvider;
+  ready: boolean;
+  fetchedAt: string | null;
+  resolvedVersion: string | null;
+  catalogCount: number;
+}
+
+export interface GeositeCatalogItem {
+  name: string;
+  imported: boolean;
+  ruleName: string | null;
+  clients: string[];
+  attrs: string[];
+  entryCount: number;
+}
+
+export async function getGeositeProviders(): Promise<{ providers: GeositeProviderStatus[] }> {
+  return apiRequest("/geosite/providers");
+}
+
+export async function refreshGeositeProvider(provider: GeositeProvider): Promise<{
+  success: boolean;
+  provider: GeositeProvider;
+  resolvedVersion: string;
+  fetchedAt: string;
+  catalogCount: number;
+}> {
+  return apiRequest(`/geosite/providers/${encodeURIComponent(provider)}/refresh`, {
+    method: "POST",
+  });
+}
+
+export async function getGeositeCatalog(provider: GeositeProvider): Promise<{
+  provider: GeositeProvider;
+  resolvedVersion: string;
+  fetchedAt: string;
+  catalog: GeositeCatalogItem[];
+}> {
+  return apiRequest(`/geosite/catalog?provider=${encodeURIComponent(provider)}`);
+}
+
+export async function lookupGeositeDomain(
+  provider: GeositeProvider,
+  domain: string
+): Promise<{ matches: string[] }> {
+  const params = new URLSearchParams({
+    provider,
+    domain,
+  });
+  return apiRequest(`/geosite/domain-lookup?${params.toString()}`);
+}
+
+export async function importAllGeositeRules(
+  provider: GeositeProvider,
+  clientId: string
+): Promise<{
+  success: boolean;
+  created: number;
+  updated: number;
+  skipped: number;
+  total: number;
+  ruleNames: string[];
+}> {
+  return apiRequest("/geosite/import-all", {
+    method: "POST",
+    body: JSON.stringify({ provider, clientId }),
+  });
+}
+
+export async function importSelectedGeositeRules(
+  provider: GeositeProvider,
+  clientId: string,
+  lists: Array<string | { list: string; attrs?: string[] }>
+): Promise<{
+  success: boolean;
+  created: number;
+  updated: number;
+  skipped: number;
+  total: number;
+  ruleNames: string[];
+}> {
+  return apiRequest("/geosite/import-selected", {
+    method: "POST",
+    body: JSON.stringify({ provider, clientId, lists }),
+  });
+}
+
+export async function previewGeosite(
+  provider: GeositeProvider,
+  list: string,
+  clientId: string,
+  attrs: string[] = []
+): Promise<{ content: string; totalEntries: number }> {
+  const params = new URLSearchParams({
+    provider,
+    list,
+    client: clientId,
+  });
+  if (attrs.length > 0) {
+    params.set("attrs", attrs.join(","));
+  }
+  return apiRequest(`/geosite/preview?${params.toString()}`);
 }
 
 export async function getChangeRecords(

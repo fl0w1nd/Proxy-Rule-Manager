@@ -23,6 +23,7 @@ import {
     CdnSettings,
     DEFAULT_CDN_SETTINGS,
 } from "./schema";
+import { isGeositeRule } from "./rule-classification";
 import { normalizeSyncSchedule } from "./sync-schedule";
 import {
     getDataDir as getDataDirPath,
@@ -766,6 +767,9 @@ export async function renameRule(
     }
 
     const rule = db.config.rules[ruleIndex];
+    if (isGeositeRule(rule)) {
+        throw new Error(`Rule "${oldName}" is system-managed and cannot be renamed`);
+    }
     const renamedFiles: string[] = [];
 
     // 重命名每个客户端的规则文件
@@ -1116,6 +1120,81 @@ export function getRulePublicPath(ruleName: string, client: ClientType): string 
     return `/Rules/${client}/${ruleName}.list`;
 }
 
+// --- Geosite Rule File Storage ---
+function getGeositeRuleDir(clientId: string, provider: string): string {
+    if (clientId.includes("/") || clientId.includes("\\") || clientId.includes("..")) {
+        throw new Error("Invalid client ID");
+    }
+    if (provider.includes("/") || provider.includes("\\") || provider.includes("..")) {
+        throw new Error("Invalid provider");
+    }
+    return path.join(RULES_DIR, clientId, "geosite", provider);
+}
+
+export function getGeositeRuleFilePath(clientId: string, provider: string, outputName: string): string {
+    if (outputName.includes("/") || outputName.includes("\\") || outputName.includes("..")) {
+        throw new Error("Invalid list name");
+    }
+    return path.join(getGeositeRuleDir(clientId, provider), `${outputName}.list`);
+}
+
+export function getGeositeRulePublicPath(clientId: string, provider: string, outputName: string): string {
+    return `/Rules/${clientId}/geosite/${provider}/${outputName}.list`;
+}
+
+export async function uploadGeositeRuleContent(
+    clientId: string,
+    provider: string,
+    outputName: string,
+    content: string
+): Promise<{ url: string; path: string }> {
+    await loadDb();
+    const filePath = getGeositeRuleFilePath(clientId, provider, outputName);
+    const dir = path.dirname(filePath);
+    await fs.mkdir(dir, { recursive: true });
+    await atomicWriteFile(filePath, content);
+    const publicPath = getGeositeRulePublicPath(clientId, provider, outputName);
+    return { url: publicPath, path: publicPath };
+}
+
+export async function getGeositeRuleContent(
+    clientId: string,
+    provider: string,
+    outputName: string
+): Promise<string | null> {
+    await loadDb();
+    const filePath = getGeositeRuleFilePath(clientId, provider, outputName);
+    try {
+        return await fs.readFile(filePath, "utf-8");
+    } catch {
+        return null;
+    }
+}
+
+export async function deleteGeositeRuleContent(
+    clientId: string,
+    provider: string,
+    outputName: string
+): Promise<void> {
+    await loadDb();
+    const filePath = getGeositeRuleFilePath(clientId, provider, outputName);
+    try {
+        await fs.unlink(filePath);
+    } catch {
+        // File doesn't exist, ignore
+    }
+}
+
+export async function deleteAllGeositeRuleContent(
+    provider: string,
+    outputName: string
+): Promise<void> {
+    const database = await loadDb();
+    for (const client of database.clients) {
+        await deleteGeositeRuleContent(client.id, provider, outputName);
+    }
+}
+
 export async function uploadRuleContent(
     ruleName: string,
     client: ClientType,
@@ -1169,15 +1248,42 @@ export async function listAllRules(): Promise<
     for (const client of db.clients.map((item) => item.id as ClientType)) {
         const clientDir = getRuleClientDir(client);
         try {
-            const files = await fs.readdir(clientDir);
-            for (const file of files) {
-                if (file.endsWith(".list")) {
-                    const ruleName = file.replace(".list", "");
+            const entries = await fs.readdir(clientDir, { withFileTypes: true });
+            for (const entry of entries) {
+                if (entry.isFile() && entry.name.endsWith(".list")) {
+                    const ruleName = entry.name.replace(".list", "");
                     result.push({
                         ruleName,
                         client: client as ClientType,
                         url: getRulePublicPath(ruleName, client as ClientType),
                     });
+                } else if (entry.isDirectory() && entry.name === "geosite") {
+                    // Scan geosite subdirectory
+                    const geositeDir = path.join(clientDir, "geosite");
+                    try {
+                        const providers = await fs.readdir(geositeDir, { withFileTypes: true });
+                        for (const providerEntry of providers) {
+                            if (!providerEntry.isDirectory()) continue;
+                            const providerDir = path.join(geositeDir, providerEntry.name);
+                            try {
+                                const lists = await fs.readdir(providerDir);
+                                for (const listFile of lists) {
+                                    if (listFile.endsWith(".list")) {
+                                        const listName = listFile.replace(".list", "");
+                                        result.push({
+                                            ruleName: `geosite_${providerEntry.name}_${listName}`,
+                                            client: client as ClientType,
+                                            url: getGeositeRulePublicPath(client as ClientType, providerEntry.name, listName),
+                                        });
+                                    }
+                                }
+                            } catch {
+                                // Provider dir doesn't exist, skip
+                            }
+                        }
+                    } catch {
+                        // Geosite dir doesn't exist, skip
+                    }
                 }
             }
         } catch {

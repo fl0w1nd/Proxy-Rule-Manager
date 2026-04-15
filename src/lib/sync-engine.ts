@@ -3,6 +3,7 @@ import {
   ClientType,
   ArtifactMeta,
   TransformersConfig,
+  GeositeProvider,
 } from "./schema";
 import {
   getConfig,
@@ -18,7 +19,9 @@ import {
   incrementDailyStats,
   updateLastSyncInfo,
   uploadRuleContent,
+  uploadGeositeRuleContent,
   getRuleContent,
+  getGeositeRuleContent,
 } from "./storage-adapter";
 import {
   ChangeRecordInput,
@@ -37,8 +40,33 @@ import { processRule } from "./sync-engine/processor";
 import { extractDependencies, topologicalSort } from "./sync-engine/dependency-graph";
 import { createLineDiff } from "./diff";
 import { randomUUID } from "node:crypto";
+import { refreshGeositeProvider, renderGeositeSource } from "./geosite";
+import { isGeositeRule, getGeositeOutputName, getPrimaryGeositeSource } from "./rule-classification";
 
 export { detectCircularDependency } from "./sync-engine/dependency-graph";
+
+async function uploadRuleContentToPath(
+  rule: RuleConfig,
+  client: ClientType,
+  content: string
+): Promise<{ url: string; path: string }> {
+  if (isGeositeRule(rule)) {
+    const source = getPrimaryGeositeSource(rule)!;
+    return uploadGeositeRuleContent(client, source.provider!, getGeositeOutputName(source), content);
+  }
+  return uploadRuleContent(rule.name, client, content);
+}
+
+async function readRuleContentFromPath(
+  rule: RuleConfig,
+  client: ClientType
+): Promise<string | null> {
+  if (isGeositeRule(rule)) {
+    const source = getPrimaryGeositeSource(rule)!;
+    return getGeositeRuleContent(client, source.provider!, getGeositeOutputName(source));
+  }
+  return getRuleContent(rule.name, client);
+}
 
 function parseFailureDetails(message: string): { client?: ClientType; source?: string } {
   let source: string | undefined;
@@ -87,6 +115,17 @@ function buildFailureRecords(
   });
 }
 
+function collectGeositeProviders(rules: RuleConfig[]): GeositeProvider[] {
+  const providers = new Set<GeositeProvider>();
+  for (const rule of rules) {
+    const source = getPrimaryGeositeSource(rule);
+    if (source?.provider) {
+      providers.add(source.provider);
+    }
+  }
+  return Array.from(providers);
+}
+
 // 执行全量同步
 export async function executeFullSync(): Promise<{
   success: boolean;
@@ -114,6 +153,58 @@ export async function executeFullSync(): Promise<{
   try {
     const config = await getConfig();
     const clients = await getClients();
+    const geositeProviders = collectGeositeProviders(config.rules);
+    if (geositeProviders.length > 0) {
+      const refreshResults = await Promise.allSettled(
+        geositeProviders.map(async (provider) => {
+          await refreshGeositeProvider(provider);
+          return provider;
+        })
+      );
+
+      const failedProviderRefreshes = refreshResults
+        .map((result, index) => ({ result, provider: geositeProviders[index] }))
+        .filter(
+          (item): item is { result: PromiseRejectedResult; provider: GeositeProvider } =>
+            item.result.status === "rejected"
+        );
+
+      if (failedProviderRefreshes.length > 0) {
+        for (const item of failedProviderRefreshes) {
+          const errorMessage = item.result.reason instanceof Error
+            ? item.result.reason.message
+            : String(item.result.reason);
+          failedRules.push({
+            name: `geosite:${item.provider}`,
+            error: errorMessage,
+          });
+          failureRecords.push({
+            id: randomUUID(),
+            timestamp: new Date().toISOString(),
+            ruleName: `geosite:${item.provider}`,
+            message: errorMessage,
+            stage: "refresh_geosite_provider",
+            jobId: job.jobId,
+          });
+        }
+
+        await recordFailureRecords(failureRecords);
+        await completeJob(job.jobId, changedRules, failedRules);
+        await updateLastSyncInfo({
+          lastFullSyncAt: new Date().toISOString(),
+          totalRulesCount: config.rules.length,
+          changedRulesCount: 0,
+          failedRulesCount: failedRules.length,
+        });
+
+        return {
+          success: false,
+          changedRules,
+          failedRules,
+          jobId: job.jobId,
+        };
+      }
+    }
     const sortedRules = topologicalSort(config.rules);
 
     const ruleContentsCache = new Map<string, Map<ClientType, string>>();
@@ -148,7 +239,7 @@ export async function executeFullSync(): Promise<{
 
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
-          previousContent = await getRuleContent(rule.name, client);
+          previousContent = await readRuleContentFromPath(rule, client);
           if (previousContent) {
             const previousSourceContent = stripManagedRuleHeader(previousContent);
             const previousNormalizedHash = await computeHash(
@@ -163,7 +254,7 @@ export async function executeFullSync(): Promise<{
               }
 
               const sizeBytes = new TextEncoder().encode(outputContent).length;
-              const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
+              const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
               blobWriteCount += 1;
               await saveArtifactMeta({
                 ...existingMeta,
@@ -179,7 +270,7 @@ export async function executeFullSync(): Promise<{
         }
 
         if (previousContent === undefined) {
-          previousContent = await getRuleContent(rule.name, client);
+          previousContent = await readRuleContentFromPath(rule, client);
         }
 
         const previousSourceContent = stripManagedRuleHeader(previousContent);
@@ -188,7 +279,7 @@ export async function executeFullSync(): Promise<{
           normalizedContent
         );
         const sizeBytes = new TextEncoder().encode(outputContent).length;
-        const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
+        const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
         blobWriteCount += 1;
         const meta: ArtifactMeta = {
           ruleName: rule.name,
@@ -368,7 +459,7 @@ export async function executePartialSync(ruleName: string): Promise<{
 
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
-          previousContent = await getRuleContent(rule.name, client);
+          previousContent = await readRuleContentFromPath(rule, client);
           if (previousContent) {
             const previousSourceContent = stripManagedRuleHeader(previousContent);
             const previousNormalizedHash = await computeHash(
@@ -383,7 +474,7 @@ export async function executePartialSync(ruleName: string): Promise<{
               }
 
               const sizeBytes = new TextEncoder().encode(outputContent).length;
-              const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
+              const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
               blobWriteCount += 1;
               await saveArtifactMeta({
                 ...existingMeta,
@@ -399,7 +490,7 @@ export async function executePartialSync(ruleName: string): Promise<{
         }
 
         if (previousContent === undefined) {
-          previousContent = await getRuleContent(rule.name, client);
+          previousContent = await readRuleContentFromPath(rule, client);
         }
 
         const previousSourceContent = stripManagedRuleHeader(previousContent);
@@ -408,7 +499,7 @@ export async function executePartialSync(ruleName: string): Promise<{
           normalizedContent
         );
         const sizeBytes = new TextEncoder().encode(outputContent).length;
-        const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
+        const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
         blobWriteCount += 1;
         const meta: ArtifactMeta = {
           ruleName: rule.name,
@@ -564,6 +655,21 @@ export async function previewRule(
           success: true,
           size: source.content?.length || 0,
         });
+      } else if (sourceType === "geosite") {
+        try {
+          const content = await renderGeositeSource(source);
+          sourceResults.push({
+            url: `geosite:${source.provider}/${source.list}`,
+            success: true,
+            size: content.length,
+          });
+        } catch (error) {
+          sourceResults.push({
+            url: `geosite:${source.provider || "unknown"}/${source.list || "unknown"}`,
+            success: false,
+            error: String(error),
+          });
+        }
       }
     }
   }

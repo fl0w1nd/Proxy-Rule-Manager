@@ -14,7 +14,7 @@ import {
 import { detectCircularDependency } from "../../lib/sync-engine";
 import { ClientConfig, DEFAULT_CLIENTS, validateConfig } from "../../lib/schema";
 import { jsonError } from "../errors";
-import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir, getClientFilesDir } from "../../lib/data-paths";
+import { getDataDir, getDbFilePath, getIconSetDir, getSourcesDir, getClientFilesDir, getGeositeDir } from "../../lib/data-paths";
 
 const SOURCE_FILE_PATTERN = /^[A-Za-z0-9._-]+$/;
 const CLIENT_FILE_NAME_PATTERN = /^[^/\\\\]+\\.[^/\\\\]+$/;
@@ -145,6 +145,13 @@ export function registerConfigRoutes(app: Hono) {
         // No iconset directory yet.
       }
 
+      const geositeDir = getGeositeDir();
+      try {
+        await addDirToZip(zip, geositeDir, "geosite");
+      } catch {
+        // No geosite directory yet.
+      }
+
       const dateTag = new Date().toISOString().split("T")[0];
       const zipBuffer = zip.toBuffer();
       const arrayBuffer = zipBuffer.buffer.slice(
@@ -178,6 +185,7 @@ export function registerConfigRoutes(app: Hono) {
       const clientFileEntries: { fileName: string; data: Buffer }[] = [];
       const wafFiles: { path: string; data: Buffer }[] = [];
       const iconsetFiles: { path: string; data: Buffer }[] = [];
+      const geositeFiles: { path: string; data: Buffer }[] = [];
 
       for (const entry of entries) {
         if (entry.isDirectory) continue;
@@ -212,6 +220,11 @@ export function registerConfigRoutes(app: Hono) {
           const iconsetPath = normalized.slice("iconset/".length);
           if (!iconsetPath || iconsetPath.includes("..")) continue;
           iconsetFiles.push({ path: iconsetPath, data: entry.getData() });
+        }
+        if (normalized.startsWith("geosite/")) {
+          const geositePath = normalized.slice("geosite/".length);
+          if (!geositePath || geositePath.includes("..")) continue;
+          geositeFiles.push({ path: geositePath, data: entry.getData() });
         }
       }
 
@@ -283,6 +296,16 @@ export function registerConfigRoutes(app: Hono) {
         await fs.mkdir(iconsetDir, { recursive: true });
         for (const entry of iconsetFiles) {
           const targetPath = path.join(iconsetDir, entry.path);
+          await fs.mkdir(path.dirname(targetPath), { recursive: true });
+          await fs.writeFile(targetPath, entry.data);
+        }
+      }
+
+      if (geositeFiles.length > 0) {
+        const geositeDir = getGeositeDir();
+        await fs.mkdir(geositeDir, { recursive: true });
+        for (const entry of geositeFiles) {
+          const targetPath = path.join(geositeDir, entry.path);
           await fs.mkdir(path.dirname(targetPath), { recursive: true });
           await fs.writeFile(targetPath, entry.data);
         }

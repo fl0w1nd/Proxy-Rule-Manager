@@ -48,6 +48,7 @@ import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
+import { isGeositeRule } from "@/lib/rule-classification";
 
 interface RulesManagerProps {
   onRefresh: () => void;
@@ -71,6 +72,10 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [expandedCard, setExpandedCard] = useState<string | null>(null);
 
   const handleDuplicateRule = (rule: RuleConfig) => {
+    if (isGeositeRule(rule)) {
+      toast.error("Geosite 规则由系统管理，请在 Geosite 页面重新导入");
+      return;
+    }
     const existingNames = new Set(config?.rules.map((r) => r.name) || []);
     let newName = `${rule.name}-copy`;
     let i = 2;
@@ -197,7 +202,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   // 提取所有唯一标签
   const allTags = useMemo(() => {
     return Array.from(
-      new Set(config?.rules.flatMap((rule) => rule.tags || []) || [])
+      new Set(config?.rules.filter((rule) => !isGeositeRule(rule)).flatMap((rule) => rule.tags || []) || [])
     ).sort();
   }, [config?.rules]);
 
@@ -210,6 +215,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
   const filteredRules = useMemo(() => {
     return config?.rules.filter((rule) => {
+      if (isGeositeRule(rule)) {
+        return false;
+      }
       const matchesSearch =
         rule.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         rule.displayName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
