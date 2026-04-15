@@ -20,8 +20,8 @@ export function DiffViewer({ content, className, defaultDiffStyle = "unified" }:
     if (!content) return null;
 
     return (
-        <div className={cn("overflow-x-auto rounded-xl border border-border/70 bg-card", className)}>
-            <div className="flex items-center justify-end gap-1 border-b border-border/60 bg-surface-subtle/60 px-2 py-1.5">
+        <div className={cn("overflow-x-auto rounded-xl border border-border bg-card", className)}>
+            <div className="flex items-center justify-end gap-1 border-b border-border bg-surface-subtle px-2 py-1.5">
                 <Button
                     variant={diffStyle === "unified" ? "secondary" : "ghost"}
                     size="icon"

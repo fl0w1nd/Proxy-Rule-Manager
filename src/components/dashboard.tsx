@@ -70,6 +70,7 @@ import {
 } from "@/components/ui/dialog";
 import { AppSidebar } from "@/components/app-sidebar";
 import { DiffViewer } from "@/components/diff-viewer";
+import { cn } from "@/lib/utils";
 
 const TAB_META: Record<string, { label: string; icon: LucideIcon }> = {
   overview: { label: "概览", icon: LayoutDashboard },
@@ -116,7 +117,7 @@ function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName
             type="button"
             key={change.id}
             onClick={() => onViewDiff(change)}
-            className="group flex w-full cursor-pointer items-start justify-between gap-3 rounded-xl border border-border/50 bg-card/70 p-3 text-left shadow-[var(--shadow-xs)] transition-all hover:border-border hover:bg-accent/15 hover:shadow-[var(--shadow-sm)]"
+            className="group flex w-full cursor-pointer items-start justify-between gap-3 rounded-xl p-3 text-left transition-colors hover:bg-accent"
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1.5">
@@ -389,7 +390,7 @@ export function Dashboard({ onBack }: DashboardProps) {
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Header */}
-        <header className="h-16 shrink-0 border-b flex items-center justify-between px-6 bg-background/80 backdrop-blur-md sticky top-0 z-20">
+        <header className="h-16 shrink-0 border-b border-border flex items-center justify-between px-6 bg-background sticky top-0 z-20">
           <div className="flex items-center gap-4">
             <h2 className="text-lg font-semibold tracking-tight flex items-center gap-2">
               {(() => {
@@ -462,32 +463,32 @@ export function Dashboard({ onBack }: DashboardProps) {
               <div className="space-y-6">
                 {/* Top Row: Stats & System Status */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6">
-                  <Card className="p-4 flex flex-col justify-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">规则总数</p>
-                    <div className="text-2xl font-mono font-bold">{status?.rulesCount || 0}</div>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">规则总数</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.rulesCount || 0}</div>
                   </Card>
-                  <Card className="p-4 flex flex-col justify-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">今日变更</p>
-                    <div className="text-2xl font-mono font-bold text-primary">{status?.todayStats?.ruleFilesChanged || 0}</div>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">今日变更</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.todayStats?.ruleFilesChanged || 0}</div>
                   </Card>
-                  <Card className="p-4 flex flex-col justify-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">生成文件</p>
-                    <div className="text-2xl font-mono font-bold text-accent-foreground">{status?.ruleFilesCount || 0}</div>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">生成文件</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.ruleFilesCount || 0}</div>
                   </Card>
-                  <Card className="p-4 flex flex-col justify-center">
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold mb-1">异常记录</p>
-                    <div className="text-2xl font-mono font-bold text-destructive">{status?.todayStats?.failureRecords || 0}</div>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">异常记录</p>
+                    <div className={cn("text-3xl font-mono font-bold tracking-tight", (status?.todayStats?.failureRecords || 0) > 0 ? "text-destructive" : "")}>{status?.todayStats?.failureRecords || 0}</div>
                   </Card>
-                  <Card className="p-4 flex flex-col justify-center space-y-2">
+                  <Card className="p-5 flex flex-col justify-center gap-3">
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">上次全量同步</p>
-                      <p className="text-xs font-mono truncate" title={status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">上次全量同步</p>
+                      <p className="text-xs font-mono mt-0.5 truncate" title={status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : 'N/A'}
                       </p>
                     </div>
                     <div>
-                      <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
-                      <p className="text-xs font-mono text-primary truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
+                      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-semibold">上次成功</p>
+                      <p className="text-xs font-mono mt-0.5 truncate" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}>
                         {status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : 'N/A'}
                       </p>
                     </div>
@@ -498,10 +499,10 @@ export function Dashboard({ onBack }: DashboardProps) {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-6">
                   {/* Rules List */}
                   <Card className="flex flex-col h-[600px]">
-                    <CardHeader className="flex-row items-center justify-between border-b border-border/40 shrink-0">
+                    <CardHeader className="flex-row items-center justify-between border-b border-border shrink-0">
                       <div className="space-y-1">
                         <CardTitle className="flex items-center gap-2">
-                          <FileText className="w-4 h-4 text-primary" />
+                          <FileText className="w-4 h-4 text-muted-foreground" />
                           活跃规则
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -520,7 +521,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <div className="flex-1 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {status?.rules?.map((rule) => (
-                          <div key={rule.name} className="flex items-center justify-between rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors hover:bg-accent/20">
+                          <div key={rule.name} className="flex items-center justify-between rounded-xl p-3 transition-colors hover:bg-accent">
                             <div className="flex items-center gap-3 min-w-0">
                               <div className={`w-2 h-2 rounded-full ${rule.hasError ? 'bg-destructive' : 'bg-success'}`} />
                               <div className="min-w-0 flex-1">
@@ -548,22 +549,22 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                   {/* Recent Activity Feed - Two Column Layout */}
                   <Card className="flex flex-col h-[600px]">
-                    <CardHeader className="border-b border-border/40 shrink-0">
+                    <CardHeader className="border-b border-border shrink-0">
                       <CardTitle className="flex items-center gap-2">
-                        <Activity className="w-4 h-4 text-primary" />
+                        <Activity className="w-4 h-4 text-muted-foreground" />
                         动态流
                       </CardTitle>
                     </CardHeader>
                     <div className="p-6 flex-1 flex flex-col min-h-0 relative">
                       {/* Middle Separator */}
-                      <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-border/60 -translate-x-1/2" />
+                      <div className="hidden md:block absolute left-1/2 top-0 bottom-0 w-px bg-border -translate-x-1/2" />
 
                       <div className="flex-1 flex flex-col md:flex-row gap-12 min-h-0">
 
                         {/* Left Column: Change Records */}
                         <div className="flex-1 flex flex-col min-h-0">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4 shrink-0">
-                            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                          <div className="flex items-center justify-between border-b border-border pb-2 mb-4 shrink-0">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                               <RefreshCw className="w-3.5 h-3.5" /> 变动记录
                             </h3>
                           </div>
@@ -574,8 +575,8 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                         {/* Right Column: Failure Records */}
                         <div className="flex-1 flex flex-col min-h-0">
-                          <div className="flex items-center justify-between border-b border-border/40 pb-2 mb-4 shrink-0">
-                            <h3 className="text-sm font-semibold text-muted-foreground flex items-center gap-2">
+                          <div className="flex items-center justify-between border-b border-border pb-2 mb-4 shrink-0">
+                            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                               <XCircle className="w-3.5 h-3.5 text-destructive" /> 失败记录
                             </h3>
                           </div>
@@ -619,10 +620,10 @@ export function Dashboard({ onBack }: DashboardProps) {
             {/* Activity Full View */}
             {activeTab === 'activity' && (
               <Card className="flex flex-col min-h-[600px]">
-                <CardHeader className="flex-row items-center justify-between border-b border-border/40">
+                <CardHeader className="flex-row items-center justify-between border-b border-border">
                   <div className="space-y-1">
                     <CardTitle className="text-lg flex items-center gap-2">
-                      <Activity className="w-5 h-5 text-primary" />
+                      <Activity className="w-5 h-5 text-muted-foreground" />
                       系统活动记录
                     </CardTitle>
                     <CardDescription>
@@ -631,11 +632,11 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Pagination Controls */}
-                    <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-surface-subtle/70 p-1 shadow-[var(--shadow-xs)]">
+                    <div className="flex items-center gap-1 rounded-full border border-border bg-surface-subtle p-1">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-md hover:bg-background"
+                        className="h-7 w-7 rounded-full hover:bg-background"
                         disabled={activityTab === "changes" ? changePage <= 1 : failurePage <= 1}
                         onClick={() => activityTab === "changes" ? setChangePage(p => Math.max(1, p - 1)) : setFailurePage(p => Math.max(1, p - 1))}
                       >
@@ -647,7 +648,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-md hover:bg-background"
+                        className="h-7 w-7 rounded-full hover:bg-background"
                         disabled={activityTab === "changes" ? changePage >= changeTotalPages : failurePage >= failureTotalPages}
                         onClick={() => activityTab === "changes" ? setChangePage(p => Math.min(changeTotalPages, p + 1)) : setFailurePage(p => Math.min(failureTotalPages, p + 1))}
                       >
@@ -655,7 +656,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </Button>
                     </div>
 
-                    <div className="h-4 w-px bg-border/60 mx-1" />
+                    <div className="h-4 w-px bg-border mx-1" />
 
                     <Select value={activityClient} onValueChange={(value) => { setActivityClient(value); setChangePage(1); setFailurePage(1); }}>
                       <SelectTrigger className="w-full sm:w-[160px] h-9 bg-background">
@@ -674,7 +675,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </SelectContent>
                     </Select>
 
-                    <div className="h-4 w-px bg-border/60 mx-1" />
+                    <div className="h-4 w-px bg-border mx-1" />
 
                     <Select value={activityDate} onValueChange={setActivityDate}>
                       <SelectTrigger className="w-full sm:w-[140px] h-9 bg-background">
@@ -689,7 +690,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </SelectContent>
                     </Select>
 
-                    <div className="h-4 w-px bg-border/60 mx-1" />
+                    <div className="h-4 w-px bg-border mx-1" />
 
                     <Button
                       variant="outline"
@@ -727,12 +728,12 @@ export function Dashboard({ onBack }: DashboardProps) {
                     </TabsList>
 
                     <TabsContent value="changes" className="flex-1 mt-0 outline-none">
-                      <div className="border rounded-lg bg-background/50 overflow-hidden">
+                      <div className="border border-border rounded-2xl bg-card overflow-hidden">
                         <ActivityFeed items={changeItems} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
                       </div>
                     </TabsContent>
                     <TabsContent value="failures" className="flex-1 mt-0 outline-none">
-                      <div className="border rounded-lg bg-background/50 overflow-hidden divide-y">
+                      <div className="border border-border rounded-2xl bg-card overflow-hidden divide-y divide-border">
                         {failureItems.map(f => (
                           <div key={f.id} className="p-4 hover:bg-muted/10 transition-colors flex items-start justify-between gap-4 group">
                             <div className="space-y-1">
@@ -746,7 +747,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                                     {getClientDisplayName(f.client)}
                                   </Badge>
                                 )}
-                                <Badge variant="outline" className="border-border/60 bg-surface-subtle/60 text-[10px] font-mono font-normal text-muted-foreground">
+                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground">
                                   {formatTimestamp(f.timestamp)}
                                 </Badge>
                               </div>
@@ -756,8 +757,8 @@ export function Dashboard({ onBack }: DashboardProps) {
                         ))}
                         {failureItems.length === 0 && (
                           <div className="p-12 text-center">
-                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-success/15 bg-success-soft shadow-[var(--shadow-xs)]">
-                              <CheckCircle className="w-8 h-8 text-success/70" />
+                            <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-success-soft">
+                              <CheckCircle className="w-7 h-7 text-success" />
                             </div>
                             <p className="text-sm font-medium text-foreground">运行正常</p>
                             <p className="text-xs text-muted-foreground mt-1">暂无失败记录</p>
@@ -786,7 +787,7 @@ export function Dashboard({ onBack }: DashboardProps) {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto overflow-hidden rounded-xl border border-border/60 bg-surface-subtle/60 p-0 font-mono text-sm text-card-foreground shadow-[var(--shadow-xs)]">
+          <div className="flex-1 overflow-y-auto overflow-hidden rounded-xl border border-border bg-surface-subtle p-0 font-mono text-sm text-card-foreground">
             {isDiffLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="animate-spin w-8 h-8 text-muted-foreground" />

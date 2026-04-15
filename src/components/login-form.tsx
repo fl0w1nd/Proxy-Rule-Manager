@@ -5,7 +5,6 @@ import { useAuth } from "./auth-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Lock, Loader2, ArrowLeft } from "lucide-react";
 
 interface LoginFormProps {
@@ -33,51 +32,60 @@ export function LoginForm({ onBack }: LoginFormProps) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <Card className="w-full max-w-md mx-4 animate-slide-up">
-        <CardHeader className="text-center">
-          {onBack && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={onBack}
-              className="self-start -ml-1 mb-2 text-muted-foreground"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              返回
-            </Button>
-          )}
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/15 bg-primary-soft shadow-[var(--shadow-xs)]">
-            <Lock className="w-6 h-6 text-primary" />
+    <div className="min-h-screen flex flex-col bg-background">
+      {/* Top bar */}
+      <div className="flex items-center px-6 py-4">
+        {onBack && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onBack}
+            className="text-muted-foreground"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            返回
+          </Button>
+        )}
+      </div>
+
+      {/* Center content */}
+      <div className="flex-1 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm animate-slide-up">
+          {/* Brand header */}
+          <div className="mb-10 text-center">
+            <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-full bg-primary shadow-[var(--shadow-md)]">
+              <Lock className="w-7 h-7 text-primary-foreground" />
+            </div>
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">
+              管理后台
+            </h1>
+            <p className="mt-2 text-sm text-muted-foreground">
+              输入令牌以验证身份
+            </p>
           </div>
-          <CardTitle className="text-2xl font-bold">
-            管理后台
-          </CardTitle>
-          <CardDescription>
-            请输入管理员令牌以继续
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* Form */}
+          <form onSubmit={handleSubmit} className="space-y-5">
             <div className="space-y-2">
-              <Label htmlFor="token">
+              <Label htmlFor="token" className="text-sm font-semibold">
                 管理员令牌
               </Label>
               <Input
                 id="token"
                 type="password"
-                placeholder="输入 ADMIN_TOKEN"
+                placeholder="ADMIN_TOKEN"
                 value={token}
                 onChange={(e) => setToken(e.target.value)}
+                className="h-12 text-base"
               />
               {error && (
-                <p className="text-sm text-destructive">{error}</p>
+                <p className="text-sm font-medium text-destructive">{error}</p>
               )}
             </div>
             <Button
               type="submit"
               disabled={isLoading || !token}
-              className="w-full rounded-xl"
+              className="w-full h-12 text-base"
             >
               {isLoading ? (
                 <>
@@ -89,8 +97,8 @@ export function LoginForm({ onBack }: LoginFormProps) {
               )}
             </Button>
           </form>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

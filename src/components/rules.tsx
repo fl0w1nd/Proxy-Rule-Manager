@@ -242,17 +242,17 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     return (
       <div className="fixed inset-0 z-50 bg-background flex flex-col">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between border-b border-border/70 bg-background/92 px-4 py-3 shadow-[var(--shadow-xs)] backdrop-blur-xl">
+        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-3">
           <div className="flex items-center gap-3">
             {(() => {
               const rule = config?.rules.find(r => r.name === previewingRule);
               return rule?.icon ? (
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/75" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
                 </div>
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                  <FileText className="w-5 h-5 text-primary/75" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+                  <FileText className="w-5 h-5 text-primary-foreground dark:text-primary" />
                 </div>
               );
             })()}
@@ -295,7 +295,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 数据源状态 */}
         {previewData.diagnostics.sourceResults.length > 0 && (
-          <div className="border-b border-border/70 bg-surface-subtle/60 px-4 py-2">
+          <div className="border-b border-border bg-surface-subtle px-4 py-2">
             <div className="flex flex-wrap gap-4">
               {previewData.diagnostics.sourceResults.map((source, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
@@ -317,7 +317,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
         {/* 客户端标签 */}
         <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border/70 px-4 py-2.5 shrink-0">
+          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
             <TabsList className="bg-surface-subtle shadow-[var(--shadow-xs)]">
               {Object.keys(previewData.contents).map((client) => (
                 <TabsTrigger key={client} value={client} className="data-[state=active]:bg-background">
@@ -598,15 +598,15 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
               {/* Header: Icon + Name + Description */}
               <div className="flex items-start gap-3 pr-8">
-                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-soft">
                   {rule.icon ? (
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
                   ) : (
-                    <FileText className="w-[18px] h-[18px] text-primary/70" />
+                    <FileText className="w-[18px] h-[18px] text-primary-foreground dark:text-primary" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
+                  <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
                     {rule.displayName || rule.name}
                   </h3>
                   <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
@@ -629,7 +629,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               </div>
 
               {/* Client badges */}
-              <div className="flex items-start gap-2 mt-3 pt-3 border-t border-border/40">
+              <div className="flex items-start gap-2 mt-3 pt-3 border-t border-border">
                 <span className="text-[10px] text-muted-foreground flex-shrink-0 mt-0.5">输出:</span>
                 <div className="flex flex-wrap gap-1.5 flex-1">
                   {rule.output.clients.map((client) => (
@@ -670,8 +670,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
       {filteredRules?.length === 0 && (
         <div className="text-center py-20">
-          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-            <FileText className="w-10 h-10 text-primary/55" />
+          <div className="mx-auto mb-6 flex h-16 w-16 items-center justify-center rounded-2xl bg-surface-subtle">
+            <FileText className="w-8 h-8 text-muted-foreground/40" />
           </div>
           <p className="text-lg font-medium text-foreground">
             {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
@@ -701,12 +701,12 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               {(() => {
                 const rule = config?.rules.find(r => r.name === previewingRule);
                 return rule?.icon ? (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/75" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
+                    <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary-foreground dark:text-primary" />
                   </div>
                 ) : (
-                  <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                    <FileText className="w-5 h-5 text-primary/75" />
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
+                    <FileText className="w-4 h-4 text-primary-foreground dark:text-primary" />
                   </div>
                 );
               })()}
@@ -723,7 +723,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
               {/* Source Results */}
               {previewData.diagnostics.sourceResults.length > 0 && (
-                <div className="border-b border-border/70 bg-surface-subtle/60 px-6 py-3">
+                <div className="border-b border-border bg-surface-subtle px-6 py-3">
                   <p className="text-sm text-muted-foreground mb-2">数据源状态:</p>
                   <div className="flex flex-wrap gap-4">
                     {previewData.diagnostics.sourceResults.map((source, i) => (

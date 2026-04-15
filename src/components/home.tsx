@@ -295,17 +295,17 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return (
       <div className="fixed inset-0 z-50 flex flex-col bg-background">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between border-b border-border/70 bg-background/90 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur-xl">
+        <div className="flex items-center justify-between border-b border-border bg-background px-6 py-4">
           <div className="flex items-center gap-3">
             {(() => {
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
                 </div>
               ) : (
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                  <FileText className="w-5 h-5 text-primary/70" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
+                  <FileText className="w-5 h-5 text-primary-foreground dark:text-primary" />
                 </div>
               );
             })()}
@@ -354,18 +354,18 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         {/* Header */}
         <header
           className={cn(
-            "sticky top-0 z-50 border-b border-border/70 bg-background/86 backdrop-blur-xl transition-shadow",
-            isScrolled ? "shadow-[var(--shadow-sm)]" : "shadow-[var(--shadow-xs)]"
+            "sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md transition-shadow",
+            isScrolled ? "shadow-[var(--shadow-sm)]" : ""
           )}
         >
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                  <NextImage src="/logo.svg" alt="Logo" width={24} height={24} className="w-6 h-6" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary shadow-[var(--shadow-xs)]">
+                  <NextImage src="/logo.svg" alt="Logo" width={22} height={22} className="w-[22px] h-[22px]" />
                 </div>
                 <div className="min-w-0">
-                  <h1 className="text-lg sm:text-xl font-bold text-foreground truncate tracking-tight">
+                  <h1 className="text-lg sm:text-xl font-bold text-foreground truncate tracking-tight leading-tight">
                     代理规则集
                   </h1>
                   <div className="flex items-center gap-2">
@@ -373,7 +373,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       Proxy Rule Manager
                     </p>
                     {version && (
-                      <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary-foreground dark:text-primary">
                         v{version}
                       </span>
                     )}
@@ -384,7 +384,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {lastSyncAt && (
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
-                      <div className="hidden cursor-default items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 py-1.5 text-xs text-muted-foreground/80 shadow-[var(--shadow-xs)] sm:flex">
+                      <div className="hidden cursor-default items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 py-1.5 text-xs font-medium text-muted-foreground sm:flex">
                         <Clock className="w-3 h-3" />
                         <span>{new Date(lastSyncAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
@@ -398,9 +398,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <TooltipTrigger asChild>
                     <Button
                       variant="secondary"
-                      size="icon-lg"
+                      size="icon"
                       asChild
-                      className="h-11 w-11 rounded-full"
                     >
                       <a
                         href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
@@ -408,7 +407,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         rel="noopener noreferrer"
                         aria-label="GitHub"
                       >
-                        <Github className="w-[18px] h-[18px]" />
+                        <Github className="w-4 h-4" />
                       </a>
                     </Button>
                   </TooltipTrigger>
@@ -416,21 +415,20 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </Tooltip>
                 <Button
                   variant="secondary"
-                  size="icon-lg"
+                  size="icon"
                   onClick={toggleTheme}
                   aria-label={theme === "light" ? "切换到深色模式" : "切换到浅色模式"}
-                  className="h-11 w-11 rounded-full"
                 >
                   {theme === "light" ? (
-                    <Moon className="w-[18px] h-[18px]" />
+                    <Moon className="w-4 h-4" />
                   ) : (
-                    <Sun className="w-[18px] h-[18px]" />
+                    <Sun className="w-4 h-4" />
                   )}
                 </Button>
                 <Button
-                  variant="secondary"
+                  variant="default"
                   onClick={onAdminClick}
-                  className="h-11 rounded-full px-4 text-sm"
+                  className="text-sm"
                 >
                   <Settings className="w-4 h-4" />
                   <span className="hidden sm:inline">管理</span>
@@ -444,51 +442,49 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         <main className="container mx-auto px-4 sm:px-6 py-8">
           {/* Main Tabs & Search */}
           <div className="mb-8 space-y-5">
-            <div className="rounded-[28px] border border-border/70 bg-card/90 p-3 shadow-[var(--shadow-sm)] backdrop-blur sm:p-4">
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div className="inline-flex w-fit items-center gap-1 rounded-full border border-border bg-surface-subtle p-1 shadow-[var(--shadow-xs)]">
-                  {MAIN_TABS.map((tab) => (
-                  <button
-                    key={tab.key}
-                    onClick={() => setActiveMainTab(tab.key)}
-                    className={cn(
-                      "rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
-                      activeMainTab === tab.key
-                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]"
-                        : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
-                    )}
-                  >
-                    {tab.label}
-                  </button>
-                ))}
-                </div>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="inline-flex w-fit items-center gap-1 rounded-full bg-surface-subtle p-1">
+                {MAIN_TABS.map((tab) => (
+                <button
+                  key={tab.key}
+                  onClick={() => setActiveMainTab(tab.key)}
+                  className={cn(
+                    "rounded-full px-5 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
+                    activeMainTab === tab.key
+                      ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]"
+                      : "text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
+              </div>
 
-                <div className="flex w-full items-center gap-2 rounded-full border border-border bg-surface-elevated px-4 py-2.5 shadow-[var(--shadow-xs)] sm:w-auto sm:min-w-[320px]">
-                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-                  <input
-                    type="search"
-                    aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                    placeholder={activeMainTab === "rules" ? "搜索规则、说明或关键词" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
-                  />
-                </div>
+              <div className="flex w-full items-center gap-2 rounded-full border border-border bg-background px-4 py-2.5 shadow-[var(--shadow-xs)] sm:w-auto sm:min-w-[280px]">
+                <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                <input
+                  type="search"
+                  aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                  placeholder={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-transparent text-sm font-medium text-foreground outline-none placeholder:text-muted-foreground"
+                />
               </div>
             </div>
 
             {/* Client Tabs */}
             {activeMainTab !== "icons" && (
-              <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border bg-surface-subtle p-1 shadow-[var(--shadow-xs)] scrollbar-hide">
+              <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full bg-surface-subtle p-1 scrollbar-hide">
                 {clients.map((client) => (
                   <button
                     key={client.id}
                     onClick={() => setActiveClient(client.id)}
                     className={cn(
-                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
+                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
                       activeClient === client.id
-                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]"
-                        : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                        ? "bg-foreground text-background shadow-[var(--shadow-xs)]"
+                        : "text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {client.displayName}
@@ -508,10 +504,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     key={tag}
                     onClick={() => toggleTag(tag)}
                     className={cn(
-                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
+                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition-all duration-150 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/25",
                       selectedTags.includes(tag)
-                        ? "border-primary/20 bg-primary-soft text-primary shadow-[var(--shadow-xs)]"
-                        : "border-border bg-surface-subtle text-muted-foreground hover:border-border-strong hover:text-foreground"
+                        ? "border-primary/30 bg-primary-soft text-primary-foreground dark:text-primary"
+                        : "border-border bg-surface-subtle text-muted-foreground hover:text-foreground"
                     )}
                   >
                     {tag}
@@ -532,16 +528,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {/* Content Grid */}
           {isLoading ? (
             <div className="flex items-center justify-center py-24">
-              <div className="flex flex-col items-center gap-4 rounded-3xl border border-border bg-surface-elevated p-8 shadow-[var(--shadow-sm)]">
-                <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
-                <p className="text-sm text-muted-foreground">加载中...</p>
+              <div className="flex flex-col items-center gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-primary" />
+                <p className="text-sm font-medium text-muted-foreground">加载中...</p>
               </div>
             </div>
           ) : activeMainTab === "rules" ? (
             clientRules.length === 0 ? (
               <div className="text-center py-24">
-                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
-                  <Globe className="w-10 h-10 text-primary/40" />
+                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
+                  <Globe className="w-8 h-8 text-muted-foreground/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
@@ -557,11 +553,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {clientRules.map((rule, index) => (
                   <Card
                     key={rule.name}
-                    className="group relative p-5 animate-slide-up opacity-0"
+                    className="group relative p-5 animate-slide-up opacity-0 hover:shadow-[var(--shadow-md)] transition-shadow duration-200"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
                     {/* Floating action buttons */}
-                    <div className="absolute right-4 top-4 flex translate-y-1 items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 opacity-0 shadow-[var(--shadow-sm)] backdrop-blur transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
+                    <div className="absolute right-4 top-4 flex translate-y-1 items-center gap-1 rounded-full border border-border bg-background p-1 opacity-0 shadow-[var(--shadow-sm)] transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
                       <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                           <button
@@ -606,23 +602,23 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </Tooltip>
                     </div>
 
-                    <div className="flex items-start gap-3.5">
-                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary-foreground dark:text-primary" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-primary/70" />
+                          <FileText className="w-[18px] h-[18px] text-primary-foreground dark:text-primary" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1 pr-16">
-                        <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
+                        <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
                           {rule.displayName || rule.name}
                         </h3>
                         {rule.description && (
                           <Tooltip delayDuration={300}>
                             <TooltipTrigger asChild>
-                              <div className="mt-2 cursor-default">
-                                <p className="text-[13px] text-muted-foreground line-clamp-2 leading-relaxed">
+                              <div className="mt-1.5 cursor-default">
+                                <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                                   {rule.description}
                                 </p>
                               </div>
@@ -631,9 +627,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                               side="bottom"
                               align="start"
                               showArrow={false}
-                              className="max-w-[300px] bg-background text-foreground border border-border shadow-lg rounded-xl"
+                              className="max-w-[300px] bg-foreground text-background shadow-[var(--shadow-lg)] rounded-lg"
                             >
-                              <p className="text-[13px] whitespace-pre-wrap break-words leading-relaxed">
+                              <p className="text-xs whitespace-pre-wrap break-words leading-relaxed">
                                 {rule.description}
                               </p>
                             </TooltipContent>
@@ -668,8 +664,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           ) : activeMainTab === "configs" ? (
             clientPublicFiles.length === 0 ? (
               <div className="text-center py-24">
-                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
-                  <FileText className="w-10 h-10 text-primary/40" />
+                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
+                  <FileText className="w-8 h-8 text-muted-foreground/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的配置文件" : "暂无公开配置文件"}
@@ -689,28 +685,29 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       className="p-5 animate-slide-up opacity-0"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
-                      <div className="flex items-start gap-3.5">
-                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-success/15 bg-success-soft shadow-[var(--shadow-xs)]">
-                          <FileText className="w-[18px] h-[18px] text-success/75" />
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-success-soft">
+                          <FileText className="w-[18px] h-[18px] text-success" />
                         </div>
                         <div className="min-w-0 flex-1">
-                          <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
+                          <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
                             {file.displayName || `${file.configId}.${file.ext}`}
                           </h3>
                           <p className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
                             {file.configId}.{file.ext}
                           </p>
                           {file.description && (
-                            <p className="text-[13px] text-muted-foreground mt-2 line-clamp-2 leading-relaxed">
+                            <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
                               {file.description}
                             </p>
                           )}
                         </div>
                       </div>
-                      <div className="flex gap-3 mt-5">
+                      <div className="flex gap-2 mt-4">
                         <Button
                           variant="secondary"
-                          className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
+                          size="sm"
+                          className="flex-1 flex items-center justify-center gap-1.5"
                           onClick={() => handlePreview({
                             type: "config",
                             name: file.configId,
@@ -724,7 +721,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         </Button>
                         <Button
                           variant="default"
-                          className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
+                          size="sm"
+                          className="flex-1 flex items-center justify-center gap-1.5"
                           asChild
                         >
                           <a
@@ -745,8 +743,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             /* Icons Tab */
             filteredIcons.length === 0 ? (
               <div className="text-center py-24">
-                <div className="bg-surface-subtle border border-border w-24 h-24 mx-auto mb-6 flex items-center justify-center rounded-3xl">
-                  <ImageIcon className="w-10 h-10 text-primary/40" />
+                <div className="bg-surface-subtle w-20 h-20 mx-auto mb-6 flex items-center justify-center rounded-2xl">
+                  <ImageIcon className="w-8 h-8 text-muted-foreground/40" />
                 </div>
                 <p className="text-lg font-semibold text-foreground">
                   {searchQuery ? "未找到匹配的图标" : "暂无图标"}
@@ -806,8 +804,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           }
 
           {/* Stats */}
-          <div className="mt-10 flex justify-center">
-            <div className="rounded-full border border-border bg-surface-subtle px-6 py-2.5 text-center text-sm text-muted-foreground/80 shadow-[var(--shadow-xs)]">
+          <div className="mt-12 flex justify-center">
+            <div className="rounded-full px-6 py-2 text-center text-xs font-medium text-muted-foreground">
               {activeMainTab === "rules" ? (
                 <p>共 {clientRules.length} 条规则</p>
               ) : activeMainTab === "configs" ? (
@@ -827,12 +825,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary/70" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
+                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary-foreground dark:text-primary" />
                     </div>
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
-                      <FileText className="w-4 h-4 text-primary/70" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
+                      <FileText className="w-4 h-4 text-primary-foreground dark:text-primary" />
                     </div>
                   );
                 })()}
