@@ -147,27 +147,92 @@ export function mergeContents(
   }
 }
 
+function normalizeLineEndings(content: string): string {
+  return content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+}
+
+function getEffectiveRuleLines(content: string | null | undefined): string[] {
+  if (!content) return [];
+
+  return normalizeLineEndings(content)
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"));
+}
+
+function formatHeaderTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (Number.isNaN(date.getTime())) {
+    return timestamp;
+  }
+
+  const pad = (value: number) => value.toString().padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
+}
+
+function getRuleTypeCounts(lines: string[]): Array<[string, number]> {
+  const counts = new Map<string, number>();
+
+  for (const line of lines) {
+    const type = line.split(",", 1)[0].trim() || "UNKNOWN";
+    counts.set(type, (counts.get(type) || 0) + 1);
+  }
+
+  return Array.from(counts.entries()).sort((a, b) => a[0].localeCompare(b[0]));
+}
+
 // 为规则内容添加头部注释
 export function addRuleHeader(
   content: string,
   ruleName: string,
-  description?: string
+  description?: string,
+  updatedAt?: string
 ): string {
   void ruleName;
   void description;
-  return content;
+
+  const normalizedContent = normalizeLineEndings(content);
+  const effectiveLines = getEffectiveRuleLines(normalizedContent);
+  const typeCounts = getRuleTypeCounts(effectiveLines);
+  const timestamp = formatHeaderTimestamp(updatedAt || new Date().toISOString());
+
+  const headerLines = [
+    `# 规则数量：${effectiveLines.length} 条`,
+    `# 更新时间：${timestamp}`,
+    "# 规则类型：",
+    ...typeCounts.map(([type, count]) => `# ${type}: ${count} 条`),
+  ];
+
+  return `${headerLines.join("\n")}\n\n${normalizedContent}`;
+}
+
+export function stripManagedRuleHeader(content: string | null | undefined): string {
+  if (!content) return "";
+
+  const normalizedContent = normalizeLineEndings(content);
+  const lines = normalizedContent.split("\n");
+
+  if (
+    !lines[0]?.startsWith("# 规则数量：") ||
+    !lines[1]?.startsWith("# 更新时间：") ||
+    lines[2] !== "# 规则类型："
+  ) {
+    return normalizedContent;
+  }
+
+  let index = 3;
+  while (index < lines.length && lines[index].startsWith("# ")) {
+    index += 1;
+  }
+  while (index < lines.length && lines[index].trim() === "") {
+    index += 1;
+  }
+
+  return lines.slice(index).join("\n");
 }
 
 export function normalizeEffectiveRuleContent(content: string | null | undefined): string {
-  if (!content) return "";
-
-  return content
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
-    .join("\n");
+  return getEffectiveRuleLines(content).join("\n");
 }
 
 // 计算内容的 SHA-256 哈希

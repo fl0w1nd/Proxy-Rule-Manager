@@ -26,7 +26,12 @@ import {
   recordRuleFileChanges,
   recordFailureRecords,
 } from "./activity-store";
-import { computeHash, normalizeEffectiveRuleContent } from "./transformer";
+import {
+  addRuleHeader,
+  computeHash,
+  normalizeEffectiveRuleContent,
+  stripManagedRuleHeader,
+} from "./transformer";
 import { fetchSource } from "./sync-engine/fetcher";
 import { processRule } from "./sync-engine/processor";
 import { extractDependencies, topologicalSort } from "./sync-engine/dependency-graph";
@@ -138,29 +143,32 @@ export async function executeFullSync(): Promise<{
         const existingMeta = await getArtifactMeta(rule.name, client);
         const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
+        const syncedAt = new Date().toISOString();
+        const outputContent = addRuleHeader(content, rule.name, rule.description, syncedAt);
 
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
           previousContent = await getRuleContent(rule.name, client);
           if (previousContent) {
+            const previousSourceContent = stripManagedRuleHeader(previousContent);
             const previousNormalizedHash = await computeHash(
-              normalizeEffectiveRuleContent(previousContent)
+              normalizeEffectiveRuleContent(previousSourceContent)
             );
             if (previousNormalizedHash === hash) {
-              if (previousContent === content) {
+              if (previousSourceContent === content) {
                 if (existingMeta.lastHash !== hash) {
                   await saveArtifactMeta({ ...existingMeta, lastHash: hash });
                 }
                 continue;
               }
 
-              const sizeBytes = new TextEncoder().encode(content).length;
-              const { url, path } = await uploadRuleContent(rule.name, client, content);
+              const sizeBytes = new TextEncoder().encode(outputContent).length;
+              const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
               blobWriteCount += 1;
               await saveArtifactMeta({
                 ...existingMeta,
                 lastHash: hash,
-                lastUpdatedAt: new Date().toISOString(),
+                lastUpdatedAt: syncedAt,
                 blobPath: path,
                 blobUrl: url,
                 sizeBytes,
@@ -174,18 +182,19 @@ export async function executeFullSync(): Promise<{
           previousContent = await getRuleContent(rule.name, client);
         }
 
+        const previousSourceContent = stripManagedRuleHeader(previousContent);
         const diff = createLineDiff(
-          normalizeEffectiveRuleContent(previousContent),
+          normalizeEffectiveRuleContent(previousSourceContent),
           normalizedContent
         );
-        const sizeBytes = new TextEncoder().encode(content).length;
-        const { url, path } = await uploadRuleContent(rule.name, client, content);
+        const sizeBytes = new TextEncoder().encode(outputContent).length;
+        const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
         blobWriteCount += 1;
         const meta: ArtifactMeta = {
           ruleName: rule.name,
           client,
           lastHash: hash,
-          lastUpdatedAt: new Date().toISOString(),
+          lastUpdatedAt: syncedAt,
           blobPath: path,
           blobUrl: url,
           sizeBytes,
@@ -354,29 +363,32 @@ export async function executePartialSync(ruleName: string): Promise<{
         const existingMeta = await getArtifactMeta(rule.name, client);
         const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
+        const syncedAt = new Date().toISOString();
+        const outputContent = addRuleHeader(content, rule.name, rule.description, syncedAt);
 
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
           previousContent = await getRuleContent(rule.name, client);
           if (previousContent) {
+            const previousSourceContent = stripManagedRuleHeader(previousContent);
             const previousNormalizedHash = await computeHash(
-              normalizeEffectiveRuleContent(previousContent)
+              normalizeEffectiveRuleContent(previousSourceContent)
             );
             if (previousNormalizedHash === hash) {
-              if (previousContent === content) {
+              if (previousSourceContent === content) {
                 if (existingMeta.lastHash !== hash) {
                   await saveArtifactMeta({ ...existingMeta, lastHash: hash });
                 }
                 continue;
               }
 
-              const sizeBytes = new TextEncoder().encode(content).length;
-              const { url, path } = await uploadRuleContent(rule.name, client, content);
+              const sizeBytes = new TextEncoder().encode(outputContent).length;
+              const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
               blobWriteCount += 1;
               await saveArtifactMeta({
                 ...existingMeta,
                 lastHash: hash,
-                lastUpdatedAt: new Date().toISOString(),
+                lastUpdatedAt: syncedAt,
                 blobPath: path,
                 blobUrl: url,
                 sizeBytes,
@@ -390,18 +402,19 @@ export async function executePartialSync(ruleName: string): Promise<{
           previousContent = await getRuleContent(rule.name, client);
         }
 
+        const previousSourceContent = stripManagedRuleHeader(previousContent);
         const diff = createLineDiff(
-          normalizeEffectiveRuleContent(previousContent),
+          normalizeEffectiveRuleContent(previousSourceContent),
           normalizedContent
         );
-        const sizeBytes = new TextEncoder().encode(content).length;
-        const { url, path } = await uploadRuleContent(rule.name, client, content);
+        const sizeBytes = new TextEncoder().encode(outputContent).length;
+        const { url, path } = await uploadRuleContent(rule.name, client, outputContent);
         blobWriteCount += 1;
         const meta: ArtifactMeta = {
           ruleName: rule.name,
           client,
           lastHash: hash,
-          lastUpdatedAt: new Date().toISOString(),
+          lastUpdatedAt: syncedAt,
           blobPath: path,
           blobUrl: url,
           sizeBytes,

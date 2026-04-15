@@ -5,6 +5,7 @@ import {
     addRuleHeader,
     computeHash,
     normalizeEffectiveRuleContent,
+    stripManagedRuleHeader,
 } from "@/lib/transformer";
 import type { Transform, TransformersConfig } from "@/lib/schema";
 
@@ -169,16 +170,20 @@ describe("applyNewTransforms", () => {
 });
 
 describe("addRuleHeader", () => {
-    it("should return original content without modification", () => {
-        const content = "DOMAIN,test.com";
-        const result = addRuleHeader(content, "TestRule");
-        expect(result).toBe(content);
+    it("should prepend managed header with rule stats", () => {
+        const content = "# existing header\nDOMAIN,test.com\nDOMAIN-SUFFIX,example.com\nDOMAIN,test2.com\n";
+        const result = addRuleHeader(content, "TestRule", "Test description", "2026-04-15T10:30:45.000Z");
+        expect(result).toContain("# 规则数量：3 条");
+        expect(result).toMatch(/# 更新时间：2026-04-15 \d{2}:30:45/);
+        expect(result).toContain("# 规则类型：");
+        expect(result).toContain("# DOMAIN: 2 条");
+        expect(result).toContain("# DOMAIN-SUFFIX: 1 条");
+        expect(result).toContain("\n\n# existing header\nDOMAIN,test.com");
     });
 
-    it("should preserve existing comments and formatting", () => {
-        const content = "# existing header\nDOMAIN,test.com";
-        const result = addRuleHeader(content, "TestRule", "Test description");
-        expect(result).toBe(content);
+    it("should strip managed header and keep upstream comments", () => {
+        const content = addRuleHeader("# upstream\nDOMAIN,test.com\n", "TestRule", undefined, "2026-04-15T10:30:45.000Z");
+        expect(stripManagedRuleHeader(content)).toBe("# upstream\nDOMAIN,test.com\n");
     });
 });
 

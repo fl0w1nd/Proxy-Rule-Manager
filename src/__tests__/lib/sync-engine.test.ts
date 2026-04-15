@@ -109,11 +109,12 @@ describe("executeFullSync", () => {
 
     await executeFullSync();
 
-    expect(mockedUploadRuleContent).toHaveBeenCalledWith(
-      "test-rule",
-      "clash_meta",
-      "# upstream header\nDOMAIN,test.com\n"
-    );
+    const uploadedContent = mockedUploadRuleContent.mock.calls[0]?.[2];
+    expect(uploadedContent).toContain("# 规则数量：1 条");
+    expect(uploadedContent).toContain("# 更新时间：");
+    expect(uploadedContent).toContain("# 规则类型：");
+    expect(uploadedContent).toContain("# DOMAIN: 1 条");
+    expect(uploadedContent).toContain("\n\n# upstream header\nDOMAIN,test.com\n");
     expect(mockedSaveArtifactMeta).toHaveBeenCalledTimes(1);
     expect(mockedRecordRuleFileChanges).toHaveBeenCalledWith([]);
   });

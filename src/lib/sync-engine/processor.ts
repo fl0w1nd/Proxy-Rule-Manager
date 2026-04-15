@@ -1,5 +1,5 @@
 import { RuleConfig, ClientType, TransformersConfig, ClientConfig } from "../schema";
-import { applyNewTransforms, mergeContents, addRuleHeader } from "../transformer";
+import { applyNewTransforms, mergeContents } from "../transformer";
 import { fetchSource } from "./fetcher";
 import { readLocalSourceContent } from "../local-source-store";
 
@@ -124,8 +124,7 @@ export async function processRule(
       }
     }
 
-    const finalContent = addRuleHeader(baseContent, rule.name, rule.description);
-    result.contents.set(client, finalContent);
+    result.contents.set(client, baseContent);
   }
 
   return result;
