@@ -26,7 +26,7 @@ import {
   recordRuleFileChanges,
   recordFailureRecords,
 } from "./activity-store";
-import { computeHash } from "./transformer";
+import { computeHash, normalizeEffectiveRuleContent } from "./transformer";
 import { fetchSource } from "./sync-engine/fetcher";
 import { processRule } from "./sync-engine/processor";
 import { extractDependencies, topologicalSort } from "./sync-engine/dependency-graph";
@@ -80,16 +80,6 @@ function buildFailureRecords(
       jobId,
     };
   });
-}
-
-function normalizeRuleContent(content: string | null): string {
-  if (!content) return "";
-  return content
-    .replace(/\r\n/g, "\n")
-    .replace(/\r/g, "\n")
-    .split("\n")
-    .filter((line) => !line.startsWith("# UPDATED:"))
-    .join("\n");
 }
 
 // 执行全量同步
@@ -146,7 +136,7 @@ export async function executeFullSync(): Promise<{
 
       for (const [client, content] of processResult.contents) {
         const existingMeta = await getArtifactMeta(rule.name, client);
-        const normalizedContent = normalizeRuleContent(content);
+        const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
 
         if (existingMeta && existingMeta.lastHash === hash) {
@@ -158,7 +148,7 @@ export async function executeFullSync(): Promise<{
           previousContent = await getRuleContent(rule.name, client);
           if (previousContent) {
             const previousNormalizedHash = await computeHash(
-              normalizeRuleContent(previousContent)
+              normalizeEffectiveRuleContent(previousContent)
             );
             if (previousNormalizedHash === hash) {
               if (existingMeta.lastHash !== hash) {
@@ -173,7 +163,10 @@ export async function executeFullSync(): Promise<{
           previousContent = await getRuleContent(rule.name, client);
         }
 
-        const diff = createLineDiff(previousContent, content);
+        const diff = createLineDiff(
+          normalizeEffectiveRuleContent(previousContent),
+          normalizedContent
+        );
         const sizeBytes = new TextEncoder().encode(content).length;
         const { url, path } = await uploadRuleContent(rule.name, client, content);
         blobWriteCount += 1;
@@ -348,7 +341,7 @@ export async function executePartialSync(ruleName: string): Promise<{
 
       for (const [client, content] of processResult.contents) {
         const existingMeta = await getArtifactMeta(rule.name, client);
-        const normalizedContent = normalizeRuleContent(content);
+        const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
 
         if (existingMeta && existingMeta.lastHash === hash) {
@@ -360,7 +353,7 @@ export async function executePartialSync(ruleName: string): Promise<{
           previousContent = await getRuleContent(rule.name, client);
           if (previousContent) {
             const previousNormalizedHash = await computeHash(
-              normalizeRuleContent(previousContent)
+              normalizeEffectiveRuleContent(previousContent)
             );
             if (previousNormalizedHash === hash) {
               if (existingMeta.lastHash !== hash) {
@@ -375,7 +368,10 @@ export async function executePartialSync(ruleName: string): Promise<{
           previousContent = await getRuleContent(rule.name, client);
         }
 
-        const diff = createLineDiff(previousContent, content);
+        const diff = createLineDiff(
+          normalizeEffectiveRuleContent(previousContent),
+          normalizedContent
+        );
         const sizeBytes = new TextEncoder().encode(content).length;
         const { url, path } = await uploadRuleContent(rule.name, client, content);
         blobWriteCount += 1;

@@ -4,6 +4,7 @@ import {
     applyNewTransforms,
     addRuleHeader,
     computeHash,
+    normalizeEffectiveRuleContent,
 } from "@/lib/transformer";
 import type { Transform, TransformersConfig } from "@/lib/schema";
 
@@ -208,5 +209,22 @@ describe("computeHash", () => {
     it("should handle unicode content", async () => {
         const hash = await computeHash("中文内容 🎉");
         expect(hash).toMatch(/^[0-9a-f]{64}$/);
+    });
+});
+
+describe("normalizeEffectiveRuleContent", () => {
+    it("should ignore comment and blank lines", () => {
+        const content = "# header\n\nDOMAIN,test.com\n   \n# footer\nIP-CIDR,1.1.1.1/32\n";
+        expect(normalizeEffectiveRuleContent(content)).toBe("DOMAIN,test.com\nIP-CIDR,1.1.1.1/32");
+    });
+
+    it("should trim rule lines before comparison", () => {
+        const content = "  DOMAIN,test.com  \n\tIP-CIDR,1.1.1.1/32\t";
+        expect(normalizeEffectiveRuleContent(content)).toBe("DOMAIN,test.com\nIP-CIDR,1.1.1.1/32");
+    });
+
+    it("should return empty string when content only has comments and blanks", () => {
+        const content = "# header\n\n   \n# footer";
+        expect(normalizeEffectiveRuleContent(content)).toBe("");
     });
 });

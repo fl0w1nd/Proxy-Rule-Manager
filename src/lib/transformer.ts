@@ -158,6 +158,18 @@ export function addRuleHeader(
   return content;
 }
 
+export function normalizeEffectiveRuleContent(content: string | null | undefined): string {
+  if (!content) return "";
+
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .split("\n")
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .join("\n");
+}
+
 // 计算内容的 SHA-256 哈希
 export async function computeHash(content: string): Promise<string> {
   const encoder = new TextEncoder();
