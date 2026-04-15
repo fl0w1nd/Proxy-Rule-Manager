@@ -167,7 +167,22 @@ describe("storage-adapter client file paths", () => {
 
     await expect(storage.getRuleContent("YouTube", "clash_meta")).resolves.toBe("DOMAIN,youtube.com");
     expect(storage.getRulePublicPath("YouTube", "clash_meta")).toBe("/Rules/clash_meta/YouTube.list");
-    await expect(fs.readFile(path.join(dataDir, "rules", "clash_meta", "YouTube.list"), "utf-8")).resolves.toBe("DOMAIN,youtube.com");
+    await expect(fs.readFile(path.join(dataDir, "Rules", "clash_meta", "YouTube.list"), "utf-8")).resolves.toBe("DOMAIN,youtube.com");
     await expect(fs.access(path.join(dataDir, "rules", "Clash Meta", "YouTube.list"))).rejects.toThrow();
+  });
+
+  it("renames legacy rules root directory to Rules", async () => {
+    const db = createTestDb();
+    const legacyRuleDir = path.join(dataDir, "rules", "clash_meta");
+    await fs.mkdir(legacyRuleDir, { recursive: true });
+    await fs.writeFile(path.join(legacyRuleDir, "Netflix.list"), "DOMAIN,netflix.com", "utf-8");
+    await fs.writeFile(path.join(dataDir, "db.json"), JSON.stringify(db, null, 2), "utf-8");
+
+    const storage = await import("@/lib/storage-adapter");
+
+    await expect(storage.getRuleContent("Netflix", "clash_meta")).resolves.toBe("DOMAIN,netflix.com");
+    expect(storage.getRulesDir()).toBe(path.join(dataDir, "Rules"));
+    await expect(fs.readFile(path.join(dataDir, "Rules", "clash_meta", "Netflix.list"), "utf-8")).resolves.toBe("DOMAIN,netflix.com");
+    await expect(fs.readdir(dataDir)).resolves.toContain("Rules");
   });
 });

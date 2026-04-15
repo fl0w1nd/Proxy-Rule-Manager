@@ -28,6 +28,7 @@ import { normalizeSyncSchedule } from "./sync-schedule";
 import {
     getDataDir as getDataDirPath,
     getDbFilePath,
+    getLegacyRulesDir,
     getRulesDir as getRulesDirPath,
     getSourcesDir,
     getClientFilesDir as getClientFilesDirPath,
@@ -41,6 +42,7 @@ import {
 // --- Configuration ---
 const DATA_DIR = getDataDirPath();
 const RULES_DIR = getRulesDirPath();
+const LEGACY_RULES_DIR = getLegacyRulesDir();
 const RECORDS_DIR = path.join(DATA_DIR, "records");
 const SOURCES_DIR = getSourcesDir();
 const DB_FILE = getDbFilePath();
@@ -167,6 +169,68 @@ async function removeEmptyDir(dirPath: string): Promise<void> {
     }
 }
 
+async function getRealPath(filePath: string): Promise<string | null> {
+    try {
+        return await fs.realpath(filePath);
+    } catch {
+        return null;
+    }
+}
+
+async function migrateLegacyRulesRootDirectory(): Promise<boolean> {
+    if (LEGACY_RULES_DIR === RULES_DIR) {
+        return false;
+    }
+
+    const legacyExists = await fileExists(LEGACY_RULES_DIR);
+    if (!legacyExists) {
+        return false;
+    }
+
+    const targetExists = await fileExists(RULES_DIR);
+    const [legacyRealPath, targetRealPath] = await Promise.all([
+        getRealPath(LEGACY_RULES_DIR),
+        getRealPath(RULES_DIR),
+    ]);
+
+    if (targetExists && legacyRealPath && legacyRealPath === targetRealPath) {
+        const tempDir = path.join(DATA_DIR, `.rules-migrate-${process.pid}-${Date.now()}`);
+        await moveDir(LEGACY_RULES_DIR, tempDir);
+        await moveDir(tempDir, RULES_DIR);
+        return true;
+    }
+
+    if (!targetExists) {
+        await moveDir(LEGACY_RULES_DIR, RULES_DIR);
+        return true;
+    }
+
+    const legacyEntries = await fs.readdir(LEGACY_RULES_DIR, { withFileTypes: true }).catch(() => []);
+    for (const entry of legacyEntries) {
+        const legacyPath = path.join(LEGACY_RULES_DIR, entry.name);
+        const targetPath = path.join(RULES_DIR, entry.name);
+        const childTargetExists = await fileExists(targetPath);
+
+        if (!childTargetExists) {
+            if (entry.isDirectory()) {
+                await moveDir(legacyPath, targetPath);
+            } else {
+                await moveFile(legacyPath, targetPath);
+            }
+            continue;
+        }
+
+        if (entry.isDirectory()) {
+            await fs.rm(legacyPath, { recursive: true, force: true });
+        } else {
+            await fs.unlink(legacyPath).catch(() => undefined);
+        }
+    }
+
+    await removeEmptyDir(LEGACY_RULES_DIR);
+    return true;
+}
+
 async function migrateLegacyClientRuleDirectories(db: Database): Promise<boolean> {
     const normalizedClients: ClientConfig[] = [];
     let changed = false;
@@ -227,6 +291,7 @@ async function loadDb(): Promise<Database> {
 
     try {
         await ensureDataDir();
+        const rulesRootMigrated = await migrateLegacyRulesRootDirectory();
         const content = await fs.readFile(DB_FILE, "utf-8");
         dbCache = JSON.parse(content) as Database;
         const clientsMigrated = await migrateLegacyClientRuleDirectories(dbCache);
@@ -238,7 +303,7 @@ async function loadDb(): Promise<Database> {
             await pruneLocalSources(refs);
             dbCache.config = externalized;
             await saveDb(dbCache);
-        } else if (clientsMigrated || clientFilesMigrated) {
+        } else if (rulesRootMigrated || clientsMigrated || clientFilesMigrated) {
             await saveDb(dbCache);
         }
         return dbCache;
