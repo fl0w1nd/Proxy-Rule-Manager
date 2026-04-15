@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import NextImage from "next/image";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
@@ -49,6 +50,15 @@ import {
 } from "@/lib/api-client";
 import { AmbientBackground } from "./ambient-background";
 import { CodeViewer } from "./code-viewer";
+import { cn } from "@/lib/utils";
+
+const MAIN_TABS = [
+  { key: "rules", label: "规则" },
+  { key: "configs", label: "配置文件" },
+  { key: "icons", label: "图标集" },
+] as const;
+
+const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
 
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
   const { theme, toggleTheme } = useTheme();
@@ -267,22 +277,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   );
 
   // 标签颜色循环 - 柔和的多彩色系
-  const tagColorClasses = [
-    "neu-badge-blue",
-    "neu-badge-rose",
-    "neu-badge-amber",
-    "neu-badge-violet",
-    "neu-badge-teal",
-    "neu-badge-emerald",
-  ];
-
-  // 基于标签名生成稳定的颜色索引
-  const getTagColorClass = (tag: string) => {
+  const getTagBadgeVariant = (tag: string) => {
     let hash = 0;
     for (let i = 0; i < tag.length; i++) {
       hash = tag.charCodeAt(i) + ((hash << 5) - hash);
     }
-    return tagColorClasses[Math.abs(hash) % tagColorClasses.length];
+    return TAG_BADGE_VARIANTS[Math.abs(hash) % TAG_BADGE_VARIANTS.length];
   };
 
   const closePreview = () => {
@@ -293,34 +293,34 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   // 全屏预览模式
   if (isPreviewFullscreen && previewItem) {
     return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col">
+      <div className="fixed inset-0 z-50 flex flex-col bg-background">
         {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between px-6 py-4 glass-header">
+        <div className="flex items-center justify-between border-b border-border/70 bg-background/90 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur-xl">
           <div className="flex items-center gap-3">
             {(() => {
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
-                <div className="neu-icon">
-                      <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/60" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
                 </div>
               ) : (
-                <div className="neu-icon">
-                  <FileText className="w-5 h-5 text-primary/60" />
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                  <FileText className="w-5 h-5 text-primary/70" />
                 </div>
               );
             })()}
             <span className="font-semibold text-foreground">{previewItem.fileName}</span>
-            <span className="neu-badge neu-badge-active">
+            <Badge variant="active">
               {getClientConfig(previewItem.clientId)?.displayName || previewItem.clientId}
-            </span>
+            </Badge>
           </div>
           <div className="flex items-center gap-3">
             <span className="text-sm text-muted-foreground">
               {previewContent.split('\n').length} 行
             </span>
             <Button
-              variant="neu"
-              className="px-4 py-2 text-sm flex items-center gap-1.5"
+              variant="secondary"
+              className="h-10 rounded-full px-4 text-sm"
               onClick={() => {
                 void copyToClipboard(previewContent, () => undefined, "已复制内容");
               }}
@@ -329,8 +329,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
               复制
             </Button>
             <Button
-              variant="neu"
+              variant="secondary"
               size="icon-lg"
+              className="rounded-full"
               onClick={() => setIsPreviewFullscreen(false)}
             >
               <X className="w-5 h-5" />
@@ -348,14 +349,19 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
   return (
     <TooltipProvider>
-      <div className="neu-surface transition-colors">
+      <div className="relative min-h-screen bg-background transition-colors">
         <AmbientBackground />
         {/* Header */}
-        <header className={`sticky top-0 z-50 glass-header${isScrolled ? " scrolled" : ""}`}>
+        <header
+          className={cn(
+            "sticky top-0 z-50 border-b border-border/70 bg-background/86 backdrop-blur-xl transition-shadow",
+            isScrolled ? "shadow-[var(--shadow-sm)]" : "shadow-[var(--shadow-xs)]"
+          )}
+        >
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="neu-icon w-11 h-11 rounded-2xl">
+                <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
                   <NextImage src="/logo.svg" alt="Logo" width={24} height={24} className="w-6 h-6" />
                 </div>
                 <div className="min-w-0">
@@ -367,7 +373,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       Proxy Rule Manager
                     </p>
                     {version && (
-                      <span className="text-[10px] px-2 py-0.5 font-mono rounded-full bg-surface-subtle border border-border text-muted-foreground">
+                      <span className="rounded-full border border-border bg-surface-subtle px-2 py-0.5 font-mono text-[10px] text-muted-foreground">
                         v{version}
                       </span>
                     )}
@@ -378,7 +384,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {lastSyncAt && (
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
-                      <div className="hidden sm:flex items-center gap-1.5 text-xs text-muted-foreground/70 px-3 py-1.5 neu-badge cursor-default">
+                      <div className="hidden cursor-default items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 py-1.5 text-xs text-muted-foreground/80 shadow-[var(--shadow-xs)] sm:flex">
                         <Clock className="w-3 h-3" />
                         <span>{new Date(lastSyncAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
@@ -391,10 +397,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 <Tooltip delayDuration={100}>
                   <TooltipTrigger asChild>
                     <Button
-                      variant="neu"
+                      variant="secondary"
                       size="icon-lg"
                       asChild
-                      className="w-11 h-11"
+                      className="h-11 w-11 rounded-full"
                     >
                       <a
                         href="https://github.com/Fl0w1nd/Proxy-Rule-Manager"
@@ -409,11 +415,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   <TooltipContent side="bottom" className="text-xs">GitHub</TooltipContent>
                 </Tooltip>
                 <Button
-                  variant="neu"
+                  variant="secondary"
                   size="icon-lg"
                   onClick={toggleTheme}
                   aria-label={theme === "light" ? "切换到深色模式" : "切换到浅色模式"}
-                  className="w-11 h-11"
+                  className="h-11 w-11 rounded-full"
                 >
                   {theme === "light" ? (
                     <Moon className="w-[18px] h-[18px]" />
@@ -422,9 +428,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   )}
                 </Button>
                 <Button
-                  variant="neu"
+                  variant="secondary"
                   onClick={onAdminClick}
-                  className="h-11 px-4 text-sm"
+                  className="h-11 rounded-full px-4 text-sm"
                 >
                   <Settings className="w-4 h-4" />
                   <span className="hidden sm:inline">管理</span>
@@ -438,56 +444,52 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         <main className="container mx-auto px-4 sm:px-6 py-8">
           {/* Main Tabs & Search */}
           <div className="mb-8 space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              {/* Neumorphic Pill Tabs */}
-              <div className="neu-pill flex items-center gap-1">
-                {(
-                  [
-                    { key: "rules", label: "规则" },
-                    { key: "configs", label: "配置文件" },
-                    { key: "icons", label: "图标集" },
-                  ] as const
-                ).map((tab) => (
+            <div className="rounded-[28px] border border-border/70 bg-card/90 p-3 shadow-[var(--shadow-sm)] backdrop-blur sm:p-4">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="inline-flex w-fit items-center gap-1 rounded-full border border-border bg-surface-subtle p-1 shadow-[var(--shadow-xs)]">
+                  {MAIN_TABS.map((tab) => (
                   <button
                     key={tab.key}
                     onClick={() => setActiveMainTab(tab.key)}
-                    className={`px-5 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    className={cn(
+                      "rounded-full px-5 py-2.5 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
                       activeMainTab === tab.key
-                        ? "neu-pill-active"
-                        : "rounded-[50px] text-muted-foreground hover:text-foreground"
-                    }`}
+                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]"
+                        : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                    )}
                   >
                     {tab.label}
                   </button>
                 ))}
-              </div>
+                </div>
 
-              {/* Search */}
-              <div className="neu-search flex items-center gap-2 px-4 py-2.5 w-full sm:w-auto sm:min-w-[280px]">
-                <Search className="w-4 h-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
-                <input
-                  type="search"
-                  aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
-                  placeholder={activeMainTab === "rules" ? "搜索规则..." : activeMainTab === "configs" ? "搜索配置文件..." : "搜索图标..."}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="bg-transparent border-none outline-none text-sm text-foreground placeholder:text-muted-foreground w-full"
-                />
+                <div className="flex w-full items-center gap-2 rounded-full border border-border bg-surface-elevated px-4 py-2.5 shadow-[var(--shadow-xs)] sm:w-auto sm:min-w-[320px]">
+                  <Search className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+                  <input
+                    type="search"
+                    aria-label={activeMainTab === "rules" ? "搜索规则" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                    placeholder={activeMainTab === "rules" ? "搜索规则、说明或关键词" : activeMainTab === "configs" ? "搜索配置文件" : "搜索图标"}
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
+                  />
+                </div>
               </div>
             </div>
 
             {/* Client Tabs */}
             {activeMainTab !== "icons" && (
-              <div className="neu-pill flex items-center gap-1 overflow-x-auto scrollbar-hide w-fit max-w-full">
+              <div className="inline-flex max-w-full items-center gap-1 overflow-x-auto rounded-full border border-border bg-surface-subtle p-1 shadow-[var(--shadow-xs)] scrollbar-hide">
                 {clients.map((client) => (
                   <button
                     key={client.id}
                     onClick={() => setActiveClient(client.id)}
-                    className={`px-4 py-2 text-sm font-medium transition-all duration-200 flex-shrink-0 whitespace-nowrap ${
+                    className={cn(
+                      "shrink-0 whitespace-nowrap rounded-full px-4 py-2 text-sm font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
                       activeClient === client.id
-                        ? "neu-pill-active"
-                        : "rounded-[50px] text-muted-foreground hover:text-foreground"
-                    }`}
+                        ? "bg-primary text-primary-foreground shadow-[var(--shadow-xs)]"
+                        : "text-muted-foreground hover:bg-background/80 hover:text-foreground"
+                    )}
                   >
                     {client.displayName}
                   </button>
@@ -498,18 +500,19 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             {/* Tag Filter */}
             {activeMainTab === "rules" && allTags.length > 0 && (
               <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                <div className="flex items-center gap-1.5 text-sm text-muted-foreground flex-shrink-0" role="img" aria-label="标签筛选">
+                <div className="flex shrink-0 items-center gap-1.5 text-sm text-muted-foreground" role="img" aria-label="标签筛选">
                   <Tag className="w-3.5 h-3.5" aria-hidden="true" />
                 </div>
                 {allTags.map((tag) => (
                   <button
                     key={tag}
                     onClick={() => toggleTag(tag)}
-                    className={`flex-shrink-0 transition-all duration-200 ${
+                    className={cn(
+                      "shrink-0 rounded-full border px-3 py-1.5 text-xs font-medium transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
                       selectedTags.includes(tag)
-                        ? "neu-badge neu-badge-active"
-                        : "neu-badge hover:text-foreground"
-                    }`}
+                        ? "border-primary/20 bg-primary-soft text-primary shadow-[var(--shadow-xs)]"
+                        : "border-border bg-surface-subtle text-muted-foreground hover:border-border-strong hover:text-foreground"
+                    )}
                   >
                     {tag}
                   </button>
@@ -529,7 +532,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {/* Content Grid */}
           {isLoading ? (
             <div className="flex items-center justify-center py-24">
-              <div className="neu-raised p-8 flex flex-col items-center gap-4">
+              <div className="flex flex-col items-center gap-4 rounded-3xl border border-border bg-surface-elevated p-8 shadow-[var(--shadow-sm)]">
                 <Loader2 className="w-8 h-8 animate-spin text-primary/50" />
                 <p className="text-sm text-muted-foreground">加载中...</p>
               </div>
@@ -550,7 +553,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </p>
               </div>
             ) : (
-              <div className="neu-grid">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {clientRules.map((rule, index) => (
                   <Card
                     key={rule.name}
@@ -558,11 +561,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
                     {/* Floating action buttons */}
-                    <div className="absolute top-4 right-4 glass-float flex items-center gap-1">
+                    <div className="absolute right-4 top-4 flex translate-y-1 items-center gap-1 rounded-xl border border-border/70 bg-background/90 p-1 opacity-0 shadow-[var(--shadow-sm)] backdrop-blur transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:translate-y-0 group-focus-within:opacity-100">
                       <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                           <button
-                            className="w-8 h-8 flex items-center justify-center rounded-lg text-muted-foreground hover:text-foreground transition-colors"
+                            className="flex h-8 w-8 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15"
                             onClick={() => handlePreview({
                               type: "rule",
                               name: rule.name,
@@ -580,11 +583,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       <Tooltip delayDuration={100}>
                         <TooltipTrigger asChild>
                           <button
-                            className={`w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-200 ${
+                            className={cn(
+                              "flex h-8 w-8 items-center justify-center rounded-lg transition-all duration-200 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15",
                               copiedRule === rule.name
-                                ? "bg-green-400/20 text-green-600 dark:text-green-400"
-                                : "text-muted-foreground hover:text-foreground"
-                            }`}
+                                ? "border border-success/20 bg-success-soft text-success"
+                                : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                            )}
                             onClick={() => {
                               void copyRuleUrl(rule.name);
                             }}
@@ -603,11 +607,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
 
                     <div className="flex items-start gap-3.5">
-                      <div className="neu-icon">
+                      <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/60" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-primary/60" />
+                          <FileText className="w-[18px] h-[18px] text-primary/70" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1 pr-16">
@@ -642,12 +646,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <div className="flex flex-wrap items-center gap-1.5 mt-4">
                       {rule.tags && rule.tags.length > 0 ? (
                         rule.tags.slice(0, 4).map((tag) => (
-                          <span
+                          <Badge
                             key={tag}
-                            className={`neu-badge ${getTagColorClass(tag)}`}
+                            variant={getTagBadgeVariant(tag)}
+                            className="text-[10px]"
                           >
                             {tag}
-                          </span>
+                          </Badge>
                         ))
                       ) : (
                         <span className="text-[11px] text-muted-foreground/70">—</span>
@@ -676,7 +681,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 </p>
               </div>
             ) : (
-              <div className="neu-grid">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
                 {clientPublicFiles.map((file, index) => {
                   return (
                     <Card
@@ -685,8 +690,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                       <div className="flex items-start gap-3.5">
-                        <div className="neu-icon-accent">
-                          <FileText className="w-[18px] h-[18px] text-green-600/70 dark:text-green-400/70" />
+                        <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-success/15 bg-success-soft shadow-[var(--shadow-xs)]">
+                          <FileText className="w-[18px] h-[18px] text-success/75" />
                         </div>
                         <div className="min-w-0 flex-1">
                           <h3 className="text-[15px] font-semibold text-foreground truncate leading-tight">
@@ -704,7 +709,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       </div>
                       <div className="flex gap-3 mt-5">
                         <Button
-                          variant="neu"
+                          variant="secondary"
                           className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
                           onClick={() => handlePreview({
                             type: "config",
@@ -718,7 +723,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           预览
                         </Button>
                         <Button
-                          variant="neu"
+                          variant="default"
                           className="flex-1 h-10 text-[13px] flex items-center justify-center gap-1.5"
                           asChild
                         >
@@ -760,7 +765,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     className="group p-3 animate-slide-up opacity-0"
                     style={{ animationDelay: `${index * 25}ms` }}
                   >
-                    <div className="relative aspect-square w-full flex items-center justify-center rounded-xl overflow-hidden mb-2 neu-inset p-2">
+                    <div className="relative mb-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-subtle p-2">
                       <NextImage
                         src={icon.url}
                         alt={icon.name}
@@ -773,12 +778,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     <p className="text-xs font-medium text-foreground truncate text-center" title={icon.name}>
                       {icon.name}
                     </p>
-                    <button
-                      className={`w-full mt-2 h-7 text-[11px] font-medium rounded-lg flex items-center justify-center gap-1 transition-all duration-200 ${
-                        copiedIcon === icon.id
-                          ? "bg-green-400/20 text-green-600 dark:text-green-400"
-                          : "bg-primary/10 text-primary rounded-lg border border-primary/20 font-medium"
-                      }`}
+                    <Button
+                      variant={copiedIcon === icon.id ? "success" : "secondary"}
+                      size="sm"
+                      className="mt-2 h-8 w-full rounded-lg text-[11px] font-medium"
                       onClick={() => {
                         void copyIconUrl(icon);
                       }}
@@ -794,7 +797,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           复制
                         </>
                       )}
-                    </button>
+                    </Button>
                   </Card>
                 ))}
               </div>
@@ -804,7 +807,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
           {/* Stats */}
           <div className="mt-10 flex justify-center">
-            <div className="neu-stats px-6 py-2.5 text-center text-sm text-muted-foreground/80">
+            <div className="rounded-full border border-border bg-surface-subtle px-6 py-2.5 text-center text-sm text-muted-foreground/80 shadow-[var(--shadow-xs)]">
               {activeMainTab === "rules" ? (
                 <p>共 {clientRules.length} 条规则</p>
               ) : activeMainTab === "configs" ? (
@@ -824,19 +827,19 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
-                    <div className="neu-icon w-9 h-9 rounded-xl">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary/60" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary/70" />
                     </div>
                   ) : (
-                    <div className="neu-icon w-9 h-9 rounded-xl">
-                      <FileText className="w-4 h-4 text-primary/60" />
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                      <FileText className="w-4 h-4 text-primary/70" />
                     </div>
                   );
                 })()}
                 {previewItem?.fileName}
-                <span className="neu-badge neu-badge-active ml-1">
+                <Badge variant="active" className="ml-1">
                   {previewItem ? getClientDisplayName(previewItem.clientId) : getClientDisplayName(activeClient)}
-                </span>
+                </Badge>
               </DialogTitle>
             </DialogHeader>
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative mx-4 mb-4">
@@ -853,7 +856,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </span>
                     <div className="flex items-center gap-2">
                       <Button
-                        variant="neu"
+                        variant="secondary"
                         size="sm"
                         className="text-xs flex items-center gap-1.5"
                         onClick={() => {
@@ -864,7 +867,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         复制
                       </Button>
                       <Button
-                        variant="neu"
+                        variant="secondary"
                         size="sm"
                         className="text-xs flex items-center gap-1.5"
                         onClick={() => setIsPreviewFullscreen(true)}

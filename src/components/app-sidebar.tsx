@@ -152,8 +152,8 @@ export function AppSidebar({ activeTab, onTabChange, className, onLogout, onHome
                             className={cn(
                                 "w-full justify-start gap-3 px-3 py-2 text-sm font-medium transition-all duration-200 group animate-fade-in opacity-0",
                                 isCollapsed && "justify-center",
-                                                            isActive
-                                                                ? "bg-primary/10 text-primary border-l-2 border-primary rounded-r-xl rounded-l-none"
+                                isActive
+                                    ? "rounded-xl border border-primary/15 bg-primary-soft text-primary shadow-[var(--shadow-xs)]"
                                     : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
                             )}
                             title={isCollapsed ? item.title : undefined}

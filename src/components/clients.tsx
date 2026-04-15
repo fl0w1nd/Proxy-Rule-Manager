@@ -513,7 +513,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 管理代理客户端类型，添加新客户端或修改现有客户端
                             </p>
                         </div>
-                        <Button onClick={openAddDialog} size="sm" className="shadow-sm">
+                        <Button onClick={openAddDialog} size="sm">
                             <Plus className="w-4 h-4 mr-2" />
                             添加客户端
                         </Button>
@@ -521,9 +521,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 </div>
                 <div className="px-5 pb-5">
                     {clients.length === 0 ? (
-                        <div className="text-center py-16">
-                            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
-                                <Monitor className="w-10 h-10 text-muted-foreground/40" />
+                        <div className="py-16 text-center">
+                            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                                <Monitor className="w-10 h-10 text-primary/55" />
                             </div>
                             <p className="text-lg font-medium text-foreground">暂无客户端配置</p>
                             <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
@@ -544,9 +544,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                             key={client.id}
                                             type="button"
                                             onClick={() => setSelectedClientId(client.id)}
-                                            className={`w-full text-left p-3 rounded-lg border transition-all animate-in fade-in slide-in-from-left-4 ${isActive
-                                                ? "border-primary/50 bg-primary/5 shadow-sm"
-                                                : "border-transparent bg-muted/30 hover:bg-muted/50"
+                                            className={`w-full rounded-xl border p-3 text-left transition-all animate-in fade-in slide-in-from-left-4 ${isActive
+                                                ? "border-primary/25 bg-primary-soft/60 shadow-[var(--shadow-xs)]"
+                                                : "border-border/60 bg-card hover:border-border hover:bg-accent/30"
                                                 }`}
                                             style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                         >
@@ -574,11 +574,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                             <div className="space-y-4">
                                 {selectedClient ? (
                                     <>
-                                        <div className="rounded-lg border bg-muted/20 p-4 flex flex-col gap-4">
+                                        <div className="flex flex-col gap-4 rounded-2xl border border-border/70 bg-surface-subtle/70 p-5 shadow-[var(--shadow-xs)]">
                                             <div className="flex items-start justify-between gap-4">
                                                 <div>
                                                     <div className="flex items-center gap-2">
-                                                        <div className="w-10 h-10 rounded-md bg-primary/10 flex items-center justify-center">
+                                                        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
                                                             <Monitor className="w-5 h-5 text-primary" />
                                                         </div>
                                                         <div>
@@ -609,7 +609,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                             </div>
                                         </div>
 
-                                        <div className="rounded-lg border bg-card p-4">
+                                        <div className="rounded-2xl border border-border/70 bg-card p-5 shadow-[var(--shadow-xs)]">
                                             <div className="flex items-center justify-between">
                                                 <div>
                                                     <p className="font-medium text-foreground flex items-center gap-2">
@@ -632,9 +632,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                         <Loader2 className="w-5 h-5 animate-spin text-primary" />
                                                     </div>
                                                 ) : clientFiles.length === 0 ? (
-                                                    <div className="text-center py-12">
-                                                        <div className="w-16 h-16 mx-auto mb-4 rounded-xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
-                                                            <FileText className="w-8 h-8 text-muted-foreground/40" />
+                                                    <div className="py-12 text-center">
+                                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-surface-subtle shadow-[var(--shadow-xs)]">
+                                                            <FileText className="w-8 h-8 text-muted-foreground/55" />
                                                         </div>
                                                         <p className="text-sm font-medium text-foreground">暂无配置文件</p>
                                                         <p className="text-xs text-muted-foreground mt-1">点击「新建配置文件」添加配置文件</p>
@@ -643,7 +643,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                     clientFiles.map((file, index) => (
                                                         <div
                                                             key={file.id}
-                                                            className="flex items-center justify-between p-3 rounded-lg border border-border/60 bg-muted/20 animate-in fade-in slide-in-from-bottom-2"
+                                                            className="flex items-center justify-between rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors animate-in fade-in slide-in-from-bottom-2 hover:bg-accent/20"
                                                             style={{ animationDelay: `${index * 50}ms`, animationFillMode: 'backwards' }}
                                                         >
                                                             <div className="min-w-0">
@@ -694,9 +694,12 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                         </div>
                                     </>
                                 ) : (
-                                    <div className="text-center py-12 text-muted-foreground bg-muted/10 rounded-lg border border-dashed border-border/50">
-                                        <Monitor className="w-12 h-12 mx-auto text-muted-foreground/30 mb-3" />
-                                        <p>请选择一个客户端</p>
+                                    <div className="rounded-2xl border border-dashed border-border/60 bg-surface-subtle/50 py-14 text-center text-muted-foreground">
+                                        <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-2xl border border-border bg-background shadow-[var(--shadow-xs)]">
+                                            <Monitor className="h-8 w-8 text-muted-foreground/40" />
+                                        </div>
+                                        <p className="font-medium text-foreground">请选择一个客户端</p>
+                                        <p className="mt-1 text-sm text-muted-foreground">左侧列表会显示该客户端的配置文件与输出信息</p>
                                     </div>
                                 )}
                             </div>
@@ -962,7 +965,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 disabled={isFileLoading || isFileSaving}
                             />
                         </div>
-                        <div className="flex items-center justify-between rounded-lg border border-border/60 bg-muted/20 px-3 py-2">
+                        <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface-subtle/60 px-4 py-3 shadow-[var(--shadow-xs)]">
                             <div className="space-y-0.5">
                                 <p className="text-sm font-medium text-foreground">公开访问</p>
                                 <p className="text-xs text-muted-foreground">开启后可通过公开 URL 访问</p>
@@ -987,7 +990,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     全屏
                                 </Button>
                             </div>
-                            <div className="relative border border-border rounded-lg overflow-hidden">
+                            <div className="relative overflow-hidden rounded-2xl border border-border/70 bg-surface-elevated shadow-[var(--shadow-xs)]">
                                 <LazyMonacoEditor
                                     height="300px"
                                     language={editorLanguage}

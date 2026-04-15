@@ -47,8 +47,8 @@ export function LoginForm({ onBack }: LoginFormProps) {
               返回
             </Button>
           )}
-          <div className="mx-auto w-12 h-12 bg-gradient-to-br from-primary to-primary/70 rounded-xl flex items-center justify-center mb-4">
-            <Lock className="w-6 h-6 text-primary-foreground" />
+          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-primary/15 bg-primary-soft shadow-[var(--shadow-xs)]">
+            <Lock className="w-6 h-6 text-primary" />
           </div>
           <CardTitle className="text-2xl font-bold">
             管理后台

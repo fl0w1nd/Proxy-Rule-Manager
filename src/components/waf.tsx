@@ -249,14 +249,14 @@ export function WafManager() {
                 <Card className="p-4">
                     <p className="text-xs text-muted-foreground mb-1">持久化封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <Ban className="w-5 h-5 text-red-500" />
+                        <Ban className="w-5 h-5 text-destructive" />
                         {stats?.bans.total || 0}
                     </div>
                 </Card>
                 <Card className="p-4">
                     <p className="text-xs text-muted-foreground mb-1">永久封禁</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <ShieldAlert className="w-5 h-5 text-orange-500" />
+                        <ShieldAlert className="w-5 h-5 text-warning" />
                         {stats?.bans.permanent || 0}
                     </div>
                 </Card>
@@ -270,7 +270,7 @@ export function WafManager() {
                 <Card className="p-4">
                     <p className="text-xs text-muted-foreground mb-1">当前阻塞</p>
                     <div className="text-2xl font-bold flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-yellow-500" />
+                        <Shield className="w-5 h-5 text-warning" />
                         {stats?.temporary.currentlyBlocked || 0}
                     </div>
                 </Card>
@@ -281,10 +281,10 @@ export function WafManager() {
                 <div className="p-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                            <ShieldCheck className="w-5 h-5 text-green-500" />
+                            <ShieldCheck className="w-5 h-5 text-success" />
                             <h3 className="text-lg font-semibold text-foreground">您的 IP 地址</h3>
                         </div>
-                        <Badge variant="outline" className="font-mono">
+                        <Badge variant="outline" className="border-success/20 bg-success-soft font-mono text-success">
                             {myIp}
                         </Badge>
                     </div>
@@ -396,7 +396,7 @@ export function WafManager() {
                                                     <Badge variant="secondary">{getTimeRemaining(ban.expiresAt)}</Badge>
                                                 )}
                                                 {ban.ip === myIp && (
-                                                    <Badge variant="outline" className="text-yellow-600">
+                                                    <Badge variant="outline" className="border-warning/20 bg-warning-soft text-warning">
                                                         <AlertTriangle className="w-3 h-3 mr-1" />
                                                         您的 IP
                                                     </Badge>
@@ -496,7 +496,7 @@ export function WafManager() {
                         </div>
                         <div className="px-5 pb-5 space-y-6">
                             {/* 启用开关 */}
-                            <div className="flex items-center justify-between p-4 rounded-lg border bg-muted/30">
+                            <div className="flex items-center justify-between rounded-2xl border border-border/60 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
                                 <div className="space-y-0.5">
                                     <Label className="text-base">启用自定义响应头</Label>
                                     <p className="text-sm text-muted-foreground">
@@ -714,7 +714,7 @@ export function WafManager() {
                                     </div>
 
                                     {/* 预览 */}
-                                    <div className="space-y-2 p-4 rounded-lg border bg-muted/30">
+                                    <div className="space-y-2 rounded-2xl border border-border/60 bg-surface-subtle/60 p-4 shadow-[var(--shadow-xs)]">
                                         <Label className="text-sm text-muted-foreground">当前配置将生成的响应头预览：</Label>
                                         <Textarea
                                             readOnly

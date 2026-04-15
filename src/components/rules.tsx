@@ -254,7 +254,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             })()}
             <span className="font-semibold text-foreground">预览: {previewingRule}</span>
             {previewData.diagnostics.truncated && (
-              <Badge variant="outline" className="border-amber-500 text-amber-500">
+              <Badge variant="outline" className="border-warning/25 bg-warning-soft text-warning">
                 内容已截断（共 {previewData.diagnostics.totalLines} 行）
               </Badge>
             )}
@@ -295,9 +295,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               {previewData.diagnostics.sourceResults.map((source, i) => (
                 <div key={i} className="flex items-center gap-2 text-sm">
                   {source.success ? (
-                    <CheckCircle className="w-4 h-4 text-green-500" />
+                    <CheckCircle className="w-4 h-4 text-success" />
                   ) : (
-                    <XCircle className="w-4 h-4 text-red-500" />
+                    <XCircle className="w-4 h-4 text-destructive" />
                   )}
                   <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                   <span className="text-foreground/80 truncate max-w-md">{source.url}</span>
@@ -413,10 +413,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             >
               {/* Trigger button – top right */}
               <button
+                type="button"
                 onClick={() => setExpandedCard(isExpanded ? null : rule.name)}
-                className={`fab-trigger w-8 h-8 flex items-center justify-center rounded-xl transition-all duration-250 ${isExpanded
-                  ? "bg-foreground text-background shadow-md"
-                  : "text-muted-foreground/40 hover:text-muted-foreground hover:bg-accent"
+                aria-expanded={isExpanded}
+                aria-label={isExpanded ? `收起 ${rule.displayName || rule.name} 操作` : `展开 ${rule.displayName || rule.name} 操作`}
+                className={`fab-trigger flex h-8 w-8 items-center justify-center rounded-xl transition-all duration-250 focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15 ${isExpanded
+                  ? "bg-foreground text-background shadow-[var(--shadow-sm)]"
+                  : "text-muted-foreground/40 hover:bg-accent hover:text-muted-foreground"
                   }`}
               >
                 {isExpanded ? (
@@ -432,7 +435,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       className="fab-item text-muted-foreground"
+                      aria-label={`编辑 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 0 } as React.CSSProperties}
                       onClick={() => {
                         setEditingRule(rule);
@@ -450,7 +455,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       className="fab-item text-muted-foreground"
+                      aria-label={`预览 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 1 } as React.CSSProperties}
                       onClick={() => {
                         handlePreviewRule(rule.name, rule.output.clients);
@@ -467,7 +474,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       className="fab-item text-muted-foreground"
+                      aria-label={`刷新 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 2 } as React.CSSProperties}
                       onClick={() => {
                         handleRefreshRule(rule.name);
@@ -490,7 +499,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <button
+                        type="button"
                         className="fab-item text-muted-foreground"
+                        aria-label={`复制 ${rule.displayName || rule.name} URL`}
                         style={{ "--fab-i": 3 } as React.CSSProperties}
                         onClick={() => {
                           copyRuleUrl(rule.name, rule.output.clients[0]);
@@ -508,7 +519,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       <TooltipTrigger asChild>
                         <DropdownMenuTrigger asChild>
                           <button
+                            type="button"
                             className="fab-item text-muted-foreground"
+                            aria-label={`复制 ${rule.displayName || rule.name} URL`}
                             style={{ "--fab-i": 3 } as React.CSSProperties}
                           >
                             <Copy className="w-[15px] h-[15px]" />
@@ -537,7 +550,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       className="fab-item text-muted-foreground"
+                      aria-label={`复制规则 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 4 } as React.CSSProperties}
                       onClick={() => {
                         handleDuplicateRule(rule);
@@ -557,7 +572,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <button
+                      type="button"
                       className="fab-item text-destructive/70 hover:bg-destructive/8 hover:text-destructive"
+                      aria-label={`删除 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 5 } as React.CSSProperties}
                       onClick={() => {
                         setDeletingRule(rule.name);
@@ -573,11 +590,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
               {/* Header: Icon + Name + Description */}
               <div className="flex items-start gap-3 pr-8">
-                <div className="neu-icon flex-shrink-0">
+                <div className="flex h-11 w-11 flex-shrink-0 items-center justify-center rounded-2xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
                   {rule.icon ? (
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-muted-foreground" />
+                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary/70" />
                   ) : (
-                    <FileText className="w-[18px] h-[18px] text-muted-foreground" />
+                    <FileText className="w-[18px] h-[18px] text-primary/70" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -621,8 +638,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
       {filteredRules?.length === 0 && (
         <div className="text-center py-20">
-          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
-            <FileText className="w-10 h-10 text-muted-foreground/40" />
+          <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+            <FileText className="w-10 h-10 text-primary/55" />
           </div>
           <p className="text-lg font-medium text-foreground">
             {searchQuery || selectedTags.length > 0 ? "未找到匹配的规则" : "暂无规则"}
@@ -660,7 +677,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
               预览: {previewingRule}
             </DialogTitle>
             {previewData?.diagnostics.truncated && (
-              <DialogDescription className="text-amber-500">
+              <DialogDescription className="text-warning">
                 内容已截断（共 {previewData.diagnostics.totalLines} 行）
               </DialogDescription>
             )}
@@ -676,9 +693,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                     {previewData.diagnostics.sourceResults.map((source, i) => (
                       <div key={i} className="flex items-center gap-2 text-sm">
                         {source.success ? (
-                          <CheckCircle className="w-4 h-4 text-green-500" />
+                          <CheckCircle className="w-4 h-4 text-success" />
                         ) : (
-                          <XCircle className="w-4 h-4 text-red-500" />
+                          <XCircle className="w-4 h-4 text-destructive" />
                         )}
                         <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                         <span className="text-foreground/80 truncate max-w-xs">{source.url}</span>
@@ -720,7 +737,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                             toast.error("复制失败");
                           }
                         }}
-                        className="bg-background/80 hover:bg-background shadow-sm"
+                        className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                         title="复制内容"
                       >
                         <Copy className="w-4 h-4" />
@@ -729,13 +746,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                         variant="ghost"
                         size="icon"
                         onClick={() => setIsPreviewFullscreen(true)}
-                        className="bg-background/80 hover:bg-background shadow-sm"
+                        className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                         title="全屏预览 (ESC 退出)"
                       >
                         <Maximize2 className="w-4 h-4" />
                       </Button>
                     </div>
-                    <div className="h-full overflow-auto bg-muted/50">
+                    <div className="h-full overflow-auto bg-surface-subtle/60">
                       <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre min-w-max">
                         {content || "暂无内容"}
                       </pre>

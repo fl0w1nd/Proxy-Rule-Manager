@@ -175,19 +175,21 @@ export function IconSetManager() {
                             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                         </div>
                     ) : icons.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                            <ImageIcon className="w-12 h-12 mb-4 opacity-50" />
-                            <p>暂无图标</p>
-                            <p className="text-sm">点击上方按钮上传图标</p>
+                        <div className="flex flex-col items-center justify-center py-16 text-center">
+                            <div className="mb-5 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+                                <ImageIcon className="w-10 h-10 text-primary/55" />
+                            </div>
+                            <p className="text-lg font-medium text-foreground">暂无图标</p>
+                            <p className="mt-2 text-sm text-muted-foreground">点击上方按钮上传图标</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-4">
                             {icons.map((icon) => (
                                 <div
                                     key={icon.id}
-                                    className="group relative flex flex-col rounded-xl border border-border/40 bg-card p-3"
+                                    className="group relative flex flex-col rounded-2xl border border-border/60 bg-card p-3 shadow-[var(--shadow-xs)] transition-all duration-200 hover:border-border hover:shadow-[var(--shadow-sm)]"
                                 >
-                                    <div className="relative aspect-square w-full flex items-center justify-center rounded-md border border-border/50 bg-muted/30 mb-2 overflow-hidden">
+                                    <div className="relative mb-3 flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border/60 bg-surface-subtle">
                                         <NextImage
                                             src={icon.url}
                                             alt={icon.name}
@@ -242,7 +244,7 @@ export function IconSetManager() {
                                     ) : (
                                         <button
                                             onClick={() => startRename(icon)}
-                                            className="flex items-center gap-1 text-left hover:text-primary transition-colors group/name"
+                                            className="flex items-center gap-1 text-left transition-colors hover:text-primary focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15 group/name"
                                         >
                                             <span className="text-xs font-medium truncate flex-1" title={icon.name}>
                                                 {icon.name}
@@ -275,13 +277,13 @@ export function IconSetManager() {
                                         </Button>
                                     </div>
 
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="absolute top-2 right-2 h-6 w-6 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive hover:bg-destructive/10"
-                                        onClick={() => setDeleteConfirmIcon(icon)}
-                                        title="删除"
-                                    >
+                                        <Button
+                                            variant="ghost"
+                                            size="icon"
+                                            className="absolute right-2 top-2 h-6 w-6 bg-card/90 opacity-0 shadow-[var(--shadow-xs)] backdrop-blur transition-opacity group-hover:opacity-100 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                            onClick={() => setDeleteConfirmIcon(icon)}
+                                            title="删除"
+                                        >
                                         <Trash2 className="w-3 h-3" />
                                     </Button>
                                 </div>
@@ -299,10 +301,10 @@ export function IconSetManager() {
                     </DialogHeader>
                     <div className="space-y-4">
                         <div
-                            className={`relative border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                            className={`relative rounded-2xl border-2 border-dashed p-8 text-center transition-all ${
                                 isDragging
-                                    ? "border-primary bg-primary/5"
-                                    : "border-border hover:border-primary/50 hover:bg-muted/30"
+                                    ? "border-primary/50 bg-primary-soft"
+                                    : "border-border/70 bg-surface-subtle/60 hover:border-primary/30 hover:bg-accent/20"
                             } ${isUploading ? "pointer-events-none opacity-60" : "cursor-pointer"}`}
                             onDragOver={(e) => {
                                 e.preventDefault();

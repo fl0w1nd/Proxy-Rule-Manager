@@ -514,7 +514,7 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
         <Card>
           <div className="px-5 pt-5 pb-3">
             <h3 className="text-base font-medium text-foreground flex items-center gap-2">
-              <Database className="w-5 h-5 text-amber-500" />
+              <Database className="w-5 h-5 text-warning" />
               数据库备份与恢复
             </h3>
             <p className="text-sm text-muted-foreground">

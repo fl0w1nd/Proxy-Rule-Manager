@@ -157,11 +157,11 @@ function SectionHeader({
   actions?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded-t-lg border-b hover:bg-muted/50 transition-colors">
+    <div className="flex items-center justify-between border-b border-border/60 bg-surface-subtle/80 px-4 py-3 transition-colors">
       <button
         type="button"
         onClick={onToggle}
-        className="flex items-center gap-2 flex-1 min-w-0"
+        className="flex min-w-0 flex-1 items-center gap-2 rounded-lg text-left focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15"
       >
         <span className="flex-shrink-0 text-muted-foreground">
           {expanded ? (
@@ -658,7 +658,7 @@ export function RuleEditor({
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
-      <div className="flex-none flex items-center justify-between px-6 py-4 border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 z-20">
+      <div className="z-20 flex-none flex items-center justify-between border-b border-border/70 bg-background/92 px-6 py-4 shadow-[var(--shadow-xs)] backdrop-blur supports-[backdrop-filter]:bg-background/70">
         <div>
           <h2 className="text-lg font-semibold tracking-tight">{formData.name || (rule ? rule.name : "新建规则")}</h2>
           <p className="text-xs text-muted-foreground">配置规则详情与转换逻辑</p>
@@ -669,7 +669,7 @@ export function RuleEditor({
             <Eye className="w-4 h-4 mr-1" />
             预览
           </Button>
-          <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px] shadow-sm">
+          <Button onClick={handleSave} disabled={isSaving} className="min-w-[100px]">
             {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : "保存规则"}
           </Button>
         </div>
@@ -678,7 +678,7 @@ export function RuleEditor({
       {/* Scrollable Content */}
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         {/* 基本信息 */}
-        <div className="rounded-lg border border-border shadow-sm bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-sm)]">
           <SectionHeader
             title="基本信息"
             expanded={expandedSections.has("basic")}
@@ -791,7 +791,7 @@ export function RuleEditor({
         </div>
 
         {/* 数据来源 */}
-        <div className="rounded-lg border border-border shadow-sm bg-card overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-sm)]">
           <SectionHeader
             title="数据来源"
             help={HELP_TEXTS.sources}
@@ -813,7 +813,7 @@ export function RuleEditor({
                 return (
                   <div
                     key={sourceKeys[index] ?? `source-${index}`}
-                    className="flex items-start gap-3 p-3 rounded-lg border bg-muted/20 hover:bg-muted/40 transition-colors"
+                    className="flex items-start gap-3 rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors hover:bg-accent/20"
                   >
                     <div className="flex items-center gap-2 min-w-0 flex-1">
                       <Badge variant="outline" className="shrink-0 gap-1 bg-background">
@@ -888,7 +888,7 @@ export function RuleEditor({
                   variant="outline"
                   size="sm"
                   onClick={() => addSource("url")}
-                  className="bg-background shadow-xs hover:bg-muted"
+                  className="bg-background hover:bg-accent"
                 >
                   <Link2 className="w-3 h-3 mr-1" />
                   URL 来源
@@ -898,7 +898,7 @@ export function RuleEditor({
                   variant="outline"
                   size="sm"
                   onClick={() => addSource("ref")}
-                  className="bg-background shadow-xs hover:bg-muted"
+                  className="bg-background hover:bg-accent"
                 >
                   <FolderInput className="w-3 h-3 mr-1" />
                   引用规则
@@ -908,7 +908,7 @@ export function RuleEditor({
                   variant="outline"
                   size="sm"
                   onClick={() => addSource("local")}
-                  className="bg-background shadow-xs hover:bg-muted"
+                  className="bg-background hover:bg-accent"
                 >
                   <FileText className="w-3 h-3 mr-1" />
                   本地内容
@@ -919,7 +919,7 @@ export function RuleEditor({
         </div>
 
         {/* 后处理操作 */}
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="后处理操作"
             help={HELP_TEXTS.transforms}
@@ -952,7 +952,7 @@ export function RuleEditor({
               ))}
 
               {/* 添加操作按钮 */}
-              <div className="p-4 rounded-lg border border-dashed border-border bg-muted/30">
+              <div className="rounded-2xl border border-dashed border-border/70 bg-surface-subtle/70 p-4 shadow-[var(--shadow-xs)]">
                 <p className="text-sm text-muted-foreground mb-3 flex items-center gap-2">
                   添加后处理操作
                   <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
@@ -994,7 +994,7 @@ export function RuleEditor({
         </div>
 
         {/* 合并配置 */}
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="合并配置"
             help={HELP_TEXTS.merge}
@@ -1002,7 +1002,7 @@ export function RuleEditor({
             onToggle={() => toggleSection("merge")}
           />
           {expandedSections.has("merge") && (
-            <div className="p-4 bg-card">
+            <div className="bg-card p-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2">
@@ -1052,7 +1052,7 @@ export function RuleEditor({
         </div>
 
         {/* 输出配置 */}
-        <div className="rounded-lg border border-border overflow-hidden">
+        <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
           <SectionHeader
             title="输出配置"
             help={HELP_TEXTS.outputClients}
@@ -1072,9 +1072,9 @@ export function RuleEditor({
                     clientsList.map((client) => (
                       <label
                         key={client.id}
-                        className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-colors ${formData.output.clients.includes(client.id)
-                          ? "bg-primary/10 border-primary"
-                          : "bg-muted/30 border-border"
+                        className={`flex items-center gap-2 rounded-xl border p-3 cursor-pointer transition-all ${formData.output.clients.includes(client.id)
+                          ? "border-primary/25 bg-primary-soft/70 shadow-[var(--shadow-xs)]"
+                          : "border-border/60 bg-surface-subtle/60 hover:bg-accent/20"
                           }`}
                       >
                         <Checkbox
@@ -1209,10 +1209,10 @@ function TransformCard({
   return (
     <div
       onDragOver={onDragOver}
-      className={`rounded-lg border border-border bg-muted/30 transition-all ${isDragging ? "opacity-50 scale-95" : ""
+      className={`rounded-2xl border border-border/70 bg-surface-subtle/60 shadow-[var(--shadow-xs)] transition-all ${isDragging ? "scale-95 opacity-50" : ""
         }`}
     >
-      <div className="flex items-center justify-between p-3 border-b border-border">
+      <div className="flex items-center justify-between border-b border-border/70 bg-background/55 p-3">
         <div className="flex items-center gap-2">
           {draggable && (
             <button
@@ -1220,7 +1220,7 @@ function TransformCard({
               draggable
               onDragStart={onDragStart}
               onDragEnd={onDragEnd}
-              className="cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+            className="cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing"
               title="拖动排序"
             >
               <GripVertical className="w-4 h-4" />
@@ -1229,7 +1229,7 @@ function TransformCard({
           <button
             type="button"
             onClick={() => setExpanded(!expanded)}
-            className="flex items-center gap-2"
+            className="flex items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15"
           >
             {expanded ? (
               <ChevronDown className="w-4 h-4 text-muted-foreground" />
@@ -1260,7 +1260,7 @@ function TransformCard({
       </div>
 
       {expanded && (
-        <div className="p-3 space-y-3">
+        <div className="space-y-3 p-3">
           {/* 目标来源选择 */}
           {showTarget && (
             <div className="space-y-2">
@@ -1296,9 +1296,9 @@ function TransformCard({
                     return (
                       <label
                         key={idx}
-                        className={`flex items-center gap-1 px-2 py-1 rounded border cursor-pointer text-sm ${isSelected
-                          ? "bg-primary/10 border-primary"
-                          : "bg-background border-border"
+                        className={`flex cursor-pointer items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition-colors ${isSelected
+                          ? "border-primary/25 bg-primary-soft text-primary shadow-[var(--shadow-xs)]"
+                          : "border-border bg-background hover:border-border-strong hover:bg-accent/20"
                           }`}
                       >
                         <Checkbox
@@ -1345,7 +1345,7 @@ function TransformCard({
                 </SelectContent>
               </Select>
               {Object.keys(transformers).length === 0 && (
-                <p className="text-sm text-amber-500">暂无预定义转换器，请先在配置中添加</p>
+                <p className="text-sm text-warning">暂无预定义转换器，请先在配置中添加</p>
               )}
             </div>
           )}
@@ -1445,13 +1445,13 @@ function ClientOverrideSection({
   const hasGlobalTransforms = clientGlobalTransforms.length > 0;
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden">
+    <div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-[var(--shadow-xs)]">
       {/* 标题栏 */}
-      <div className="flex items-center justify-between p-3 bg-muted/30">
+      <div className="flex items-center justify-between border-b border-border/60 bg-surface-subtle/80 p-3">
         <button
           type="button"
           onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-2 flex-1 min-w-0"
+          className="flex min-w-0 flex-1 items-center gap-2 rounded-lg focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-primary/15"
         >
           {expanded ? (
             <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
@@ -1481,9 +1481,9 @@ function ClientOverrideSection({
 
       {/* 展开内容 */}
       {expanded && (config?.enabled ?? true) && (
-        <div className="p-3 bg-card space-y-4 border-t border-border">
+        <div className="space-y-4 border-t border-border/60 bg-card p-3">
           {/* 全局转换继承开关 */}
-          <div className="flex items-start gap-2 p-2 rounded bg-muted/30">
+          <div className="flex items-start gap-2 rounded-xl border border-border/60 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)]">
             <Checkbox
               checked={useGlobalTransforms}
               onCheckedChange={(c) => onToggleUseGlobal(!!c)}
@@ -1503,9 +1503,9 @@ function ClientOverrideSection({
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-amber-500">
-                  (该客户端暂无全局转换配置)
-                </p>
+                  <p className="text-xs text-warning">
+                    (该客户端暂无全局转换配置)
+                  </p>
               )}
             </div>
           </div>

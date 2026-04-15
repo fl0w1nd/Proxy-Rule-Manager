@@ -11,13 +11,12 @@ const buttonVariants = cva(
       variant: {
         default:
           "bg-primary text-primary-foreground rounded-xl border border-primary shadow-xs hover:bg-primary/90 active:bg-primary/85 focus-visible:ring-[3px] focus-visible:ring-primary/20",
-        neu: "neu-btn text-muted-foreground",
         success:
           "bg-success text-white rounded-xl border border-success shadow-xs hover:bg-success/90 active:bg-success/85 dark:text-success-foreground",
         destructive:
           "bg-transparent text-destructive rounded-xl border border-destructive/30 hover:bg-destructive/8 active:bg-destructive/12 focus-visible:ring-[3px] focus-visible:ring-destructive/20",
         outline:
-          "neu-btn text-muted-foreground",
+          "bg-background/80 text-foreground rounded-xl border border-border shadow-xs hover:bg-accent hover:border-border-strong active:bg-surface-strong focus-visible:ring-[3px] focus-visible:ring-ring/15",
         secondary:
           "bg-secondary text-secondary-foreground rounded-xl border border-border shadow-xs hover:bg-accent active:bg-surface-strong",
         ghost:

@@ -9,7 +9,7 @@ const MonacoEditor = lazy(() => import("@monaco-editor/react"));
 function EditorFallback({ height }: { height?: string | number }) {
   return (
     <div
-      className="flex items-center justify-center bg-muted/30 rounded-md border"
+      className="flex items-center justify-center rounded-xl border border-border/60 bg-surface-subtle/60"
       style={{ height: height || 300 }}
     >
       <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

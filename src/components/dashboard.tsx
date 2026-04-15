@@ -116,7 +116,7 @@ function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName
             type="button"
             key={change.id}
             onClick={() => onViewDiff(change)}
-            className="w-full text-left flex items-start justify-between gap-3 p-3 rounded-lg border border-border/40 hover:border-border bg-card/50 hover:bg-accent/10 transition-all cursor-pointer group shadow-sm"
+            className="group flex w-full cursor-pointer items-start justify-between gap-3 rounded-xl border border-border/50 bg-card/70 p-3 text-left shadow-[var(--shadow-xs)] transition-all hover:border-border hover:bg-accent/15 hover:shadow-[var(--shadow-sm)]"
           >
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 mb-1.5">
@@ -406,7 +406,7 @@ export function Dashboard({ onBack }: DashboardProps) {
           </div>
           <div className="flex items-center gap-3">
             <Button
-              variant="neu"
+              variant="default"
               onClick={handleFullSync}
               disabled={isSyncing}
             >
@@ -509,7 +509,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                         </CardDescription>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Button variant="neu" size="sm" onClick={() => setActiveTab('rules')}>
+                        <Button variant="secondary" size="sm" onClick={() => setActiveTab('rules')}>
                           <Settings className="w-3.5 h-3.5" /> 管理
                         </Button>
                         <Button size="sm" onClick={() => setActiveTab('rules')}>
@@ -520,9 +520,9 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <div className="flex-1 overflow-y-auto p-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         {status?.rules?.map((rule) => (
-                          <div key={rule.name} className="flex items-center justify-between p-3 rounded-xl border border-border/40 bg-muted/20 hover:bg-muted/40 transition-colors">
+                          <div key={rule.name} className="flex items-center justify-between rounded-xl border border-border/50 bg-surface-subtle/60 p-3 shadow-[var(--shadow-xs)] transition-colors hover:bg-accent/20">
                             <div className="flex items-center gap-3 min-w-0">
-                              <div className={`w-2 h-2 rounded-full ${rule.hasError ? 'bg-destructive' : 'bg-green-500'}`} />
+                              <div className={`w-2 h-2 rounded-full ${rule.hasError ? 'bg-destructive' : 'bg-success'}`} />
                               <div className="min-w-0 flex-1">
                                 <p className="text-sm font-medium truncate">{rule.name}</p>
                                 <p className="text-xs text-muted-foreground truncate">{rule.description || "No description"}</p>
@@ -582,7 +582,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                           <div className="flex-1 overflow-y-auto">
                             {filteredFailureItems.length === 0 ? (
                               <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
-                                <CheckCircle className="w-8 h-8 text-green-500/50 mb-2" />
+                                <CheckCircle className="mb-2 w-8 h-8 text-success/60" />
                                 <p className="text-xs">无异常记录</p>
                               </div>
                             ) : (
@@ -631,11 +631,11 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Pagination Controls */}
-                    <div className="flex items-center gap-1 bg-muted/30 p-1 rounded-md border border-border/50">
+                    <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-surface-subtle/70 p-1 shadow-[var(--shadow-xs)]">
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-sm hover:bg-background hover:shadow-sm"
+                        className="h-7 w-7 rounded-md hover:bg-background"
                         disabled={activityTab === "changes" ? changePage <= 1 : failurePage <= 1}
                         onClick={() => activityTab === "changes" ? setChangePage(p => Math.max(1, p - 1)) : setFailurePage(p => Math.max(1, p - 1))}
                       >
@@ -647,7 +647,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-7 w-7 rounded-sm hover:bg-background hover:shadow-sm"
+                        className="h-7 w-7 rounded-md hover:bg-background"
                         disabled={activityTab === "changes" ? changePage >= changeTotalPages : failurePage >= failureTotalPages}
                         onClick={() => activityTab === "changes" ? setChangePage(p => Math.min(changeTotalPages, p + 1)) : setFailurePage(p => Math.min(failureTotalPages, p + 1))}
                       >
@@ -746,7 +746,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                                     {getClientDisplayName(f.client)}
                                   </Badge>
                                 )}
-                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground border-border/50 bg-muted/20">
+                                <Badge variant="outline" className="border-border/60 bg-surface-subtle/60 text-[10px] font-mono font-normal text-muted-foreground">
                                   {formatTimestamp(f.timestamp)}
                                 </Badge>
                               </div>
@@ -756,8 +756,8 @@ export function Dashboard({ onBack }: DashboardProps) {
                         ))}
                         {failureItems.length === 0 && (
                           <div className="p-12 text-center">
-                            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-green-100/50 to-green-50 dark:from-green-900/20 dark:to-green-800/10 flex items-center justify-center">
-                              <CheckCircle className="w-8 h-8 text-green-500/60" />
+                            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-3xl border border-success/15 bg-success-soft shadow-[var(--shadow-xs)]">
+                              <CheckCircle className="w-8 h-8 text-success/70" />
                             </div>
                             <p className="text-sm font-medium text-foreground">运行正常</p>
                             <p className="text-xs text-muted-foreground mt-1">暂无失败记录</p>
@@ -786,7 +786,7 @@ export function Dashboard({ onBack }: DashboardProps) {
               )}
             </DialogDescription>
           </DialogHeader>
-          <div className="flex-1 overflow-hidden rounded border bg-muted/30 text-card-foreground p-0 font-mono text-sm overflow-y-auto">
+          <div className="flex-1 overflow-y-auto overflow-hidden rounded-xl border border-border/60 bg-surface-subtle/60 p-0 font-mono text-sm text-card-foreground shadow-[var(--shadow-xs)]">
             {isDiffLoading ? (
               <div className="h-full flex items-center justify-center">
                 <Loader2 className="animate-spin w-8 h-8 text-muted-foreground" />

@@ -338,8 +338,8 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       {transformerList.length === 0 ? (
         <Card>
           <div className="text-center py-16 px-5">
-            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-muted/50 to-muted flex items-center justify-center">
-              <Code2 className="w-10 h-10 text-muted-foreground/40" />
+            <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-3xl border border-primary/12 bg-primary-soft shadow-[var(--shadow-xs)]">
+              <Code2 className="w-10 h-10 text-primary/55" />
             </div>
             <p className="text-lg font-medium text-foreground">暂无预定义转换器</p>
             <p className="text-sm text-muted-foreground mt-2 max-w-sm mx-auto">
@@ -362,7 +362,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               <div className="px-5 pt-5 pb-3 z-10 relative">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-md bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-primary/12 bg-primary-soft text-primary shadow-[var(--shadow-xs)]">
                       <Code2 className="w-5 h-5" />
                     </div>
                     <div>

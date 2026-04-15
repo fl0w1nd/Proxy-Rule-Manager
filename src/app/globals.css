@@ -238,9 +238,7 @@
 }
 
 /* ============================================
-   Semantic Surface System
-   Compatibility layer: legacy class names →
-   new token-driven visuals
+   Semantic Utility Layer
    ============================================ */
 
 @layer utilities {
@@ -250,308 +248,84 @@
     box-shadow: var(--shadow-md);
   }
 
-  /* --- Page shell --- */
-  .neu-surface {
-    min-height: 100vh;
-    position: relative;
-    background: var(--background);
-  }
-
-  /* --- Card surface (replaces card-embossed) --- */
-  .card-embossed {
-    background: var(--card);
-    border-radius: var(--radius-2xl);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    transition: box-shadow 0.2s ease, border-color 0.2s ease;
-  }
-
-  .card-embossed:hover {
-    box-shadow: var(--shadow-md);
-    border-color: var(--border-strong);
-  }
-
-  /* --- Raised surface (replaces neu-raised) --- */
-  .neu-raised {
-    background: var(--surface-elevated);
-    border-radius: var(--radius-2xl);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-  }
-
-  /* --- Inset surface --- */
-  .neu-inset {
-    border-radius: var(--radius-xl);
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-  }
-
-  /* --- Segmented control shell (replaces neu-pill) --- */
-  .neu-pill {
-    border-radius: 9999px;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-    padding: 4px;
-  }
-
-  /* --- Segmented control active item (replaces neu-pill-active) --- */
-  .neu-pill-active {
-    border-radius: 9999px;
-    background: var(--primary);
-    color: var(--primary-foreground);
-    box-shadow: var(--shadow-xs);
-    font-weight: 600;
-  }
-
-  /* --- Neutral button (replaces neu-btn) --- */
-  .neu-btn {
-    border-radius: var(--radius-xl);
-    background: var(--surface-elevated);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-xs);
-    transition: all 0.15s ease;
-  }
-
-  .neu-btn:hover {
-    background: var(--accent);
-    border-color: var(--border-strong);
-    box-shadow: var(--shadow-sm);
-  }
-
-  .neu-btn:active {
-    background: var(--surface-strong);
-    box-shadow: none;
-  }
-
-  /* --- Success active (replaces neu-active-success) --- */
-  .neu-active-success {
-    border-radius: var(--radius-xl);
-    background: var(--success);
-    color: white;
-    box-shadow: var(--shadow-xs);
-    font-weight: 600;
-  }
-
-  .dark .neu-active-success {
-    color: oklch(0.18 0.01 154);
-  }
-
-  /* --- Icon chip (replaces neu-icon) --- */
-  .neu-icon {
-    width: 44px;
-    height: 44px;
-    border-radius: var(--radius-xl);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--primary-soft);
-    border: 1px solid oklch(from var(--primary) l c h / 12%);
-    flex-shrink: 0;
-    transition: transform 0.2s ease;
-  }
-
-  .group:hover .neu-icon {
-    transform: scale(1.05);
-  }
-
-  /* --- Icon chip accent (green) --- */
-  .neu-icon-accent {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--success-soft);
-    border: 1px solid oklch(from var(--success) l c h / 15%);
-    flex-shrink: 0;
-  }
-
-  /* --- Search field shell (replaces neu-search) --- */
-  .neu-search {
-    border-radius: 9999px;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-    transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  }
-
-  .neu-search:focus-within {
-    border-color: var(--ring);
-    box-shadow: 0 0 0 3px oklch(from var(--ring) l c h / 15%);
-  }
-
-  /* --- Badge base (replaces neu-badge) --- */
-  .neu-badge {
-    border-radius: 9999px;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-    color: var(--muted-foreground);
-    font-size: 11px;
-    padding: 3px 10px;
-    font-weight: 500;
-    transition: all 0.15s ease;
-  }
-
   /* --- Badge active --- */
-  .neu-badge-active {
+  .badge-active {
     background: var(--primary-soft);
     border-color: oklch(from var(--primary) l c h / 20%);
     color: var(--primary);
   }
 
   /* --- Colored badge variants (tokenized) --- */
-  .neu-badge-blue {
+  .badge-tone-blue {
     background: oklch(0.96 0.02 250);
     border-color: oklch(0.90 0.03 250);
     color: oklch(0.50 0.11 250);
   }
 
-  .dark .neu-badge-blue {
+  .dark .badge-tone-blue {
     background: oklch(0.26 0.03 250);
     border-color: oklch(0.35 0.04 250);
     color: oklch(0.78 0.08 250);
   }
 
-  .neu-badge-rose {
+  .badge-tone-rose {
     background: oklch(0.96 0.02 18);
     border-color: oklch(0.90 0.03 18);
     color: oklch(0.55 0.12 18);
   }
 
-  .dark .neu-badge-rose {
+  .dark .badge-tone-rose {
     background: oklch(0.26 0.03 18);
     border-color: oklch(0.35 0.04 18);
     color: oklch(0.78 0.08 18);
   }
 
-  .neu-badge-amber {
+  .badge-tone-amber {
     background: oklch(0.96 0.025 75);
     border-color: oklch(0.90 0.035 75);
     color: oklch(0.52 0.12 75);
   }
 
-  .dark .neu-badge-amber {
+  .dark .badge-tone-amber {
     background: oklch(0.26 0.03 75);
     border-color: oklch(0.35 0.04 75);
     color: oklch(0.78 0.08 75);
   }
 
-  .neu-badge-violet {
+  .badge-tone-violet {
     background: oklch(0.96 0.02 300);
     border-color: oklch(0.90 0.03 300);
     color: oklch(0.52 0.12 300);
   }
 
-  .dark .neu-badge-violet {
+  .dark .badge-tone-violet {
     background: oklch(0.26 0.03 300);
     border-color: oklch(0.35 0.04 300);
     color: oklch(0.78 0.08 300);
   }
 
-  .neu-badge-teal {
+  .badge-tone-teal {
     background: oklch(0.96 0.02 210);
     border-color: oklch(0.90 0.03 210);
     color: oklch(0.50 0.10 210);
   }
 
-  .dark .neu-badge-teal {
+  .dark .badge-tone-teal {
     background: oklch(0.26 0.03 210);
     border-color: oklch(0.35 0.04 210);
     color: oklch(0.78 0.08 210);
   }
 
-  .neu-badge-emerald {
+  .badge-tone-emerald {
     background: oklch(0.96 0.02 155);
     border-color: oklch(0.90 0.03 155);
     color: oklch(0.48 0.10 155);
   }
 
-  .dark .neu-badge-emerald {
+  .dark .badge-tone-emerald {
     background: oklch(0.26 0.03 155);
     border-color: oklch(0.35 0.04 155);
     color: oklch(0.78 0.08 155);
-  }
-
-  /* --- Stats pill --- */
-  .neu-stats {
-    border-radius: 9999px;
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-  }
-
-  /* --- Footer --- */
-  .neu-footer {
-    border-radius: var(--radius-2xl);
-    background: var(--surface-subtle);
-    border: 1px solid var(--border);
-  }
-
-  /* --- Glass header bar --- */
-  .glass-header {
-    background: oklch(from var(--background) l c h / 85%);
-    backdrop-filter: blur(20px) saturate(1.1);
-    -webkit-backdrop-filter: blur(20px) saturate(1.1);
-    border-bottom: 1px solid var(--border);
-    box-shadow: var(--shadow-xs);
-    transition: box-shadow 0.3s ease, background 0.3s ease;
-  }
-
-  .glass-header.scrolled {
-    box-shadow: var(--shadow-sm);
-  }
-
-  /* --- Floating action area --- */
-  .glass-float {
-    background: oklch(from var(--card) l c h / 85%);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
-    border-radius: var(--radius-xl);
-    border: 1px solid var(--border);
-    box-shadow: var(--shadow-sm);
-    padding: 4px;
-    opacity: 0;
-    transform: translateY(4px);
-    transition: opacity 0.2s ease, transform 0.2s ease;
-  }
-
-  .group:hover .glass-float {
-    opacity: 1;
-    transform: translateY(0);
-  }
-
-  /* --- Focus ring for interactive elements --- */
-  .neu-btn:focus-visible,
-  .neu-pill-active:focus-visible,
-  .neu-badge:focus-visible,
-  .glass-float button:focus-visible {
-    outline: 2px solid var(--primary);
-    outline-offset: 2px;
-    box-shadow: 0 0 0 4px oklch(from var(--primary) l c h / 15%);
-  }
-
-  /* --- Grid layout --- */
-  .neu-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-  }
-
-  @media (min-width: 640px) {
-    .neu-grid {
-      grid-template-columns: repeat(2, 1fr);
-    }
-  }
-
-  @media (min-width: 1024px) {
-    .neu-grid {
-      grid-template-columns: repeat(3, 1fr);
-    }
-  }
-
-  @media (min-width: 1280px) {
-    .neu-grid {
-      grid-template-columns: repeat(4, 1fr);
-    }
   }
 
   /* --- FAB toolbar --- */
@@ -606,6 +380,12 @@
       background-color 0.15s ease;
     pointer-events: none;
     background: transparent;
+  }
+
+  .fab-toolbar .fab-item:focus-visible,
+  .fab-trigger:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px oklch(from var(--primary) l c h / 16%);
   }
 
   .fab-toolbar.open .fab-item {

@@ -57,15 +57,15 @@ export function PreviewDialog({
         ) : previewData ? (
           <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
             {previewData.diagnostics.sourceResults.length > 0 && (
-              <div className="px-6 py-3 bg-muted/30 border-b border-border shrink-0">
+              <div className="shrink-0 border-b border-border bg-surface-subtle/60 px-6 py-3">
                 <p className="text-sm text-muted-foreground mb-2">数据源状态:</p>
                 <div className="flex flex-wrap gap-4">
                   {previewData.diagnostics.sourceResults.map((source, i) => (
                     <div key={i} className="flex items-center gap-2 text-sm">
                       {source.success ? (
-                        <CheckCircle className="w-4 h-4 text-green-500" />
+                        <CheckCircle className="w-4 h-4 text-success" />
                       ) : (
-                        <XCircle className="w-4 h-4 text-red-500" />
+                        <XCircle className="w-4 h-4 text-destructive" />
                       )}
                       <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
                       <span className="text-foreground/80 truncate max-w-xs">{source.url}</span>
@@ -120,7 +120,7 @@ export function PreviewDialog({
                           toast.error("复制失败，请手动选择内容复制");
                         }
                       }}
-                      className="bg-background/80 hover:bg-background shadow-sm"
+                      className="border border-border/60 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
                       title="复制内容"
                     >
                       <Copy className="w-4 h-4" />
