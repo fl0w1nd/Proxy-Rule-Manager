@@ -139,10 +139,6 @@ export async function executeFullSync(): Promise<{
         const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
 
-        if (existingMeta && existingMeta.lastHash === hash) {
-          continue;
-        }
-
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
           previousContent = await getRuleContent(rule.name, client);
@@ -151,9 +147,24 @@ export async function executeFullSync(): Promise<{
               normalizeEffectiveRuleContent(previousContent)
             );
             if (previousNormalizedHash === hash) {
-              if (existingMeta.lastHash !== hash) {
-                await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+              if (previousContent === content) {
+                if (existingMeta.lastHash !== hash) {
+                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+                }
+                continue;
               }
+
+              const sizeBytes = new TextEncoder().encode(content).length;
+              const { url, path } = await uploadRuleContent(rule.name, client, content);
+              blobWriteCount += 1;
+              await saveArtifactMeta({
+                ...existingMeta,
+                lastHash: hash,
+                lastUpdatedAt: new Date().toISOString(),
+                blobPath: path,
+                blobUrl: url,
+                sizeBytes,
+              });
               continue;
             }
           }
@@ -344,10 +355,6 @@ export async function executePartialSync(ruleName: string): Promise<{
         const normalizedContent = normalizeEffectiveRuleContent(content);
         const hash = await computeHash(normalizedContent);
 
-        if (existingMeta && existingMeta.lastHash === hash) {
-          continue;
-        }
-
         let previousContent: string | null | undefined = undefined;
         if (existingMeta) {
           previousContent = await getRuleContent(rule.name, client);
@@ -356,9 +363,24 @@ export async function executePartialSync(ruleName: string): Promise<{
               normalizeEffectiveRuleContent(previousContent)
             );
             if (previousNormalizedHash === hash) {
-              if (existingMeta.lastHash !== hash) {
-                await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+              if (previousContent === content) {
+                if (existingMeta.lastHash !== hash) {
+                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+                }
+                continue;
               }
+
+              const sizeBytes = new TextEncoder().encode(content).length;
+              const { url, path } = await uploadRuleContent(rule.name, client, content);
+              blobWriteCount += 1;
+              await saveArtifactMeta({
+                ...existingMeta,
+                lastHash: hash,
+                lastUpdatedAt: new Date().toISOString(),
+                blobPath: path,
+                blobUrl: url,
+                sizeBytes,
+              });
               continue;
             }
           }
