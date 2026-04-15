@@ -14,7 +14,6 @@ import {
     DEFAULT_CONFIG,
     validateConfig,
     ClientType,
-    CLIENT_PATH_NAMES,
     ClientConfig,
     DEFAULT_CLIENTS,
     updateClientMappings,
@@ -120,6 +119,108 @@ async function atomicWriteFile(filePath: string, content: string): Promise<void>
     }
 }
 
+async function fileExists(filePath: string): Promise<boolean> {
+    try {
+        await fs.access(filePath);
+        return true;
+    } catch {
+        return false;
+    }
+}
+
+async function moveFile(sourcePath: string, targetPath: string): Promise<void> {
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    try {
+        await fs.rename(sourcePath, targetPath);
+    } catch (err: unknown) {
+        const code = err && typeof err === "object" && "code" in err ? err.code : null;
+        if (code === "EXDEV") {
+            await fs.copyFile(sourcePath, targetPath);
+            await fs.unlink(sourcePath);
+            return;
+        }
+        throw err;
+    }
+}
+
+async function moveDir(sourcePath: string, targetPath: string): Promise<void> {
+    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+    try {
+        await fs.rename(sourcePath, targetPath);
+    } catch (err: unknown) {
+        const code = err && typeof err === "object" && "code" in err ? err.code : null;
+        if (code === "EXDEV") {
+            await fs.cp(sourcePath, targetPath, { recursive: true });
+            await fs.rm(sourcePath, { recursive: true, force: true });
+            return;
+        }
+        throw err;
+    }
+}
+
+async function removeEmptyDir(dirPath: string): Promise<void> {
+    try {
+        await fs.rmdir(dirPath);
+    } catch {
+        // Directory still contains files or no longer exists.
+    }
+}
+
+async function migrateLegacyClientRuleDirectories(db: Database): Promise<boolean> {
+    const normalizedClients: ClientConfig[] = [];
+    let changed = false;
+
+    for (const rawClient of db.clients as Array<ClientConfig & { pathName?: string }>) {
+        const legacyPathName = rawClient.pathName || rawClient.id;
+        const normalizedClient: ClientConfig = {
+            id: rawClient.id,
+            displayName: rawClient.displayName,
+            transforms: rawClient.transforms,
+        };
+
+        if (legacyPathName !== rawClient.id) {
+            const legacyDir = getRuleClientDir(legacyPathName);
+            const targetDir = getRuleClientDir(rawClient.id);
+            const targetExists = await fileExists(targetDir);
+            const legacyExists = await fileExists(legacyDir);
+
+            if (!targetExists && legacyExists) {
+                await moveDir(legacyDir, targetDir);
+            }
+            if (targetExists && legacyExists) {
+                await fs.rm(legacyDir, { recursive: true, force: true });
+            }
+
+            for (const artifact of Object.values(db.artifacts)) {
+                if (artifact.client === rawClient.id) {
+                    artifact.blobPath = artifact.blobPath.replace(
+                        `/Rules/${legacyPathName}/`,
+                        `/Rules/${rawClient.id}/`
+                    );
+                }
+            }
+
+            changed = true;
+        }
+
+        if (Object.prototype.hasOwnProperty.call(rawClient, "pathName")) {
+            changed = true;
+        }
+
+        normalizedClients.push(normalizedClient);
+    }
+
+    db.clients = normalizedClients;
+    return changed;
+}
+
+function getRuleClientDir(clientId: string): string {
+    if (clientId.includes("/") || clientId.includes("\\") || clientId.includes("..")) {
+        throw new Error("Invalid client ID");
+    }
+    return path.join(RULES_DIR, clientId);
+}
+
 async function loadDb(): Promise<Database> {
     if (dbCache) return dbCache;
 
@@ -127,12 +228,16 @@ async function loadDb(): Promise<Database> {
         await ensureDataDir();
         const content = await fs.readFile(DB_FILE, "utf-8");
         dbCache = JSON.parse(content) as Database;
+        const clientsMigrated = await migrateLegacyClientRuleDirectories(dbCache);
         // 初始化客户端映射
         updateClientMappings(dbCache.clients);
+        const clientFilesMigrated = await migrateLegacyClientFileStorage(dbCache);
         if (hasInlineLocalSources(dbCache.config)) {
             const { config: externalized, refs } = await externalizeConfigLocalSources(dbCache.config);
             await pruneLocalSources(refs);
             dbCache.config = externalized;
+            await saveDb(dbCache);
+        } else if (clientsMigrated || clientFilesMigrated) {
             await saveDb(dbCache);
         }
         return dbCache;
@@ -256,7 +361,7 @@ export async function addClient(client: ClientConfig): Promise<void> {
 export async function updateClient(
     clientId: string,
     updates: Partial<ClientConfig>
-): Promise<{ renamedPath?: { from: string; to: string } }> {
+): Promise<void> {
     const db = await loadDb();
     const index = db.clients.findIndex(c => c.id === clientId);
     if (index === -1) {
@@ -265,38 +370,6 @@ export async function updateClient(
 
     const oldClient = db.clients[index];
     const newClient = { ...oldClient, ...updates };
-
-    let renamedPath: { from: string; to: string } | undefined;
-
-    // 如果 pathName 变更，需要重命名目录
-    if (updates.pathName && updates.pathName !== oldClient.pathName) {
-        const oldDir = path.join(RULES_DIR, oldClient.pathName);
-        const newDir = path.join(RULES_DIR, updates.pathName);
-
-        try {
-            await fs.access(oldDir);
-            await fs.rename(oldDir, newDir);
-            renamedPath = { from: oldClient.pathName, to: updates.pathName };
-
-            // 更新 artifacts 中的路径
-            for (const key of Object.keys(db.artifacts)) {
-                const artifact = db.artifacts[key];
-                if (artifact.client === clientId) {
-                    artifact.blobPath = artifact.blobPath.replace(
-                        `/Rules/${oldClient.pathName}/`,
-                        `/Rules/${updates.pathName}/`
-                    );
-                }
-            }
-        } catch (err: unknown) {
-            // 只忽略目录不存在的情况，其他错误需要抛出
-            const isNotFound = err && typeof err === "object" && "code" in err && err.code === "ENOENT";
-            if (!isNotFound) {
-                throw new Error(`重命名目录失败: ${err}`);
-            }
-            // 目录不存在，不需要重命名，也无需更新 artifacts 路径
-        }
-    }
 
     // 如果 id 变更，需要更新所有引用
     if (updates.id && updates.id !== clientId) {
@@ -320,7 +393,40 @@ export async function updateClient(
         }
         db.artifacts = newArtifacts;
 
-        // 更新客户端配置文件的 clientId（存储路径不再依赖 clientId，无需重命名目录）
+        for (const artifact of Object.values(db.artifacts)) {
+            if (artifact.client === updates.id) {
+                artifact.blobPath = artifact.blobPath.replace(
+                    `/Rules/${clientId}/`,
+                    `/Rules/${updates.id}/`
+                );
+            }
+        }
+
+        const oldRuleDir = getRuleClientDir(clientId);
+        const newRuleDir = getRuleClientDir(updates.id);
+        try {
+            await fs.access(oldRuleDir);
+            await fs.rename(oldRuleDir, newRuleDir);
+        } catch (err: unknown) {
+            const isNotFound = err && typeof err === "object" && "code" in err && err.code === "ENOENT";
+            if (!isNotFound) {
+                throw new Error(`重命名客户端规则目录失败: ${err}`);
+            }
+        }
+
+        const oldClientFileDir = getClientFileDir(clientId);
+        const newClientFileDir = getClientFileDir(updates.id);
+        try {
+            await fs.access(oldClientFileDir);
+            await fs.rename(oldClientFileDir, newClientFileDir);
+        } catch (err: unknown) {
+            const isNotFound = err && typeof err === "object" && "code" in err && err.code === "ENOENT";
+            if (!isNotFound) {
+                throw new Error(`重命名客户端配置目录失败: ${err}`);
+            }
+        }
+
+        // 更新客户端配置文件的 clientId
         for (const file of Object.values(db.clientFiles)) {
             if (file.clientId === clientId) {
                 file.clientId = updates.id;
@@ -344,8 +450,6 @@ export async function updateClient(
     db.clients[index] = newClient;
     updateClientMappings(db.clients);
     await saveDb(db);
-
-    return { renamedPath };
 }
 
 export async function deleteClient(clientId: string): Promise<void> {
@@ -358,7 +462,7 @@ export async function deleteClient(clientId: string): Promise<void> {
     const client = db.clients[index];
 
     // 删除对应目录
-    const dir = path.join(RULES_DIR, client.pathName);
+    const dir = getRuleClientDir(client.id);
     try {
         await fs.rm(dir, { recursive: true });
     } catch {
@@ -371,17 +475,13 @@ export async function deleteClient(clientId: string): Promise<void> {
         delete db.artifacts[key];
     }
 
-    // 删除客户端配置文件元数据与文件
+    // 删除客户端配置目录和元数据
+    await fs.rm(getClientFileDir(clientId), { recursive: true, force: true }).catch(() => undefined);
     const clientFileIds = Object.keys(db.clientFiles).filter(
         (id) => db.clientFiles[id]?.clientId === clientId
     );
     for (const id of clientFileIds) {
-        const file = db.clientFiles[id];
-        if (file) {
-            const filePath = getClientFilePath(file.configId, file.ext);
-            await fs.unlink(filePath).catch(() => undefined);
-            delete db.clientFiles[id];
-        }
+        delete db.clientFiles[id];
     }
 
     // 从配置中移除该客户端引用和 client_overrides
@@ -400,15 +500,26 @@ export async function deleteClient(clientId: string): Promise<void> {
 
 // --- Client File Management ---
 
-function getClientFilePath(configId: string, ext: string): string {
+function getLegacyClientFilePath(configId: string, ext: string): string {
     if (configId.includes("/") || configId.includes("\\") || configId.includes("..")) {
         throw new Error("Invalid config ID");
     }
     if (ext.includes("/") || ext.includes("\\") || ext.includes("..")) {
         throw new Error("Invalid file extension");
     }
-    const safeName = `${configId}.${ext}`;
-    return path.join(getClientFilesDirPath(), safeName);
+    return path.join(getClientFilesDirPath(), `${configId}.${ext}`);
+}
+
+function getClientFileDir(clientId: string): string {
+    if (clientId.includes("/") || clientId.includes("\\") || clientId.includes("..")) {
+        throw new Error("Invalid client ID");
+    }
+    return path.join(getClientFilesDirPath(), clientId);
+}
+
+function getClientFilePath(clientId: string, configId: string, ext: string): string {
+    const safeName = path.basename(getLegacyClientFilePath(configId, ext));
+    return path.join(getClientFileDir(clientId), safeName);
 }
 
 async function ensureClientFilesDir(): Promise<string> {
@@ -417,9 +528,44 @@ async function ensureClientFilesDir(): Promise<string> {
     return dir;
 }
 
-function findClientFileByConfigId(db: Database, configId: string, ext: string): ClientFileMeta | undefined {
+async function ensureClientFileDir(clientId: string): Promise<string> {
+    const dir = getClientFileDir(clientId);
+    await fs.mkdir(dir, { recursive: true });
+    return dir;
+}
+
+async function migrateLegacyClientFileStorage(db: Database): Promise<boolean> {
+    if (!db.clientFiles || Object.keys(db.clientFiles).length === 0) {
+        return false;
+    }
+
+    await ensureClientFilesDir();
+
+    let changed = false;
+    for (const meta of Object.values(db.clientFiles)) {
+        const targetPath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
+        const legacyPath = getLegacyClientFilePath(meta.configId, meta.ext);
+        const targetExists = await fileExists(targetPath);
+        const legacyExists = await fileExists(legacyPath);
+
+        if (!targetExists && legacyExists) {
+            await moveFile(legacyPath, targetPath);
+            changed = true;
+            continue;
+        }
+
+        if (targetExists && legacyExists) {
+            await fs.unlink(legacyPath).catch(() => undefined);
+            changed = true;
+        }
+    }
+
+    return changed;
+}
+
+function findClientFileByConfigId(db: Database, clientId: string, configId: string, ext: string): ClientFileMeta | undefined {
     return Object.values(db.clientFiles).find(
-        (file) => file.configId === configId && file.ext === ext
+        (file) => file.clientId === clientId && file.configId === configId && file.ext === ext
     );
 }
 
@@ -443,7 +589,7 @@ export async function getClientFileContent(fileId: string): Promise<string | nul
     const meta = db.clientFiles[fileId];
     if (!meta) return null;
     try {
-        const filePath = getClientFilePath(meta.configId, meta.ext);
+        const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
         return await fs.readFile(filePath, "utf-8");
     } catch {
         return null;
@@ -455,12 +601,12 @@ export async function createClientFile(
     input: { configId: string; displayName: string; description?: string; ext: string; isPublic: boolean; content: string }
 ): Promise<ClientFileMeta> {
     const db = await loadDb();
-    // configId + ext 现在是全局唯一的
-    if (findClientFileByConfigId(db, input.configId, input.ext)) {
-        throw new Error(`File with config ID "${input.configId}" and extension "${input.ext}" already exists`);
+    // configId + ext 在单个客户端下唯一
+    if (findClientFileByConfigId(db, clientId, input.configId, input.ext)) {
+        throw new Error(`File with config ID "${input.configId}" and extension "${input.ext}" already exists for client "${clientId}"`);
     }
-    await ensureClientFilesDir();
-    const filePath = getClientFilePath(input.configId, input.ext);
+    await ensureClientFileDir(clientId);
+    const filePath = getClientFilePath(clientId, input.configId, input.ext);
     await fs.writeFile(filePath, input.content ?? "", "utf-8");
 
     const now = new Date().toISOString();
@@ -495,18 +641,17 @@ export async function updateClientFile(
     const identifierChanged = nextConfigId !== meta.configId || nextExt !== meta.ext;
 
     if (identifierChanged) {
-        // configId + ext 现在是全局唯一的
-        const existing = findClientFileByConfigId(db, nextConfigId, nextExt);
+        const existing = findClientFileByConfigId(db, meta.clientId, nextConfigId, nextExt);
         if (existing && existing.id !== fileId) {
-            throw new Error(`File with config ID "${nextConfigId}" and extension "${nextExt}" already exists`);
+            throw new Error(`File with config ID "${nextConfigId}" and extension "${nextExt}" already exists for client "${meta.clientId}"`);
         }
     }
 
-    const oldPath = getClientFilePath(meta.configId, meta.ext);
-    const newPath = getClientFilePath(nextConfigId, nextExt);
+    const oldPath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
+    const newPath = getClientFilePath(meta.clientId, nextConfigId, nextExt);
 
     if (identifierChanged) {
-        await ensureClientFilesDir();
+        await ensureClientFileDir(meta.clientId);
         try {
             await fs.rename(oldPath, newPath);
         } catch {
@@ -516,7 +661,7 @@ export async function updateClientFile(
     }
 
     if (typeof updates.content === "string") {
-        await ensureClientFilesDir();
+        await ensureClientFileDir(meta.clientId);
         await fs.writeFile(newPath, updates.content, "utf-8");
     }
 
@@ -541,25 +686,27 @@ export async function deleteClientFile(fileId: string): Promise<void> {
     if (!meta) {
         throw new Error(`Client file "${fileId}" not found`);
     }
-    const filePath = getClientFilePath(meta.configId, meta.ext);
+    const filePath = getClientFilePath(meta.clientId, meta.configId, meta.ext);
     try {
         await fs.unlink(filePath);
     } catch {
         // ignore
     }
+    await removeEmptyDir(getClientFileDir(meta.clientId));
     delete db.clientFiles[fileId];
     await saveDb(db);
 }
 
 export async function getPublicClientFile(
+    clientId: string,
     configId: string,
     ext: string
 ): Promise<{ meta: ClientFileMeta; content: string } | null> {
     const db = await loadDb();
-    const meta = findClientFileByConfigId(db, configId, ext);
+    const meta = findClientFileByConfigId(db, clientId, configId, ext);
     if (!meta || !meta.isPublic) return null;
     try {
-        const filePath = getClientFilePath(configId, ext);
+        const filePath = getClientFilePath(clientId, configId, ext);
         const content = await fs.readFile(filePath, "utf-8");
         return { meta, content };
     } catch {
@@ -623,16 +770,13 @@ export async function renameRule(
 
     // 重命名每个客户端的规则文件
     for (const clientId of rule.output.clients) {
-        const clientPathName = CLIENT_PATH_NAMES[clientId];
-        if (!clientPathName) continue;
-
-        const oldFilePath = path.join(RULES_DIR, clientPathName, `${oldName}.list`);
-        const newFilePath = path.join(RULES_DIR, clientPathName, `${newName}.list`);
+        const oldFilePath = path.join(getRuleClientDir(clientId), `${oldName}.list`);
+        const newFilePath = path.join(getRuleClientDir(clientId), `${newName}.list`);
 
         try {
             await fs.access(oldFilePath);
             await fs.rename(oldFilePath, newFilePath);
-            renamedFiles.push(`${clientPathName}/${newName}.list`);
+            renamedFiles.push(`${clientId}/${newName}.list`);
         } catch {
             // 文件不存在，跳过
         }
@@ -965,13 +1109,11 @@ export function buildResponseHeaders(settings: CdnSettings): Record<string, stri
 
 // --- Rule File Storage (replaces Vercel Blob) ---
 export function getRuleFilePath(ruleName: string, client: ClientType): string {
-    const clientPath = CLIENT_PATH_NAMES[client];
-    return path.join(RULES_DIR, clientPath, `${ruleName}.list`);
+    return path.join(getRuleClientDir(client), `${ruleName}.list`);
 }
 
 export function getRulePublicPath(ruleName: string, client: ClientType): string {
-    const clientPath = CLIENT_PATH_NAMES[client];
-    return `/Rules/${clientPath}/${ruleName}.list`;
+    return `/Rules/${client}/${ruleName}.list`;
 }
 
 export async function uploadRuleContent(
@@ -979,6 +1121,7 @@ export async function uploadRuleContent(
     client: ClientType,
     content: string
 ): Promise<{ url: string; path: string }> {
+    await loadDb();
     const filePath = getRuleFilePath(ruleName, client);
     const dir = path.dirname(filePath);
     await fs.mkdir(dir, { recursive: true });
@@ -995,6 +1138,7 @@ export async function deleteRuleContent(
     ruleName: string,
     client: ClientType
 ): Promise<void> {
+    await loadDb();
     const filePath = getRuleFilePath(ruleName, client);
     try {
         await fs.unlink(filePath);
@@ -1007,6 +1151,7 @@ export async function getRuleContent(
     ruleName: string,
     client: ClientType
 ): Promise<string | null> {
+    await loadDb();
     const filePath = getRuleFilePath(ruleName, client);
     try {
         return await fs.readFile(filePath, "utf-8");
@@ -1019,9 +1164,10 @@ export async function listAllRules(): Promise<
     { ruleName: string; client: ClientType; url: string }[]
 > {
     const result: { ruleName: string; client: ClientType; url: string }[] = [];
+    const db = await loadDb();
 
-    for (const [client, clientPath] of Object.entries(CLIENT_PATH_NAMES)) {
-        const clientDir = path.join(RULES_DIR, clientPath);
+    for (const client of db.clients.map((item) => item.id as ClientType)) {
+        const clientDir = getRuleClientDir(client);
         try {
             const files = await fs.readdir(clientDir);
             for (const file of files) {

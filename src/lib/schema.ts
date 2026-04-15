@@ -8,7 +8,6 @@ export type ClientType = z.infer<typeof ClientTypeSchema>;
 export const ClientConfigSchema = z.object({
   id: z.string(), // 客户端标识符（用于内部引用）
   displayName: z.string(), // 显示名称
-  pathName: z.string(), // 路径名称（用于文件系统目录和 URL）
   transforms: z.array(z.lazy(() => TransformSchema)).optional(), // 客户端全局转换器
 });
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
@@ -17,7 +16,7 @@ export type ClientConfig = z.infer<typeof ClientConfigSchema>;
 export const ClientFileMetaSchema = z.object({
   id: z.string(),
   clientId: z.string(),
-  configId: z.string().regex(/^[a-zA-Z0-9_-]+$/, "Config ID must only contain letters, numbers, hyphens, and underscores"), // 配置 id，决定访问路径
+  configId: z.string().regex(/^[a-zA-Z0-9_-]+$/, "Config ID must only contain letters, numbers, hyphens, and underscores"), // 配置 id，决定客户端目录下的文件名
   displayName: z.string(), // 显示名称
   description: z.string().optional(), // 配置文件描述
   ext: z.string(),
@@ -29,8 +28,8 @@ export type ClientFileMeta = z.infer<typeof ClientFileMetaSchema>;
 
 // 默认客户端配置
 export const DEFAULT_CLIENTS: ClientConfig[] = [
-  { id: "clash_meta", displayName: "Clash Meta / Stash", pathName: "Clash Meta" },
-  { id: "shadowrocket", displayName: "Shadowrocket", pathName: "Shadowrocket" },
+  { id: "clash_meta", displayName: "Clash Meta / Stash" },
+  { id: "shadowrocket", displayName: "Shadowrocket" },
 ];
 
 // 显示名称映射（运行时动态生成）
@@ -39,19 +38,11 @@ export let CLIENT_DISPLAY_NAMES: Record<string, string> = {
   shadowrocket: "Shadowrocket",
 };
 
-// 路径名称映射（运行时动态生成）
-export let CLIENT_PATH_NAMES: Record<string, string> = {
-  clash_meta: "Clash Meta",
-  shadowrocket: "Shadowrocket",
-};
-
 // 更新客户端映射的函数
 export function updateClientMappings(clients: ClientConfig[]): void {
   CLIENT_DISPLAY_NAMES = {};
-  CLIENT_PATH_NAMES = {};
   for (const client of clients) {
     CLIENT_DISPLAY_NAMES[client.id] = client.displayName;
-    CLIENT_PATH_NAMES[client.id] = client.pathName;
   }
 }
 

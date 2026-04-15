@@ -162,13 +162,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   };
 
   const getRuleUrl = (ruleName: string, clientId: string) => {
-    const client = getClientConfig(clientId);
-    const clientPath = client?.pathName || clientId;
-    return `${window.location.origin}/Rules/${encodeURIComponent(clientPath)}/${encodeURIComponent(ruleName)}.list`;
+    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/${encodeURIComponent(ruleName)}.list`;
   };
 
-  const getConfigUrl = (name: string, ext: string) => {
-    return `${window.location.origin}/client/${encodeURIComponent(name)}.${encodeURIComponent(ext)}`;
+  const getConfigUrl = (clientId: string, name: string, ext: string) => {
+    return `${window.location.origin}/client/${encodeURIComponent(clientId)}/${encodeURIComponent(name)}.${encodeURIComponent(ext)}`;
   };
 
   const copyRuleUrl = async (ruleName: string, clientId?: string) => {
@@ -211,7 +209,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     try {
       const response = item.type === "rule"
         ? await fetch(getRuleUrl(item.name, item.clientId))
-        : await fetch(getConfigUrl(item.name, item.ext || ""));
+        : await fetch(getConfigUrl(item.clientId, item.name, item.ext || ""));
       if (response.ok) {
         const text = await response.text();
         setPreviewContent(text);
@@ -260,10 +258,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
   const filteredClientFiles = clientFiles.filter((file) => {
     const query = searchQuery.toLowerCase();
-    const configId = `${file.configId}.${file.ext}`.toLowerCase();
+    const configPath = `/client/${file.clientId}/${file.configId}.${file.ext}`.toLowerCase();
     const displayName = (file.displayName || "").toLowerCase();
     const description = (file.description || "").toLowerCase();
-    return configId.includes(query) || displayName.includes(query) || description.includes(query);
+    return configPath.includes(query) || displayName.includes(query) || description.includes(query);
   });
 
   const clientPublicFiles = filteredClientFiles.filter(
@@ -680,7 +678,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                             {file.displayName || `${file.configId}.${file.ext}`}
                           </h3>
                           <p className="text-[11px] text-muted-foreground mt-0.5 font-mono truncate">
-                            {file.configId}.{file.ext}
+                            /client/{file.clientId}/{file.configId}.{file.ext}
                           </p>
                           {file.description && (
                             <p className="text-xs text-muted-foreground mt-1.5 line-clamp-2 leading-relaxed">
@@ -712,7 +710,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           asChild
                         >
                           <a
-                            href={getConfigUrl(file.configId, file.ext)}
+                            href={getConfigUrl(file.clientId, file.configId, file.ext)}
                             download={`${file.configId}.${file.ext}`}
                           >
                             <Download className="w-3.5 h-3.5" />

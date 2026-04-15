@@ -197,7 +197,7 @@ export interface PublicStatusResponse {
   rulesCount: number;
   lastSyncAt: string | null;
   rules: PublicRuleInfo[];
-  clients: Pick<ClientConfig, "id" | "displayName" | "pathName">[];
+  clients: Pick<ClientConfig, "id" | "displayName">[];
   version?: string;
 }
 
@@ -400,7 +400,6 @@ export async function renameRule(oldName: string, newName: string): Promise<Rena
 export interface ClientConfig {
   id: string;
   displayName: string;
-  pathName: string;
   transforms?: Transform[]; // 客户端全局转换器
 }
 
@@ -418,7 +417,7 @@ export async function addClient(client: ClientConfig): Promise<{ success: boolea
 export async function updateClient(
   clientId: string,
   updates: Partial<ClientConfig>
-): Promise<{ success: boolean; renamedPath?: { from: string; to: string } }> {
+): Promise<{ success: boolean }> {
   return apiRequest(`/clients/${encodeURIComponent(clientId)}`, {
     method: "PUT",
     body: JSON.stringify(updates),

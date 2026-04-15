@@ -247,7 +247,6 @@ describe("processRule", () => {
                 {
                     id: "clash_meta",
                     displayName: "Clash Meta",
-                    pathName: "Clash Meta",
                     transforms: [
                         { type: "replace", target: "all", pattern: "DOMAIN", replacement: "DOMAIN-SUFFIX" },
                     ],
@@ -265,7 +264,6 @@ describe("processRule", () => {
                 {
                     id: "clash_meta",
                     displayName: "Clash Meta",
-                    pathName: "Clash Meta",
                     transforms: [
                         { type: "replace", target: "all", pattern: "DOMAIN", replacement: "CHANGED" },
                     ],
@@ -293,7 +291,6 @@ describe("processRule", () => {
                 {
                     id: "clash_meta",
                     displayName: "Clash Meta",
-                    pathName: "Clash Meta",
                     transforms: [
                         { type: "replace", target: "all", pattern: "DOMAIN", replacement: "DOMAIN-SUFFIX" },
                     ],

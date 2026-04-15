@@ -33,8 +33,8 @@ export function registerClientRoutes(app: Hono) {
     try {
       const clientId = decodeURIComponent(c.req.param("id"));
       const body = await c.req.json();
-      const result = await updateClient(clientId, body);
-      return c.json({ success: true, ...result });
+      await updateClient(clientId, body);
+      return c.json({ success: true });
     } catch (error) {
       console.error("Failed to update client:", error);
       const message = error instanceof Error ? error.message : "Failed to update client";

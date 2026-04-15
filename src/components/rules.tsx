@@ -108,11 +108,6 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     return client?.displayName || clientId;
   };
 
-  const getClientPathName = (clientId: string): string => {
-    const client = clients.find(c => c.id === clientId);
-    return client?.pathName || clientId;
-  };
-
   useEffect(() => {
     fetchConfig();
   }, []);
@@ -170,8 +165,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   };
 
   const copyRuleUrl = async (ruleName: string, client: ClientType) => {
-    const clientPath = getClientPathName(client);
-    const url = `${window.location.origin}/Rules/${encodeURIComponent(clientPath)}/${encodeURIComponent(ruleName)}.list`;
+    const url = `${window.location.origin}/Rules/${encodeURIComponent(client)}/${encodeURIComponent(ruleName)}.list`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("已复制规则 URL");

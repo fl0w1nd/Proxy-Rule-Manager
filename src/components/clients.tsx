@@ -55,7 +55,6 @@ interface ClientsManagerProps {
 interface ClientFormData {
     id: string;
     displayName: string;
-    pathName: string;
     transforms: Transform[];
 }
 
@@ -64,7 +63,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientConfig | null>(null);
-    const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", pathName: "", transforms: [] });
+    const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", transforms: [] });
     const [transformKeys, setTransformKeys] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
@@ -148,7 +147,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const openAddDialog = () => {
         setEditingClient(null);
-        setFormData({ id: "", displayName: "", pathName: "", transforms: [] });
+        setFormData({ id: "", displayName: "", transforms: [] });
         setTransformKeys([]);
         setIsDialogOpen(true);
     };
@@ -158,7 +157,6 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setFormData({
             id: client.id,
             displayName: client.displayName,
-            pathName: client.pathName,
             transforms: client.transforms || [],
         });
         setTransformKeys(createListItemKeys(client.transforms?.length || 0));
@@ -223,7 +221,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     const handleSave = async () => {
-        if (!formData.id || !formData.displayName || !formData.pathName) {
+        if (!formData.id || !formData.displayName) {
             toast.error("请填写所有字段");
             return;
         }
@@ -231,12 +229,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setIsSaving(true);
         try {
             if (editingClient) {
-                const result = await updateClient(editingClient.id, formData);
-                if (result.renamedPath) {
-                    toast.success(`客户端已更新，目录已从 "${result.renamedPath.from}" 重命名为 "${result.renamedPath.to}"`);
-                } else {
-                    toast.success("客户端已更新");
-                }
+                await updateClient(editingClient.id, formData);
+                toast.success("客户端已更新");
                 if (editingClient.id !== formData.id) {
                     setSelectedClientId(formData.id);
                 }
@@ -564,8 +558,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <p className="text-xs text-muted-foreground font-mono mt-2 truncate" title={`/Rules/${client.pathName}/`}>
-                                                /Rules/{client.pathName}/
+                                            <p className="text-xs text-muted-foreground font-mono mt-2 truncate" title={`/Rules/${client.id}/`}>
+                                                /Rules/{client.id}/
                                             </p>
                                         </button>
                                     );
@@ -587,8 +581,8 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                         </div>
                                                     </div>
                                                     <div className="mt-3 space-y-1 text-xs text-muted-foreground font-mono">
-                                                        <p title={`/Rules/${selectedClient.pathName}/`}>规则目录：/Rules/{selectedClient.pathName}/</p>
-                                                        <p title="/client/">配置文件：/client/</p>
+                                                        <p title={`/Rules/${selectedClient.id}/`}>规则目录：/Rules/{selectedClient.id}/</p>
+                                                        <p title={`/client/${selectedClient.id}/`}>配置文件：/client/{selectedClient.id}/</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -666,7 +660,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                                     </p>
                                                                 )}
                                                                 <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate">
-                                                                    /client/{file.configId}.{file.ext}
+                                                                    /client/{file.clientId}/{file.configId}.{file.ext}
                                                                 </p>
                                                                 <p className="text-[11px] text-muted-foreground mt-1">
                                                                     更新于 {new Date(file.updatedAt).toLocaleString("zh-CN")}
@@ -715,7 +709,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                         </DialogTitle>
                         <DialogDescription>
                             {editingClient
-                                ? "修改客户端信息。注意：修改路径名称会重命名目录并影响所有规则 URL。"
+                                ? "修改客户端信息。客户端 ID 会决定规则目录和配置文件目录。"
                                 : "添加新的代理客户端类型。"}
                         </DialogDescription>
                     </DialogHeader>
@@ -741,19 +735,6 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 placeholder="例如: Surge"
                             />
                         </div>
-                        <div className="space-y-2">
-                            <Label htmlFor="pathName">路径名称</Label>
-                            <Input
-                                id="pathName"
-                                value={formData.pathName}
-                                onChange={(e) => setFormData((prev) => ({ ...prev, pathName: e.target.value }))}
-                                placeholder="例如: Surge"
-                            />
-                            <p className="text-xs text-muted-foreground">
-                                用于 URL 路径: /Rules/{formData.pathName || "..."}/规则名.list
-                            </p>
-                        </div>
-
                         {/* 全局转换器配置 */}
                         <div className="space-y-2 pt-2 border-t border-border">
                             <div className="flex items-center justify-between">
@@ -939,7 +920,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                     placeholder="例如: proxy"
                                     disabled={isFileLoading || isFileSaving}
                                 />
-                                <p className="text-[10px] text-muted-foreground">决定访问路径</p>
+                                <p className="text-[10px] text-muted-foreground">访问路径：/client/{selectedClient?.id || "..."}/{fileForm.configId || "..."}.{fileForm.ext || "..."}</p>
                             </div>
                             <div className="space-y-2">
                                 <Label htmlFor="file-ext">文件后缀</Label>

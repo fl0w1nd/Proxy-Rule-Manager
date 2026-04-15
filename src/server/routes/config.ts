@@ -45,7 +45,6 @@ function buildClientsForConfig(config: ReturnType<typeof validateConfig>): Clien
         clients.set(clientId, {
           id: clientId,
           displayName: clientId,
-          pathName: clientId,
         });
       }
     }

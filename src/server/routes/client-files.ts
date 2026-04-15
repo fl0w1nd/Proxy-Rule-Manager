@@ -156,9 +156,11 @@ export function registerClientFileRoutes(app: Hono) {
     }
   });
 
-  // Public file access - 访问路径: /client/<configId>.<ext>
-  app.get("/client/:file", async (c) => {
+  // Public file access - 访问路径: /client/<clientId>/<configId>.<ext>
+  app.get("/client/:clientId/:file", async (c) => {
     try {
+      const clientId = decodeURIComponent(c.req.param("clientId"));
+      validateSegment(clientId, "Client ID");
       const file = decodeURIComponent(c.req.param("file"));
 
       const lastDot = file.lastIndexOf(".");
@@ -171,7 +173,7 @@ export function registerClientFileRoutes(app: Hono) {
       validateSegment(configId, "Config ID");
       validateSegment(ext, "File extension");
 
-      const result = await getPublicClientFile(configId, ext);
+      const result = await getPublicClientFile(clientId, configId, ext);
       if (!result) {
         return c.text("# File not found", 404);
       }

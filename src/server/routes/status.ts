@@ -78,7 +78,6 @@ export function registerStatusRoutes(app: Hono) {
         const publicClients = clientsConfig.map((c) => ({
           id: c.id,
           displayName: c.displayName,
-          pathName: c.pathName,
         }));
         return c.json({
           rulesCount: config.rules.length,
@@ -99,7 +98,6 @@ export function registerStatusRoutes(app: Hono) {
       const clientsList = clientsConfig.map((c) => ({
         id: c.id,
         displayName: c.displayName,
-        pathName: c.pathName,
       }));
 
       return c.json({

@@ -1,10 +1,10 @@
 import type { Hono } from "hono";
 import { getRuleContent, getCdnSettings, buildResponseHeaders } from "../../lib/storage-adapter";
-import { CLIENT_PATH_NAMES, ClientType } from "../../lib/schema";
+import { ClientType } from "../../lib/schema";
 
 export function registerRuleFileRoutes(app: Hono) {
   app.get("/Rules/:client/:file", async (c) => {
-    const clientPath = c.req.param("client");
+    const clientId = c.req.param("client");
     const file = c.req.param("file");
 
     if (!file.endsWith(".list")) {
@@ -12,19 +12,11 @@ export function registerRuleFileRoutes(app: Hono) {
     }
 
     const ruleName = file.replace(".list", "");
-
-    const client = Object.entries(CLIENT_PATH_NAMES).find(([, name]) => name === clientPath)
-      ?.[0] as ClientType | undefined;
-
-    if (!client) {
-      return c.text(`# Unknown client: ${clientPath}`, 404);
-    }
-
-    const content = await getRuleContent(ruleName, client);
+    const content = await getRuleContent(ruleName, clientId as ClientType);
 
     if (!content) {
       return c.text(
-        `# Rule \"${ruleName}\" not found for client \"${clientPath}\"\\n# Please run sync first`,
+        `# Rule \"${ruleName}\" not found for client \"${clientId}\"\\n# Please run sync first`,
         404
       );
     }
