@@ -148,8 +148,6 @@ export interface ActivityList<T> {
   pageSize: number;
 }
 
-export type ChangeRecordCategory = "created" | "updated";
-
 export interface StatusResponse {
   rulesCount: number;
   geositeRulesCount: number;
@@ -172,8 +170,6 @@ export interface StatusResponse {
     totalRulesProcessed: number;
     failedSources: number;
     ruleFilesChanged: number;
-    createdRecords: number;
-    updatedRecords: number;
     failureRecords: number;
   };
   rules: {
@@ -336,14 +332,12 @@ export async function getChangeRecords(
   page: number = 1,
   pageSize: number = 20,
   client?: string,
-  days?: number,
-  category?: ChangeRecordCategory
+  days?: number
 ): Promise<ActivityList<ChangeRecordSummary>> {
   const params = new URLSearchParams();
   if (date) params.set("date", date);
   if (client) params.set("client", client);
   if (days) params.set("days", String(days));
-  if (category) params.set("category", category);
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   return apiRequest<ActivityList<ChangeRecordSummary>>(`/activity/changes?${params.toString()}`);

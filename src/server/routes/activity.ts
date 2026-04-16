@@ -5,7 +5,6 @@ import {
   readChangeDiff,
   listActivityDates,
   clearActivityRecords,
-  type ChangeRecordCategory,
 } from "../../lib/activity-store";
 import { jsonError } from "../errors";
 
@@ -25,13 +24,6 @@ function isDateKey(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
-function parseChangeCategory(value: string | null): ChangeRecordCategory | undefined {
-  if (value === "created" || value === "updated") {
-    return value;
-  }
-  return undefined;
-}
-
 export function registerActivityRoutes(app: Hono) {
   app.get("/api/activity/changes", async (c) => {
     const date = c.req.query("date");
@@ -43,7 +35,6 @@ export function registerActivityRoutes(app: Hono) {
     const pageSize = parsePageSizeParam(c.req.query("pageSize") ?? null, 20);
     const daysStr = c.req.query("days");
     const days = daysStr ? parseInt(daysStr, 10) : undefined;
-    const category = parseChangeCategory(c.req.query("category") ?? null);
 
     const client = c.req.query("client");
     const result = await listChangeRecords(
@@ -51,8 +42,7 @@ export function registerActivityRoutes(app: Hono) {
       page,
       pageSize,
       client || undefined,
-      days,
-      category
+      days
     );
     return c.json(result);
   });

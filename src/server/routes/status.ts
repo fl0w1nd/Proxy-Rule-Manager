@@ -8,7 +8,7 @@ import {
 } from "../../lib/storage-adapter";
 import { RulesConfig } from "../../lib/schema";
 import packageJson from "../../../package.json";
-import { countChangeRecords, countChangeRecordsByCategory, countFailureRecords } from "../../lib/activity-store";
+import { countChangeRecords, countFailureRecords } from "../../lib/activity-store";
 import { checkAuth, getClientIp, verifyAdminWithRateLimit } from "../auth";
 import { jsonError } from "../errors";
 import { getGeositeOutputName, getPrimaryGeositeSource, isGeositeRule } from "../../lib/rule-classification";
@@ -133,7 +133,6 @@ export function registerStatusRoutes(app: Hono) {
       const today = new Date().toISOString().split("T")[0];
       const todayStats = await getDailyStats(today);
       const todayChangeCount = await countChangeRecords(today);
-      const { createdRecords, updatedRecords } = await countChangeRecordsByCategory(today);
       const todayFailureCount = await countFailureRecords(today);
 
       const clientsConfig = await getClients();
@@ -152,8 +151,6 @@ export function registerStatusRoutes(app: Hono) {
         todayStats: {
           ...todayStats,
           ruleFilesChanged: todayChangeCount,
-          createdRecords,
-          updatedRecords,
           failureRecords: todayFailureCount,
         },
         rules: rulesStatus,
