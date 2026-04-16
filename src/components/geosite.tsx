@@ -65,7 +65,6 @@ import {
   refreshRule,
   refreshGeositeProvider,
   saveConfig,
-  deleteRule,
   batchDeleteRules,
   executeFullSync,
   type ClientConfig,

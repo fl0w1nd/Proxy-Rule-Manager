@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { PatchDiff } from "@pierre/diffs/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -70,10 +70,6 @@ function LargeDiffViewer({ content }: { content: string }) {
     Math.min(INITIAL_VISIBLE_LINES, parsedLines.length)
   );
 
-  useEffect(() => {
-    setVisibleLineCount(Math.min(INITIAL_VISIBLE_LINES, parsedLines.length));
-  }, [parsedLines.length, content]);
-
   const visibleLines = parsedLines.slice(0, visibleLineCount);
   const remainingLineCount = Math.max(parsedLines.length - visibleLineCount, 0);
 
@@ -117,7 +113,7 @@ export function DiffViewer({ content, className, defaultDiffStyle = "unified" }:
   return (
     <div className={cn("overflow-x-auto rounded-xl border border-border bg-card", className)}>
       {useLargeDiffMode ? (
-        <LargeDiffViewer content={content} />
+        <LargeDiffViewer key={content} content={content} />
       ) : (
         <>
           <div className="flex items-center justify-end gap-1 border-b border-border bg-surface-subtle px-2 py-1.5">
