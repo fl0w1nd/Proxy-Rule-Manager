@@ -66,6 +66,7 @@ import {
   refreshGeositeProvider,
   saveConfig,
   deleteRule,
+  batchDeleteRules,
   executeFullSync,
   type ClientConfig,
   type GeositeCatalogItem,
@@ -352,20 +353,16 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const handleBatchDelete = async () => {
     if (selectedRuleNames.length === 0) return;
     setIsBatchDeleting(true);
-    let succeeded = 0;
-    let failed = 0;
-    for (const name of selectedRuleNames) {
-      try {
-        await deleteRule(name);
-        succeeded++;
-      } catch {
-        failed++;
+    try {
+      const result = await batchDeleteRules(selectedRuleNames);
+      const failed = result.notFound.length + result.blocked.length;
+      if (failed > 0) {
+        toast.warning(`已删除 ${result.deleted.length} 条，${failed} 条失败`);
+      } else {
+        toast.success(`已删除 ${result.deleted.length} 条规则`);
       }
-    }
-    if (failed > 0) {
-      toast.warning(`已删除 ${succeeded} 条，${failed} 条失败`);
-    } else {
-      toast.success(`已删除 ${succeeded} 条规则`);
+    } catch {
+      toast.error("批量删除失败");
     }
     setSelectedRuleNames([]);
     setIsDeleteDialogOpen(false);

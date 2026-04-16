@@ -429,6 +429,20 @@ export async function deleteRule(ruleName: string): Promise<DeleteRuleResult> {
   });
 }
 
+export interface BatchDeleteResult {
+  success: boolean;
+  deleted: string[];
+  notFound: string[];
+  blocked: { name: string; dependents: string[] }[];
+}
+
+export async function batchDeleteRules(ruleNames: string[]): Promise<BatchDeleteResult> {
+  return apiRequest<BatchDeleteResult>("/rules/batch-delete", {
+    method: "POST",
+    body: JSON.stringify({ ruleNames }),
+  });
+}
+
 // 预览 API
 export interface PreviewResponse {
   contents: Record<ClientType, string>;

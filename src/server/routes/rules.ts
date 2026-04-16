@@ -95,6 +95,110 @@ export function registerRuleRoutes(app: Hono) {
     }
   });
 
+  app.post("/api/rules/batch-delete", async (c) => {
+    try {
+      const body = await c.req.json();
+      const ruleNames: string[] = body.ruleNames;
+
+      if (!Array.isArray(ruleNames) || ruleNames.length === 0) {
+        return c.json({ error: "ruleNames must be a non-empty array" }, 400);
+      }
+
+      const config = await getConfig();
+      const namesToDelete = new Set(ruleNames);
+      const results: { deleted: string[]; notFound: string[]; blocked: { name: string; dependents: string[] }[] } = {
+        deleted: [],
+        notFound: [],
+        blocked: [],
+      };
+
+      // Check all rules first
+      for (const ruleName of ruleNames) {
+        const ruleIndex = config.rules.findIndex((r) => r.name === ruleName);
+        if (ruleIndex === -1) {
+          results.notFound.push(ruleName);
+          continue;
+        }
+
+        // Check for dependents outside the batch
+        const dependentRules: string[] = [];
+        for (const r of config.rules) {
+          if (namesToDelete.has(r.name)) continue;
+          if (r.sources?.some((s) => s.type === "ref" && s.ref === ruleName)) {
+            dependentRules.push(r.name);
+          }
+        }
+
+        if (dependentRules.length > 0) {
+          results.blocked.push({ name: ruleName, dependents: dependentRules });
+        }
+      }
+
+      if (results.blocked.length > 0) {
+        return c.json(
+          {
+            error: `${results.blocked.length} rules cannot be deleted due to external dependencies`,
+            ...results,
+          },
+          400
+        );
+      }
+
+      // Perform deletions
+      const changeRecords: ChangeRecordInput[] = [];
+
+      for (const ruleName of ruleNames) {
+        const ruleIndex = config.rules.findIndex((r) => r.name === ruleName);
+        if (ruleIndex === -1) continue;
+
+        const rule = config.rules[ruleIndex];
+        const clients = rule.output.clients;
+
+        for (const client of clients) {
+          const isGeosite = isGeositeRule(rule);
+          const geositeSource = isGeosite ? getPrimaryGeositeSource(rule) : undefined;
+          const geositeOutputName = geositeSource ? getGeositeOutputName(geositeSource) : undefined;
+
+          const previousContent = isGeosite && geositeSource
+            ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
+            : await getRuleContent(ruleName, client);
+
+          if (isGeosite && geositeSource) {
+            await deleteGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!);
+          } else {
+            await deleteRuleContent(ruleName, client);
+          }
+          await deleteArtifactMeta(ruleName, client);
+
+          if (previousContent) {
+            const diff = createLineDiff(previousContent, "");
+            const sizeBytes = new TextEncoder().encode(previousContent).length;
+            changeRecords.push({
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+              ruleName,
+              client,
+              changeType: "deleted",
+              diff,
+              sizeBytes,
+            });
+          }
+        }
+
+        config.rules.splice(ruleIndex, 1);
+        results.deleted.push(ruleName);
+      }
+
+      await saveConfig(config);
+      await recordRuleFileChanges(changeRecords);
+
+      return c.json({ success: true, ...results });
+    } catch (error) {
+      console.error("Failed to batch delete rules:", error);
+      return jsonError(c, error, "Failed to batch delete rules");
+    }
+  });
+
   app.post("/api/rules/:ruleName/refresh", async (c) => {
     try {
       const ruleName = decodeURIComponent(c.req.param("ruleName"));

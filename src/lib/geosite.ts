@@ -103,6 +103,7 @@ let geositeProtoRoot: protobuf.Root | null = null;
 const FETCH_TIMEOUT_MS = 20_000;
 const MAX_PROVIDER_DOWNLOAD_BYTES = 50 * 1024 * 1024;
 const providerRefreshLocks = new Map<GeositeProvider, Promise<GeositeProviderCache>>();
+const providerMemoryCache = new Map<GeositeProvider, GeositeProviderCache>();
 const lookupIndexCache = new Map<string, GeositeLookupIndex>();
 
 interface GeositeLookupIndex {
@@ -369,13 +370,20 @@ async function writeProviderCache(cache: GeositeProviderCache): Promise<void> {
   const tempPath = `${filePath}.${process.pid}.${Date.now()}.tmp`;
   await fs.writeFile(tempPath, JSON.stringify(cache), "utf-8");
   await fs.rename(tempPath, filePath);
+  providerMemoryCache.set(cache.provider, cache);
 }
 
 export async function readGeositeProviderCache(provider: GeositeProvider): Promise<GeositeProviderCache | null> {
+  const cached = providerMemoryCache.get(provider);
+  if (cached) {
+    return cached;
+  }
   const filePath = path.join(GEOSITE_DIR, `${provider}.json`);
   try {
     const content = await fs.readFile(filePath, "utf-8");
-    return JSON.parse(content) as GeositeProviderCache;
+    const parsed = JSON.parse(content) as GeositeProviderCache;
+    providerMemoryCache.set(provider, parsed);
+    return parsed;
   } catch {
     return null;
   }
