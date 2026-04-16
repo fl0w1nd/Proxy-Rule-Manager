@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  BookOpen,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -35,6 +36,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -184,6 +186,90 @@ function HelpIcon({ text }: { text: string }) {
   );
 }
 
+function GeositeHelpContent() {
+  return (
+    <div className="space-y-5 text-sm text-foreground/80">
+      <section className="space-y-2">
+        <h3 className="text-base font-semibold text-foreground">默认输出格式</h3>
+        <p className="leading-relaxed">
+          从上游 Geosite 源（如 v2fly、loyalsoldier）获取的原始域名列表会被解析并转换为
+          <strong className="text-foreground"> Mihomo (Clash Meta) Classical </strong>
+          格式的路由规则。转换映射关系如下：
+        </p>
+        <div className="overflow-x-auto rounded-lg border border-border">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-border bg-muted/50">
+              <tr>
+                <th className="px-3 py-2 font-medium">上游语法</th>
+                <th className="px-3 py-2 font-medium">示例</th>
+                <th className="px-3 py-2 font-medium">转换结果</th>
+                <th className="px-3 py-2 font-medium">匹配行为</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              <tr>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">裸域名 / domain:</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">alibaba.com</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">DOMAIN-SUFFIX,alibaba.com</code></td>
+                <td className="px-3 py-2">匹配域名及所有子域名</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">full:</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">full:www.alibaba.com</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">DOMAIN,www.alibaba.com</code></td>
+                <td className="px-3 py-2">精确匹配该域名</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">keyword:</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">keyword:google</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">DOMAIN-KEYWORD,google</code></td>
+                <td className="px-3 py-2">匹配包含关键词的域名</td>
+              </tr>
+              <tr>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">regexp:</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">{"regexp:^ad\\..*$"}</code></td>
+                <td className="px-3 py-2"><code className="rounded bg-muted px-1 py-0.5 text-xs">{"DOMAIN-REGEX,^ad\\..*$"}</code></td>
+                <td className="px-3 py-2">正则匹配域名</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p className="leading-relaxed text-muted-foreground">
+          上游列表中不含 <code className="rounded bg-muted px-1 py-0.5 text-xs">.</code> 的裸名称（如{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">alibaba</code>、
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">taobao</code>）代表新通用顶级域名（gTLD），
+          转换为 <code className="rounded bg-muted px-1 py-0.5 text-xs">DOMAIN-SUFFIX</code> 后可正确匹配整个 TLD 空间。
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">include:</code> 指令会在解析阶段自动展开合并，
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">@attr</code> 属性标签用于筛选子集（如{" "}
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">@ads</code>、
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">@!cn</code>）。
+        </p>
+      </section>
+
+      <section className="space-y-2">
+        <h3 className="text-base font-semibold text-foreground">适配其他客户端格式</h3>
+        <p className="leading-relaxed">
+          默认输出仅适用于 Mihomo (Clash Meta) Classical 格式。如果你的客户端使用其他路由规则格式（如 Surge、Quantumult X、Sing-Box 等），
+          需要通过<strong className="text-foreground">转换器</strong>将默认输出转换为目标格式：
+        </p>
+        <ol className="list-decimal space-y-1.5 pl-5 leading-relaxed">
+          <li>
+            进入 <strong className="text-foreground">转换器管理</strong> 页面，创建一个脚本转换器，
+            编写 <code className="rounded bg-muted px-1 py-0.5 text-xs">transform(content)</code> 函数将 Mihomo Classical 格式转换为目标客户端格式。
+          </li>
+          <li>
+            进入 <strong className="text-foreground">客户端管理</strong> 页面，为对应客户端配置<strong className="text-foreground">全局转换器</strong>，
+            选择刚创建的转换器。全局转换器会自动应用到该客户端的所有规则输出（包括 Geosite 规则）。
+          </li>
+        </ol>
+        <p className="leading-relaxed text-muted-foreground">
+          你也可以在单条规则的编辑界面中为其单独指定转换器，优先级高于客户端全局转换器。
+        </p>
+      </section>
+    </div>
+  );
+}
+
 export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [providers, setProviders] = useState<GeositeProviderStatus[]>([]);
   const [provider, setProvider] = useState<GeositeProvider>("v2fly");
@@ -223,6 +309,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [batchAddClients, setBatchAddClients] = useState(true);
   const [batchReplaceClients, setBatchReplaceClients] = useState(false);
   const [isBatchSaving, setIsBatchSaving] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const fetchAll = useCallback(async (selectedProvider: GeositeProvider = provider) => {
     try {
@@ -839,6 +926,13 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
             <Badge variant="secondary">{resolvedVersion || "未缓存"}</Badge>
             <Badge variant="secondary">{fetchedAt ? formatTimestamp(fetchedAt) : "未刷新"}</Badge>
             {providerStatus?.ready ? <Badge variant="emerald">可用</Badge> : <Badge variant="outline">待刷新</Badge>}
+            <button
+              onClick={() => setShowHelp(true)}
+              className="ml-auto inline-flex items-center gap-1 text-muted-foreground transition-colors hover:text-primary"
+            >
+              <HelpCircle className="h-3.5 w-3.5" />
+              <span>格式说明</span>
+            </button>
           </div>
         </CardContent>
       </Card>
@@ -1385,6 +1479,22 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
               保存
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Help Dialog */}
+      <Dialog open={showHelp} onOpenChange={setShowHelp}>
+        <DialogContent className="max-w-2xl w-[90vw] max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <BookOpen className="w-5 h-5 text-primary" />
+              Geosite 格式说明
+            </DialogTitle>
+            <DialogDescription>了解上游内容的默认转换格式与自定义适配方式</DialogDescription>
+          </DialogHeader>
+          <div className="prose dark:prose-invert max-w-none text-sm space-y-4">
+            <GeositeHelpContent />
+          </div>
         </DialogContent>
       </Dialog>
 
