@@ -51,6 +51,7 @@ import {
   ChangeRecordSummary,
   FailureRecord,
   ActivityList,
+  ChangeRecordCategory,
   getChangeRecords,
   getChangeDiff,
   getFailureRecords,
@@ -104,16 +105,22 @@ interface ActivityFeedProps {
   items: ChangeRecordSummary[];
   onViewDiff: (change: ChangeRecordSummary) => void;
   getClientDisplayName: (id: string) => string;
+  emptyTitle?: string;
 }
 
-function ActivityFeed({ compact = false, items, onViewDiff, getClientDisplayName }: ActivityFeedProps) {
+function ActivityFeed({
+  compact = false,
+  items,
+  onViewDiff,
+  getClientDisplayName,
+  emptyTitle = "暂无活动记录",
+}: ActivityFeedProps) {
   return (
     <div className="space-y-3">
       {items.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-12 text-center">
           <Activity className="w-12 h-12 text-muted-foreground/30 mb-4" />
-          <p className="text-sm font-medium text-muted-foreground">暂无活动记录</p>
-          <p className="text-xs text-muted-foreground/70 mt-1">同步操作后将在此显示变更日志</p>
+          <p className="text-sm font-medium text-muted-foreground">{emptyTitle}</p>
         </div>
       ) : (
         items.map((change) => (
@@ -175,16 +182,18 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [activityDate, setActivityDate] = useState<string>("all");
   const [activityClient, setActivityClient] = useState<string>("all");
   const [isClearingActivity, setIsClearingActivity] = useState(false);
-  const [changePage, setChangePage] = useState(1);
+  const [createdChangePage, setCreatedChangePage] = useState(1);
+  const [updatedChangePage, setUpdatedChangePage] = useState(1);
   const [failurePage, setFailurePage] = useState(1);
-  const [changeData, setChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
+  const [createdChangeData, setCreatedChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
+  const [updatedChangeData, setUpdatedChangeData] = useState<ActivityList<ChangeRecordSummary> | null>(null);
   const [failureData, setFailureData] = useState<ActivityList<FailureRecord> | null>(null);
   const [selectedChange, setSelectedChange] = useState<ChangeRecordSummary | null>(null);
   const [diffContent, setDiffContent] = useState("");
   const [isDiffLoading, setIsDiffLoading] = useState(false);
   const activityPageSize = 20;
   const [activityDates, setActivityDates] = useState<string[]>([]);
-  const [activityTab, setActivityTab] = useState("changes");
+  const [activityTab, setActivityTab] = useState<ChangeRecordCategory | "failures">("created");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isClearActivityDialogOpen, setIsClearActivityDialogOpen] = useState(false);
 
@@ -292,27 +301,31 @@ export function Dashboard({ onBack }: DashboardProps) {
 
       if (activeTab === "overview") {
         // Overview 获取最近 7 天的记录，最多显示 8 条
-        const [changes, failures] = await Promise.all([
-          getChangeRecords(undefined, 1, 8, undefined, 7),
+        const [createdChanges, updatedChanges, failures] = await Promise.all([
+          getChangeRecords(undefined, 1, 8, undefined, 7, "created"),
+          getChangeRecords(undefined, 1, 8, undefined, 7, "updated"),
           getFailureRecords(undefined, 1, 8, undefined, 7),
         ]);
-        setChangeData(changes);
+        setCreatedChangeData(createdChanges);
+        setUpdatedChangeData(updatedChanges);
         setFailureData(failures);
       } else {
         const dateParam = activityDate === "all" ? undefined : activityDate;
         const clientParam = activityClient === "all" ? undefined : activityClient;
-        const [changes, failures] = await Promise.all([
-          getChangeRecords(dateParam, changePage, activityPageSize, clientParam),
+        const [createdChanges, updatedChanges, failures] = await Promise.all([
+          getChangeRecords(dateParam, createdChangePage, activityPageSize, clientParam, undefined, "created"),
+          getChangeRecords(dateParam, updatedChangePage, activityPageSize, clientParam, undefined, "updated"),
           getFailureRecords(dateParam, failurePage, activityPageSize, clientParam),
         ]);
-        setChangeData(changes);
+        setCreatedChangeData(createdChanges);
+        setUpdatedChangeData(updatedChanges);
         setFailureData(failures);
       }
     } catch (error) {
       console.error("Failed to fetch activity:", error);
       if (activeTab === "activity") toast.error("获取活动记录失败");
     }
-  }, [activeTab, activityDate, activityClient, changePage, failurePage, activityPageSize]);
+  }, [activeTab, activityDate, activityClient, createdChangePage, updatedChangePage, failurePage, activityPageSize]);
 
   useEffect(() => {
     fetchActivity();
@@ -350,7 +363,8 @@ export function Dashboard({ onBack }: DashboardProps) {
     try {
       await clearActivityRecords();
       toast.success("活动记录已清空");
-      setChangePage(1);
+      setCreatedChangePage(1);
+      setUpdatedChangePage(1);
       setFailurePage(1);
       setActivityDate("all");
       setActivityClient("all");
@@ -363,12 +377,23 @@ export function Dashboard({ onBack }: DashboardProps) {
   };
 
   const recentDateOptions = activityDates;
-  const changeItems = changeData?.items || [];
+  const createdChangeItems = createdChangeData?.items || [];
+  const updatedChangeItems = updatedChangeData?.items || [];
   const failureItems = failureData?.items || [];
-  const filteredChangeItems = changeItems;
-  const filteredFailureItems = failureItems;
-  const changeTotalPages = Math.max(1, Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize)));
+  const overviewFailureItems = failureItems.slice(0, 8);
+  const createdChangeTotalPages = Math.max(1, Math.ceil((createdChangeData?.total || 0) / (createdChangeData?.pageSize || activityPageSize)));
+  const updatedChangeTotalPages = Math.max(1, Math.ceil((updatedChangeData?.total || 0) / (updatedChangeData?.pageSize || activityPageSize)));
   const failureTotalPages = Math.max(1, Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize)));
+  const currentActivityPage = activityTab === "created"
+    ? createdChangePage
+    : activityTab === "updated"
+      ? updatedChangePage
+      : failurePage;
+  const currentActivityTotalPages = activityTab === "created"
+    ? createdChangeTotalPages
+    : activityTab === "updated"
+      ? updatedChangeTotalPages
+      : failureTotalPages;
 
   // 客户端覆盖分布（规则和 Geosite 分开统计）
   const clientDistribution = useMemo(() => {
@@ -499,7 +524,7 @@ export function Dashboard({ onBack }: DashboardProps) {
             {activeTab === 'overview' && (
               <div className="space-y-6">
                 {/* Row 1: Sync Health Card + KPIs */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
+                <div className="grid grid-cols-1 lg:grid-cols-6 gap-4 sm:gap-6">
                   {/* Sync Health - Main Card */}
                   <Card className="lg:col-span-2 p-5">
                     <div className="flex items-center justify-between mb-4">
@@ -553,6 +578,20 @@ export function Dashboard({ onBack }: DashboardProps) {
                     <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Geosite 数量</p>
                     <div className="text-3xl font-mono font-bold tracking-tight">{status?.geositeRulesCount || 0}</div>
                     <p className="text-[11px] text-muted-foreground">输出文件 {status?.geositeRuleFilesCount || 0}</p>
+                  </Card>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日新增</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight text-emerald-600 dark:text-emerald-400">
+                      {status?.todayStats?.createdRecords || 0}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">新增活动记录</p>
+                  </Card>
+                  <Card className="p-5 flex flex-col justify-center gap-1">
+                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日更新</p>
+                    <div className="text-3xl font-mono font-bold tracking-tight text-sky-600 dark:text-sky-400">
+                      {status?.todayStats?.updatedRecords || 0}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground">更新与删除记录</p>
                   </Card>
                   <Card className="p-5 flex flex-col justify-center gap-1">
                     <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日异常</p>
@@ -661,10 +700,25 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </Button>
                     </CardHeader>
                     <div className="flex-1 flex flex-col min-h-0">
-                      <Tabs defaultValue="changes" className="flex-1 flex flex-col min-h-0">
+                      <Tabs defaultValue="created" className="flex-1 flex flex-col min-h-0">
                         <div className="px-4 pt-3 shrink-0">
                           <TabsList className="w-fit">
-                            <TabsTrigger value="changes">最近变更</TabsTrigger>
+                            <TabsTrigger value="created">
+                              新增记录
+                              {(status?.todayStats?.createdRecords || 0) > 0 && (
+                                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-emerald-600 px-1 text-[10px] font-bold text-white">
+                                  {status?.todayStats?.createdRecords}
+                                </span>
+                              )}
+                            </TabsTrigger>
+                            <TabsTrigger value="updated">
+                              更新记录
+                              {(status?.todayStats?.updatedRecords || 0) > 0 && (
+                                <span className="ml-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-sky-600 px-1 text-[10px] font-bold text-white">
+                                  {status?.todayStats?.updatedRecords}
+                                </span>
+                              )}
+                            </TabsTrigger>
                             <TabsTrigger value="failures">
                               同步失败
                               {(status?.todayStats?.failureRecords || 0) > 0 && (
@@ -675,11 +729,26 @@ export function Dashboard({ onBack }: DashboardProps) {
                             </TabsTrigger>
                           </TabsList>
                         </div>
-                        <TabsContent value="changes" className="flex-1 overflow-y-auto px-2 pb-2 mt-0">
-                          <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
+                        <TabsContent value="created" className="flex-1 overflow-y-auto px-2 pb-2 mt-0">
+                          <ActivityFeed
+                            compact
+                            items={createdChangeItems}
+                            onViewDiff={openChangeDiff}
+                            getClientDisplayName={getClientDisplayName}
+                            emptyTitle="暂无新增记录"
+                          />
+                        </TabsContent>
+                        <TabsContent value="updated" className="flex-1 overflow-y-auto px-2 pb-2 mt-0">
+                          <ActivityFeed
+                            compact
+                            items={updatedChangeItems}
+                            onViewDiff={openChangeDiff}
+                            getClientDisplayName={getClientDisplayName}
+                            emptyTitle="暂无更新记录"
+                          />
                         </TabsContent>
                         <TabsContent value="failures" className="flex-1 overflow-y-auto px-4 pb-4 mt-0">
-                          {filteredFailureItems.length === 0 ? (
+                          {overviewFailureItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                               <CheckCircle className="mb-2 w-8 h-8 text-success/60" />
                               <p className="text-sm font-medium">运行正常</p>
@@ -687,7 +756,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                             </div>
                           ) : (
                             <div className="space-y-3">
-                              {filteredFailureItems.slice(0, 8).map(f => (
+                              {overviewFailureItems.map((f) => (
                                 <div key={f.id} className="p-3 bg-destructive/5 rounded-xl border border-destructive/10 text-xs hover:bg-destructive/10 transition-colors">
                                   <div className="flex items-center justify-between mb-1">
                                     <p className="font-semibold text-destructive truncate">{f.ruleName}</p>
@@ -728,9 +797,7 @@ export function Dashboard({ onBack }: DashboardProps) {
                       <Activity className="w-5 h-5 text-muted-foreground" />
                       活动日志
                       </CardTitle>
-                      <CardDescription>
-                      查看历史变更与同步失败记录
-                    </CardDescription>
+                      <CardDescription />
                   </div>
                   <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                     {/* Pagination Controls */}
@@ -739,20 +806,40 @@ export function Dashboard({ onBack }: DashboardProps) {
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 rounded-full hover:bg-background"
-                        disabled={activityTab === "changes" ? changePage <= 1 : failurePage <= 1}
-                        onClick={() => activityTab === "changes" ? setChangePage(p => Math.max(1, p - 1)) : setFailurePage(p => Math.max(1, p - 1))}
+                        disabled={currentActivityPage <= 1}
+                        onClick={() => {
+                          if (activityTab === "created") {
+                            setCreatedChangePage((page) => Math.max(1, page - 1));
+                            return;
+                          }
+                          if (activityTab === "updated") {
+                            setUpdatedChangePage((page) => Math.max(1, page - 1));
+                            return;
+                          }
+                          setFailurePage((page) => Math.max(1, page - 1));
+                        }}
                       >
                         <ChevronLeft className="w-4 h-4 text-muted-foreground" />
                       </Button>
                       <span className="text-xs font-medium text-muted-foreground min-w-[3rem] text-center font-mono">
-                        {activityTab === "changes" ? `${changePage} / ${changeTotalPages}` : `${failurePage} / ${failureTotalPages}`}
+                        {`${currentActivityPage} / ${currentActivityTotalPages}`}
                       </span>
                       <Button
                         variant="ghost"
                         size="icon"
                         className="h-7 w-7 rounded-full hover:bg-background"
-                        disabled={activityTab === "changes" ? changePage >= changeTotalPages : failurePage >= failureTotalPages}
-                        onClick={() => activityTab === "changes" ? setChangePage(p => Math.min(changeTotalPages, p + 1)) : setFailurePage(p => Math.min(failureTotalPages, p + 1))}
+                        disabled={currentActivityPage >= currentActivityTotalPages}
+                        onClick={() => {
+                          if (activityTab === "created") {
+                            setCreatedChangePage((page) => Math.min(createdChangeTotalPages, page + 1));
+                            return;
+                          }
+                          if (activityTab === "updated") {
+                            setUpdatedChangePage((page) => Math.min(updatedChangeTotalPages, page + 1));
+                            return;
+                          }
+                          setFailurePage((page) => Math.min(failureTotalPages, page + 1));
+                        }}
                       >
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       </Button>
@@ -760,7 +847,12 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                     <div className="h-4 w-px bg-border mx-1" />
 
-                    <Select value={activityClient} onValueChange={(value) => { setActivityClient(value); setChangePage(1); setFailurePage(1); }}>
+                    <Select value={activityClient} onValueChange={(value) => {
+                      setActivityClient(value);
+                      setCreatedChangePage(1);
+                      setUpdatedChangePage(1);
+                      setFailurePage(1);
+                    }}>
                       <SelectTrigger className="w-full sm:w-[160px] h-9 bg-background">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <Monitor className="w-4 h-4" />
@@ -779,7 +871,12 @@ export function Dashboard({ onBack }: DashboardProps) {
 
                     <div className="h-4 w-px bg-border mx-1" />
 
-                    <Select value={activityDate} onValueChange={setActivityDate}>
+                    <Select value={activityDate} onValueChange={(value) => {
+                      setActivityDate(value);
+                      setCreatedChangePage(1);
+                      setUpdatedChangePage(1);
+                      setFailurePage(1);
+                    }}>
                       <SelectTrigger className="w-full sm:w-[140px] h-9 bg-background">
                         <div className="flex items-center gap-2 text-muted-foreground">
                           <CalendarDays className="w-4 h-4" />
@@ -813,12 +910,18 @@ export function Dashboard({ onBack }: DashboardProps) {
                   </div>
                 </CardHeader>
                 <div className="flex-1 p-6">
-                  <Tabs defaultValue="changes" value={activityTab} onValueChange={setActivityTab} className="w-full h-full flex flex-col">
+                  <Tabs
+                    defaultValue="created"
+                    value={activityTab}
+                    onValueChange={(value) => setActivityTab(value as ChangeRecordCategory | "failures")}
+                    className="w-full h-full flex flex-col"
+                  >
                     <TabsList className="w-full justify-start mb-6">
-                      <TabsTrigger
-                        value="changes"
-                      >
-                        变更记录
+                      <TabsTrigger value="created">
+                        新增记录
+                      </TabsTrigger>
+                      <TabsTrigger value="updated">
+                        更新记录
                       </TabsTrigger>
                       <TabsTrigger
                         value="failures"
@@ -827,9 +930,24 @@ export function Dashboard({ onBack }: DashboardProps) {
                       </TabsTrigger>
                     </TabsList>
 
-                    <TabsContent value="changes" className="flex-1 mt-0 outline-none">
+                    <TabsContent value="created" className="flex-1 mt-0 outline-none">
                       <div className="border border-border rounded-2xl bg-card overflow-hidden">
-                        <ActivityFeed items={changeItems} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
+                        <ActivityFeed
+                          items={createdChangeItems}
+                          onViewDiff={openChangeDiff}
+                          getClientDisplayName={getClientDisplayName}
+                          emptyTitle="暂无新增记录"
+                        />
+                      </div>
+                    </TabsContent>
+                    <TabsContent value="updated" className="flex-1 mt-0 outline-none">
+                      <div className="border border-border rounded-2xl bg-card overflow-hidden">
+                        <ActivityFeed
+                          items={updatedChangeItems}
+                          onViewDiff={openChangeDiff}
+                          getClientDisplayName={getClientDisplayName}
+                          emptyTitle="暂无更新记录"
+                        />
                       </div>
                     </TabsContent>
                     <TabsContent value="failures" className="flex-1 mt-0 outline-none">
@@ -878,7 +996,7 @@ export function Dashboard({ onBack }: DashboardProps) {
       <Dialog open={!!selectedChange} onOpenChange={(open) => !open && setSelectedChange(null)}>
         <DialogContent className="max-w-4xl h-[80vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>变更详情 - {selectedChange?.ruleName}</DialogTitle>
+            <DialogTitle>{selectedChange ? `${getChangeLabel(selectedChange.changeType)}详情 - ${selectedChange.ruleName}` : "记录详情"}</DialogTitle>
             <DialogDescription className="text-xs text-muted-foreground font-mono">
               {selectedChange && (
                 <>

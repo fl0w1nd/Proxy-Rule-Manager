@@ -27,6 +27,8 @@ export interface ChangeRecordSummary extends ChangeRecordMeta {
   fileName: string;
 }
 
+export type ChangeRecordCategory = "created" | "updated";
+
 export interface FailureRecord {
   id: string;
   timestamp: string;
@@ -170,6 +172,17 @@ function isSafeFileName(fileName: string, extension: string): boolean {
   );
 }
 
+function matchesChangeRecordCategory(
+  record: Pick<ChangeRecordMeta, "changeType">,
+  category?: ChangeRecordCategory
+): boolean {
+  if (!category) return true;
+  if (category === "created") {
+    return record.changeType === "created";
+  }
+  return record.changeType === "updated" || record.changeType === "deleted";
+}
+
 export async function recordRuleFileChanges(
   changes: ChangeRecordInput[]
 ): Promise<void> {
@@ -213,7 +226,8 @@ export async function listChangeRecords(
   page: number = 1,
   pageSize: number = 20,
   client?: string,
-  days?: number
+  days?: number,
+  category?: ChangeRecordCategory
 ): Promise<ActivityList<ChangeRecordSummary>> {
   await pruneOldDirs(CHANGES_DIR);
   const dateKeys = date ? [date] : getRecentDateKeys(days);
@@ -236,9 +250,10 @@ export async function listChangeRecords(
     }
   }
 
-  const filteredRecords = client
-    ? records.filter((record) => record.client === client)
-    : records;
+  const filteredRecords = records.filter((record) => {
+    if (client && record.client !== client) return false;
+    return matchesChangeRecordCategory(record, category);
+  });
   filteredRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
   const total = filteredRecords.length;
   const start = Math.max(0, (page - 1) * pageSize);
@@ -271,16 +286,42 @@ export async function countChangeRecords(date: string): Promise<number> {
   const dirPath = path.join(CHANGES_DIR, date);
   try {
     const files = await fs.readdir(dirPath);
-    const unique = new Set<string>();
+    let total = 0;
     for (const fileName of files) {
       const record = parseChangeFileName(fileName, date);
       if (record) {
-        unique.add(`${record.ruleName}:${record.client}`);
+        total += 1;
       }
     }
-    return unique.size;
+    return total;
   } catch {
     return 0;
+  }
+}
+
+export async function countChangeRecordsByCategory(date: string): Promise<{
+  createdRecords: number;
+  updatedRecords: number;
+}> {
+  const dirPath = path.join(CHANGES_DIR, date);
+  try {
+    const files = await fs.readdir(dirPath);
+    let createdRecords = 0;
+    let updatedRecords = 0;
+
+    for (const fileName of files) {
+      const record = parseChangeFileName(fileName, date);
+      if (!record) continue;
+      if (record.changeType === "created") {
+        createdRecords += 1;
+        continue;
+      }
+      updatedRecords += 1;
+    }
+
+    return { createdRecords, updatedRecords };
+  } catch {
+    return { createdRecords: 0, updatedRecords: 0 };
   }
 }
 
