@@ -38,7 +38,7 @@ import {
 import { fetchSource } from "./sync-engine/fetcher";
 import { processRule } from "./sync-engine/processor";
 import { extractDependencies, topologicalSort } from "./sync-engine/dependency-graph";
-import { createLineDiff } from "./diff";
+import { createActivityDiff } from "./diff";
 import { randomUUID } from "node:crypto";
 import { refreshGeositeProvider, renderGeositeSource } from "./geosite";
 import { isGeositeRule, getGeositeOutputName, getPrimaryGeositeSource } from "./rule-classification";
@@ -299,7 +299,8 @@ async function executeSelectiveSync(
         }
 
         const previousSourceContent = stripManagedRuleHeader(previousContent);
-        const diff = createLineDiff(
+        const diff = createActivityDiff(
+          existingMeta ? "updated" : "created",
           normalizeEffectiveRuleContent(previousSourceContent),
           normalizedContent
         );
@@ -514,7 +515,8 @@ export async function executeFullSync(): Promise<{
         }
 
         const previousSourceContent = stripManagedRuleHeader(previousContent);
-        const diff = createLineDiff(
+        const diff = createActivityDiff(
+          existingMeta ? "updated" : "created",
           normalizeEffectiveRuleContent(previousSourceContent),
           normalizedContent
         );

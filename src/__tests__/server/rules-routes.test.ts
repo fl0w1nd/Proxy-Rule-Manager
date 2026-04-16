@@ -25,6 +25,7 @@ vi.mock("@/lib/activity-store", () => ({
 
 vi.mock("@/lib/diff", () => ({
   createLineDiff: vi.fn().mockReturnValue("mock-diff"),
+  createActivityDiff: vi.fn().mockReturnValue("mock-diff"),
 }));
 
 import { registerRuleRoutes } from "@/server/routes/rules";

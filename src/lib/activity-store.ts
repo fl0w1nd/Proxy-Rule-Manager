@@ -7,6 +7,7 @@ const RECORDS_DIR = path.join(getDataDir(), "records");
 const CHANGES_DIR = path.join(RECORDS_DIR, "changes");
 const FAILURES_DIR = path.join(RECORDS_DIR, "failures");
 const RETENTION_DAYS = 30;
+const RECORD_WRITE_BATCH_SIZE = 8;
 
 export interface ChangeRecordMeta {
   id: string;
@@ -93,6 +94,13 @@ async function atomicWriteFile(filePath: string, content: string): Promise<void>
   }
 }
 
+async function processInBatches<T>(items: T[], handler: (item: T) => Promise<void>): Promise<void> {
+  for (let index = 0; index < items.length; index += RECORD_WRITE_BATCH_SIZE) {
+    const batch = items.slice(index, index + RECORD_WRITE_BATCH_SIZE);
+    await Promise.all(batch.map((item) => handler(item)));
+  }
+}
+
 async function pruneOldDirs(baseDir: string): Promise<void> {
   await ensureDir(baseDir);
   const cutoff = new Date();
@@ -169,7 +177,7 @@ export async function recordRuleFileChanges(
   await ensureDir(CHANGES_DIR);
   await pruneOldDirs(CHANGES_DIR);
 
-  for (const change of changes) {
+  await processInBatches(changes, async (change) => {
     const dateKey = change.timestamp.split("T")[0];
     const dirPath = path.join(CHANGES_DIR, dateKey);
     await ensureDir(dirPath);
@@ -178,7 +186,7 @@ export async function recordRuleFileChanges(
     const fileName = buildChangeFileName(change, timestampMs);
     const filePath = path.join(dirPath, fileName);
     await atomicWriteFile(filePath, change.diff);
-  }
+  });
 }
 
 export async function recordFailureRecords(
@@ -188,7 +196,7 @@ export async function recordFailureRecords(
   await ensureDir(FAILURES_DIR);
   await pruneOldDirs(FAILURES_DIR);
 
-  for (const record of records) {
+  await processInBatches(records, async (record) => {
     const dateKey = record.timestamp.split("T")[0];
     const dirPath = path.join(FAILURES_DIR, dateKey);
     await ensureDir(dirPath);
@@ -197,7 +205,7 @@ export async function recordFailureRecords(
     const fileName = `${timestampMs}@${record.id}.json`;
     const filePath = path.join(dirPath, fileName);
     await atomicWriteFile(filePath, JSON.stringify(record, null, 2));
-  }
+  });
 }
 
 export async function listChangeRecords(

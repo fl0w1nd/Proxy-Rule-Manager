@@ -14,7 +14,7 @@ import {
 } from "../../lib/storage-adapter";
 import { executePartialSync } from "../../lib/sync-engine";
 import { recordRuleFileChanges, type ChangeRecordInput } from "../../lib/activity-store";
-import { createLineDiff } from "../../lib/diff";
+import { createActivityDiff } from "../../lib/diff";
 import { randomUUID } from "node:crypto";
 import { jsonError } from "../errors";
 import { isGeositeRule, getGeositeOutputName, getPrimaryGeositeSource } from "../../lib/rule-classification";
@@ -90,7 +90,7 @@ export function registerRuleRoutes(app: Hono) {
         await deleteArtifactMeta(ruleName, client);
 
         if (previousContent || meta) {
-          const diff = createLineDiff(previousContent, "");
+          const diff = createActivityDiff("deleted", previousContent, "");
           const sizeBytes = previousContent
             ? new TextEncoder().encode(previousContent).length
             : undefined;
@@ -193,7 +193,7 @@ export function registerRuleRoutes(app: Hono) {
             artifactEntriesToDelete.push({ ruleName: rule.name, client });
 
             if (previousContent || meta) {
-              const diff = createLineDiff(previousContent, "");
+              const diff = createActivityDiff("deleted", previousContent, "");
               const sizeBytes = previousContent
                 ? new TextEncoder().encode(previousContent).length
                 : undefined;
