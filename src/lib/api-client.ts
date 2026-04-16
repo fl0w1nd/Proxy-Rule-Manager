@@ -386,6 +386,13 @@ export async function executeFullSync(): Promise<SyncResult> {
   return apiRequest<SyncResult>("/sync/full", { method: "POST" });
 }
 
+export async function refreshRules(ruleNames: string[]): Promise<SyncResult> {
+  return apiRequest<SyncResult>("/sync/partial/batch", {
+    method: "POST",
+    body: JSON.stringify({ ruleNames }),
+  });
+}
+
 // 定时同步配置
 export interface SyncSchedule {
   mode: "interval" | "cron";

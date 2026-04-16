@@ -45,6 +45,13 @@ import { isGeositeRule, getGeositeOutputName, getPrimaryGeositeSource } from "./
 
 export { detectCircularDependency } from "./sync-engine/dependency-graph";
 
+interface SyncExecutionResult {
+  success: boolean;
+  changedRules: string[];
+  failedRules: { name: string; error: string }[];
+  jobId: string;
+}
+
 async function uploadRuleContentToPath(
   rule: RuleConfig,
   client: ClientType,
@@ -124,6 +131,239 @@ function collectGeositeProviders(rules: RuleConfig[]): GeositeProvider[] {
     }
   }
   return Array.from(providers);
+}
+
+function buildDependentRuleIndex(rules: RuleConfig[]): Map<string, string[]> {
+  const dependents = new Map<string, string[]>();
+
+  for (const rule of rules) {
+    for (const source of rule.sources || []) {
+      if (source.type !== "ref" || !source.ref) continue;
+      const current = dependents.get(source.ref) || [];
+      current.push(rule.name);
+      dependents.set(source.ref, current);
+    }
+  }
+
+  return dependents;
+}
+
+function collectAffectedRules(rules: RuleConfig[], seedRuleNames: string[]): Set<string> {
+  const affectedRules = new Set<string>(seedRuleNames);
+  const dependents = buildDependentRuleIndex(rules);
+  const queue = [...seedRuleNames];
+
+  while (queue.length > 0) {
+    const currentRuleName = queue.shift()!;
+    for (const dependentRuleName of dependents.get(currentRuleName) || []) {
+      if (affectedRules.has(dependentRuleName)) continue;
+      affectedRules.add(dependentRuleName);
+      queue.push(dependentRuleName);
+    }
+  }
+
+  return affectedRules;
+}
+
+async function executeSelectiveSync(
+  seedRuleNames: string[],
+  options: { lockMode: "rule" | "global"; jobType: "partial_sync" }
+): Promise<SyncExecutionResult> {
+  const uniqueSeedRuleNames = Array.from(new Set(seedRuleNames));
+  const primaryRuleName = uniqueSeedRuleNames[0] || "sync";
+  const lockResult = options.lockMode === "global"
+    ? await acquireGlobalSyncLock()
+    : await acquireRuleLock(primaryRuleName);
+
+  if (!lockResult.acquired) {
+    return {
+      success: false,
+      changedRules: [],
+      failedRules: [{ name: primaryRuleName, error: lockResult.reason || "Rule is being updated" }],
+      jobId: "",
+    };
+  }
+
+  try {
+    const config = await getConfig();
+    const clients = await getClients();
+    const affectedRules = collectAffectedRules(config.rules, uniqueSeedRuleNames);
+    const rulesToProcess = config.rules.filter((rule) => affectedRules.has(rule.name));
+    const sortedRules = topologicalSort(rulesToProcess, true);
+    const job = await createJob(options.jobType, Array.from(affectedRules));
+    const changedRules: string[] = [];
+    const failedRules: { name: string; error: string }[] = [];
+    const ruleFileChanges: ChangeRecordInput[] = [];
+    const failureRecords: FailureRecord[] = [];
+    let blobWriteCount = 0;
+
+    const ruleContentsCache = new Map<string, Map<ClientType, string>>();
+    const allDependencies = new Set<string>();
+    const processed = new Set<string>();
+    const ruleByName = new Map(config.rules.map((rule) => [rule.name, rule]));
+
+    function collectTransitiveDeps(ruleNameToCheck: string) {
+      if (processed.has(ruleNameToCheck)) return;
+      processed.add(ruleNameToCheck);
+
+      const rule = ruleByName.get(ruleNameToCheck);
+      if (!rule) return;
+
+      const deps = extractDependencies(rule);
+      for (const dep of deps) {
+        if (!affectedRules.has(dep)) {
+          allDependencies.add(dep);
+          collectTransitiveDeps(dep);
+        }
+      }
+    }
+
+    for (const rule of sortedRules) {
+      collectTransitiveDeps(rule.name);
+    }
+
+    if (allDependencies.size > 0) {
+      const depRules = config.rules.filter((rule) => allDependencies.has(rule.name));
+      const sortedDepRules = topologicalSort(depRules, true);
+
+      for (const depRule of sortedDepRules) {
+        const result = await processRule(depRule, config.transformers || {}, ruleContentsCache, clients);
+        if (result.contents.size > 0) {
+          ruleContentsCache.set(depRule.name, result.contents);
+        }
+      }
+    }
+
+    for (const rule of sortedRules) {
+      const processResult = await processRule(
+        rule,
+        config.transformers || {},
+        ruleContentsCache,
+        clients
+      );
+
+      if (processResult.errors.length > 0) {
+        failureRecords.push(
+          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
+        );
+        failedRules.push({
+          name: rule.name,
+          error: processResult.errors.join("; "),
+        });
+        continue;
+      }
+
+      ruleContentsCache.set(rule.name, processResult.contents);
+
+      for (const [client, content] of processResult.contents) {
+        const existingMeta = await getArtifactMeta(rule.name, client);
+        const normalizedContent = normalizeEffectiveRuleContent(content);
+        const hash = await computeHash(normalizedContent);
+        const syncedAt = new Date().toISOString();
+        const outputContent = addRuleHeader(content, rule.name, rule.description, syncedAt);
+
+        let previousContent: string | null | undefined = undefined;
+        if (existingMeta) {
+          previousContent = await readRuleContentFromPath(rule, client);
+          if (previousContent) {
+            const previousSourceContent = stripManagedRuleHeader(previousContent);
+            const previousNormalizedHash = await computeHash(
+              normalizeEffectiveRuleContent(previousSourceContent)
+            );
+            if (previousNormalizedHash === hash) {
+              if (previousSourceContent === content) {
+                if (existingMeta.lastHash !== hash) {
+                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+                }
+                continue;
+              }
+
+              const sizeBytes = new TextEncoder().encode(outputContent).length;
+              const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
+              blobWriteCount += 1;
+              await saveArtifactMeta({
+                ...existingMeta,
+                lastHash: hash,
+                lastUpdatedAt: syncedAt,
+                blobPath: path,
+                blobUrl: url,
+                sizeBytes,
+              });
+              continue;
+            }
+          }
+        }
+
+        if (previousContent === undefined) {
+          previousContent = await readRuleContentFromPath(rule, client);
+        }
+
+        const previousSourceContent = stripManagedRuleHeader(previousContent);
+        const diff = createLineDiff(
+          normalizeEffectiveRuleContent(previousSourceContent),
+          normalizedContent
+        );
+        const sizeBytes = new TextEncoder().encode(outputContent).length;
+        const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
+        blobWriteCount += 1;
+        const meta: ArtifactMeta = {
+          ruleName: rule.name,
+          client,
+          lastHash: hash,
+          lastUpdatedAt: syncedAt,
+          blobPath: path,
+          blobUrl: url,
+          sizeBytes,
+        };
+        await saveArtifactMeta(meta);
+
+        const changeRecord: ChangeRecordInput = {
+          id: randomUUID(),
+          timestamp: meta.lastUpdatedAt,
+          ruleName: rule.name,
+          client,
+          changeType: existingMeta ? "updated" : "created",
+          diff,
+          sizeBytes,
+        };
+        ruleFileChanges.push(changeRecord);
+
+        if (!changedRules.includes(rule.name)) {
+          changedRules.push(rule.name);
+        }
+      }
+    }
+
+    const today = new Date().toISOString().split("T")[0];
+    await incrementDailyStats(today, {
+      blobWriteCount,
+      rulesChanged: changedRules.length,
+      totalRulesProcessed: sortedRules.length,
+      failedSources: failureRecords.length,
+    });
+
+    await updateLastSyncInfo({
+      lastPartialSyncAt: new Date().toISOString(),
+    });
+
+    await recordRuleFileChanges(ruleFileChanges);
+    await recordFailureRecords(failureRecords);
+
+    await completeJob(job.jobId, changedRules, failedRules);
+
+    return {
+      success: failedRules.length === 0,
+      changedRules,
+      failedRules,
+      jobId: job.jobId,
+    };
+  } finally {
+    if (options.lockMode === "global") {
+      await releaseGlobalSyncLock();
+    } else {
+      await releaseRuleLock(primaryRuleName);
+    }
+  }
 }
 
 // 执行全量同步
@@ -346,215 +586,18 @@ export async function executeFullSync(): Promise<{
 }
 
 // 执行局部同步（刷新指定规则及其下游依赖）
-export async function executePartialSync(ruleName: string): Promise<{
-  success: boolean;
-  changedRules: string[];
-  failedRules: { name: string; error: string }[];
-  jobId: string;
-}> {
-  const lockResult = await acquireRuleLock(ruleName);
-  if (!lockResult.acquired) {
-    return {
-      success: false,
-      changedRules: [],
-      failedRules: [{ name: ruleName, error: lockResult.reason || "Rule is being updated" }],
-      jobId: "",
-    };
-  }
+export async function executePartialSync(ruleName: string): Promise<SyncExecutionResult> {
+  return executeSelectiveSync([ruleName], {
+    lockMode: "rule",
+    jobType: "partial_sync",
+  });
+}
 
-  try {
-    const config = await getConfig();
-    const clients = await getClients();
-
-    const affectedRules = new Set<string>([ruleName]);
-
-    function findDependents(name: string) {
-      for (const rule of config.rules) {
-        const dependsViaRef = rule.sources?.some((s) => s.type === "ref" && s.ref === name);
-
-        if (dependsViaRef) {
-          if (!affectedRules.has(rule.name)) {
-            affectedRules.add(rule.name);
-            findDependents(rule.name);
-          }
-        }
-      }
-    }
-    findDependents(ruleName);
-
-    const rulesToProcess = config.rules.filter((r) => affectedRules.has(r.name));
-    const sortedRules = topologicalSort(rulesToProcess, true);
-
-    const job = await createJob("partial_sync", Array.from(affectedRules));
-    const changedRules: string[] = [];
-    const failedRules: { name: string; error: string }[] = [];
-    const ruleFileChanges: ChangeRecordInput[] = [];
-    const failureRecords: FailureRecord[] = [];
-    let blobWriteCount = 0;
-
-    const ruleContentsCache = new Map<string, Map<ClientType, string>>();
-
-    const allDependencies = new Set<string>();
-    const processed = new Set<string>();
-
-    function collectTransitiveDeps(ruleNameToCheck: string) {
-      if (processed.has(ruleNameToCheck)) return;
-      processed.add(ruleNameToCheck);
-
-      const rule = config.rules.find((r) => r.name === ruleNameToCheck);
-      if (!rule) return;
-
-      const deps = extractDependencies(rule);
-      for (const dep of deps) {
-        if (!affectedRules.has(dep)) {
-          allDependencies.add(dep);
-          collectTransitiveDeps(dep);
-        }
-      }
-    }
-
-    for (const rule of sortedRules) {
-      collectTransitiveDeps(rule.name);
-    }
-
-    if (allDependencies.size > 0) {
-      const depRules = config.rules.filter((r) => allDependencies.has(r.name));
-      const sortedDepRules = topologicalSort(depRules, true);
-
-      for (const depRule of sortedDepRules) {
-        const result = await processRule(depRule, config.transformers || {}, ruleContentsCache, clients);
-        if (result.contents.size > 0) {
-          ruleContentsCache.set(depRule.name, result.contents);
-        }
-      }
-    }
-
-    for (const rule of sortedRules) {
-      const processResult = await processRule(
-        rule,
-        config.transformers || {},
-        ruleContentsCache,
-        clients
-      );
-
-      if (processResult.errors.length > 0) {
-        failureRecords.push(
-          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
-        );
-        failedRules.push({
-          name: rule.name,
-          error: processResult.errors.join("; "),
-        });
-        continue;
-      }
-
-      ruleContentsCache.set(rule.name, processResult.contents);
-
-      for (const [client, content] of processResult.contents) {
-        const existingMeta = await getArtifactMeta(rule.name, client);
-        const normalizedContent = normalizeEffectiveRuleContent(content);
-        const hash = await computeHash(normalizedContent);
-        const syncedAt = new Date().toISOString();
-        const outputContent = addRuleHeader(content, rule.name, rule.description, syncedAt);
-
-        let previousContent: string | null | undefined = undefined;
-        if (existingMeta) {
-          previousContent = await readRuleContentFromPath(rule, client);
-          if (previousContent) {
-            const previousSourceContent = stripManagedRuleHeader(previousContent);
-            const previousNormalizedHash = await computeHash(
-              normalizeEffectiveRuleContent(previousSourceContent)
-            );
-            if (previousNormalizedHash === hash) {
-              if (previousSourceContent === content) {
-                if (existingMeta.lastHash !== hash) {
-                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
-                }
-                continue;
-              }
-
-              const sizeBytes = new TextEncoder().encode(outputContent).length;
-              const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
-              blobWriteCount += 1;
-              await saveArtifactMeta({
-                ...existingMeta,
-                lastHash: hash,
-                lastUpdatedAt: syncedAt,
-                blobPath: path,
-                blobUrl: url,
-                sizeBytes,
-              });
-              continue;
-            }
-          }
-        }
-
-        if (previousContent === undefined) {
-          previousContent = await readRuleContentFromPath(rule, client);
-        }
-
-        const previousSourceContent = stripManagedRuleHeader(previousContent);
-        const diff = createLineDiff(
-          normalizeEffectiveRuleContent(previousSourceContent),
-          normalizedContent
-        );
-        const sizeBytes = new TextEncoder().encode(outputContent).length;
-        const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
-        blobWriteCount += 1;
-        const meta: ArtifactMeta = {
-          ruleName: rule.name,
-          client,
-          lastHash: hash,
-          lastUpdatedAt: syncedAt,
-          blobPath: path,
-          blobUrl: url,
-          sizeBytes,
-        };
-        await saveArtifactMeta(meta);
-
-        const changeRecord: ChangeRecordInput = {
-          id: randomUUID(),
-          timestamp: meta.lastUpdatedAt,
-          ruleName: rule.name,
-          client,
-          changeType: existingMeta ? "updated" : "created",
-          diff,
-          sizeBytes,
-        };
-        ruleFileChanges.push(changeRecord);
-
-        if (!changedRules.includes(rule.name)) {
-          changedRules.push(rule.name);
-        }
-      }
-    }
-
-    const today = new Date().toISOString().split("T")[0];
-    await incrementDailyStats(today, {
-      blobWriteCount,
-      rulesChanged: changedRules.length,
-      totalRulesProcessed: sortedRules.length,
-      failedSources: failureRecords.length,
-    });
-
-    await updateLastSyncInfo({
-      lastPartialSyncAt: new Date().toISOString(),
-    });
-
-    await recordRuleFileChanges(ruleFileChanges);
-    await recordFailureRecords(failureRecords);
-
-    await completeJob(job.jobId, changedRules, failedRules);
-
-    return {
-      success: failedRules.length === 0,
-      changedRules,
-      failedRules,
-      jobId: job.jobId,
-    };
-  } finally {
-    await releaseRuleLock(ruleName);
-  }
+export async function executeBatchPartialSync(ruleNames: string[]): Promise<SyncExecutionResult> {
+  return executeSelectiveSync(ruleNames, {
+    lockMode: "global",
+    jobType: "partial_sync",
+  });
 }
 
 // 预览规则（不保存）

@@ -18,17 +18,17 @@ vi.mock("@/lib/storage-adapter", () => ({
 }));
 
 vi.mock("@/lib/sync-engine", () => ({
-  executePartialSync: vi.fn(),
+  executeBatchPartialSync: vi.fn(),
 }));
 
 import { registerGeositeRoutes } from "@/server/routes/geosite";
 import { importSelectedGeositeRules } from "@/lib/geosite";
 import { getClients } from "@/lib/storage-adapter";
-import { executePartialSync } from "@/lib/sync-engine";
+import { executeBatchPartialSync } from "@/lib/sync-engine";
 
 const mockedImportSelectedGeositeRules = vi.mocked(importSelectedGeositeRules);
 const mockedGetClients = vi.mocked(getClients);
-const mockedExecutePartialSync = vi.mocked(executePartialSync);
+const mockedExecuteBatchPartialSync = vi.mocked(executeBatchPartialSync);
 
 describe("registerGeositeRoutes", () => {
   let app: Hono;
@@ -51,19 +51,12 @@ describe("registerGeositeRoutes", () => {
       total: 2,
       ruleNames: ["geosite_v2fly_google", "geosite_v2fly_openai"],
     } as never);
-    mockedExecutePartialSync
-      .mockResolvedValueOnce({
-        success: true,
-        changedRules: ["geosite_v2fly_google"],
-        failedRules: [],
-        jobId: "job-1",
-      } as never)
-      .mockResolvedValueOnce({
-        success: true,
-        changedRules: ["geosite_v2fly_openai"],
-        failedRules: [],
-        jobId: "job-2",
-      } as never);
+    mockedExecuteBatchPartialSync.mockResolvedValue({
+      success: true,
+      changedRules: ["geosite_v2fly_google", "geosite_v2fly_openai"],
+      failedRules: [],
+      jobId: "job-1",
+    } as never);
 
     const response = await app.request("/api/geosite/import-selected", {
       method: "POST",
@@ -84,8 +77,8 @@ describe("registerGeositeRoutes", () => {
         failedRules: [],
       },
     });
-    expect(mockedExecutePartialSync).toHaveBeenNthCalledWith(1, "geosite_v2fly_google");
-    expect(mockedExecutePartialSync).toHaveBeenNthCalledWith(2, "geosite_v2fly_openai");
+    expect(mockedExecuteBatchPartialSync).toHaveBeenCalledTimes(1);
+    expect(mockedExecuteBatchPartialSync).toHaveBeenCalledWith(["geosite_v2fly_google", "geosite_v2fly_openai"]);
   });
 
   it("returns sync failures while keeping successful import result", async () => {
@@ -96,7 +89,7 @@ describe("registerGeositeRoutes", () => {
       total: 1,
       ruleNames: ["geosite_v2fly_google"],
     } as never);
-    mockedExecutePartialSync.mockResolvedValue({
+    mockedExecuteBatchPartialSync.mockResolvedValue({
       success: false,
       changedRules: [],
       failedRules: [{ name: "geosite_v2fly_google", error: "provider cache missing" }],

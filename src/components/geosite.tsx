@@ -62,7 +62,7 @@ import {
   lookupGeositeDomain,
   previewGeosite,
   previewRule,
-  refreshRule,
+  refreshRules,
   refreshGeositeProvider,
   saveConfig,
   batchDeleteRules,
@@ -484,8 +484,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
 
       let refreshFailed = 0;
       if (shouldUpdateClients) {
-        const results = await Promise.allSettled(selectedRuleNames.map((name) => refreshRule(name)));
-        refreshFailed = results.filter((result) => result.status === "rejected").length;
+        const syncResult = await refreshRules(selectedRuleNames);
+        refreshFailed = syncResult.failedRules.length;
       }
 
       setIsBatchDialogOpen(false);

@@ -1,5 +1,5 @@
 import type { Hono } from "hono";
-import { executeFullSync } from "../../lib/sync-engine";
+import { executeBatchPartialSync, executeFullSync } from "../../lib/sync-engine";
 import { getSyncSchedule, updateSyncSchedule } from "../../lib/storage-adapter";
 import { getNextSyncAt, validateCronExpression } from "../../lib/sync-schedule";
 import { jsonError } from "../errors";
@@ -12,6 +12,25 @@ export function registerSyncRoutes(app: Hono) {
     } catch (error) {
       console.error("Failed to execute full sync:", error);
       return jsonError(c, error, "Failed to execute full sync");
+    }
+  });
+
+  app.post("/api/sync/partial/batch", async (c) => {
+    try {
+      const body = await c.req.json();
+      const ruleNames = Array.isArray(body.ruleNames)
+        ? body.ruleNames.filter((item: unknown): item is string => typeof item === "string" && item.trim().length > 0)
+        : [];
+
+      if (ruleNames.length === 0) {
+        return c.json({ error: "ruleNames must be a non-empty array" }, 400);
+      }
+
+      const result = await executeBatchPartialSync(ruleNames);
+      return c.json(result);
+    } catch (error) {
+      console.error("Failed to execute batch partial sync:", error);
+      return jsonError(c, error, "Failed to execute batch partial sync");
     }
   });
 

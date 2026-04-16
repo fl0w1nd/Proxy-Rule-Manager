@@ -722,21 +722,31 @@ function normalizeImportSelections(
     .sort((a, b) => `${a.list}::${a.attrs.join("+")}`.localeCompare(`${b.list}::${b.attrs.join("+")}`));
 }
 
-function findImportedGeositeRule(
-  config: RulesConfig,
+function createImportedGeositeRuleKey(
   provider: GeositeProvider,
   list: string,
   attrs: string[] = []
-): RuleConfig | undefined {
+): string {
   const normalizedList = normalizeName(list);
   const normalizedAttrs = normalizeAttrSelection(attrs);
-  return config.rules.find((rule) => {
+  return `${provider}::${normalizedList}::${normalizedAttrs.join("+")}`;
+}
+
+function buildImportedGeositeRuleIndex(
+  config: RulesConfig,
+  provider: GeositeProvider
+): Map<string, RuleConfig> {
+  const index = new Map<string, RuleConfig>();
+
+  for (const rule of config.rules) {
     const source = getPrimaryGeositeSource(rule);
-    return !!source
-      && source.provider === provider
-      && normalizeName(source.list || "") === normalizedList
-      && JSON.stringify(normalizeAttrSelection(source.attrs || [])) === JSON.stringify(normalizedAttrs);
-  });
+    if (!source || source.provider !== provider || !source.list) {
+      continue;
+    }
+    index.set(createImportedGeositeRuleKey(provider, source.list, source.attrs || []), rule);
+  }
+
+  return index;
 }
 
 async function assertClientExists(clientId: ClientType): Promise<void> {
@@ -753,6 +763,7 @@ export function upsertImportedGeositeRules(
   selections: Array<string | GeositeImportSelection>
 ): ImportAllGeositeResult {
   const normalizedSelections = normalizeImportSelections(selections);
+  const existingRuleIndex = buildImportedGeositeRuleIndex(config, provider);
   let created = 0;
   let updated = 0;
   let skipped = 0;
@@ -760,11 +771,14 @@ export function upsertImportedGeositeRules(
 
   for (const selection of normalizedSelections) {
     const ruleName = getGeositeInternalRuleName(provider, selection.list, selection.attrs);
-    const existing = findImportedGeositeRule(config, provider, selection.list, selection.attrs);
+    const selectionKey = createImportedGeositeRuleKey(provider, selection.list, selection.attrs);
+    const existing = existingRuleIndex.get(selectionKey);
     ruleNames.push(ruleName);
 
     if (!existing) {
-      config.rules.push(buildDefaultGeositeRule(provider, selection.list, clientId, selection.attrs));
+      const newRule = buildDefaultGeositeRule(provider, selection.list, clientId, selection.attrs);
+      config.rules.push(newRule);
+      existingRuleIndex.set(selectionKey, newRule);
       created += 1;
       continue;
     }
@@ -777,9 +791,7 @@ export function upsertImportedGeositeRules(
     const primarySource = getPrimaryGeositeSource(existing);
     if (
       !primarySource
-      || primarySource.provider !== provider
-      || normalizeName(primarySource.list || "") !== selection.list
-      || JSON.stringify(normalizeAttrSelection(primarySource.attrs || [])) !== JSON.stringify(selection.attrs)
+      || createImportedGeositeRuleKey(primarySource.provider || provider, primarySource.list || "", primarySource.attrs || []) !== selectionKey
     ) {
       skipped += 1;
       continue;

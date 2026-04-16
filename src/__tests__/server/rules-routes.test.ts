@@ -9,7 +9,9 @@ vi.mock("@/lib/storage-adapter", () => ({
   deleteRuleContent: vi.fn(),
   deleteGeositeRuleContent: vi.fn(),
   getArtifactMeta: vi.fn(),
+  getAllArtifactMetas: vi.fn(),
   deleteArtifactMeta: vi.fn(),
+  deleteArtifactMetas: vi.fn(),
   renameRule: vi.fn(),
 }));
 
@@ -30,8 +32,10 @@ import {
   getConfig,
   saveConfig,
   getRuleContent,
+  getAllArtifactMetas,
   deleteRuleContent,
   deleteArtifactMeta,
+  deleteArtifactMetas,
 } from "@/lib/storage-adapter";
 import { recordRuleFileChanges } from "@/lib/activity-store";
 import type { RulesConfig } from "@/lib/schema";
@@ -39,18 +43,21 @@ import type { RulesConfig } from "@/lib/schema";
 const mockedGetConfig = vi.mocked(getConfig);
 const mockedSaveConfig = vi.mocked(saveConfig);
 const mockedGetRuleContent = vi.mocked(getRuleContent);
+const mockedGetAllArtifactMetas = vi.mocked(getAllArtifactMetas);
 const mockedDeleteRuleContent = vi.mocked(deleteRuleContent);
 const mockedDeleteArtifactMeta = vi.mocked(deleteArtifactMeta);
+const mockedDeleteArtifactMetas = vi.mocked(deleteArtifactMetas);
 const mockedRecordRuleFileChanges = vi.mocked(recordRuleFileChanges);
 
 function makeConfig(rules: RulesConfig["rules"]): RulesConfig {
-  return { rules, transformers: {} };
+  return { version: 1, rules, transformers: {} };
 }
 
 function makeRule(name: string, clients: string[] = ["clash_meta"]) {
   return {
     name,
     description: "",
+    tags: [],
     sources: [{ type: "url" as const, url: `https://example.com/${name}.txt` }],
     output: { clients },
     transforms: [],
@@ -61,6 +68,7 @@ function makeRefRule(name: string, ref: string, clients: string[] = ["clash_meta
   return {
     name,
     description: "",
+    tags: [],
     sources: [{ type: "ref" as const, ref }],
     output: { clients },
     transforms: [],
@@ -86,6 +94,8 @@ describe("POST /api/rules/batch-delete", () => {
     mockedSaveConfig.mockResolvedValue({ rev: 1 } as never);
     mockedDeleteRuleContent.mockResolvedValue(undefined as never);
     mockedDeleteArtifactMeta.mockResolvedValue(undefined as never);
+    mockedDeleteArtifactMetas.mockResolvedValue(undefined as never);
+    mockedGetAllArtifactMetas.mockResolvedValue([] as never);
     mockedRecordRuleFileChanges.mockResolvedValue(undefined as never);
   });
 
@@ -116,6 +126,7 @@ describe("POST /api/rules/batch-delete", () => {
 
     // Only one saveConfig call for the entire batch
     expect(mockedSaveConfig).toHaveBeenCalledTimes(1);
+    expect(mockedDeleteArtifactMetas).toHaveBeenCalledTimes(1);
     // Only one recordRuleFileChanges call for the entire batch
     expect(mockedRecordRuleFileChanges).toHaveBeenCalledTimes(1);
     // Remaining rules in saved config

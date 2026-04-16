@@ -13,7 +13,7 @@ import {
 import { GeositeProviderSchema } from "../../lib/schema";
 import { getClients, getConfig } from "../../lib/storage-adapter";
 import { getPrimaryGeositeSource, isGeositeRule } from "../../lib/rule-classification";
-import { executePartialSync } from "../../lib/sync-engine";
+import { executeBatchPartialSync } from "../../lib/sync-engine";
 import { jsonError } from "../errors";
 
 const ImportAllSchema = z.object({
@@ -40,27 +40,19 @@ export async function syncImportedGeositeRules(ruleNames: string[]): Promise<{
   failedRules: { name: string; error: string }[];
 }> {
   const uniqueRuleNames = Array.from(new Set(ruleNames));
-  const syncedRules: string[] = [];
-  const failedRules: { name: string; error: string }[] = [];
-
-  for (const ruleName of uniqueRuleNames) {
-    const result = await executePartialSync(ruleName);
-    if (result.success) {
-      syncedRules.push(ruleName);
-      continue;
-    }
-
-    failedRules.push(
-      ...result.failedRules.map((item) => ({
-        name: item.name,
-        error: item.error,
-      }))
-    );
+  if (uniqueRuleNames.length === 0) {
+    return { syncedRules: [], failedRules: [] };
   }
 
+  const result = await executeBatchPartialSync(uniqueRuleNames);
+  const failedRuleNames = new Set(result.failedRules.map((item) => item.name));
+
   return {
-    syncedRules,
-    failedRules,
+    syncedRules: uniqueRuleNames.filter((ruleName) => !failedRuleNames.has(ruleName)),
+    failedRules: result.failedRules.map((item) => ({
+      name: item.name,
+      error: item.error,
+    })),
   };
 }
 

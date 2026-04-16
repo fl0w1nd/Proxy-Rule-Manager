@@ -808,6 +808,26 @@ export async function deleteArtifactMeta(
     await saveDb(db);
 }
 
+export async function deleteArtifactMetas(
+    entries: Array<{ ruleName: string; client: ClientType }>
+): Promise<void> {
+    const db = await loadDb();
+    let changed = false;
+
+    for (const entry of entries) {
+        const key = artifactKey(entry.ruleName, entry.client);
+        if (!Object.prototype.hasOwnProperty.call(db.artifacts, key)) {
+            continue;
+        }
+        delete db.artifacts[key];
+        changed = true;
+    }
+
+    if (changed) {
+        await saveDb(db);
+    }
+}
+
 export async function getAllArtifactMetas(): Promise<ArtifactMeta[]> {
     const db = await loadDb();
     return Object.values(db.artifacts);

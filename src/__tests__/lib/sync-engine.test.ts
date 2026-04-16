@@ -38,7 +38,7 @@ vi.mock("@/lib/sync-engine/dependency-graph", () => ({
   topologicalSort: vi.fn((rules) => rules),
 }));
 
-import { executeFullSync } from "@/lib/sync-engine";
+import { executeBatchPartialSync, executeFullSync } from "@/lib/sync-engine";
 import {
   acquireGlobalSyncLock,
   createJob,
@@ -55,6 +55,7 @@ import {
 import { refreshGeositeProvider } from "@/lib/geosite";
 import { recordRuleFileChanges, recordFailureRecords } from "@/lib/activity-store";
 import { processRule } from "@/lib/sync-engine/processor";
+import { extractDependencies } from "@/lib/sync-engine/dependency-graph";
 
 const mockedAcquireGlobalSyncLock = vi.mocked(acquireGlobalSyncLock);
 const mockedCreateJob = vi.mocked(createJob);
@@ -71,6 +72,7 @@ const mockedSaveArtifactMeta = vi.mocked(saveArtifactMeta);
 const mockedUpdateLastSyncInfo = vi.mocked(updateLastSyncInfo);
 const mockedUploadGeositeRuleContent = vi.mocked(uploadGeositeRuleContent);
 const mockedUploadRuleContent = vi.mocked(uploadRuleContent);
+const mockedExtractDependencies = vi.mocked(extractDependencies);
 
 describe("executeFullSync", () => {
   beforeEach(() => {
@@ -183,5 +185,44 @@ describe("executeFullSync", () => {
       { name: "geosite:v2fly", error: "refresh failed" },
     ]);
     expect(mockedProcessRule).not.toHaveBeenCalled();
+  });
+
+  it("batch sync processes multiple requested rules in one job", async () => {
+    mockedGetConfig.mockResolvedValue({
+      rules: [
+        {
+          name: "base",
+          tags: [],
+          sources: [{ type: "local", content: "DOMAIN,base.com\n" }],
+          output: { clients: ["clash_meta"] },
+          transforms: [],
+        },
+        {
+          name: "child",
+          tags: [],
+          sources: [{ type: "ref", ref: "base" }],
+          output: { clients: ["clash_meta"] },
+          transforms: [],
+        },
+      ],
+      transformers: {},
+    } as never);
+    mockedExtractDependencies.mockImplementation((rule) =>
+      rule.name === "child" ? new Set(["base"]) : new Set()
+    );
+    mockedProcessRule.mockImplementation(async (rule) => ({
+      ruleName: rule.name,
+      contents: new Map([["clash_meta", `DOMAIN,${rule.name}.com\n`]]),
+      errors: [],
+    }) as never);
+    mockedGetArtifactMeta.mockResolvedValue(null);
+
+    const result = await executeBatchPartialSync(["base", "child"]);
+
+    expect(result.success).toBe(true);
+    expect(result.failedRules).toEqual([]);
+    expect(mockedCreateJob).toHaveBeenCalledTimes(1);
+    expect(mockedReleaseGlobalSyncLock).toHaveBeenCalledTimes(1);
+    expect(mockedProcessRule).toHaveBeenCalledTimes(2);
   });
 });
