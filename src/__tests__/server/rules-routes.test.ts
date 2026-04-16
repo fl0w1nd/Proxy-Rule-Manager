@@ -33,8 +33,10 @@ import {
   getConfig,
   saveConfig,
   getRuleContent,
+  getGeositeRuleContent,
   getAllArtifactMetas,
   deleteRuleContent,
+  deleteGeositeRuleContent,
   deleteArtifactMeta,
   deleteArtifactMetas,
 } from "@/lib/storage-adapter";
@@ -44,8 +46,10 @@ import type { RulesConfig } from "@/lib/schema";
 const mockedGetConfig = vi.mocked(getConfig);
 const mockedSaveConfig = vi.mocked(saveConfig);
 const mockedGetRuleContent = vi.mocked(getRuleContent);
+const mockedGetGeositeRuleContent = vi.mocked(getGeositeRuleContent);
 const mockedGetAllArtifactMetas = vi.mocked(getAllArtifactMetas);
 const mockedDeleteRuleContent = vi.mocked(deleteRuleContent);
+const mockedDeleteGeositeRuleContent = vi.mocked(deleteGeositeRuleContent);
 const mockedDeleteArtifactMeta = vi.mocked(deleteArtifactMeta);
 const mockedDeleteArtifactMetas = vi.mocked(deleteArtifactMetas);
 const mockedRecordRuleFileChanges = vi.mocked(recordRuleFileChanges);
@@ -76,6 +80,17 @@ function makeRefRule(name: string, ref: string, clients: string[] = ["clash_meta
   };
 }
 
+function makeGeositeRule(name: string = "geosite_v2fly_google", clients: string[] = ["clash_meta"]) {
+  return {
+    name,
+    description: "",
+    tags: ["geosite", "v2fly"],
+    sources: [{ type: "geosite" as const, provider: "v2fly" as const, list: "google", attrs: [], renderProfile: "mihomo-classical" as const }],
+    output: { clients },
+    transforms: [],
+  };
+}
+
 function post(app: Hono, path: string, body: unknown) {
   return app.request(path, {
     method: "POST",
@@ -94,6 +109,7 @@ describe("POST /api/rules/batch-delete", () => {
 
     mockedSaveConfig.mockResolvedValue({ rev: 1 } as never);
     mockedDeleteRuleContent.mockResolvedValue(undefined as never);
+    mockedDeleteGeositeRuleContent.mockResolvedValue(undefined as never);
     mockedDeleteArtifactMeta.mockResolvedValue(undefined as never);
     mockedDeleteArtifactMetas.mockResolvedValue(undefined as never);
     mockedGetAllArtifactMetas.mockResolvedValue([] as never);
@@ -202,5 +218,19 @@ describe("POST /api/rules/batch-delete", () => {
     expect(records[0].changeType).toBe("deleted");
     expect(records[1].changeType).toBe("deleted");
     expect(records.map((r: { client: string }) => r.client).sort()).toEqual(["clash_meta", "surge"]);
+  });
+
+  it("skips activity records when deleting geosite rules", async () => {
+    const config = makeConfig([makeGeositeRule(undefined, ["clash_meta", "surge"])]);
+    mockedGetConfig.mockResolvedValue(config as never);
+    mockedGetGeositeRuleContent.mockResolvedValue("DOMAIN-SUFFIX,google.com" as never);
+
+    const res = await post(app, "/api/rules/batch-delete", {
+      ruleNames: ["geosite_v2fly_google"],
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockedDeleteGeositeRuleContent).toHaveBeenCalledTimes(2);
+    expect(mockedRecordRuleFileChanges).toHaveBeenCalledWith([]);
   });
 });

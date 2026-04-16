@@ -45,6 +45,11 @@ export interface ActivityList<T> {
   pageSize: number;
 }
 
+function isGeositeActivityRuleName(ruleName: string | undefined): boolean {
+  const normalized = (ruleName || "").trim().toLowerCase();
+  return normalized.startsWith("geosite_") || normalized.startsWith("geosite:");
+}
+
 function formatDateKey(date: Date = new Date()): string {
   return date.toISOString().split("T")[0];
 }
@@ -239,13 +244,14 @@ export async function listChangeRecords(
   const filteredRecords = client
     ? records.filter((record) => record.client === client)
     : records;
-  filteredRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  const total = filteredRecords.length;
+  const visibleRecords = filteredRecords.filter((record) => !isGeositeActivityRuleName(record.ruleName));
+  visibleRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const total = visibleRecords.length;
   const start = Math.max(0, (page - 1) * pageSize);
   const end = start + pageSize;
 
   return {
-    items: filteredRecords.slice(start, end),
+    items: visibleRecords.slice(start, end),
     total,
     page,
     pageSize,
@@ -257,6 +263,8 @@ export async function readChangeDiff(
   fileName: string
 ): Promise<string | null> {
   if (!isSafeFileName(fileName, ".diff")) return null;
+  const record = parseChangeFileName(fileName, date);
+  if (!record || isGeositeActivityRuleName(record.ruleName)) return null;
   const filePath = path.join(CHANGES_DIR, date, fileName);
   const resolved = path.resolve(filePath);
   if (!resolved.startsWith(path.resolve(CHANGES_DIR))) return null;
@@ -274,7 +282,7 @@ export async function countChangeRecords(date: string): Promise<number> {
     const unique = new Set<string>();
     for (const fileName of files) {
       const record = parseChangeFileName(fileName, date);
-      if (record) {
+      if (record && !isGeositeActivityRuleName(record.ruleName)) {
         unique.add(`${record.ruleName}:${record.client}`);
       }
     }
@@ -320,13 +328,14 @@ export async function listFailureRecords(
   const filteredRecords = client
     ? records.filter((record) => record.client === client)
     : records;
-  filteredRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
-  const total = filteredRecords.length;
+  const visibleRecords = filteredRecords.filter((record) => !isGeositeActivityRuleName(record.ruleName));
+  visibleRecords.sort((a, b) => b.timestamp.localeCompare(a.timestamp));
+  const total = visibleRecords.length;
   const start = Math.max(0, (page - 1) * pageSize);
   const end = start + pageSize;
 
   return {
-    items: filteredRecords.slice(start, end),
+    items: visibleRecords.slice(start, end),
     total,
     page,
     pageSize,
@@ -338,15 +347,39 @@ export async function listActivityDates(): Promise<string[]> {
     listAvailableDateDirs(CHANGES_DIR),
     listAvailableDateDirs(FAILURES_DIR),
   ]);
-  const unique = new Set<string>([...changeDates, ...failureDates]);
-  return Array.from(unique).sort((a, b) => b.localeCompare(a));
+  const unique = Array.from(new Set<string>([...changeDates, ...failureDates]));
+  const visibleDates = await Promise.all(
+    unique.map(async (date) => ({
+      date,
+      changes: await countChangeRecords(date),
+      failures: await countFailureRecords(date),
+    }))
+  );
+  return visibleDates
+    .filter((item) => item.changes > 0 || item.failures > 0)
+    .map((item) => item.date)
+    .sort((a, b) => b.localeCompare(a));
 }
 
 export async function countFailureRecords(date: string): Promise<number> {
   const dirPath = path.join(FAILURES_DIR, date);
   try {
     const files = await fs.readdir(dirPath);
-    return files.filter((file) => file.endsWith(".json")).length;
+    let count = 0;
+    for (const fileName of files) {
+      if (!fileName.endsWith(".json")) continue;
+      const filePath = path.join(dirPath, fileName);
+      try {
+        const content = await fs.readFile(filePath, "utf-8");
+        const record = JSON.parse(content) as FailureRecord;
+        if (!isGeositeActivityRuleName(record.ruleName)) {
+          count += 1;
+        }
+      } catch {
+        continue;
+      }
+    }
+    return count;
   } catch {
     return 0;
   }

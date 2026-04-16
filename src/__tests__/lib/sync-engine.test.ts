@@ -4,7 +4,7 @@ vi.mock("@/lib/storage-adapter", () => ({
   getConfig: vi.fn(),
   getClients: vi.fn(),
   getArtifactMeta: vi.fn(),
-  saveArtifactMeta: vi.fn(),
+  saveArtifactMetas: vi.fn(),
   acquireRuleLock: vi.fn(),
   releaseRuleLock: vi.fn(),
   acquireGlobalSyncLock: vi.fn(),
@@ -47,7 +47,7 @@ import {
   getConfig,
   getRuleContent,
   releaseGlobalSyncLock,
-  saveArtifactMeta,
+  saveArtifactMetas,
   updateLastSyncInfo,
   uploadRuleContent,
   uploadGeositeRuleContent,
@@ -68,7 +68,7 @@ const mockedReleaseGlobalSyncLock = vi.mocked(releaseGlobalSyncLock);
 const mockedRecordFailureRecords = vi.mocked(recordFailureRecords);
 const mockedRecordRuleFileChanges = vi.mocked(recordRuleFileChanges);
 const mockedRefreshGeositeProvider = vi.mocked(refreshGeositeProvider);
-const mockedSaveArtifactMeta = vi.mocked(saveArtifactMeta);
+const mockedSaveArtifactMetas = vi.mocked(saveArtifactMetas);
 const mockedUpdateLastSyncInfo = vi.mocked(updateLastSyncInfo);
 const mockedUploadGeositeRuleContent = vi.mocked(uploadGeositeRuleContent);
 const mockedUploadRuleContent = vi.mocked(uploadRuleContent);
@@ -109,7 +109,7 @@ describe("executeFullSync", () => {
     mockedRecordRuleFileChanges.mockResolvedValue(undefined);
     mockedRecordFailureRecords.mockResolvedValue(undefined);
     mockedUpdateLastSyncInfo.mockResolvedValue(undefined);
-    mockedSaveArtifactMeta.mockResolvedValue(undefined);
+    mockedSaveArtifactMetas.mockResolvedValue(undefined);
     mockedRefreshGeositeProvider.mockResolvedValue({} as never);
   });
 
@@ -133,7 +133,7 @@ describe("executeFullSync", () => {
     expect(uploadedContent).toContain("# 规则类型：");
     expect(uploadedContent).toContain("# DOMAIN: 1 条");
     expect(uploadedContent).toContain("\n\n# upstream header\nDOMAIN,test.com\n");
-    expect(mockedSaveArtifactMeta).toHaveBeenCalledTimes(1);
+    expect(mockedSaveArtifactMetas).toHaveBeenCalledTimes(1);
     expect(mockedRecordRuleFileChanges).toHaveBeenCalledWith([]);
   });
 
@@ -162,6 +162,7 @@ describe("executeFullSync", () => {
     expect(mockedRefreshGeositeProvider.mock.invocationCallOrder[0]).toBeLessThan(
       mockedProcessRule.mock.invocationCallOrder[0]
     );
+    expect(mockedRecordRuleFileChanges).toHaveBeenCalledWith([]);
   });
 
   it("fails full sync when geosite provider refresh fails", async () => {
@@ -185,6 +186,7 @@ describe("executeFullSync", () => {
       { name: "geosite:v2fly", error: "refresh failed" },
     ]);
     expect(mockedProcessRule).not.toHaveBeenCalled();
+    expect(mockedRecordFailureRecords).not.toHaveBeenCalled();
   });
 
   it("batch sync processes multiple requested rules in one job", async () => {

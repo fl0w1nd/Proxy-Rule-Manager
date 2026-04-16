@@ -9,7 +9,7 @@ import {
   getConfig,
   getClients,
   getArtifactMeta,
-  saveArtifactMeta,
+  saveArtifactMetas,
   acquireRuleLock,
   releaseRuleLock,
   acquireGlobalSyncLock,
@@ -122,6 +122,10 @@ function buildFailureRecords(
   });
 }
 
+function shouldTrackRuleActivity(rule: RuleConfig): boolean {
+  return !isGeositeRule(rule);
+}
+
 function collectGeositeProviders(rules: RuleConfig[]): GeositeProvider[] {
   const providers = new Set<GeositeProvider>();
   for (const rule of rules) {
@@ -195,6 +199,7 @@ async function executeSelectiveSync(
     const failedRules: { name: string; error: string }[] = [];
     const ruleFileChanges: ChangeRecordInput[] = [];
     const failureRecords: FailureRecord[] = [];
+    const pendingArtifactMetas: ArtifactMeta[] = [];
     let blobWriteCount = 0;
 
     const ruleContentsCache = new Map<string, Map<ClientType, string>>();
@@ -235,6 +240,7 @@ async function executeSelectiveSync(
     }
 
     for (const rule of sortedRules) {
+      const trackActivity = shouldTrackRuleActivity(rule);
       const processResult = await processRule(
         rule,
         config.transformers || {},
@@ -243,9 +249,11 @@ async function executeSelectiveSync(
       );
 
       if (processResult.errors.length > 0) {
-        failureRecords.push(
-          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
-        );
+        if (trackActivity) {
+          failureRecords.push(
+            ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
+          );
+        }
         failedRules.push({
           name: rule.name,
           error: processResult.errors.join("; "),
@@ -273,7 +281,7 @@ async function executeSelectiveSync(
             if (previousNormalizedHash === hash) {
               if (previousSourceContent === content) {
                 if (existingMeta.lastHash !== hash) {
-                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+                  pendingArtifactMetas.push({ ...existingMeta, lastHash: hash });
                 }
                 continue;
               }
@@ -281,7 +289,7 @@ async function executeSelectiveSync(
               const sizeBytes = new TextEncoder().encode(outputContent).length;
               const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
               blobWriteCount += 1;
-              await saveArtifactMeta({
+              pendingArtifactMetas.push({
                 ...existingMeta,
                 lastHash: hash,
                 lastUpdatedAt: syncedAt,
@@ -298,12 +306,6 @@ async function executeSelectiveSync(
           previousContent = await readRuleContentFromPath(rule, client);
         }
 
-        const previousSourceContent = stripManagedRuleHeader(previousContent);
-        const diff = createActivityDiff(
-          existingMeta ? "updated" : "created",
-          normalizeEffectiveRuleContent(previousSourceContent),
-          normalizedContent
-        );
         const sizeBytes = new TextEncoder().encode(outputContent).length;
         const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
         blobWriteCount += 1;
@@ -316,24 +318,34 @@ async function executeSelectiveSync(
           blobUrl: url,
           sizeBytes,
         };
-        await saveArtifactMeta(meta);
+        pendingArtifactMetas.push(meta);
 
-        const changeRecord: ChangeRecordInput = {
-          id: randomUUID(),
-          timestamp: meta.lastUpdatedAt,
-          ruleName: rule.name,
-          client,
-          changeType: existingMeta ? "updated" : "created",
-          diff,
-          sizeBytes,
-        };
-        ruleFileChanges.push(changeRecord);
+        if (trackActivity) {
+          const previousSourceContent = stripManagedRuleHeader(previousContent);
+          const diff = createActivityDiff(
+            existingMeta ? "updated" : "created",
+            normalizeEffectiveRuleContent(previousSourceContent),
+            normalizedContent
+          );
+          const changeRecord: ChangeRecordInput = {
+            id: randomUUID(),
+            timestamp: meta.lastUpdatedAt,
+            ruleName: rule.name,
+            client,
+            changeType: existingMeta ? "updated" : "created",
+            diff,
+            sizeBytes,
+          };
+          ruleFileChanges.push(changeRecord);
+        }
 
         if (!changedRules.includes(rule.name)) {
           changedRules.push(rule.name);
         }
       }
     }
+
+    await saveArtifactMetas(pendingArtifactMetas);
 
     const today = new Date().toISOString().split("T")[0];
     await incrementDailyStats(today, {
@@ -389,6 +401,7 @@ export async function executeFullSync(): Promise<{
   const failedRules: { name: string; error: string }[] = [];
   const ruleFileChanges: ChangeRecordInput[] = [];
   const failureRecords: FailureRecord[] = [];
+  const pendingArtifactMetas: ArtifactMeta[] = [];
   let blobWriteCount = 0;
 
   try {
@@ -419,17 +432,11 @@ export async function executeFullSync(): Promise<{
             name: `geosite:${item.provider}`,
             error: errorMessage,
           });
-          failureRecords.push({
-            id: randomUUID(),
-            timestamp: new Date().toISOString(),
-            ruleName: `geosite:${item.provider}`,
-            message: errorMessage,
-            stage: "refresh_geosite_provider",
-            jobId: job.jobId,
-          });
         }
 
-        await recordFailureRecords(failureRecords);
+        if (failureRecords.length > 0) {
+          await recordFailureRecords(failureRecords);
+        }
         await completeJob(job.jobId, changedRules, failedRules);
         await updateLastSyncInfo({
           lastFullSyncAt: new Date().toISOString(),
@@ -451,6 +458,7 @@ export async function executeFullSync(): Promise<{
     const ruleContentsCache = new Map<string, Map<ClientType, string>>();
 
     for (const rule of sortedRules) {
+      const trackActivity = shouldTrackRuleActivity(rule);
       const processResult = await processRule(
         rule,
         config.transformers || {},
@@ -459,9 +467,11 @@ export async function executeFullSync(): Promise<{
       );
 
       if (processResult.errors.length > 0) {
-        failureRecords.push(
-          ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
-        );
+        if (trackActivity) {
+          failureRecords.push(
+            ...buildFailureRecords(rule.name, processResult.errors, job.jobId)
+          );
+        }
         failedRules.push({
           name: rule.name,
           error: processResult.errors.join("; "),
@@ -489,7 +499,7 @@ export async function executeFullSync(): Promise<{
             if (previousNormalizedHash === hash) {
               if (previousSourceContent === content) {
                 if (existingMeta.lastHash !== hash) {
-                  await saveArtifactMeta({ ...existingMeta, lastHash: hash });
+                  pendingArtifactMetas.push({ ...existingMeta, lastHash: hash });
                 }
                 continue;
               }
@@ -497,7 +507,7 @@ export async function executeFullSync(): Promise<{
               const sizeBytes = new TextEncoder().encode(outputContent).length;
               const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
               blobWriteCount += 1;
-              await saveArtifactMeta({
+              pendingArtifactMetas.push({
                 ...existingMeta,
                 lastHash: hash,
                 lastUpdatedAt: syncedAt,
@@ -514,12 +524,6 @@ export async function executeFullSync(): Promise<{
           previousContent = await readRuleContentFromPath(rule, client);
         }
 
-        const previousSourceContent = stripManagedRuleHeader(previousContent);
-        const diff = createActivityDiff(
-          existingMeta ? "updated" : "created",
-          normalizeEffectiveRuleContent(previousSourceContent),
-          normalizedContent
-        );
         const sizeBytes = new TextEncoder().encode(outputContent).length;
         const { url, path } = await uploadRuleContentToPath(rule, client, outputContent);
         blobWriteCount += 1;
@@ -532,8 +536,15 @@ export async function executeFullSync(): Promise<{
           blobUrl: url,
           sizeBytes,
         };
-        await saveArtifactMeta(meta);
+        pendingArtifactMetas.push(meta);
 
+        if (trackActivity) {
+          const previousSourceContent = stripManagedRuleHeader(previousContent);
+          const diff = createActivityDiff(
+            existingMeta ? "updated" : "created",
+            normalizeEffectiveRuleContent(previousSourceContent),
+            normalizedContent
+          );
           const changeRecord: ChangeRecordInput = {
             id: randomUUID(),
             timestamp: meta.lastUpdatedAt,
@@ -543,13 +554,16 @@ export async function executeFullSync(): Promise<{
             diff,
             sizeBytes,
           };
-        ruleFileChanges.push(changeRecord);
+          ruleFileChanges.push(changeRecord);
+        }
 
         if (!changedRules.includes(rule.name)) {
           changedRules.push(rule.name);
         }
       }
     }
+
+    await saveArtifactMetas(pendingArtifactMetas);
 
     const today = new Date().toISOString().split("T")[0];
     await incrementDailyStats(today, {

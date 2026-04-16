@@ -71,16 +71,19 @@ export function registerRuleRoutes(app: Hono) {
       const rule = config.rules[ruleIndex];
       const clients = rule.output.clients;
       const changeRecords: ChangeRecordInput[] = [];
+      const trackActivity = !isGeositeRule(rule);
 
       for (const client of clients) {
         const isGeosite = isGeositeRule(rule);
         const geositeSource = isGeosite ? getPrimaryGeositeSource(rule) : undefined;
         const geositeOutputName = geositeSource ? getGeositeOutputName(geositeSource) : undefined;
 
-        const previousContent = isGeosite && geositeSource
-          ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
-          : await getRuleContent(ruleName, client);
-        const meta = await getArtifactMeta(ruleName, client);
+        const previousContent = trackActivity
+          ? (isGeosite && geositeSource
+            ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
+            : await getRuleContent(ruleName, client))
+          : null;
+        const meta = trackActivity ? await getArtifactMeta(ruleName, client) : null;
 
         if (isGeosite && geositeSource) {
           await deleteGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!);
@@ -89,7 +92,7 @@ export function registerRuleRoutes(app: Hono) {
         }
         await deleteArtifactMeta(ruleName, client);
 
-        if (previousContent || meta) {
+        if (trackActivity && (previousContent || meta)) {
           const diff = createActivityDiff("deleted", previousContent, "");
           const sizeBytes = previousContent
             ? new TextEncoder().encode(previousContent).length
@@ -175,14 +178,17 @@ export function registerRuleRoutes(app: Hono) {
       await Promise.all(
         targetRules.flatMap((rule) => {
           const isGeosite = isGeositeRule(rule);
+          const trackActivity = !isGeosite;
           const geositeSource = isGeosite ? getPrimaryGeositeSource(rule) : undefined;
           const geositeOutputName = geositeSource ? getGeositeOutputName(geositeSource) : undefined;
 
           return rule.output.clients.map(async (client) => {
-            const meta = artifactMetaByKey.get(artifactMetaKey(rule.name, client));
-            const previousContent = isGeosite && geositeSource
-              ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
-              : await getRuleContent(rule.name, client);
+            const meta = trackActivity ? artifactMetaByKey.get(artifactMetaKey(rule.name, client)) : null;
+            const previousContent = trackActivity
+              ? (isGeosite && geositeSource
+                ? await getGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!)
+                : await getRuleContent(rule.name, client))
+              : null;
 
             if (isGeosite && geositeSource) {
               await deleteGeositeRuleContent(client, geositeSource.provider!, geositeOutputName!);
@@ -192,7 +198,7 @@ export function registerRuleRoutes(app: Hono) {
 
             artifactEntriesToDelete.push({ ruleName: rule.name, client });
 
-            if (previousContent || meta) {
+            if (trackActivity && (previousContent || meta)) {
               const diff = createActivityDiff("deleted", previousContent, "");
               const sizeBytes = previousContent
                 ? new TextEncoder().encode(previousContent).length

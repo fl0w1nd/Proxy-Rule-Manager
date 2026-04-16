@@ -799,6 +799,18 @@ export async function saveArtifactMeta(meta: ArtifactMeta): Promise<void> {
     await saveDb(db);
 }
 
+export async function saveArtifactMetas(metas: ArtifactMeta[]): Promise<void> {
+    if (metas.length === 0) {
+        return;
+    }
+
+    const db = await loadDb();
+    for (const meta of metas) {
+        db.artifacts[artifactKey(meta.ruleName, meta.client)] = meta;
+    }
+    await saveDb(db);
+}
+
 export async function deleteArtifactMeta(
     ruleName: string,
     client: ClientType
