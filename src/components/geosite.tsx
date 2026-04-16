@@ -1155,10 +1155,17 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
                                       item.imported && !selected && "text-success"
                                     )}
                                   >
-                                    <button
-                                      type="button"
+                                    <div
+                                      role="button"
+                                      tabIndex={0}
                                       onClick={() => toggleListSelection(item.name)}
-                                      className="min-w-0 flex-1 text-left"
+                                      onKeyDown={(event) => {
+                                        if (event.key === "Enter" || event.key === " ") {
+                                          event.preventDefault();
+                                          toggleListSelection(item.name);
+                                        }
+                                      }}
+                                      className="min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                                     >
                                       <div className="flex items-start justify-between gap-3">
                                         <div className="min-w-0">
@@ -1194,7 +1201,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
                                           <Badge variant="outline" className="text-[10px]">+{item.attrs.length - 6}</Badge>
                                         ) : null}
                                       </div>
-                                    </button>
+                                    </div>
                                     <div className="flex items-center gap-2">
                                       {item.imported ? <CheckCircle2 className="h-4 w-4 text-success" /> : null}
                                       <Button
