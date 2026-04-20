@@ -13,6 +13,7 @@ import {
   renameRule,
 } from "../../lib/storage-adapter";
 import { executePartialSync } from "../../lib/sync-engine";
+import { saveLocalSourceContent } from "../../lib/local-source-store";
 import { recordRuleFileChanges, type ChangeRecordInput } from "../../lib/activity-store";
 import { createActivityDiff } from "../../lib/diff";
 import { randomUUID } from "node:crypto";
@@ -243,6 +244,78 @@ export function registerRuleRoutes(app: Hono) {
     } catch (error) {
       console.error("Failed to refresh rule:", error);
       return jsonError(c, error, "Failed to refresh rule");
+    }
+  });
+
+  app.get("/api/rules/local-sources", async (c) => {
+    try {
+      const config = await getConfig();
+      const rules = config.rules
+        .map((rule) => {
+          const localSources = (rule.sources || [])
+            .map((source, index) => ({ source, index }))
+            .filter(({ source }) => source.type === "local")
+            .map(({ source, index }) => ({
+              sourceIndex: index,
+              name: source.name || null,
+              contentRef: source.contentRef || null,
+            }));
+
+          if (localSources.length === 0) return null;
+          return { ruleName: rule.name, sources: localSources };
+        })
+        .filter(Boolean);
+
+      return c.json({ rules });
+    } catch (error) {
+      console.error("Failed to list local sources:", error);
+      return jsonError(c, error, "Failed to list local sources");
+    }
+  });
+
+  app.put("/api/rules/:ruleName/local-source", async (c) => {
+    try {
+      const ruleName = decodeURIComponent(c.req.param("ruleName"));
+      const body = await c.req.json();
+      const { sourceIndex, content } = body;
+
+      if (typeof sourceIndex !== "number" || sourceIndex < 0 || !Number.isInteger(sourceIndex)) {
+        return c.json({ error: "sourceIndex must be a non-negative integer" }, 400);
+      }
+      if (typeof content !== "string") {
+        return c.json({ error: "content must be a string" }, 400);
+      }
+
+      const config = await getConfig();
+      const rule = config.rules.find((r) => r.name === ruleName);
+      if (!rule) {
+        return c.json({ error: "Rule not found" }, 404);
+      }
+
+      const sources = rule.sources || [];
+      if (sourceIndex >= sources.length) {
+        return c.json({ error: `sourceIndex ${sourceIndex} out of range (rule has ${sources.length} sources)` }, 404);
+      }
+
+      const source = sources[sourceIndex];
+      if (source.type !== "local") {
+        return c.json({ error: `Source at index ${sourceIndex} is not a local source (type: ${source.type})` }, 404);
+      }
+
+      const contentRef = await saveLocalSourceContent(source.contentRef, content);
+
+      const syncResult = await executePartialSync(ruleName);
+
+      return c.json({
+        success: true,
+        ruleName,
+        sourceIndex,
+        contentRef,
+        sync: syncResult,
+      });
+    } catch (error) {
+      console.error("Failed to update local source:", error);
+      return jsonError(c, error, "Failed to update local source");
     }
   });
 
