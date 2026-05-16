@@ -260,21 +260,45 @@ func (s *Server) applyAdminGuard(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// corsMiddleware sets CORS headers. When the request carries an Origin header
-// we echo it back (required when credentials are included — sending * with
-// credentials is invalid per the Fetch spec). Requests without Origin get *
-// so plain curl / server-to-server calls still work without triggering the
-// credentials restriction.
-// Note: cdn_headers.go must not overwrite Access-Control-Allow-Origin; a3 owns that fix.
+// corsMiddleware sets CORS headers with two distinct modes:
+//
+//  1. ALLOWED_ORIGINS unset (default) — permissive: respond with
+//     Access-Control-Allow-Origin: * and never enable credentials. This is
+//     safe because all authenticated endpoints require a Bearer token in
+//     the Authorization header, which browsers do not auto-attach
+//     cross-origin; an attacker page therefore cannot piggyback on a
+//     user's logged-in session.
+//
+//  2. ALLOWED_ORIGINS set — strict allow-list: only origins on the list
+//     get their Origin echoed back, and only those origins receive
+//     Access-Control-Allow-Credentials: true. Requests from other origins
+//     get no CORS headers at all, so the browser blocks them.
+//
+// Note: cdn_headers.go must not overwrite Access-Control-Allow-Origin.
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		origin := r.Header.Get("Origin")
-		if origin == "" {
-			origin = "*"
+		allowed := s.Config.AllowedOrigins
+
+		switch {
+		case len(allowed) == 0:
+			// Permissive default. `*` is incompatible with credentials
+			// per the Fetch spec, which is exactly the safety we want.
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		case origin != "" && originAllowed(origin, allowed):
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		default:
+			// Origin not on the allow-list: emit no Allow-Origin header
+			// so the browser rejects the response. Still let preflight
+			// terminate quickly rather than forwarding to the handler.
+			if r.Method == http.MethodOptions {
+				w.WriteHeader(http.StatusNoContent)
+				return
+			}
 		}
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Vary", "Origin")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
+
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
 		if r.Method == http.MethodOptions {
@@ -283,6 +307,15 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+func originAllowed(origin string, allowed []string) bool {
+	for _, a := range allowed {
+		if a == origin {
+			return true
+		}
+	}
+	return false
 }
 
 // serveStatic serves files from cfg.OutDir, with SPA fallback to index.html.

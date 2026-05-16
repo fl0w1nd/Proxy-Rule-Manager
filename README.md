@@ -110,6 +110,7 @@ services:
 | `OUT_DIR` | 前端静态文件目录 | `/app/out` |
 | `ADMIN_TOKEN` | 管理员令牌（空则无需认证） | 空 |
 | `INITIAL_CONFIG_PATH` | 首次初始化使用的模板 JSON 文件路径 | 自动探测 `out/templates/` 与 `public/templates/` |
+| `ALLOWED_ORIGINS` | 受信任的浏览器跨源白名单（逗号分隔，如 `https://rules.example.com`）。**不设**时默认 `Access-Control-Allow-Origin: *` 且不开启 credentials；管理认证使用 Bearer token，浏览器不会跨源自动携带，所以默认是安全的。仅当你需要在另一个域名下的前端通过 `credentials: include` 调用本服务时再配置此项。 | 空 |
 
 > 所有可调的运行时参数（抓取超时、转换器执行上限、速率限制阈值等）都在
 > 管理面板「系统配置」页中调整，存放在数据库 `kv_settings` 表里并随备份归档。

@@ -156,7 +156,16 @@ func runScheduledSync(ctx context.Context, srv *api.Server, stop <-chan struct{}
 	}
 }
 
-func checkAndRun(ctx context.Context, srv *api.Server) {
+// scheduledSyncMaxDuration is a defensive backstop: even though Fetcher and
+// ScriptRunner each enforce their own per-call timeouts, a buggy downstream
+// path that ignores context could let a single scheduled sync run forever.
+// Capping the whole call at an hour ensures we always get back to the
+// 1-minute ticker loop even in the worst case.
+const scheduledSyncMaxDuration = time.Hour
+
+func checkAndRun(parent context.Context, srv *api.Server) {
+	ctx, cancel := context.WithTimeout(parent, scheduledSyncMaxDuration)
+	defer cancel()
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("[scheduled sync] panic: %v", r)

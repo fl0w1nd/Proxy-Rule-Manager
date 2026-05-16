@@ -8,8 +8,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dop251/goja"
-
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/util"
 )
@@ -74,7 +72,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 				out[i] = content
 				continue
 			}
-			replaced, err := jsReplace(content, transform.Pattern, transform.Replacement, transform.Flags)
+			replaced, err := e.JS.RunRegexReplace(content, transform.Pattern, transform.Replacement, transform.Flags)
 			if err != nil {
 				// TS silently returns original content on regex error.
 				out[i] = content
@@ -86,7 +84,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 				out[i] = content
 				continue
 			}
-			filtered, err := removeLines(content, transform.Pattern)
+			filtered, err := e.JS.RunRegexRemoveLines(content, transform.Pattern)
 			if err != nil {
 				// TS silently returns original content on regex error.
 				out[i] = content
@@ -298,53 +296,4 @@ func formatHeaderTimestamp(timestamp string) string {
 	loc := t.Local()
 	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d",
 		loc.Year(), loc.Month(), loc.Day(), loc.Hour(), loc.Minute(), loc.Second())
-}
-
-func removeLines(content, pattern string) (string, error) {
-	rt := goja.New()
-	if err := rt.Set("content", content); err != nil {
-		return content, nil
-	}
-	if err := rt.Set("pattern", pattern); err != nil {
-		return content, nil
-	}
-	v, err := rt.RunString(`(function(){var re = new RegExp(pattern); return String(content).split("\n").filter(function(line){ return !re.test(line); }).join("\n"); })()`)
-	if err != nil {
-		return content, nil
-	}
-	str, ok := v.Export().(string)
-	if !ok {
-		return content, nil
-	}
-	return str, nil
-}
-
-// jsReplace mirrors the TS transformer which defaults to "g" when no flags are
-// provided: new RegExp(pattern, transform.flags || "g").
-func jsReplace(content, pattern, replacement, flags string) (string, error) {
-	if flags == "" {
-		flags = "g"
-	}
-	rt := goja.New()
-	if err := rt.Set("content", content); err != nil {
-		return content, err
-	}
-	if err := rt.Set("pattern", pattern); err != nil {
-		return content, err
-	}
-	if err := rt.Set("replacement", replacement); err != nil {
-		return content, err
-	}
-	if err := rt.Set("flags", flags); err != nil {
-		return content, err
-	}
-	v, err := rt.RunString(`(function(){var re = new RegExp(pattern, flags); return String(content).replace(re, replacement || ""); })()`)
-	if err != nil {
-		return content, nil
-	}
-	str, ok := v.Export().(string)
-	if !ok {
-		return content, nil
-	}
-	return str, nil
 }

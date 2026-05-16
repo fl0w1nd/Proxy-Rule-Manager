@@ -2,6 +2,7 @@ package syncengine
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
@@ -83,6 +84,16 @@ func DetectCircularDependency(rules []schema.RuleConfig) []string {
 
 // TopologicalSort returns rules sorted so each rule appears after its deps.
 // When skipMissingDepsCheck=false, an error is returned listing missing deps.
+//
+// Complexity: O(V + E). The previous version re-scanned the whole rules
+// slice for every node it processed, which degraded to O(V * V) on large
+// configs (e.g. a full geosite import). We now build the reverse adjacency
+// once and only walk a node's actual dependents when it's emitted.
+//
+// Determinism is preserved by sorting each dependents list once (by the
+// dependent's index in the input slice), so when a single completion
+// unblocks several nodes simultaneously they enter the queue in the same
+// order the legacy algorithm produced.
 func TopologicalSort(rules []schema.RuleConfig, skipMissingDepsCheck bool) ([]schema.RuleConfig, error) {
 	if cycle := DetectCircularDependency(rules); cycle != nil {
 		return nil, fmt.Errorf("检测到循环依赖: %s", strings.Join(cycle, " → "))
@@ -91,59 +102,56 @@ func TopologicalSort(rules []schema.RuleConfig, skipMissingDepsCheck bool) ([]sc
 	for i, r := range rules {
 		ruleByName[r.Name] = i
 	}
-	dependencies := make(map[string]map[string]struct{}, len(rules))
+
+	// inDegree[i] counts unresolved dependencies of rules[i]; dependents[i]
+	// is the list of indices that depend on rules[i] (i.e. the reverse
+	// edges), sorted ascending so iteration order matches the input slice.
+	inDegree := make([]int, len(rules))
+	dependents := make([][]int, len(rules))
 	var missing []string
 	for i := range rules {
-		all := ExtractDependencies(&rules[i])
-		in := map[string]struct{}{}
-		for d := range all {
-			if _, ok := ruleByName[d]; ok {
-				in[d] = struct{}{}
-			} else if !skipMissingDepsCheck {
-				missing = append(missing, fmt.Sprintf(`规则 "%s" 引用了不存在的规则 "%s"`, rules[i].Name, d))
+		deps := ExtractDependencies(&rules[i])
+		for dep := range deps {
+			j, ok := ruleByName[dep]
+			if !ok {
+				if !skipMissingDepsCheck {
+					missing = append(missing, fmt.Sprintf(`规则 "%s" 引用了不存在的规则 "%s"`, rules[i].Name, dep))
+				}
+				continue
 			}
+			inDegree[i]++
+			dependents[j] = append(dependents[j], i)
 		}
-		dependencies[rules[i].Name] = in
 	}
 	if !skipMissingDepsCheck && len(missing) > 0 {
 		return nil, fmt.Errorf("依赖缺失:\n%s", strings.Join(missing, "\n"))
 	}
+	for j := range dependents {
+		if len(dependents[j]) > 1 {
+			sort.Ints(dependents[j])
+		}
+	}
 
-	// Build noDeps by iterating the original rules slice (not the map) so
-	// that the initial queue order is deterministic (matches the TS Map
-	// insertion-order semantics).
-	var noDeps []string
-	for _, rule := range rules {
-		if set, ok := dependencies[rule.Name]; ok && len(set) == 0 {
-			noDeps = append(noDeps, rule.Name)
+	// Seed the queue with zero-indegree nodes in input-slice order so the
+	// initial dequeue order is stable (matches the legacy implementation
+	// and the determinism tests in depgraph_test.go).
+	queue := make([]int, 0, len(rules))
+	for i := range rules {
+		if inDegree[i] == 0 {
+			queue = append(queue, i)
 		}
 	}
 
 	sorted := make([]schema.RuleConfig, 0, len(rules))
-	for len(noDeps) > 0 {
-		name := noDeps[0]
-		noDeps = noDeps[1:]
-		idx, ok := ruleByName[name]
-		if ok {
-			sorted = append(sorted, rules[idx])
-		}
-		// Iterate over the rules slice (not the map) so that newly
-		// zero-dep nodes are appended in rules-slice order, matching TS.
-		for _, otherRule := range rules {
-			other := otherRule.Name
-			set, exists := dependencies[other]
-			if !exists {
-				continue
-			}
-			if _, has := set[name]; has {
-				delete(set, name)
-				if len(set) == 0 && other != name {
-					noDeps = append(noDeps, other)
-					delete(dependencies, other)
-				}
+	for head := 0; head < len(queue); head++ {
+		i := queue[head]
+		sorted = append(sorted, rules[i])
+		for _, j := range dependents[i] {
+			inDegree[j]--
+			if inDegree[j] == 0 {
+				queue = append(queue, j)
 			}
 		}
-		delete(dependencies, name)
 	}
 	return sorted, nil
 }

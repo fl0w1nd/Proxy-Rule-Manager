@@ -60,8 +60,10 @@ func NewScriptRunner(opts ScriptOptions) *ScriptRunner {
 // buildRuntime constructs a goja runtime with the standard sandbox surface:
 // a console shim, atob/btoa, URL/URLSearchParams, TextEncoder/TextDecoder,
 // and a frozen `helpers` global with rule-set utilities. The runtime is
-// reused across script executions via runtimePool, so all state set here
-// must be idempotent or immutable per script run.
+// reused across script executions via runtimePool, so all globals installed
+// here are made non-writable + non-configurable to prevent one script from
+// poisoning the pooled runtime for the next caller (e.g. by reassigning
+// `console = {log: stealOutput}`).
 func buildRuntime() *goja.Runtime {
 	rt := goja.New()
 
@@ -75,7 +77,28 @@ func buildRuntime() *goja.Runtime {
 	installTextCoders(rt)
 	installHelpers(rt)
 
+	// Lock URL / URLSearchParams (installed by jsurl.Enable above) the same
+	// way we lock the rest of the sandbox surface, so a user script can't
+	// shadow them on the global with a malicious replacement that the next
+	// pooled execution would observe.
+	for _, name := range []string{"URL", "URLSearchParams"} {
+		if v := rt.GlobalObject().Get(name); v != nil {
+			_ = rt.GlobalObject().DefineDataProperty(name, v,
+				goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE)
+		}
+	}
+
 	return rt
+}
+
+// lockGlobal binds value at name on the global object as a non-writable,
+// non-configurable but enumerable data property. Used to install all sandbox
+// globals so they survive the lifetime of the pooled runtime intact.
+func lockGlobal(rt *goja.Runtime, name string, value goja.Value) {
+	if err := rt.GlobalObject().DefineDataProperty(name, value,
+		goja.FLAG_FALSE, goja.FLAG_FALSE, goja.FLAG_TRUE); err != nil {
+		log.Printf("[js-transform] failed to lock global %s: %v", name, err)
+	}
 }
 
 // installConsole exposes console.{log,error,warn,info,debug,trace,group,groupEnd}.
@@ -98,14 +121,14 @@ func installConsole(rt *goja.Runtime) {
 	} {
 		_ = console.Set(name, logFn)
 	}
-	_ = rt.Set("console", console)
+	lockGlobal(rt, "console", console)
 }
 
 // installBase64 adds the WHATWG-style atob/btoa pair. We treat strings as
 // raw byte sequences (latin-1) to match the browser semantics closely; this
 // is how rule sets typically embed base64 fragments.
 func installBase64(rt *goja.Runtime) {
-	_ = rt.Set("btoa", func(s string) (string, error) {
+	btoa := func(s string) (string, error) {
 		// btoa requires every char to be in the 0-0xFF range. Reject
 		// out-of-range chars rather than silently mangling them.
 		for _, r := range s {
@@ -118,8 +141,8 @@ func installBase64(rt *goja.Runtime) {
 			buf[i] = s[i]
 		}
 		return base64.StdEncoding.EncodeToString(buf), nil
-	})
-	_ = rt.Set("atob", func(s string) (string, error) {
+	}
+	atob := func(s string) (string, error) {
 		// Be liberal: accept both standard and URL-safe encodings,
 		// padded or not, like browsers do.
 		s = strings.TrimSpace(s)
@@ -136,7 +159,9 @@ func installBase64(rt *goja.Runtime) {
 			}
 		}
 		return string(decoded), nil
-	})
+	}
+	lockGlobal(rt, "btoa", rt.ToValue(btoa))
+	lockGlobal(rt, "atob", rt.ToValue(atob))
 }
 
 // installTextCoders provides minimal TextEncoder/TextDecoder for the most
@@ -168,7 +193,7 @@ func installTextCoders(rt *goja.Runtime) {
 		})
 		return obj
 	}
-	_ = rt.Set("TextEncoder", encoderCtor)
+	lockGlobal(rt, "TextEncoder", rt.ToValue(encoderCtor))
 
 	decoderCtor := func(call goja.ConstructorCall) *goja.Object {
 		obj := rt.NewObject()
@@ -199,7 +224,7 @@ func installTextCoders(rt *goja.Runtime) {
 		})
 		return obj
 	}
-	_ = rt.Set("TextDecoder", decoderCtor)
+	lockGlobal(rt, "TextDecoder", rt.ToValue(decoderCtor))
 }
 
 // helpersScript installs a frozen `helpers` global with utilities frequently
@@ -259,6 +284,103 @@ func (r *ScriptRunner) currentOpts() ScriptOptions {
 	r.optsMu.RLock()
 	defer r.optsMu.RUnlock()
 	return r.opts
+}
+
+// runRegexProgram caches small parameter-less programs (the JS bodies used by
+// RunRegexReplace / RunRegexRemoveLines) so we don't recompile the same string
+// on every transform tick. Programs are immutable and safe to share across
+// runtimes / goroutines per goja's documentation.
+var regexPrograms sync.Map // map[string]*goja.Program
+
+func cachedProgram(name, src string) (*goja.Program, error) {
+	if v, ok := regexPrograms.Load(name); ok {
+		return v.(*goja.Program), nil
+	}
+	p, err := goja.Compile(name, src, true)
+	if err != nil {
+		return nil, err
+	}
+	regexPrograms.Store(name, p)
+	return p, nil
+}
+
+// withPooledRuntime borrows a runtime from the pool, runs fn with it bound to
+// the given input variables, and returns it cleanly. The runtime is never
+// poisoned (no Interrupt fires) so it always goes back to the pool.
+func (r *ScriptRunner) withPooledRuntime(bind map[string]any, fn func(rt *goja.Runtime) (goja.Value, error)) (goja.Value, error) {
+	rt := r.runtimePool.Get().(*goja.Runtime)
+	defer r.runtimePool.Put(rt)
+	for k, v := range bind {
+		if err := rt.Set(k, v); err != nil {
+			return nil, err
+		}
+	}
+	return fn(rt)
+}
+
+// RunRegexReplace executes `String(content).replace(new RegExp(pattern, flags), replacement)`
+// in a pooled runtime — equivalent to what the legacy free-standing jsReplace
+// did, but without paying the goja.New() cost on every call. Defaults `flags`
+// to "g" to match the TS transformer's `transform.flags || "g"` semantics.
+func (r *ScriptRunner) RunRegexReplace(content, pattern, replacement, flags string) (string, error) {
+	if flags == "" {
+		flags = "g"
+	}
+	prog, err := cachedProgram("regex_replace",
+		`(function(content, pattern, replacement, flags){var re=new RegExp(pattern,flags);return String(content).replace(re, replacement||"");})`)
+	if err != nil {
+		return content, err
+	}
+	v, err := r.withPooledRuntime(nil, func(rt *goja.Runtime) (goja.Value, error) {
+		fnVal, err := rt.RunProgram(prog)
+		if err != nil {
+			return nil, err
+		}
+		fn, ok := goja.AssertFunction(fnVal)
+		if !ok {
+			return nil, errors.New("regex_replace: not a function")
+		}
+		return fn(goja.Undefined(),
+			rt.ToValue(content), rt.ToValue(pattern), rt.ToValue(replacement), rt.ToValue(flags))
+	})
+	if err != nil {
+		// Match the legacy "silently return original content on regex error" contract.
+		return content, nil
+	}
+	str, ok := v.Export().(string)
+	if !ok {
+		return content, nil
+	}
+	return str, nil
+}
+
+// RunRegexRemoveLines filters out lines matching pattern, mirroring the legacy
+// removeLines helper but with a pooled runtime.
+func (r *ScriptRunner) RunRegexRemoveLines(content, pattern string) (string, error) {
+	prog, err := cachedProgram("regex_remove_lines",
+		`(function(content, pattern){var re=new RegExp(pattern);return String(content).split("\n").filter(function(line){return !re.test(line);}).join("\n");})`)
+	if err != nil {
+		return content, err
+	}
+	v, err := r.withPooledRuntime(nil, func(rt *goja.Runtime) (goja.Value, error) {
+		fnVal, err := rt.RunProgram(prog)
+		if err != nil {
+			return nil, err
+		}
+		fn, ok := goja.AssertFunction(fnVal)
+		if !ok {
+			return nil, errors.New("regex_remove_lines: not a function")
+		}
+		return fn(goja.Undefined(), rt.ToValue(content), rt.ToValue(pattern))
+	})
+	if err != nil {
+		return content, nil
+	}
+	str, ok := v.Export().(string)
+	if !ok {
+		return content, nil
+	}
+	return str, nil
 }
 
 // Execute wraps the script in `(function(content){ … ; return transform(content); })`

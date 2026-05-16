@@ -2,7 +2,6 @@ package api
 
 import (
 	"archive/zip"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -155,16 +154,28 @@ func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleDatabaseBackup(w http.ResponseWriter, r *http.Request) {
-	var buf bytes.Buffer
-	zw := zip.NewWriter(&buf)
-
+	// Compute the DB snapshot first so any error here can still emit a
+	// proper JSON error response — once we start streaming the zip body
+	// we've already committed to a 200 + binary content-type.
 	state, err := s.buildDatabaseSnapshot(r.Context())
 	if err != nil {
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"proxy-rule-manager-%s.zip\"", time.Now().UTC().Format("2006-01-02")))
+	w.WriteHeader(http.StatusOK)
+
+	// Stream the zip directly into the response. Per-file failures inside
+	// the asset directories are still swallowed (matching prior behaviour)
+	// because the response is already committed and abandoning it would
+	// leave a corrupt download; ResponseWriter write errors abort early
+	// since the client has gone away.
+	zw := zip.NewWriter(w)
+	defer zw.Close()
 	if err := writeZipFile(zw, "db.json", state); err != nil {
-		s.Error(w, http.StatusInternalServerError, err.Error())
+		log.Printf("[backup] write db.json: %v", err)
 		return
 	}
 	for _, pair := range []struct{ src, prefix string }{
@@ -175,16 +186,11 @@ func (s *Server) handleDatabaseBackup(w http.ResponseWriter, r *http.Request) {
 		{s.Config.GeositeDir, "geosite"},
 		{s.Config.RulesDir, "Rules"},
 	} {
-		_ = addDirToZip(zw, pair.src, pair.prefix)
+		if err := addDirToZip(zw, pair.src, pair.prefix); err != nil {
+			log.Printf("[backup] stream %s: %v", pair.prefix, err)
+			return
+		}
 	}
-	if err := zw.Close(); err != nil {
-		s.Error(w, http.StatusInternalServerError, err.Error())
-		return
-	}
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"proxy-rule-manager-%s.zip\"", time.Now().UTC().Format("2006-01-02")))
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(buf.Bytes())
 }
 
 func (s *Server) buildDatabaseSnapshot(ctx context.Context) ([]byte, error) {
@@ -263,13 +269,30 @@ func addDirToZip(zw *zip.Writer, sourceDir, prefix string) error {
 		if err != nil {
 			return nil
 		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			return nil
-		}
 		zipPath := prefix + "/" + filepath.ToSlash(rel)
-		return writeZipFile(zw, zipPath, data)
+		return streamFileToZip(zw, zipPath, path)
 	})
+}
+
+// streamFileToZip copies path into zw under zipName without loading the
+// entire file into memory. Per-file Open / stat / Close errors are
+// swallowed (returning nil to WalkDir) so a single unreadable file in an
+// asset dir does not abort the whole backup, matching the original
+// best-effort semantics; the only error propagated is from CreateHeader
+// (zip writer state) and io.Copy (response writer state).
+func streamFileToZip(zw *zip.Writer, zipName, path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil
+	}
+	defer f.Close()
+	header := &zip.FileHeader{Name: zipName, Method: zip.Deflate, Modified: time.Now()}
+	writer, err := zw.CreateHeader(header)
+	if err != nil {
+		return err
+	}
+	_, err = io.Copy(writer, f)
+	return err
 }
 
 // handleDatabaseRestore restores from a Go-era backup zip uploaded from the
@@ -289,17 +312,34 @@ func (s *Server) handleDatabaseRestore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer file.Close()
-	buf, err := io.ReadAll(file)
+
+	// Spool the upload to disk before opening the zip so even multi-GB
+	// backups don't have to fit in memory. The temp file lives only for
+	// the duration of this handler.
+	tmp, err := os.CreateTemp("", "prm-restore-*.zip")
 	if err != nil {
-		s.Error(w, http.StatusBadRequest, err.Error())
+		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	zr, err := zip.NewReader(bytes.NewReader(buf), int64(len(buf)))
+	tmpPath := tmp.Name()
+	defer os.Remove(tmpPath)
+	if _, err := io.Copy(tmp, file); err != nil {
+		_ = tmp.Close()
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	if err := tmp.Close(); err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
+	zr, err := zip.OpenReader(tmpPath)
 	if err != nil {
 		s.Error(w, http.StatusBadRequest, "Invalid zip file: "+err.Error())
 		return
 	}
-	if err := importGoBackupZip(zr, s.Store); err != nil {
+	defer zr.Close()
+	if err := importGoBackupZip(&zr.Reader, s.Store); err != nil {
 		s.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}

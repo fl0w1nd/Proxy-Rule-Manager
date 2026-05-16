@@ -2,6 +2,7 @@ package util
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 )
@@ -82,6 +83,44 @@ func CommitTempFile(tempPath, finalPath string) error {
 			return fmt.Errorf("rename %s -> %s: %w", tempPath, finalPath, rerr)
 		}
 	}
+	return nil
+}
+
+// AtomicWriteStream writes src to filePath atomically without buffering the
+// entire payload in memory. Mirrors AtomicWriteFile but takes an io.Reader,
+// so callers handling user uploads can pipe straight from multipart files
+// instead of going through []byte.
+func AtomicWriteStream(filePath string, src io.Reader) error {
+	dir := filepath.Dir(filePath)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("mkdir %s: %w", dir, err)
+	}
+	base := filepath.Base(filePath)
+	temp, err := os.CreateTemp(dir, "."+base+".*.tmp")
+	if err != nil {
+		return fmt.Errorf("create temp for %s: %w", filePath, err)
+	}
+	tempPath := temp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tempPath)
+		}
+	}()
+	if _, err := io.Copy(temp, src); err != nil {
+		_ = temp.Close()
+		return fmt.Errorf("write temp %s: %w", tempPath, err)
+	}
+	if err := temp.Close(); err != nil {
+		return fmt.Errorf("close temp %s: %w", tempPath, err)
+	}
+	if err := os.Rename(tempPath, filePath); err != nil {
+		_ = os.Remove(filePath)
+		if rerr := os.Rename(tempPath, filePath); rerr != nil {
+			return fmt.Errorf("rename %s: %w", filePath, rerr)
+		}
+	}
+	cleanup = false
 	return nil
 }
 

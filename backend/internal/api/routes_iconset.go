@@ -1,7 +1,6 @@
 package api
 
 import (
-	"io"
 	"net/http"
 	"net/url"
 	"os"
@@ -168,15 +167,11 @@ func (s *Server) handleUploadIcons(w http.ResponseWriter, r *http.Request) {
 			errors = append(errors, uploadError{Name: fh.Filename, Error: err.Error()})
 			continue
 		}
-		data, err := io.ReadAll(src)
-		src.Close()
-		if err != nil {
-			errors = append(errors, uploadError{Name: fh.Filename, Error: err.Error()})
-			continue
-		}
 		dest := filepath.Join(dir, uniq)
-		if err := util.AtomicWriteFile(dest, data); err != nil {
-			errors = append(errors, uploadError{Name: fh.Filename, Error: err.Error()})
+		writeErr := util.AtomicWriteStream(dest, src)
+		src.Close()
+		if writeErr != nil {
+			errors = append(errors, uploadError{Name: fh.Filename, Error: writeErr.Error()})
 			continue
 		}
 		if uniq != fh.Filename {
