@@ -9,7 +9,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/pmezard/go-difflib v1.0.0
 	github.com/robfig/cron/v3 v3.0.1
-	golang.org/x/sys v0.42.0
+	golang.org/x/sys v0.44.0
 	google.golang.org/protobuf v1.36.11
 	modernc.org/sqlite v1.50.1
 )
