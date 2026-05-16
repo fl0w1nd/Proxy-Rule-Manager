@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-  workflow_call:
 
 # Avoid the double-run that happens when a single commit fires both `push`
 # and `pull_request`: feature branches only run via `pull_request`, and main

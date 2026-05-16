@@ -1,11 +1,10 @@
 name: Build Release Docker Image
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - package.json
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
@@ -16,11 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  ci:
-    uses: ./.github/workflows/ci.yml
-
   prepare:
-    needs: ci
+    if: github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -39,14 +35,13 @@ jobs:
 
       - name: Compare package.json versions
         id: versions
-        env:
-          BEFORE_SHA: ${{ github.event.before }}
         run: |
           CURRENT_VERSION=$(node -p "require('./package.json').version")
           PREVIOUS_VERSION=""
 
-          if [ -n "$BEFORE_SHA" ] && [ "$BEFORE_SHA" != "0000000000000000000000000000000000000000" ]; then
-            PREVIOUS_PACKAGE_JSON=$(git show "${BEFORE_SHA}:package.json" 2>/dev/null || true)
+          PREVIOUS_SHA=$(git rev-parse HEAD~1 2>/dev/null || true)
+          if [ -n "$PREVIOUS_SHA" ]; then
+            PREVIOUS_PACKAGE_JSON=$(git show "${PREVIOUS_SHA}:package.json" 2>/dev/null || true)
             if [ -n "$PREVIOUS_PACKAGE_JSON" ]; then
               PREVIOUS_VERSION=$(printf '%s' "$PREVIOUS_PACKAGE_JSON" | node -e "let input='';process.stdin.on('data',chunk=>input+=chunk);process.stdin.on('end',()=>{try{process.stdout.write(JSON.parse(input).version || '')}catch{}})")
             fi
