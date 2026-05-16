@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, startTransition } from "react";
 import {
   formatTimestamp,
   formatBytes,
@@ -466,6 +466,8 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [diskUsage, setDiskUsage] = useState<DiskUsageResponse | null>(null);
   const [wafStats, setWafStats] = useState<WafStats | null>(null);
   const diffRequestRef = useRef(0);
+  // Stable timestamp for sync health calculation, avoiding Date.now() during render
+  const [now, setNow] = useState(() => Date.now());
 
   const fetchStatus = async () => {
     try {
@@ -503,7 +505,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   }, [activeTab]);
 
   useEffect(() => {
-    fetchOverviewAux();
+    startTransition(() => { fetchOverviewAux(); });
   }, [fetchOverviewAux]);
 
   const getClientDisplayName = (clientId: string): string => {
@@ -531,14 +533,14 @@ export function Dashboard({ onBack }: DashboardProps) {
   };
 
   useEffect(() => {
-    fetchStatus();
-    let interval = setInterval(fetchStatus, 30000);
+    startTransition(() => { fetchStatus(); });
+    let interval = setInterval(() => { startTransition(() => { fetchStatus(); }); }, 30000);
     const handleVisibility = () => {
       if (document.hidden) {
         clearInterval(interval);
       } else {
-        fetchStatus();
-        interval = setInterval(fetchStatus, 30000);
+        startTransition(() => { fetchStatus(); });
+        interval = setInterval(() => { startTransition(() => { fetchStatus(); }); }, 30000);
       }
     };
     document.addEventListener("visibilitychange", handleVisibility);
@@ -551,7 +553,7 @@ export function Dashboard({ onBack }: DashboardProps) {
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        setSidebarCollapsed(true);
+        startTransition(() => { setSidebarCollapsed(true); });
       }
     };
     handleResize();
@@ -614,18 +616,18 @@ export function Dashboard({ onBack }: DashboardProps) {
   }, [activeTab, activityDate, activityClient, changePage, failurePage, activityPageSize]);
 
   useEffect(() => {
-    fetchActivity();
+    startTransition(() => { fetchActivity(); });
   }, [fetchActivity]);
 
   useEffect(() => {
     if (activityDate !== "all" && !activityDates.includes(activityDate)) {
-      setActivityDate("all");
+      startTransition(() => { setActivityDate("all"); });
     }
   }, [activityDate, activityDates]);
 
   useEffect(() => {
     if (activityClient !== "all" && !clients.some((client) => client.id === activityClient)) {
-      setActivityClient("all");
+      startTransition(() => { setActivityClient("all"); });
     }
   }, [activityClient, clients]);
 
@@ -686,9 +688,16 @@ export function Dashboard({ onBack }: DashboardProps) {
         ? "never"
         : status.lastSync.failedRulesCount > 0
           ? "partial"
-          : (Date.now() - new Date(status.lastSync.lastSuccessfulSyncAt).getTime()) / 3_600_000 > 48
+          : (now - new Date(status.lastSync.lastSuccessfulSyncAt).getTime()) / 3_600_000 > 48
             ? "stale"
             : "healthy";
+
+  // Keep `now` fresh whenever status changes so staleness check is accurate
+  useEffect(() => {
+    if (status) {
+      startTransition(() => { setNow(Date.now()); });
+    }
+  }, [status]);
 
   if (isLoading) {
     return (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -77,6 +77,7 @@ export function WafManager() {
     const [newHeaderName, setNewHeaderName] = useState("");
     const [newHeaderValue, setNewHeaderValue] = useState("");
     const [customHeaderKeys, setCustomHeaderKeys] = useState<string[]>([]);
+    const [now, setNow] = useState(() => Date.now());
 
     const loadData = useCallback(async () => {
         try {
@@ -104,8 +105,16 @@ export function WafManager() {
     }, []);
 
     useEffect(() => {
-        loadData();
+        startTransition(() => { loadData(); });
     }, [loadData]);
+
+    // Keep `now` fresh so ban expiry labels stay accurate
+    useEffect(() => {
+        const interval = setInterval(() => {
+            startTransition(() => { setNow(Date.now()); });
+        }, 60000);
+        return () => clearInterval(interval);
+    }, []);
 
     const handleRefresh = async () => {
         setRefreshing(true);
@@ -226,7 +235,7 @@ export function WafManager() {
 
     const getTimeRemaining = (expiresAt: string | null) => {
         if (!expiresAt) return "永久";
-        const remaining = new Date(expiresAt).getTime() - Date.now();
+        const remaining = new Date(expiresAt).getTime() - now;
         if (remaining <= 0) return "已过期";
         const minutes = Math.floor(remaining / 60000);
         const hours = Math.floor(minutes / 60);

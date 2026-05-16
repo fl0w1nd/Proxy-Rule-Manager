@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -135,24 +135,24 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     useEffect(() => {
-        fetchClients();
+        startTransition(() => { fetchClients(); });
     }, []);
 
     useEffect(() => {
         if (clients.length === 0) {
-            setSelectedClientId(null);
+            startTransition(() => { setSelectedClientId(null); });
             return;
         }
         if (!selectedClientId || !clients.some((c) => c.id === selectedClientId)) {
-            setSelectedClientId(clients[0].id);
+            startTransition(() => { setSelectedClientId(clients[0].id); });
         }
     }, [clients, selectedClientId]);
 
     useEffect(() => {
         if (selectedClientId) {
-            fetchClientFiles(selectedClientId);
+            startTransition(() => { fetchClientFiles(selectedClientId); });
         } else {
-            setClientFiles([]);
+            startTransition(() => { setClientFiles([]); });
         }
     }, [selectedClientId]);
 

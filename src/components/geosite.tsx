@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, startTransition } from "react";
 import {
   AlertTriangle,
   BookOpen,
@@ -378,11 +378,13 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   // clear the catalog up-front on provider switch so the UI never shows
   // the previous provider's lists while the new one is loading.
   useEffect(() => {
-    setCatalog([]);
-    setResolvedVersion("");
-    setFetchedAt("");
-    setStaleImports([]);
-    void fetchAll(provider);
+    startTransition(() => {
+      setCatalog([]);
+      setResolvedVersion("");
+      setFetchedAt("");
+      setStaleImports([]);
+    });
+    startTransition(() => { void fetchAll(provider); });
     // fetchAll already captures `provider` in its closure, so we depend on
     // both to keep the lint rule happy and to re-fire on provider switch.
   }, [fetchAll, provider]);
@@ -427,16 +429,18 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   }, [managedRules]);
 
   useEffect(() => {
-    setExpandedRuleGroups((current) => {
-      const valid = current.filter((id) => importedRuleGroups.some((g) => g.id === id));
-      if (valid.length > 0) return valid;
-      return importedRuleGroups.slice(0, 8).map((g) => g.id);
+    startTransition(() => {
+      setExpandedRuleGroups((current) => {
+        const valid = current.filter((id) => importedRuleGroups.some((g) => g.id === id));
+        if (valid.length > 0) return valid;
+        return importedRuleGroups.slice(0, 8).map((g) => g.id);
+      });
     });
   }, [importedRuleGroups]);
 
   // Clear selection when managed rules change
   useEffect(() => {
-    setSelectedRuleNames((current) => current.filter((name) => managedRules.some((r) => r.name === name)));
+    startTransition(() => { setSelectedRuleNames((current) => current.filter((name) => managedRules.some((r) => r.name === name))); });
   }, [managedRules]);
 
   const toggleRuleSelection = (name: string) => {
@@ -666,10 +670,12 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const catalogGroups = useMemo(() => buildCatalogGroups(visibleCatalog), [visibleCatalog]);
 
   useEffect(() => {
-    setExpandedGroups((current) => {
-      const valid = current.filter((id) => catalogGroups.some((group) => group.id === id));
-      if (valid.length > 0) return valid;
-      return catalogGroups.slice(0, 8).map((group) => group.id);
+    startTransition(() => {
+      setExpandedGroups((current) => {
+        const valid = current.filter((id) => catalogGroups.some((group) => group.id === id));
+        if (valid.length > 0) return valid;
+        return catalogGroups.slice(0, 8).map((group) => group.id);
+      });
     });
   }, [catalogGroups]);
 
@@ -678,8 +684,10 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
 
     const trimmed = domainQuery.trim();
     if (!trimmed) {
-      setDomainMatches([]);
-      setIsLookupLoading(false);
+      startTransition(() => {
+        setDomainMatches([]);
+        setIsLookupLoading(false);
+      });
       return;
     }
 
@@ -707,7 +715,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   useEffect(() => {
     if (!isImportDialogOpen) return;
     if (visibleCatalog.some((item) => item.name === focusedListName)) return;
-    setFocusedListName(visibleCatalog[0]?.name || "");
+    startTransition(() => { setFocusedListName(visibleCatalog[0]?.name || ""); });
   }, [focusedListName, isImportDialogOpen, visibleCatalog]);
 
   const getSelectedAttrs = (name: string) => selectedImportAttrs[name] || [];

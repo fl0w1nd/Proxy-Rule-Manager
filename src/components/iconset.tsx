@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -51,7 +51,7 @@ export function IconSetManager() {
     };
 
     useEffect(() => {
-        fetchIcons();
+        startTransition(() => { fetchIcons(); });
     }, []);
 
     useEffect(() => {
