@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -58,8 +58,10 @@ export function IconPicker({ value, onChange }: IconPickerProps) {
       clearTimeout(debounceRef.current);
     }
     if (!search.trim()) {
-      setResults([]);
-      setSearched(false);
+      startTransition(() => {
+        setResults([]);
+        setSearched(false);
+      });
       return;
     }
     debounceRef.current = setTimeout(() => {

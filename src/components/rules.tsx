@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -153,11 +153,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   };
 
   useEffect(() => {
-    fetchConfig();
+    startTransition(() => { fetchConfig(); });
   }, []);
 
   useEffect(() => {
-    setSelectedRuleNames((current) => current.filter((name) => config?.rules.some((rule) => rule.name === name)));
+    startTransition(() => { setSelectedRuleNames((current) => current.filter((name) => config?.rules.some((rule) => rule.name === name))); });
   }, [config?.rules]);
 
   // ESC 键退出全屏

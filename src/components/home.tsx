@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, startTransition } from "react";
 import NextImage from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -151,18 +151,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
 
   // 切换主标签时清空已选标签和来源
   useEffect(() => {
-    setSelectedTags([]);
-    setSelectedGeositeProvider("all");
+    startTransition(() => {
+      setSelectedTags([]);
+      setSelectedGeositeProvider("all");
+    });
   }, [activeMainTab]);
 
   useEffect(() => {
     const handleScroll = () => setIsScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll, { passive: true });
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
-
-  useEffect(() => {
-    fetchData();
   }, []);
 
   // ESC 键退出全屏
@@ -217,6 +215,10 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    startTransition(() => { fetchData(); });
+  }, []);
 
   const getClientConfig = (clientId: string): ClientConfig | undefined => {
     return clients.find(c => c.id === clientId);

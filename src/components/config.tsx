@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -150,9 +150,9 @@ export function ConfigEditor({ onSave }: ConfigEditorProps) {
   }, []);
 
   useEffect(() => {
-    fetchAll();
-    fetchSchedule();
-    fetchSystem();
+    startTransition(() => { fetchAll(); });
+    startTransition(() => { fetchSchedule(); });
+    startTransition(() => { fetchSystem(); });
   }, [fetchAll, fetchSchedule, fetchSystem]);
 
   const handleSaveSchedule = async () => {

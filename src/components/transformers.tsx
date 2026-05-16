@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -152,10 +152,6 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   const [testOutput, setTestOutput] = useState("");
   const [testError, setTestError] = useState("");
 
-  useEffect(() => {
-    fetchConfig();
-  }, []);
-
   const fetchConfig = async () => {
     try {
       const { config } = await getConfig();
@@ -167,6 +163,10 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       setIsLoading(false);
     }
   };
+
+  useEffect(() => {
+    startTransition(() => { fetchConfig(); });
+  }, []);
 
   const formatSaveError = (error: unknown) => {
     const err = error as Error & { code?: string };

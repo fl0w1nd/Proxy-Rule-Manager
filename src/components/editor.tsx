@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, startTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -206,7 +206,7 @@ export function RuleEditor({
   const [formData, setFormData] = useState<RuleConfig>(initialFormData);
   // Snapshot of the form at mount-time / after save. We compare against
   // `formData` to decide whether to prompt before discarding edits.
-  const initialSnapshotRef = useRef<string>(JSON.stringify(initialFormData));
+  const [initialSnapshot, setInitialSnapshot] = useState<string>(JSON.stringify(initialFormData));
   const [sourceKeys, setSourceKeys] = useState<string[]>(() =>
     createListItemKeys(initialFormData.sources?.length ?? 0)
   );
@@ -233,9 +233,9 @@ export function RuleEditor({
   // edit anything meaningful, and we want to avoid spurious confirm dialogs.
   const isDirty =
     !isLockedGeositeRule &&
-    JSON.stringify(formData) !== initialSnapshotRef.current;
+    JSON.stringify(formData) !== initialSnapshot;
   useEffect(() => {
-    onDirtyChange?.(isDirty);
+    startTransition(() => { onDirtyChange?.(isDirty); });
   }, [isDirty, onDirtyChange]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic", "sources", "transforms", "merge", "output"])
@@ -313,7 +313,7 @@ export function RuleEditor({
     ) as Array<"v2fly" | "loyalsoldier">;
 
     for (const provider of geositeProviders) {
-      void ensureGeositeCatalog(provider);
+      startTransition(() => { void ensureGeositeCatalog(provider); });
     }
   }, [ensureGeositeCatalog, formData.sources]);
 
@@ -450,7 +450,7 @@ export function RuleEditor({
 
       // Reset the snapshot so the editor is no longer "dirty" — without
       // this, closing the dialog would still trigger the confirm prompt.
-      initialSnapshotRef.current = JSON.stringify(cleanedData);
+      setInitialSnapshot(JSON.stringify(cleanedData));
       onSave();
     } catch (error) {
       toast.error("保存失败: " + String(error));
@@ -1381,15 +1381,6 @@ function TransformCard({
 }: TransformCardProps) {
   const [expanded, setExpanded] = useState(true);
 
-  const getTypeIcon = () => {
-    switch (transform.type) {
-      case "use": return Code2;
-      case "replace": return Replace;
-      case "remove_lines": return Eraser;
-      default: return Settings2;
-    }
-  };
-
   const getTypeLabel = () => {
     switch (transform.type) {
       case "use": return "预定义转换器";
@@ -1406,8 +1397,6 @@ function TransformCard({
     }
     return "全部来源";
   };
-
-  const Icon = getTypeIcon();
 
   return (
     <div
@@ -1439,7 +1428,10 @@ function TransformCard({
             ) : (
               <ChevronRight className="w-4 h-4 text-muted-foreground" />
             )}
-            <Icon className="w-4 h-4 text-primary" />
+            {transform.type === "use" ? <Code2 className="w-4 h-4 text-primary" /> :
+             transform.type === "replace" ? <Replace className="w-4 h-4 text-primary" /> :
+             transform.type === "remove_lines" ? <Eraser className="w-4 h-4 text-primary" /> :
+             <Settings2 className="w-4 h-4 text-primary" />}
             <span className="font-medium text-foreground">{getTypeLabel()}</span>
           </button>
           {showTarget && (
