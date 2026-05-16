@@ -3,7 +3,7 @@
 ############################
 # Stage 1: build frontend  #
 ############################
-FROM node:22-alpine AS frontend
+FROM node:26-alpine AS frontend
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml* ./
