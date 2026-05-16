@@ -168,6 +168,14 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
     }
   };
 
+  const formatSaveError = (error: unknown) => {
+    const err = error as Error & { code?: string };
+    if (err.code === "CONFIG_CONFLICT") {
+      return "配置已被其他操作更新，请重新加载后再保存";
+    }
+    return String(error);
+  };
+
   const handleCreate = () => {
     setEditingTransformer({
       name: "",
@@ -218,7 +226,8 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
     if (isSaving) return;
     setIsSaving(true);
     try {
-      const newTransformers = { ...config.transformers };
+      const { config: latestConfig, rev } = await getConfig();
+      const newTransformers = { ...(latestConfig.transformers || {}) };
 
       // 如果名称变更，删除旧的
       if (!isNew && name !== data.name) {
@@ -231,16 +240,16 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
       };
 
       await saveConfig({
-        ...config,
+        ...latestConfig,
         transformers: newTransformers,
-      });
+      }, rev);
 
       toast.success("转换器保存成功");
       setEditingTransformer(null);
       await fetchConfig();
       onRefresh?.();
     } catch (error) {
-      toast.error("保存失败: " + String(error));
+      toast.error("保存失败: " + formatSaveError(error));
     } finally {
       setIsSaving(false);
     }
@@ -251,20 +260,21 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
     setIsDeleting(true);
     try {
-      const newTransformers = { ...config.transformers };
+      const { config: latestConfig, rev } = await getConfig();
+      const newTransformers = { ...(latestConfig.transformers || {}) };
       delete newTransformers[name];
 
       await saveConfig({
-        ...config,
+        ...latestConfig,
         transformers: newTransformers,
-      });
+      }, rev);
 
       toast.success("转换器已删除");
       setDeletingTransformer(null);
       await fetchConfig();
       onRefresh?.();
     } catch (error) {
-      toast.error("删除失败: " + String(error));
+      toast.error("删除失败: " + formatSaveError(error));
     } finally {
       setIsDeleting(false);
     }

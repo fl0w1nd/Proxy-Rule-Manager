@@ -1,4 +1,4 @@
-import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider } from "./schema";
+import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider, SystemSettings } from "./schema";
 
 // API 客户端 - 用于前端调用后端 API
 
@@ -48,6 +48,23 @@ async function apiFetch(
     if (code) {
       (err as Error & { code?: string }).code = code;
     }
+    (err as Error & { status?: number }).status = response.status;
+    // When an authenticated request comes back unauthorized or forbidden,
+    // broadcast an "auth-expired" event so the AuthProvider can clear the
+    // local token and flip the UI back to the login form. We deliberately
+    // exclude the auth-disabled (auth=false) requests so that browsing the
+    // public site doesn't accidentally invalidate a logged-in session.
+    if (
+      auth &&
+      (response.status === 401 || response.status === 403) &&
+      typeof window !== "undefined"
+    ) {
+      try {
+        window.dispatchEvent(new Event("auth-expired"));
+      } catch {
+        // Ignore: best-effort notification.
+      }
+    }
     throw err;
   }
   return response;
@@ -87,10 +104,10 @@ export async function getConfigRaw(): Promise<ConfigResponse> {
   return apiRequest<ConfigResponse>("/config?raw=1");
 }
 
-export async function saveConfig(config: RulesConfig): Promise<{ success: boolean; rev: number; affectedRules: string[] }> {
+export async function saveConfig(config: RulesConfig, expectedRev?: number): Promise<{ success: boolean; rev: number; affectedRules: string[] }> {
   return apiRequest("/config", {
     method: "PUT",
-    body: JSON.stringify({ config }),
+    body: JSON.stringify({ config, expectedRev }),
   });
 }
 
@@ -103,18 +120,6 @@ export async function restoreDatabase(file: File): Promise<{ success: boolean }>
   const formData = new FormData();
   formData.append("file", file);
   const response = await apiFetch("/database/restore", { method: "POST", body: formData });
-  return response.json();
-}
-
-export async function exportConfigTemplate(): Promise<Blob> {
-  const response = await apiFetch("/config/template/export");
-  return response.blob();
-}
-
-export async function importConfigTemplate(file: File): Promise<{ success: boolean; rev: number }> {
-  const formData = new FormData();
-  formData.append("file", file);
-  const response = await apiFetch("/config/template/import", { method: "POST", body: formData });
   return response.json();
 }
 
@@ -161,7 +166,10 @@ export interface StatusResponse {
     totalRulesCount: number;
     changedRulesCount: number;
     failedRulesCount: number;
+    lastSyncDurationMs?: number | null;
   };
+  nextSyncAt?: string;
+  scheduleMode?: "interval" | "cron";
   todayStats: {
     date: string;
     syncCount: number;
@@ -179,6 +187,8 @@ export interface StatusResponse {
     clients: ClientType[];
     lastUpdated: string | null;
     hasError: boolean;
+    lastFailureAt?: string | null;
+    lastFailureError?: string;
   }[];
   geositeRules: PublicGeositeInfo[];
   clients: Pick<ClientConfig, "id" | "displayName">[];
@@ -196,6 +206,10 @@ export interface PublicRuleInfo {
   icon?: string;
   tags?: string[];
   clients: ClientType[];
+  lastUpdated?: string | null;
+  hasError?: boolean;
+  lastFailureAt?: string | null;
+  lastFailureError?: string;
 }
 
 export interface PublicGeositeInfo extends PublicRuleInfo {
@@ -255,11 +269,18 @@ export async function refreshGeositeProvider(provider: GeositeProvider): Promise
   });
 }
 
+export interface GeositeStaleImport {
+  name: string;
+  ruleName: string;
+  clients: string[];
+}
+
 export async function getGeositeCatalog(provider: GeositeProvider): Promise<{
   provider: GeositeProvider;
   resolvedVersion: string;
   fetchedAt: string;
   catalog: GeositeCatalogItem[];
+  staleImports?: GeositeStaleImport[];
 }> {
   return apiRequest(`/geosite/catalog?provider=${encodeURIComponent(provider)}`);
 }
@@ -314,8 +335,14 @@ export async function previewGeosite(
   provider: GeositeProvider,
   list: string,
   clientId: string,
-  attrs: string[] = []
-): Promise<{ content: string; totalEntries: number }> {
+  attrs: string[] = [],
+  limit?: number
+): Promise<{
+  content: string;
+  totalEntries: number;
+  totalLines: number;
+  truncated: boolean;
+}> {
   const params = new URLSearchParams({
     provider,
     list,
@@ -323,6 +350,9 @@ export async function previewGeosite(
   });
   if (attrs.length > 0) {
     params.set("attrs", attrs.join(","));
+  }
+  if (limit !== undefined && limit > 0) {
+    params.set("limit", String(limit));
   }
   return apiRequest(`/geosite/preview?${params.toString()}`);
 }
@@ -364,6 +394,21 @@ export async function getFailureRecords(
   params.set("page", String(page));
   params.set("pageSize", String(pageSize));
   return apiRequest<ActivityList<FailureRecord>>(`/activity/failures?${params.toString()}`);
+}
+
+export interface FailingSource {
+  ruleName: string;
+  count: number;
+  lastTimestamp: string;
+  lastMessage: string;
+  lastStage?: string;
+}
+
+export async function getFailingSources(
+  days = 7,
+  limit = 5,
+): Promise<{ sources: FailingSource[] }> {
+  return apiRequest(`/activity/failing-sources?days=${days}&limit=${limit}`);
 }
 
 export async function getActivityDates(): Promise<{ dates: string[] }> {
@@ -710,6 +755,40 @@ export async function updateCdnSettings(
   return apiRequest("/cdn-settings", {
     method: "PUT",
     body: JSON.stringify(settings),
+  });
+}
+
+// --- System Settings ---
+export interface DiskUsageBucket {
+  key: "rules" | "geosite" | "sources" | "iconset" | "client" | "db";
+  path: string;
+  bytes: number;
+}
+
+export interface DiskUsageResponse {
+  total: number;
+  buckets: DiskUsageBucket[];
+}
+
+export async function getDiskUsage(): Promise<DiskUsageResponse> {
+  return apiRequest<DiskUsageResponse>("/system/disk-usage");
+}
+
+export interface SystemSettingsResponse {
+  settings: SystemSettings;
+  defaults: SystemSettings;
+}
+
+export async function getSystemSettings(): Promise<SystemSettingsResponse> {
+  return apiRequest<SystemSettingsResponse>("/system-settings");
+}
+
+export async function updateSystemSettings(
+  settings: SystemSettings,
+): Promise<{ success: boolean; settings: SystemSettings }> {
+  return apiRequest("/system-settings", {
+    method: "PUT",
+    body: JSON.stringify({ settings }),
   });
 }
 

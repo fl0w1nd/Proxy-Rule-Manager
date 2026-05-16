@@ -272,6 +272,48 @@ export const DEFAULT_CDN_SETTINGS: CdnSettings = {
   customHeaders: [],
 };
 
+// 系统级运行时参数
+// 这些参数原本写死在后端常量里，现在通过 /api/system-settings 暴露，并随
+// 数据库备份一起归档。所有字段都是正整数；零值由后端 MergeDefaults 回填。
+export const SystemSettingsSchema = z.object({
+  fetch: z.object({
+    timeoutSeconds: z.number().int().min(1).max(600).default(15),
+    maxDownloadMB: z.number().int().min(1).max(256).default(4),
+    perHostConcurrency: z.number().int().min(1).max(64).default(4),
+    userAgent: z.string().min(1).max(200).default("Proxy-Rule-Manager/1.0"),
+  }),
+  transformer: z.object({
+    timeoutMs: z.number().int().min(100).max(60000).default(5000),
+    maxOutputMB: z.number().int().min(1).max(256).default(8),
+  }),
+  rateLimit: z.object({
+    baseDelaySeconds: z.number().int().min(1).max(600).default(5),
+    maxBlockSeconds: z.number().int().min(60).max(86400).default(3600),
+    permanentBanLimit: z.number().int().min(1).max(1000).default(10),
+    recordMaxAgeHours: z.number().int().min(1).max(720).default(24),
+  }),
+});
+export type SystemSettings = z.infer<typeof SystemSettingsSchema>;
+
+export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
+  fetch: {
+    timeoutSeconds: 15,
+    maxDownloadMB: 4,
+    perHostConcurrency: 4,
+    userAgent: "Proxy-Rule-Manager/1.0",
+  },
+  transformer: {
+    timeoutMs: 5000,
+    maxOutputMB: 8,
+  },
+  rateLimit: {
+    baseDelaySeconds: 5,
+    maxBlockSeconds: 3600,
+    permanentBanLimit: 10,
+    recordMaxAgeHours: 24,
+  },
+};
+
 // 默认的空配置
 export const DEFAULT_CONFIG: RulesConfig = {
   version: 1,

@@ -68,6 +68,12 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+    // Mirror of selectedClientId kept on a ref so that async file-list fetches
+    // can compare against the *current* selection without needing fresh closures.
+    const selectedClientIdRef = useRef<string | null>(null);
+    useEffect(() => {
+        selectedClientIdRef.current = selectedClientId;
+    }, [selectedClientId]);
     const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
     const [isFilesLoading, setIsFilesLoading] = useState(false);
     const [isFileDialogOpen, setIsFileDialogOpen] = useState(false);
@@ -84,6 +90,11 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const { mode } = useTheme();
     const editorRef = useRef<editor.IStandaloneCodeEditor | null>(null);
     const monacoRef = useRef<Monaco | null>(null);
+    const fileLoadRequestRef = useRef(0);
+    // Monotonic request id for fetchClientFiles. Switching clients quickly
+    // could otherwise let an older response overwrite the list belonging
+    // to the currently selected client.
+    const clientFilesRequestRef = useRef(0);
 
     const fetchClients = async () => {
         try {
@@ -101,14 +112,25 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     };
 
     const fetchClientFiles = async (clientId: string) => {
+        const reqId = ++clientFilesRequestRef.current;
         setIsFilesLoading(true);
         try {
             const result = await listClientFiles(clientId);
+            // Discard the response if either the user switched clients in
+            // the meantime, or another fetch for the same client raced and
+            // is now the authoritative one.
+            if (reqId !== clientFilesRequestRef.current) return;
+            if (selectedClientIdRef.current !== clientId) return;
             setClientFiles(result.files);
         } catch (error) {
+            if (reqId !== clientFilesRequestRef.current) return;
             toast.error("获取配置文件失败: " + String(error));
         } finally {
-            setIsFilesLoading(false);
+            // Only the latest in-flight request flips the loading flag off,
+            // so the spinner stays visible while a newer request is pending.
+            if (reqId === clientFilesRequestRef.current) {
+                setIsFilesLoading(false);
+            }
         }
     };
 
@@ -165,6 +187,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const openCreateFileDialog = () => {
         if (!selectedClientId) return;
+        fileLoadRequestRef.current += 1;
         setEditingFile(null);
         setFileForm({ configId: "", displayName: "", description: "", ext: "", isPublic: false });
         setFileContent("");
@@ -175,6 +198,9 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const openEditFileDialog = async (file: ClientFileMeta) => {
         if (!selectedClientId) return;
+        const clientId = selectedClientId;
+        const requestId = fileLoadRequestRef.current + 1;
+        fileLoadRequestRef.current = requestId;
         setEditingFile(file);
         setFileForm({
             configId: file.configId,
@@ -188,11 +214,14 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setIsFileDialogOpen(true);
         setIsFileLoading(true);
         try {
-            const result = await getClientFile(selectedClientId, file.id);
+            const result = await getClientFile(clientId, file.id);
+            if (fileLoadRequestRef.current !== requestId) return;
             setFileContent(result.content || "");
         } catch (error) {
+            if (fileLoadRequestRef.current !== requestId) return;
             toast.error("读取配置文件失败: " + String(error));
         } finally {
+            if (fileLoadRequestRef.current !== requestId) return;
             setIsFileLoading(false);
         }
     };
@@ -250,6 +279,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const handleSaveFile = async () => {
         if (!selectedClientId) return;
+        const clientId = editingFile?.clientId || selectedClientId;
         if (!fileForm.configId || !fileForm.displayName || !fileForm.ext) {
             toast.error("请填写配置 ID、显示名称和后缀");
             return;
@@ -268,7 +298,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setIsFileSaving(true);
         try {
             if (editingFile) {
-                await updateClientFile(selectedClientId, editingFile.id, {
+                await updateClientFile(clientId, editingFile.id, {
                     configId: fileForm.configId,
                     displayName: fileForm.displayName,
                     description: fileForm.description,
@@ -278,7 +308,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                 });
                 toast.success("配置文件已更新");
             } else {
-                await createClientFile(selectedClientId, {
+                await createClientFile(clientId, {
                     configId: fileForm.configId,
                     displayName: fileForm.displayName,
                     description: fileForm.description,
@@ -290,7 +320,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             }
             setIsFullscreenFileEditor(false);
             setIsFileDialogOpen(false);
-            await fetchClientFiles(selectedClientId);
+            await fetchClientFiles(clientId);
         } catch (error) {
             toast.error(String(error));
         } finally {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
@@ -47,6 +48,14 @@ export function PreviewDialog({
           <DialogTitle className="text-foreground flex items-center gap-2">
             <Eye className="w-5 h-5 text-primary" />
             预览: {ruleName || "未命名规则"}
+            {previewData?.diagnostics.truncated && (
+              <Badge
+                variant="outline"
+                className="border-warning/25 bg-warning-soft text-warning"
+              >
+                内容已截断（共 {previewData.diagnostics.totalLines} 行）
+              </Badge>
+            )}
           </DialogTitle>
         </DialogHeader>
 
@@ -97,7 +106,9 @@ export function PreviewDialog({
                   ))}
                 </TabsList>
                 <span className="text-sm text-muted-foreground">
-                  {previewData.contents[resolvedClient as ClientType]?.split("\n").length || 0} 行
+                  {previewData.diagnostics.truncated
+                    ? `${previewData.diagnostics.totalLines} 行`
+                    : `${previewData.contents[resolvedClient as ClientType]?.split("\n").length || 0} 行`}
                 </span>
               </div>
 

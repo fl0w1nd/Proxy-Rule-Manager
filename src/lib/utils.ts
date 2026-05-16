@@ -45,3 +45,28 @@ export function formatRelativeTime(value: string): string {
   return formatTimestamp(value);
 }
 
+/** 把未来时间格式化为"N 分钟/小时/天 后"。已过的时间统一返回"即将"。 */
+export function formatTimeUntil(value: string): string {
+  const diff = new Date(value).getTime() - Date.now();
+  if (diff <= 60_000) return "即将";
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `${minutes} 分钟后`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} 小时后`;
+  const days = Math.floor(hours / 24);
+  if (days <= 30) return `${days} 天后`;
+  return formatTimestamp(value);
+}
+
+/** 把毫秒数格式化成可读时长，UI 用，输入为空返回 "-"。 */
+export function formatDurationMs(ms?: number | null): string {
+  if (ms == null || !Number.isFinite(ms) || ms < 0) return "-";
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  const s = ms / 1000;
+  if (s < 60) return `${s.toFixed(1)} s`;
+  const totalSec = Math.round(s);
+  const m = Math.floor(totalSec / 60);
+  const rs = totalSec - m * 60;
+  return `${m}m ${rs}s`;
+}
+

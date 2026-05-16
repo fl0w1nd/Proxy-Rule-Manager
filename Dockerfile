@@ -1,58 +1,57 @@
 # syntax=docker/dockerfile:1.7
 
-# Build stage
-FROM node:22-alpine AS builder
-
+############################
+# Stage 1: build frontend  #
+############################
+FROM node:22-alpine AS frontend
 WORKDIR /app
-
 RUN corepack enable
-
-# Install dependencies (cache-friendly)
-COPY package.json pnpm-lock.yaml ./
+COPY package.json pnpm-lock.yaml* ./
 RUN --mount=type=cache,target=/pnpm/store \
-    pnpm install --frozen-lockfile --prefer-offline
-
-# Install esbuild for bundling (do not modify lock/package)
-RUN --mount=type=cache,target=/pnpm/store \
-    pnpm add -D esbuild
-
-# Copy source
+    pnpm install --frozen-lockfile --prefer-offline || pnpm install --prefer-offline
 COPY . .
-
-# Build frontend (Next.js static export)
 RUN pnpm run build
 
-# Bundle server
-RUN pnpm exec esbuild src/server/index.ts --bundle --platform=node --target=node22 --outfile=dist/server.js
+############################
+# Stage 2: build backend   #
+############################
+FROM golang:1.25-alpine AS backend
+WORKDIR /src
+RUN apk add --no-cache git
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
+COPY backend/ ./
+ARG TARGETOS=linux
+ARG TARGETARCH=amd64
+# VERSION is injected by CI from package.json (see .github/workflows/*.yml).
+# It is stamped into the Go binary via -ldflags -X and surfaced through
+# /api/status. Defaults to "dev" so plain `docker build` still works.
+ARG VERSION=dev
+ENV CGO_ENABLED=0 GOOS=${TARGETOS} GOARCH=${TARGETARCH}
+RUN go build -trimpath \
+        -ldflags="-s -w -X github.com/fl0w1nd/proxy-rule-manager/backend/internal/api.Version=${VERSION}" \
+        -o /out/proxy-rule-manager ./cmd/server
 
-# Production stage
-FROM node:22-alpine AS runner
+############################
+# Stage 3: runtime         #
+############################
+FROM gcr.io/distroless/static-debian12:nonroot
 
 LABEL org.opencontainers.image.source="https://github.com/fl0w1nd/proxy-rule-manager"
-LABEL org.opencontainers.image.description="代理规则集编排管理 WebUI"
+LABEL org.opencontainers.image.description="代理规则集编排管理 WebUI (Go backend)"
 LABEL org.opencontainers.image.licenses="MIT"
 
 WORKDIR /app
+COPY --from=frontend /app/out ./out
+COPY --from=backend  /out/proxy-rule-manager ./proxy-rule-manager
 
-# Copy built frontend static files
-COPY --from=builder /app/out ./out
-
-# Copy built backend server bundle
-COPY --from=builder /app/dist/server.js ./server.js
-
-# Create data directory
-RUN mkdir -p /app/data
-
-# Environment
-ENV NODE_ENV=production
 ENV PORT=3000
 ENV DATA_DIR=/app/data
-
+ENV OUT_DIR=/app/out
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/api/status || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+  CMD ["/app/proxy-rule-manager", "--healthcheck"]
 
-# Run the bundled server
-CMD ["node", "server.js"]
+USER nonroot:nonroot
+ENTRYPOINT ["/app/proxy-rule-manager"]

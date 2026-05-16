@@ -27,6 +27,7 @@ jobs:
       contents: read
     outputs:
       image: ${{ steps.vars.outputs.image }}
+      version: ${{ steps.version.outputs.version }}
       tags: ${{ steps.tags.outputs.tags }}
 
     steps:
@@ -39,6 +40,15 @@ jobs:
           HASH=$(git rev-parse --short HEAD)
           echo "hash=${HASH}" >> "$GITHUB_OUTPUT"
           echo "Git hash: ${HASH}"
+
+      - name: Resolve dev version
+        id: version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          HASH="${{ steps.git.outputs.hash }}"
+          VERSION="${PKG_VERSION}-dev.${HASH}"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "Dev version: ${VERSION}"
 
       - name: Vars (lowercased image)
         id: vars
@@ -115,6 +125,8 @@ jobs:
           file: ./Dockerfile
           platforms: ${{ matrix.platform }}
           push: true
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
           outputs: |
             type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
           cache-from: type=gha,scope=dev-${{ matrix.arch }}
