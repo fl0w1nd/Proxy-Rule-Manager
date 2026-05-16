@@ -2,8 +2,18 @@ name: CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_call:
+
+# Avoid the double-run that happens when a single commit fires both `push`
+# and `pull_request`: feature branches only run via `pull_request`, and main
+# only runs via `push` (since main typically has no open PR pointing at it).
+# For PRs, cancel any in-flight CI when a newer commit lands; for main and
+# `workflow_call` invocations, never cancel — that would kill a release.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   frontend-lint:
