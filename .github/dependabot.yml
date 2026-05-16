@@ -31,3 +31,14 @@ updates:
     labels:
       - dependencies
       - infra
+    # Pin base images to versions verified by CI to avoid breaking changes
+    # like Node.js 25+ removing corepack from default distribution.
+    # Bump majors manually after confirming Dockerfile/CI compatibility.
+    ignore:
+      - dependency-name: node
+        update-types:
+          - version-update:semver-major
+      - dependency-name: golang
+        update-types:
+          - version-update:semver-major
+          - version-update:semver-minor

@@ -3,7 +3,7 @@
 ############################
 # Stage 1: build frontend  #
 ############################
-FROM node:26-alpine AS frontend
+FROM node:22-alpine AS frontend
 WORKDIR /app
 RUN corepack enable
 COPY package.json pnpm-lock.yaml* ./
@@ -15,7 +15,7 @@ RUN pnpm run build
 ############################
 # Stage 2: build backend   #
 ############################
-FROM golang:1.26-alpine AS backend
+FROM golang:1.25-alpine AS backend
 WORKDIR /src
 RUN apk add --no-cache git
 COPY backend/go.mod backend/go.sum ./
