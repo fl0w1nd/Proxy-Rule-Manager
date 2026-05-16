@@ -6,7 +6,8 @@ on:
   workflow_call:
 
 jobs:
-  frontend:
+  frontend-lint:
+    name: Frontend / Lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -22,14 +23,51 @@ jobs:
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Lint
+      - name: ESLint
         run: pnpm exec eslint . --max-warnings=0
-      - name: Typecheck
+
+  frontend-typecheck:
+    name: Frontend / Typecheck
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: tsc --noEmit
         run: pnpm run typecheck
-      - name: Build (next)
+
+  frontend-build:
+    name: Frontend / Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: next build
         run: pnpm run build
 
-  backend:
+  backend-lint:
+    name: Backend / Lint
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -44,7 +82,7 @@ jobs:
         with:
           go-version: "1.25"
           cache-dependency-path: backend/go.sum
-      - name: Check gofmt
+      - name: gofmt
         run: |
           out=$(gofmt -l .)
           if [ -n "$out" ]; then
@@ -52,13 +90,47 @@ jobs:
             echo "$out"
             exit 1
           fi
-      - name: Vet
+      - name: go vet
         run: go vet ./...
       - name: Install staticcheck
         run: go install honnef.co/go/tools/cmd/staticcheck@2026.1
-      - name: Staticcheck
+      - name: staticcheck
         run: staticcheck ./...
-      - name: Test
+
+  backend-test:
+    name: Backend / Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
+      - name: go test -race
         run: go test -race ./...
-      - name: Build
+
+  backend-build:
+    name: Backend / Build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
+      - name: go build
         run: go build -trimpath -ldflags="-s -w" -o /tmp/proxy-rule-manager ./cmd/server
