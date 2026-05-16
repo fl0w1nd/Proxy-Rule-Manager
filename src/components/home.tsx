@@ -31,10 +31,10 @@ import {
   X,
   Tag,
   Image as ImageIcon,
-  Github,
   Clock,
   Download,
 } from "lucide-react";
+import { Icon } from "@iconify/react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
 import { ClientFileMeta } from "@/lib/schema";
@@ -507,7 +507,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         rel="noopener noreferrer"
                         aria-label="GitHub"
                       >
-                        <Github className="w-4 h-4" />
+                        <Icon icon="simple-icons:github" className="w-4 h-4" />
                       </a>
                     </Button>
                   </TooltipTrigger>
