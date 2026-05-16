@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"regexp"
 	"sort"
 	"strings"
@@ -19,6 +20,51 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/transformer"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/util"
 )
+
+// finalizeTimeout caps the detached cleanup writes (CompleteJob, ReleaseLock,
+// RecordFailureRecords, ...) so a stuck DB doesn't pin the sync goroutine
+// forever. 30s is comfortably more than any normal SQLite write needs.
+const finalizeTimeout = 30 * time.Second
+
+// finalizeCtx returns a fresh context that is NOT bound to the caller's
+// request context. Terminal sync persistence must succeed even when the
+// HTTP client has already disconnected; otherwise the job would stay in
+// 'running' status forever and the global sync lock would hold until the
+// next 5-minute TTL sweep. Callers MUST invoke the cancel func.
+func finalizeCtx() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), finalizeTimeout)
+}
+
+// logFinalizeErr surfaces a persistence error to docker logs instead of
+// silently dropping it. We deliberately keep these as `log.Printf` rather
+// than returning the error: by the time we hit a cleanup write, the caller
+// has already decided the sync is finished and there's no useful way to
+// propagate the failure beyond the operator's logs.
+func logFinalizeErr(op, jobID string, err error) {
+	if err == nil {
+		return
+	}
+	if jobID == "" {
+		log.Printf("[sync] persist %s failed: %v", op, err)
+		return
+	}
+	log.Printf("[sync] persist %s failed (job=%s): %v", op, jobID, err)
+}
+
+// logRuleFailures emits one log line per failed rule so operators see the
+// actual cause (DNS error, HTTP status, transformer panic, ...) in
+// `docker logs` instead of having to query the failure_records table.
+// We truncate each message to keep one log line per failure.
+func logRuleFailures(trigger string, jobID string, failed []schema.JobFailedRule) {
+	const maxLen = 400
+	for _, f := range failed {
+		msg := f.Error
+		if len(msg) > maxLen {
+			msg = msg[:maxLen] + "...(truncated)"
+		}
+		log.Printf("[sync] %s rule failed (job=%s) %s: %s", trigger, jobID, f.Name, msg)
+	}
+}
 
 // Engine orchestrates full / partial sync.
 type Engine struct {
@@ -67,29 +113,44 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 
 	acquired, reason, err := e.Store.AcquireGlobalSyncLock(ctx)
 	if err != nil {
+		log.Printf("[sync] full sync: acquire lock failed: %v", err)
 		return Result{}, err
 	}
 	if !acquired {
+		log.Printf("[sync] full sync: skipped (%s)", reason)
 		return Result{
 			Success:     false,
 			FailedRules: []schema.JobFailedRule{{Name: "sync", Error: reason}},
 		}, nil
 	}
-	defer e.Store.ReleaseGlobalSyncLock(ctx)
+	// Use a detached context so the lock is always released even if the
+	// caller's context cancels (e.g. HTTP client disconnected mid-sync).
+	// Otherwise the lock would linger until its 5-minute TTL expires and
+	// every retry in the meantime would fail with "Another sync is already
+	// running".
+	defer func() {
+		rctx, rcancel := finalizeCtx()
+		defer rcancel()
+		logFinalizeErr("release lock", "", e.Store.ReleaseGlobalSyncLock(rctx))
+	}()
 
 	cfg, err := e.Store.GetConfig(ctx)
 	if err != nil {
+		log.Printf("[sync] full sync: load config failed: %v", err)
 		return Result{}, err
 	}
 	clients, err := e.Store.GetClients(ctx)
 	if err != nil {
+		log.Printf("[sync] full sync: load clients failed: %v", err)
 		return Result{}, err
 	}
 
 	job, err := e.Store.CreateJob(ctx, "full_sync", nil)
 	if err != nil {
+		log.Printf("[sync] full sync: create job failed: %v", err)
 		return Result{}, err
 	}
+	log.Printf("[sync] full sync started (job=%s rules=%d clients=%d)", job.JobID, len(cfg.Rules), len(clients))
 
 	var (
 		changedRules    []string
@@ -122,10 +183,12 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 					JobID:     job.JobID,
 				})
 			}
-			_ = e.Store.RecordFailureRecords(ctx, failureRecords)
-			_ = e.Store.CompleteJob(ctx, job.JobID, changedRules, failedRules)
+			fctx, fcancel := finalizeCtx()
+			defer fcancel()
+			logFinalizeErr("record failures", job.JobID, e.Store.RecordFailureRecords(fctx, failureRecords))
+			logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, changedRules, failedRules))
 			durMs := time.Since(start).Milliseconds()
-			_ = e.Store.UpdateLastSyncInfo(ctx, schema.LastSyncInfo{
+			logFinalizeErr("update last sync info", job.JobID, e.Store.UpdateLastSyncInfo(fctx, schema.LastSyncInfo{
 				LastFullSyncAt:     &nowISO,
 				TotalRulesCount:    int64(len(cfg.Rules)),
 				ChangedRulesCount:  0,
@@ -137,7 +200,10 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 				"changedRulesCount":  true,
 				"failedRulesCount":   true,
 				"lastSyncDurationMs": true,
-			})
+			}))
+			logRuleFailures("full sync", job.JobID, failedRules)
+			log.Printf("[sync] full sync aborted: geosite providers unavailable (job=%s failed=%d duration=%dms)",
+				job.JobID, len(failedRules), durMs)
 			return Result{
 				Success:     false,
 				FailedRules: failedRules,
@@ -148,10 +214,14 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 
 	sorted, err := TopologicalSort(cfg.Rules, false)
 	if err != nil {
-		_ = e.Store.CompleteJob(ctx, job.JobID, changedRules, []schema.JobFailedRule{{Name: "sync", Error: err.Error()}})
+		fctx, fcancel := finalizeCtx()
+		defer fcancel()
+		failed := []schema.JobFailedRule{{Name: "sync", Error: err.Error()}}
+		logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, changedRules, failed))
+		log.Printf("[sync] full sync aborted: dependency sort failed (job=%s): %v", job.JobID, err)
 		return Result{
 			Success:     false,
-			FailedRules: []schema.JobFailedRule{{Name: "sync", Error: err.Error()}},
+			FailedRules: failed,
 			JobID:       job.JobID,
 		}, nil
 	}
@@ -219,23 +289,30 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 		}
 	}
 
-	if err := e.Store.SaveArtifactMetas(ctx, pendingArts); err != nil {
+	// Switch to a detached context for ALL terminal persistence so a
+	// cancelled request (HTTP client disconnect, curl timeout, ...) still
+	// leaves a consistent job + activity record on disk.
+	fctx, fcancel := finalizeCtx()
+	defer fcancel()
+
+	if err := e.Store.SaveArtifactMetas(fctx, pendingArts); err != nil {
 		failedRules = append(failedRules, schema.JobFailedRule{Name: "sync", Error: "save artifact metadata: " + err.Error()})
-		_ = e.Store.CompleteJob(ctx, job.JobID, changedRules, failedRules)
+		logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, changedRules, failedRules))
+		log.Printf("[sync] full sync: save artifact metadata failed (job=%s): %v", job.JobID, err)
 		return Result{Success: false, ChangedRules: changedRules, FailedRules: failedRules, JobID: job.JobID}, nil
 	}
-	_ = e.Store.RecordArtifactAttempts(ctx, pendingAttempts)
+	logFinalizeErr("record artifact attempts", job.JobID, e.Store.RecordArtifactAttempts(fctx, pendingAttempts))
 
 	failureRecords = append(failureRecords, buildGeositeStaleRecords(missingByProvider, job.JobID)...)
 
 	today := time.Now().UTC().Format("2006-01-02")
-	_ = e.Store.IncrementDailyStats(ctx, today, schema.DailyStats{
+	logFinalizeErr("increment daily stats", job.JobID, e.Store.IncrementDailyStats(fctx, today, schema.DailyStats{
 		SyncCount:           1,
 		BlobWriteCount:      blobWriteCount,
 		RulesChanged:        int64(len(changedRules)),
 		TotalRulesProcessed: int64(len(sorted)),
 		FailedSources:       int64(len(failureRecords)),
-	})
+	}))
 
 	nowISO := util.NowISO()
 	durMs := time.Since(start).Milliseconds()
@@ -257,13 +334,18 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 		info.LastSuccessfulSyncAt = &nowISO
 		present["lastSuccessfulSyncAt"] = true
 	}
-	_ = e.Store.UpdateLastSyncInfo(ctx, info, present)
+	logFinalizeErr("update last sync info", job.JobID, e.Store.UpdateLastSyncInfo(fctx, info, present))
 
-	_ = e.Store.RecordRuleFileChanges(ctx, ruleFileChanges)
-	_ = e.Store.RecordFailureRecords(ctx, failureRecords)
-	if err := e.Store.CompleteJob(ctx, job.JobID, changedRules, failedRules); err != nil {
+	logFinalizeErr("record rule file changes", job.JobID, e.Store.RecordRuleFileChanges(fctx, ruleFileChanges))
+	logFinalizeErr("record failures", job.JobID, e.Store.RecordFailureRecords(fctx, failureRecords))
+	if err := e.Store.CompleteJob(fctx, job.JobID, changedRules, failedRules); err != nil {
+		log.Printf("[sync] full sync: complete job persist failed (job=%s): %v", job.JobID, err)
 		return Result{}, err
 	}
+
+	logRuleFailures("full sync", job.JobID, failedRules)
+	log.Printf("[sync] full sync finished (job=%s rules=%d changed=%d failed=%d duration=%dms)",
+		job.JobID, len(sorted), len(changedRules), len(failedRules), durMs)
 
 	return Result{
 		Success:      len(failedRules) == 0,
@@ -309,19 +391,24 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		acquired, reason, err = e.Store.AcquireRuleLock(ctx, primary)
 	}
 	if err != nil {
+		log.Printf("[sync] partial sync: acquire lock failed (seeds=%v): %v", uniqueSeeds, err)
 		return Result{}, err
 	}
 	if !acquired {
+		log.Printf("[sync] partial sync: skipped (%s seeds=%v)", reason, uniqueSeeds)
 		return Result{
 			Success:     false,
 			FailedRules: []schema.JobFailedRule{{Name: primary, Error: reason}},
 		}, nil
 	}
+	// Detached cleanup ctx, see ExecuteFullSync for rationale.
 	defer func() {
+		rctx, rcancel := finalizeCtx()
+		defer rcancel()
 		if mode == lockModeGlobal {
-			_ = e.Store.ReleaseGlobalSyncLock(ctx)
+			logFinalizeErr("release global lock", "", e.Store.ReleaseGlobalSyncLock(rctx))
 		} else {
-			_ = e.Store.ReleaseRuleLock(ctx, primary)
+			logFinalizeErr("release rule lock", "", e.Store.ReleaseRuleLock(rctx, primary))
 		}
 	}()
 
@@ -347,6 +434,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	if len(missingSeeds) > 0 {
 		job, err := e.Store.CreateJob(ctx, "partial_sync", uniqueSeeds)
 		if err != nil {
+			log.Printf("[sync] partial sync: create job failed: %v", err)
 			return Result{}, err
 		}
 		failedRules := make([]schema.JobFailedRule, 0, len(missingSeeds))
@@ -356,7 +444,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 				Error: "rule not found",
 			})
 		}
-		_ = e.Store.CompleteJob(ctx, job.JobID, nil, failedRules)
+		fctx, fcancel := finalizeCtx()
+		defer fcancel()
+		logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failedRules))
+		log.Printf("[sync] partial sync: unknown seeds (job=%s missing=%v)", job.JobID, missingSeeds)
 		return Result{
 			Success:     false,
 			FailedRules: failedRules,
@@ -382,8 +473,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	}
 	job, err := e.Store.CreateJob(ctx, "partial_sync", affectedList)
 	if err != nil {
+		log.Printf("[sync] partial sync: create job failed: %v", err)
 		return Result{}, err
 	}
+	log.Printf("[sync] partial sync started (job=%s seeds=%v affected=%d)", job.JobID, uniqueSeeds, len(affectedList))
 
 	// Refresh upstream geosite caches that the affected rules touch. This
 	// mirrors the full-sync behaviour so a partial sync that targets a
@@ -415,8 +508,13 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 					JobID:     job.JobID,
 				})
 			}
-			_ = e.Store.RecordFailureRecords(ctx, failureRecords)
-			_ = e.Store.CompleteJob(ctx, job.JobID, nil, failedRules)
+			fctx, fcancel := finalizeCtx()
+			defer fcancel()
+			logFinalizeErr("record failures", job.JobID, e.Store.RecordFailureRecords(fctx, failureRecords))
+			logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failedRules))
+			logRuleFailures("partial sync", job.JobID, failedRules)
+			log.Printf("[sync] partial sync aborted: geosite providers unavailable (job=%s failed=%d)",
+				job.JobID, len(failedRules))
 			return Result{
 				Success:     false,
 				FailedRules: failedRules,
@@ -463,7 +561,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		sortedDeps, err := TopologicalSort(depRules, true)
 		if err != nil {
 			failures := []schema.JobFailedRule{{Name: "sync", Error: err.Error()}}
-			_ = e.Store.CompleteJob(ctx, job.JobID, nil, failures)
+			fctx, fcancel := finalizeCtx()
+			defer fcancel()
+			logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failures))
+			log.Printf("[sync] partial sync: dependency sort failed (job=%s): %v", job.JobID, err)
 			return Result{
 				Success:     false,
 				FailedRules: failures,
@@ -474,7 +575,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 			result := e.Processor.ProcessRule(ctx, &sortedDeps[i], cfg.Transformers, cache, clients)
 			if len(result.Errors) > 0 {
 				failures := []schema.JobFailedRule{{Name: sortedDeps[i].Name, Error: joinErrors(result.Errors)}}
-				_ = e.Store.CompleteJob(ctx, job.JobID, nil, failures)
+				fctx, fcancel := finalizeCtx()
+				defer fcancel()
+				logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failures))
+				logRuleFailures("partial sync", job.JobID, failures)
 				return Result{
 					Success:     false,
 					FailedRules: failures,
@@ -557,28 +661,37 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		}
 	}
 
-	if err := e.Store.SaveArtifactMetas(ctx, pendingArts); err != nil {
+	fctx, fcancel := finalizeCtx()
+	defer fcancel()
+
+	if err := e.Store.SaveArtifactMetas(fctx, pendingArts); err != nil {
 		failedRules = append(failedRules, schema.JobFailedRule{Name: "sync", Error: "save artifact metadata: " + err.Error()})
-		_ = e.Store.CompleteJob(ctx, job.JobID, changedRules, failedRules)
+		logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, changedRules, failedRules))
+		log.Printf("[sync] partial sync: save artifact metadata failed (job=%s): %v", job.JobID, err)
 		return Result{Success: false, ChangedRules: changedRules, FailedRules: failedRules, JobID: job.JobID}, nil
 	}
-	_ = e.Store.RecordArtifactAttempts(ctx, pendingAttempts)
+	logFinalizeErr("record artifact attempts", job.JobID, e.Store.RecordArtifactAttempts(fctx, pendingAttempts))
 	failureRecords = append(failureRecords, buildGeositeStaleRecords(missingByProvider, job.JobID)...)
 	today := time.Now().UTC().Format("2006-01-02")
-	_ = e.Store.IncrementDailyStats(ctx, today, schema.DailyStats{
+	logFinalizeErr("increment daily stats", job.JobID, e.Store.IncrementDailyStats(fctx, today, schema.DailyStats{
 		BlobWriteCount:      blobWriteCount,
 		RulesChanged:        int64(len(changedRules)),
 		TotalRulesProcessed: int64(len(sorted)),
 		FailedSources:       int64(len(failureRecords)),
-	})
+	}))
 	nowISO := util.NowISO()
-	_ = e.Store.UpdateLastSyncInfo(ctx, schema.LastSyncInfo{LastPartialSyncAt: &nowISO}, map[string]bool{"lastPartialSyncAt": true})
+	logFinalizeErr("update last sync info", job.JobID, e.Store.UpdateLastSyncInfo(fctx, schema.LastSyncInfo{LastPartialSyncAt: &nowISO}, map[string]bool{"lastPartialSyncAt": true}))
 
-	_ = e.Store.RecordRuleFileChanges(ctx, ruleFileChanges)
-	_ = e.Store.RecordFailureRecords(ctx, failureRecords)
-	if err := e.Store.CompleteJob(ctx, job.JobID, changedRules, failedRules); err != nil {
+	logFinalizeErr("record rule file changes", job.JobID, e.Store.RecordRuleFileChanges(fctx, ruleFileChanges))
+	logFinalizeErr("record failures", job.JobID, e.Store.RecordFailureRecords(fctx, failureRecords))
+	if err := e.Store.CompleteJob(fctx, job.JobID, changedRules, failedRules); err != nil {
+		log.Printf("[sync] partial sync: complete job persist failed (job=%s): %v", job.JobID, err)
 		return Result{}, err
 	}
+
+	logRuleFailures("partial sync", job.JobID, failedRules)
+	log.Printf("[sync] partial sync finished (job=%s rules=%d changed=%d failed=%d)",
+		job.JobID, len(sorted), len(changedRules), len(failedRules))
 
 	return Result{
 		Success:      len(failedRules) == 0,

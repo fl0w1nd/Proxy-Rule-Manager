@@ -11,6 +11,77 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 )
 
+// TestRecoverStaleSyncState verifies the startup sweep that mops up a prior
+// crash. Without this the dashboard would show "正在同步" forever after an
+// SIGKILL and every new sync attempt would be rejected with "Another sync
+// is already running" until the 5-min TTL on the global lock expires.
+func TestRecoverStaleSyncState(t *testing.T) {
+	s := newTempStore(t)
+	ctx := context.Background()
+
+	// Seed: one running job, one already-completed job (should stay), plus
+	// a sync:global lock and a rule:* lock from the simulated prior run.
+	running, err := s.CreateJob(ctx, "full_sync", nil)
+	if err != nil {
+		t.Fatalf("create running: %v", err)
+	}
+	done, err := s.CreateJob(ctx, "full_sync", nil)
+	if err != nil {
+		t.Fatalf("create done: %v", err)
+	}
+	if err := s.CompleteJob(ctx, done.JobID, nil, nil); err != nil {
+		t.Fatalf("complete done: %v", err)
+	}
+	if ok, err := s.AcquireLock(ctx, "sync:global"); err != nil || !ok {
+		t.Fatalf("acquire global: ok=%v err=%v", ok, err)
+	}
+	if ok, err := s.AcquireLock(ctx, "rule:Demo"); err != nil || !ok {
+		t.Fatalf("acquire rule: ok=%v err=%v", ok, err)
+	}
+
+	jobs, locks, err := s.RecoverStaleSyncState(ctx, "test reason")
+	if err != nil {
+		t.Fatalf("recover: %v", err)
+	}
+	if jobs != 1 {
+		t.Fatalf("expected 1 job recovered, got %d", jobs)
+	}
+	if locks != 2 {
+		t.Fatalf("expected 2 locks released, got %d", locks)
+	}
+
+	got, err := s.GetJob(ctx, running.JobID)
+	if err != nil || got == nil {
+		t.Fatalf("read recovered: %v (nil=%v)", err, got == nil)
+	}
+	if got.Status != "failed" {
+		t.Fatalf("expected status=failed, got %q", got.Status)
+	}
+	if len(got.FailedRules) == 0 || got.FailedRules[0].Error != "test reason" {
+		t.Fatalf("expected failure reason 'test reason', got %+v", got.FailedRules)
+	}
+	if got.CompletedAt == nil || *got.CompletedAt == "" {
+		t.Fatalf("expected completed_at to be populated")
+	}
+
+	// Idempotent: a second invocation must be a no-op (otherwise a flaky
+	// boot loop would keep overwriting valid recent failures with a stale
+	// "server restarted" reason).
+	jobs2, locks2, err := s.RecoverStaleSyncState(ctx, "second pass")
+	if err != nil {
+		t.Fatalf("recover2: %v", err)
+	}
+	if jobs2 != 0 || locks2 != 0 {
+		t.Fatalf("expected idempotent no-op, got jobs=%d locks=%d", jobs2, locks2)
+	}
+
+	// Already-completed job is untouched.
+	doneAfter, _ := s.GetJob(ctx, done.JobID)
+	if doneAfter == nil || doneAfter.Status != "completed" {
+		t.Fatalf("completed job must be untouched, got %+v", doneAfter)
+	}
+}
+
 func newTempStore(t *testing.T) *Store {
 	t.Helper()
 	dir := t.TempDir()

@@ -63,6 +63,48 @@ func (s *Store) CompleteJob(ctx context.Context, jobID string, changedRules []st
 	})
 }
 
+// RecoverStaleSyncState marks any jobs still in 'running' status as failed
+// and clears any leftover sync locks. This MUST run at startup because a
+// process crash (OOM, SIGKILL, container restart) leaves jobs frozen in
+// 'running' forever and the global/rule lock held until its 5-minute TTL
+// expires. Without this sweep the dashboard would show "syncing..." after
+// every restart and the very next sync attempt would be rejected with
+// "Another sync is already running".
+//
+// Returns (recoveredJobs, releasedLocks, error) so the boot log can report
+// a clear "recovered N jobs, released M locks" line.
+func (s *Store) RecoverStaleSyncState(ctx context.Context, reason string) (int64, int64, error) {
+	if reason == "" {
+		reason = "server restarted while sync was running"
+	}
+	failedRules, _ := json.Marshal([]schema.JobFailedRule{{Name: "sync", Error: reason}})
+	var jobs, locks int64
+	err := s.withWriteLock(func() error {
+		res, err := s.DB.ExecContext(ctx,
+			`UPDATE jobs SET status = 'failed',
+			                 completed_at = ?,
+			                 failed_rules_json = ?
+			 WHERE status = 'running'`,
+			util.NowISO(), string(failedRules))
+		if err != nil {
+			return err
+		}
+		if n, err := res.RowsAffected(); err == nil {
+			jobs = n
+		}
+		lres, err := s.DB.ExecContext(ctx,
+			`DELETE FROM locks WHERE key = 'sync:global' OR key LIKE 'rule:%'`)
+		if err != nil {
+			return err
+		}
+		if n, err := lres.RowsAffected(); err == nil {
+			locks = n
+		}
+		return nil
+	})
+	return jobs, locks, err
+}
+
 // GetJob loads a job by id.
 func (s *Store) GetJob(ctx context.Context, jobID string) (*schema.JobRecord, error) {
 	row := s.DB.QueryRowContext(ctx,

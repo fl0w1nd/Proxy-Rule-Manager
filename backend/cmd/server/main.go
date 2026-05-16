@@ -70,6 +70,17 @@ func main() {
 	} else {
 		srv.ApplySystemSettings(ss)
 	}
+
+	// Recover from any prior crash: a hard kill mid-sync leaves jobs frozen
+	// in 'running' status with the sync lock held. Without this sweep the
+	// next sync attempt returns "Another sync is already running" for the
+	// remainder of the lock TTL, and the dashboard's "正在同步..." badge
+	// would stay pinned across restarts.
+	if jobs, locks, err := st.RecoverStaleSyncState(bootCtx, "server restarted while sync was running"); err != nil {
+		log.Printf("[boot] recover sync state failed: %v", err)
+	} else if jobs > 0 || locks > 0 {
+		log.Printf("[boot] recovered stale sync state: jobs=%d locks=%d", jobs, locks)
+	}
 	bootCancel()
 
 	// Lightweight reconcile pass: detect-only. We never delete or repair

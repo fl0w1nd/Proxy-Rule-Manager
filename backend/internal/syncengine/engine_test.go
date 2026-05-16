@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/store"
@@ -132,6 +133,34 @@ func TestExecutePartialSync_FlushArtifactFailure_MarksFailedRules(t *testing.T) 
 	}
 	if !found {
 		t.Errorf("expected 'partial-rule' in FailedRules, got: %+v", result.FailedRules)
+	}
+}
+
+// TestFinalizeCtx_IndependentFromCallerCancel pins down the contract that
+// the terminal persistence step uses. Before the fix, every CompleteJob /
+// ReleaseLock / RecordFailureRecords call rode the caller's request ctx;
+// when that ctx was cancelled mid-sync (HTTP client disconnect, curl
+// timeout, ...) the writes were silently dropped, leaving the job stuck in
+// 'running' status with the global lock held until its 5-minute TTL elapsed.
+//
+// The fix routes those writes through a fresh detached context produced by
+// finalizeCtx(); this test guards against that regression at the contract
+// level so the property survives future refactors that move the cleanup
+// block around.
+func TestFinalizeCtx_IndependentFromCallerCancel(t *testing.T) {
+	parent, cancel := context.WithCancel(context.Background())
+	cancel()
+	if parent.Err() == nil {
+		t.Fatalf("expected parent ctx to be cancelled")
+	}
+
+	ctx, c := finalizeCtx()
+	defer c()
+	if err := ctx.Err(); err != nil {
+		t.Fatalf("finalizeCtx must not inherit cancellation, got %v", err)
+	}
+	if dl, ok := ctx.Deadline(); !ok || dl.Before(time.Now().Add(time.Second)) {
+		t.Fatalf("finalizeCtx must carry a generous deadline, got ok=%v deadline=%v", ok, dl)
 	}
 }
 
