@@ -268,12 +268,18 @@ jobs:
           ref: ${{ needs.prepare.outputs.tag }}
           fetch-depth: 0
 
+      # `--current` outputs the changelog for the tag that HEAD points at,
+      # i.e. all commits between the previous tag and this tag, grouped per
+      # .git-cliff.toml. The previous `--unreleased --tag X` form returned
+      # an empty changelog when HEAD was already tagged X, which made
+      # softprops/action-gh-release silently fall back to the raw HEAD
+      # commit message as the release body.
       - name: Generate release notes
         id: cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: .git-cliff.toml
-          args: --unreleased --tag ${{ needs.prepare.outputs.tag }} --strip header
+          args: --current --strip header
         env:
           OUTPUT: RELEASE_NOTES.md
           GITHUB_REPO: ${{ github.repository }}
