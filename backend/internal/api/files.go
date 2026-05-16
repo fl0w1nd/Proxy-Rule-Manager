@@ -3,6 +3,7 @@ package api
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -22,8 +23,16 @@ func plainTextErr(w http.ResponseWriter, status int, msg string) {
 }
 
 func (s *Server) serveRuleFile(w http.ResponseWriter, r *http.Request, isGeosite bool) {
-	client := chi.URLParam(r, "client")
-	file := chi.URLParam(r, "file")
+	client, err := pathParam(r, "client")
+	if err != nil {
+		plainTextErr(w, http.StatusBadRequest, "# Bad request")
+		return
+	}
+	file, err := pathParam(r, "file")
+	if err != nil {
+		plainTextErr(w, http.StatusBadRequest, "# Bad request")
+		return
+	}
 	if err := util.EnsureSafeSegment(client, "client"); err != nil {
 		plainTextErr(w, http.StatusBadRequest, "# Bad request")
 		return
@@ -37,12 +46,13 @@ func (s *Server) serveRuleFile(w http.ResponseWriter, r *http.Request, isGeosite
 		plainTextErr(w, http.StatusBadRequest, "# Invalid file format")
 		return
 	}
-	var (
-		fullPath string
-		err      error
-	)
+	var fullPath string
 	if isGeosite {
-		provider := chi.URLParam(r, "provider")
+		provider, err := pathParam(r, "provider")
+		if err != nil {
+			plainTextErr(w, http.StatusBadRequest, "# Bad request")
+			return
+		}
 		if errSeg := util.EnsureSafeSegment(provider, "provider"); errSeg != nil {
 			plainTextErr(w, http.StatusBadRequest, "# Bad request")
 			return
@@ -66,7 +76,11 @@ func (s *Server) serveRuleFile(w http.ResponseWriter, r *http.Request, isGeosite
 }
 
 func (s *Server) serveIconSet(w http.ResponseWriter, r *http.Request) {
-	filename := chi.URLParam(r, "filename")
+	filename, err := pathParam(r, "filename")
+	if err != nil {
+		s.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := util.EnsureSafeSegment(filename, "filename"); err != nil {
 		s.Error(w, http.StatusBadRequest, err.Error())
 		return
@@ -84,8 +98,16 @@ func (s *Server) serveIconSet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) servePublicClientFile(w http.ResponseWriter, r *http.Request) {
-	clientID := chi.URLParam(r, "clientId")
-	file := chi.URLParam(r, "file")
+	clientID, err := pathParam(r, "clientId")
+	if err != nil {
+		plainTextErr(w, http.StatusBadRequest, "# Bad request")
+		return
+	}
+	file, err := pathParam(r, "file")
+	if err != nil {
+		plainTextErr(w, http.StatusBadRequest, "# Bad request")
+		return
+	}
 	if err := util.EnsureSafeSegment(clientID, "client"); err != nil {
 		plainTextErr(w, http.StatusBadRequest, "# Bad request")
 		return
@@ -107,6 +129,10 @@ func (s *Server) servePublicClientFile(w http.ResponseWriter, r *http.Request) {
 	s.applyCDNHeaders(r.Context(), w, "text/plain; charset=utf-8")
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write([]byte(content))
+}
+
+func pathParam(r *http.Request, key string) (string, error) {
+	return url.PathUnescape(chi.URLParam(r, key))
 }
 
 func splitFile(name string) (configID, ext string, ok bool) {

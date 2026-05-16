@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -52,6 +54,56 @@ func newTestServer(t *testing.T, adminToken string) (*Server, *httptest.Server) 
 	ts := httptest.NewServer(srv.Router())
 	t.Cleanup(ts.Close)
 	return srv, ts
+}
+
+func TestServeGeositeRuleFileWithEncodedSpecialChars(t *testing.T) {
+	srv, ts := newTestServer(t, "token")
+	cases := []string{
+		"alibaba@!cn.list",
+		"category-ai+ads.list",
+		"foo#bar.list",
+		"foo&bar=baz.list",
+		"foo(bar),baz.list",
+		"foo;bar.list",
+	}
+
+	for _, name := range cases {
+		path := filepath.Join(srv.Config.RulesDir, "Clash Meta", "geosite", "v2fly", name)
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+		if err := os.WriteFile(path, []byte(name), 0o644); err != nil {
+			t.Fatalf("write: %v", err)
+		}
+
+		resp, err := http.Get(ts.URL + "/Rules/Clash%20Meta/geosite/v2fly/" + url.PathEscape(name))
+		if err != nil {
+			t.Fatalf("get %s: %v", name, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+
+		if resp.StatusCode != http.StatusOK {
+			t.Fatalf("%s status: got %d body=%q", name, resp.StatusCode, string(body))
+		}
+		if string(body) != name {
+			t.Fatalf("%s body: got %q", name, string(body))
+		}
+	}
+}
+
+func TestServeRuleFileRejectsEscapedPathSeparator(t *testing.T) {
+	_, ts := newTestServer(t, "token")
+
+	resp, err := http.Get(ts.URL + "/Rules/Clash%20Meta/geosite/v2fly/foo%2Fbar.list")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusBadRequest {
+		t.Fatalf("status: got %d want %d", resp.StatusCode, http.StatusBadRequest)
+	}
 }
 
 func getJSON(t *testing.T, base, path, token string) (int, map[string]any) {
