@@ -48,8 +48,8 @@ func (s *Server) serveRuleFile(w http.ResponseWriter, r *http.Request, isGeosite
 	}
 	var fullPath string
 	if isGeosite {
-		provider, err := pathParam(r, "provider")
-		if err != nil {
+		provider, providerErr := pathParam(r, "provider")
+		if providerErr != nil {
 			plainTextErr(w, http.StatusBadRequest, "# Bad request")
 			return
 		}
