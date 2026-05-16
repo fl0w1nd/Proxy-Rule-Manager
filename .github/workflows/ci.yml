@@ -5,6 +5,12 @@ on:
     branches: [main]
   pull_request:
   workflow_call:
+    inputs:
+      ref:
+        description: Optional git ref (tag/branch/sha) to check out for CI
+        type: string
+        required: false
+        default: ''
 
 # Avoid the double-run that happens when a single commit fires both `push`
 # and `pull_request`: feature branches only run via `pull_request`, and main
@@ -24,6 +30,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node.js
@@ -44,6 +52,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node.js
@@ -64,6 +74,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
       - name: Set up Node.js
@@ -87,6 +99,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -118,6 +132,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -137,6 +153,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

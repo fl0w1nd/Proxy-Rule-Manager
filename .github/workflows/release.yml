@@ -1,71 +1,292 @@
-name: Create GitHub Release
+name: Release
+
+# Tag-driven release pipeline.
+#
+# Versioning model:
+#   - Pushing a tag matching `v*` triggers the pipeline.
+#   - Tags whose name contains "dev" (case-insensitive) produce a dev build:
+#       images: ghcr.io/<repo>:<tag> + :dev
+#       GitHub Release: prerelease, named after the tag.
+#   - All other v* tags produce a stable release:
+#       images: ghcr.io/<repo>:<tag> + :latest
+#       GitHub Release: standard release, named after the tag.
+#   - No tag, no build. The CI workflow keeps validating push/pull_request
+#     on its own and is reused here as a gate before any image is built.
+#
+# Re-running an existing tag without bumping the version is supported through
+# `workflow_dispatch`: provide the tag name and the same pipeline runs against
+# that tag's commit, overwriting the image and updating the GitHub Release.
 
 on:
-  workflow_run:
-    workflows:
-      - Build Release Docker Image
-    types:
-      - completed
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing tag to (re)build, e.g. v0.4.1 or v0.4.1-dev.abc1234
+        required: true
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
 
 concurrency:
-  group: create-release-${{ github.event.workflow_run.head_branch }}
+  group: release-${{ github.event.inputs.tag || github.ref }}
   cancel-in-progress: false
 
 jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      is_dev: ${{ steps.resolve.outputs.is_dev }}
+      sha: ${{ steps.sha.outputs.sha }}
+      image: ${{ steps.image.outputs.image }}
+      tags: ${{ steps.tags.outputs.tags }}
+
+    steps:
+      - name: Resolve tag
+        id: resolve
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+        run: |
+          if [ -n "${INPUT_TAG}" ]; then
+            TAG="${INPUT_TAG}"
+          else
+            TAG="${GITHUB_REF#refs/tags/}"
+          fi
+
+          if [ -z "$TAG" ] || [ "$TAG" = "$GITHUB_REF" ]; then
+            echo "::error::Cannot resolve tag from ref or input"
+            exit 1
+          fi
+
+          if ! echo "$TAG" | grep -qE '^v[0-9]'; then
+            echo "::error::Tag must start with v followed by a digit (got: $TAG)"
+            exit 1
+          fi
+
+          VERSION="${TAG#v}"
+
+          IS_DEV=false
+          if echo "$TAG" | grep -qiE 'dev'; then
+            IS_DEV=true
+          fi
+
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "is_dev=${IS_DEV}" >> "$GITHUB_OUTPUT"
+
+          echo "Resolved tag=${TAG} version=${VERSION} is_dev=${IS_DEV}"
+
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+          fetch-depth: 0
+
+      - name: Resolve commit sha
+        id: sha
+        run: |
+          SHA=$(git rev-parse HEAD)
+          echo "sha=${SHA}" >> "$GITHUB_OUTPUT"
+          echo "Tag commit: ${SHA}"
+
+      - name: Compute image name
+        id: image
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          IMAGE=$(echo "$IMAGE" | tr '[:upper:]' '[:lower:]')
+          echo "image=${IMAGE}" >> "$GITHUB_OUTPUT"
+          echo "Image: ${IMAGE}"
+
+      - name: Compute image tags
+        id: tags
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          TAG: ${{ steps.resolve.outputs.tag }}
+          IS_DEV: ${{ steps.resolve.outputs.is_dev }}
+        run: |
+          if [ "$IS_DEV" = "true" ]; then
+            TAGS=$(printf '%s\n%s\n' "${IMAGE}:${TAG}" "${IMAGE}:dev")
+          else
+            TAGS=$(printf '%s\n%s\n' "${IMAGE}:${TAG}" "${IMAGE}:latest")
+          fi
+
+          echo "tags<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$TAGS" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+
+          echo "Image tags:"
+          echo "$TAGS"
+
+  ci:
+    needs: prepare
+    uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.prepare.outputs.tag }}
+
+  build:
+    needs: [prepare, ci]
+    permissions:
+      contents: read
+      packages: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+
+    runs-on: ${{ matrix.runner }}
+
+    steps:
+      - name: Checkout tag
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.tag }}
+
+      # The frontend reads its version from /api/status (stamped into the Go
+      # binary via -X), but `next build` and local tooling still read it from
+      # package.json. Stamp it before the docker build so the artifact embeds
+      # the same version everywhere.
+      - name: Stamp package.json version
+        env:
+          NEW_VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.NEW_VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
+          echo "Stamped version: $(node -p "require('./package.json').version")"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push by digest
+        id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          platforms: ${{ matrix.platform }}
+          push: true
+          build-args: |
+            VERSION=${{ needs.prepare.outputs.version }}
+          outputs: |
+            type=image,name=${{ needs.prepare.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}${{ needs.prepare.outputs.is_dev == 'true' && '-dev' || '' }}
+          cache-to: type=gha,scope=${{ matrix.arch }}${{ needs.prepare.outputs.is_dev == 'true' && '-dev' || '' }},mode=max
+          provenance: false
+          sbom: false
+
+      - name: Export digest
+        run: |
+          mkdir -p /tmp/digests
+          digest="${{ steps.build.outputs.digest }}"
+          touch "/tmp/digests/${digest#sha256:}"
+          echo "Exported digest: $digest"
+
+      - name: Upload digest
+        uses: actions/upload-artifact@v4
+        with:
+          name: digests-${{ matrix.arch }}
+          path: /tmp/digests/*
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+  manifest:
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download digests
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: digests-*
+          merge-multiple: true
+
+      - name: Create and push multi-arch manifests
+        env:
+          IMAGE: ${{ needs.prepare.outputs.image }}
+          TAGS: ${{ needs.prepare.outputs.tags }}
+        run: |
+          digests=()
+
+          for digest_file in /tmp/digests/*; do
+            digest="sha256:$(basename "$digest_file")"
+            digests+=("${IMAGE}@${digest}")
+            echo "Found digest: $digest"
+          done
+
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            echo "Publishing manifest: ${tag}"
+            docker buildx imagetools create \
+              -t "${tag}" \
+              "${digests[@]}"
+          done <<< "${TAGS}"
+
   release:
-    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main'
+    needs: [prepare, manifest]
     runs-on: ubuntu-latest
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout tag
         uses: actions/checkout@v4
         with:
+          ref: ${{ needs.prepare.outputs.tag }}
           fetch-depth: 0
-          ref: ${{ github.event.workflow_run.head_sha }}
-
-      - name: Resolve release version
-        id: version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          TAG="v${VERSION}"
-          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
-          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
-          echo "Release tag: ${TAG}"
-
-      - name: Check if release already exists
-        id: exists
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          TAG="${{ steps.version.outputs.tag }}"
-
-          if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-            echo "Release ${TAG} already exists"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
-            echo "Release ${TAG} will be created"
-          fi
 
       - name: Generate release notes
-        if: steps.exists.outputs.exists != 'true'
         id: cliff
         uses: orhun/git-cliff-action@v4
         with:
           config: .git-cliff.toml
-          args: --unreleased --tag ${{ steps.version.outputs.tag }} --strip header
+          args: --unreleased --tag ${{ needs.prepare.outputs.tag }} --strip header
         env:
           OUTPUT: RELEASE_NOTES.md
           GITHUB_REPO: ${{ github.repository }}
 
+      # softprops/action-gh-release creates the release if missing and updates
+      # it in place when re-running, which is what we want for a workflow
+      # dispatch rebuild of an existing tag.
       - name: Publish GitHub release
-        if: steps.exists.outputs.exists != 'true'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.version.outputs.tag }}
-          target_commitish: ${{ github.event.workflow_run.head_sha }}
-          name: ${{ steps.version.outputs.tag }}
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ needs.prepare.outputs.sha }}
+          name: ${{ needs.prepare.outputs.tag }}
           body_path: ${{ steps.cliff.outputs.changelog }}
           generate_release_notes: false
+          prerelease: ${{ needs.prepare.outputs.is_dev == 'true' }}
