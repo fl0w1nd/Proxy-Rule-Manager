@@ -6,16 +6,18 @@ services:
     ports:
       - "3000:3000"
     volumes:
-      # 持久化数据目录 - 包含 db.json 和 rules/
+      # Persist data directory (SQLite db + rule artifacts)
       - ./data:/app/data
     environment:
       - PORT=3000
-      - NODE_ENV=production
-      # 管理员 Token（建议设置强密码，留空则无需认证）
+      # Admin token (leave empty to disable authentication)
       - ADMIN_TOKEN=your-secure-token-here
+      # Data directories (Dockerfile defaults; listed here for visibility)
+      - DATA_DIR=/app/data
+      - OUT_DIR=/app/out
     healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/status"]
+      test: ["CMD", "/app/proxy-rule-manager", "--healthcheck"]
       interval: 30s
-      timeout: 3s
-      retries: 3
+      timeout: 5s
       start_period: 10s
+      retries: 3

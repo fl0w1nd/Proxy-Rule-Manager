@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import NextImage from "next/image";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -63,6 +63,59 @@ const MAIN_TABS = [
 
 const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
 
+const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+function isStale(lastUpdated: string | null | undefined): boolean {
+  if (!lastUpdated) return false;
+  const ts = Date.parse(lastUpdated);
+  if (!Number.isFinite(ts)) return false;
+  return Date.now() - ts > STALE_THRESHOLD_MS;
+}
+
+function FreshnessBadge({
+  lastUpdated,
+  hasError,
+  lastFailureAt,
+}: {
+  lastUpdated: string | null;
+  hasError: boolean;
+  lastFailureAt: string | null;
+}) {
+  if (hasError) {
+    return (
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Badge variant="destructive" className="text-[10px]">
+            上次失败
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="start" showArrow={false}>
+          <p className="text-xs">
+            {lastFailureAt ? `失败时间：${formatRelativeTime(lastFailureAt)}` : "最近一次同步失败"}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  if (isStale(lastUpdated)) {
+    return (
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
+            数据陈旧
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="start" showArrow={false}>
+          <p className="text-xs">
+            {lastUpdated ? `上次更新：${formatRelativeTime(lastUpdated)}` : "尚未生成"}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
+  return null;
+}
+
 export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) {
   const { mode, toggleMode } = useTheme();
   const [rules, setRules] = useState<PublicRuleInfo[]>([]);
@@ -94,6 +147,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedGeositeProvider, setSelectedGeositeProvider] = useState<string>("all");
   const [isScrolled, setIsScrolled] = useState(false);
+  const previewRequestRef = useRef(0);
 
   // 切换主标签时清空已选标签和来源
   useEffect(() => {
@@ -223,6 +277,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     ext?: string;
     provider?: string;
   }) => {
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
     setPreviewItem(item);
     setPreviewLoading(true);
     setPreviewContent("");
@@ -235,13 +291,17 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         : await fetch(getConfigUrl(item.clientId, item.name, item.ext || ""));
       if (response.ok) {
         const text = await response.text();
+        if (previewRequestRef.current !== requestId) return;
         setPreviewContent(text);
       } else {
+        if (previewRequestRef.current !== requestId) return;
         setPreviewContent("# 文件暂不可用");
       }
     } catch {
+      if (previewRequestRef.current !== requestId) return;
       setPreviewContent("# 加载失败，请稍后重试");
     } finally {
+      if (previewRequestRef.current !== requestId) return;
       setPreviewLoading(false);
     }
   };
@@ -700,9 +760,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
 
                     <div className="min-h-5 mt-2">
-                      {rule.tags && rule.tags.length > 0 && (
+                      {(rule.tags && rule.tags.length > 0) || rule.hasError || isStale(rule.lastUpdated) ? (
                         <div className="flex flex-wrap items-center gap-1.5">
-                          {rule.tags.slice(0, 4).map((tag) => (
+                          {rule.tags?.slice(0, 4).map((tag) => (
                             <Badge
                               key={tag}
                               variant={getTagBadgeVariant(tag)}
@@ -711,11 +771,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                               {tag}
                             </Badge>
                           ))}
-                          {rule.tags.length > 4 && (
+                          {rule.tags && rule.tags.length > 4 && (
                             <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
                           )}
+                          <FreshnessBadge
+                            lastUpdated={rule.lastUpdated ?? null}
+                            hasError={!!rule.hasError}
+                            lastFailureAt={rule.lastFailureAt ?? null}
+                          />
                         </div>
-                      )}
+                      ) : null}
                     </div>
 
                     <div className="flex-1 min-h-2" />
@@ -799,11 +864,16 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
 
                     <div className="min-h-5 mt-2">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
                         <Badge variant="outline">{rule.provider}</Badge>
                         {rule.attrs.map((attr) => (
                           <Badge key={`${rule.outputName}-${attr}`} variant="secondary">@{attr}</Badge>
                         ))}
+                        <FreshnessBadge
+                          lastUpdated={rule.lastUpdated ?? null}
+                          hasError={!!rule.hasError}
+                          lastFailureAt={rule.lastFailureAt ?? null}
+                        />
                       </div>
                     </div>
 

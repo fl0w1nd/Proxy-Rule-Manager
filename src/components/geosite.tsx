@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   BookOpen,
   CheckCircle2,
   ChevronDown,
@@ -42,6 +43,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { CodeViewer } from "./code-viewer";
 import {
   Tooltip,
   TooltipContent,
@@ -72,6 +74,7 @@ import {
   type ClientConfig,
   type GeositeCatalogItem,
   type GeositeProviderStatus,
+  type GeositeStaleImport,
 } from "@/lib/api-client";
 import type { ClientType, GeositeProvider, RuleConfig, RulesConfig } from "@/lib/schema";
 import { RuleEditor } from "./editor";
@@ -104,6 +107,8 @@ interface PreviewState {
   clientLabel: string;
   content: string;
   lineCount: number;
+  truncated?: boolean;
+  totalLines?: number;
 }
 
 interface SelectedImportItem {
@@ -276,6 +281,9 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [clientId, setClientId] = useState("");
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [catalog, setCatalog] = useState<GeositeCatalogItem[]>([]);
+  const [staleImports, setStaleImports] = useState<GeositeStaleImport[]>([]);
+  const [isStaleDetailOpen, setIsStaleDetailOpen] = useState(false);
+  const [isStaleCleaning, setIsStaleCleaning] = useState(false);
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [resolvedVersion, setResolvedVersion] = useState("");
   const [fetchedAt, setFetchedAt] = useState("");
@@ -285,6 +293,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [isImporting, setIsImporting] = useState(false);
   const [rulesSearch, setRulesSearch] = useState("");
   const [editingRule, setEditingRule] = useState<RuleConfig | null>(null);
+  const [isEditorSaving, setIsEditorSaving] = useState(false);
+  const [isEditorDirty, setIsEditorDirty] = useState(false);
   const [previewState, setPreviewState] = useState<PreviewState | null>(null);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
 
@@ -310,14 +320,25 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [batchReplaceClients, setBatchReplaceClients] = useState(false);
   const [isBatchSaving, setIsBatchSaving] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
+  const previewRequestRef = useRef(0);
+  // Monotonic request id used to ignore out-of-order fetchAll responses.
+  // Without this, switching the provider quickly can let an older response
+  // overwrite the catalog/resolvedVersion that belongs to the new provider.
+  const fetchAllRequestRef = useRef(0);
 
   const fetchAll = useCallback(async (selectedProvider: GeositeProvider = provider) => {
+    const reqId = ++fetchAllRequestRef.current;
     try {
       const [{ providers: providerList }, { clients: clientList }, { config: latestConfig }] = await Promise.all([
         getGeositeProviders(),
         getClients(),
         getConfig(),
       ]);
+
+      if (reqId !== fetchAllRequestRef.current) {
+        // A newer fetchAll has started; bail out without touching state.
+        return;
+      }
 
       setProviders(providerList);
       setClients(clientList);
@@ -329,30 +350,42 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       const activeProvider = providerList.find((item) => item.provider === selectedProvider);
       if (activeProvider?.ready) {
         const catalogResult = await getGeositeCatalog(selectedProvider);
+        if (reqId !== fetchAllRequestRef.current) return;
         setCatalog(catalogResult.catalog);
         setResolvedVersion(catalogResult.resolvedVersion);
         setFetchedAt(catalogResult.fetchedAt);
+        setStaleImports(catalogResult.staleImports || []);
       } else {
         setCatalog([]);
         setResolvedVersion("");
         setFetchedAt("");
+        setStaleImports([]);
       }
     } catch (error) {
+      if (reqId !== fetchAllRequestRef.current) return;
       toast.error("加载 Geosite 失败: " + String(error));
     } finally {
-      setIsLoading(false);
+      // Only the latest in-flight request is allowed to close the global
+      // loading indicator, otherwise a fast stale response flips it off
+      // while the user is still waiting on the current provider.
+      if (reqId === fetchAllRequestRef.current) {
+        setIsLoading(false);
+      }
     }
   }, [provider]);
 
+  // Single effect drives both mount and provider-change refreshes. We also
+  // clear the catalog up-front on provider switch so the UI never shows
+  // the previous provider's lists while the new one is loading.
   useEffect(() => {
-    void fetchAll();
-  }, [fetchAll]);
-
-  useEffect(() => {
-    if (!isLoading) {
-      void fetchAll(provider);
-    }
-  }, [fetchAll, isLoading, provider]);
+    setCatalog([]);
+    setResolvedVersion("");
+    setFetchedAt("");
+    setStaleImports([]);
+    void fetchAll(provider);
+    // fetchAll already captures `provider` in its closure, so we depend on
+    // both to keep the lint rule happy and to re-fire on provider switch.
+  }, [fetchAll, provider]);
 
   const providerStatus = useMemo(
     () => providers.find((item) => item.provider === provider) || null,
@@ -467,6 +500,34 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     setIsBatchDialogOpen(true);
   };
 
+  const handleDeleteStaleImports = async () => {
+    if (staleImports.length === 0) return;
+    const ruleNames = staleImports
+      .map((item) => item.ruleName)
+      .filter((name): name is string => Boolean(name));
+    if (ruleNames.length === 0) {
+      toast.error("没有可删除的规则");
+      return;
+    }
+    setIsStaleCleaning(true);
+    try {
+      const result = await batchDeleteRules(ruleNames);
+      const failed = result.notFound.length + result.blocked.length;
+      if (failed > 0) {
+        toast.warning(`已删除 ${result.deleted.length} 条，${failed} 条失败`);
+      } else {
+        toast.success(`已清理 ${result.deleted.length} 条失踪规则`);
+      }
+      setIsStaleDetailOpen(false);
+      await fetchAll(provider);
+      onRefresh?.();
+    } catch {
+      toast.error("清理失败");
+    } finally {
+      setIsStaleCleaning(false);
+    }
+  };
+
   const toggleBatchClient = (targetClientId: string) => {
     setBatchClientIds((current) =>
       current.includes(targetClientId)
@@ -535,7 +596,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
 
     setIsBatchSaving(true);
     try {
-      const { config: latestConfig } = await getConfig();
+      const { config: latestConfig, rev } = await getConfig();
       const selectedSet = new Set(selectedRuleNames);
       const updatedRules = latestConfig.rules.map((rule) => {
         if (!selectedSet.has(rule.name) || !isGeositeRule(rule)) {
@@ -567,7 +628,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       await saveConfig({
         ...latestConfig,
         rules: updatedRules,
-      });
+      }, rev);
 
       let refreshFailed = 0;
       if (shouldUpdateClients) {
@@ -783,6 +844,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   };
 
   const handleOpenRulePreview = async (rule: RuleConfig) => {
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
     setIsPreviewLoading(true);
     setPreviewState({
       title: rule.displayName || rule.name,
@@ -793,6 +856,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
 
     try {
       const result = await previewRule(rule.name);
+      if (previewRequestRef.current !== requestId) return;
       const availableClients = Object.keys(result.contents);
       const targetClient = availableClients.includes(clientId) ? clientId : availableClients[0];
       const content = targetClient ? result.contents[targetClient as ClientType] || "" : "";
@@ -803,9 +867,11 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
         lineCount: content ? content.split("\n").length : 0,
       });
     } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
       toast.error("预览失败: " + String(error));
       setPreviewState(null);
     } finally {
+      if (previewRequestRef.current !== requestId) return;
       setIsPreviewLoading(false);
     }
   };
@@ -816,6 +882,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       return;
     }
 
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
     setIsPreviewLoading(true);
     setPreviewState({
       title: `${provider}/${listName}`,
@@ -825,17 +893,22 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     });
 
     try {
-      const result = await previewGeosite(provider, listName, clientId);
+      const result = await previewGeosite(provider, listName, clientId, [], 10000);
+      if (previewRequestRef.current !== requestId) return;
       setPreviewState({
         title: `${provider}/${listName}`,
         clientLabel: clients.find((item) => item.id === clientId)?.displayName || clientId,
         content: result.content,
-        lineCount: result.content ? result.content.split("\n").length : 0,
+        lineCount: result.totalLines ?? 0,
+        truncated: result.truncated,
+        totalLines: result.totalLines,
       });
     } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
       toast.error("预览失败: " + String(error));
       setPreviewState(null);
     } finally {
+      if (previewRequestRef.current !== requestId) return;
       setIsPreviewLoading(false);
     }
   };
@@ -934,6 +1007,31 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
               <span>格式说明</span>
             </button>
           </div>
+
+          {staleImports.length > 0 && (
+            <div className="flex flex-col gap-3 rounded-xl border border-destructive/30 bg-destructive/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-start gap-2 text-sm text-destructive">
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <div>
+                  <p className="font-medium">
+                    检测到 {staleImports.length} 个已导入的 list 在上游已被删除
+                  </p>
+                  <p className="text-xs text-destructive/80">
+                    上游 catalog 中已不存在这些列表，关联规则将无法继续同步。建议查看详情后清理。
+                  </p>
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setIsStaleDetailOpen(true)}
+                >
+                  查看详情
+                </Button>
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -1341,32 +1439,60 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
               <span>{previewState?.title}</span>
               <Badge variant="secondary">{previewState?.clientLabel}</Badge>
               <Badge variant="outline">{previewState?.lineCount || 0} 行</Badge>
+              {previewState?.truncated ? (
+                <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning">
+                  内容已截断
+                </Badge>
+              ) : null}
             </DialogTitle>
           </DialogHeader>
           <div className="rounded-2xl border border-border/70 bg-surface-subtle">
-            <ScrollArea className="h-[70vh]">
-              <div className="p-4">
-                {isPreviewLoading ? (
-                  <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                  </div>
-                ) : (
-                  <pre className="whitespace-pre-wrap break-all text-sm leading-6 text-foreground">
-                    {previewState?.content || ""}
-                  </pre>
-                )}
-              </div>
-            </ScrollArea>
+            <div className="h-[70vh] p-4">
+              <CodeViewer
+                content={previewState?.content || ""}
+                loading={isPreviewLoading}
+                showLineNumbers={false}
+                className="h-full rounded-xl"
+                height="100%"
+              />
+            </div>
           </div>
         </DialogContent>
       </Dialog>
 
       {editingRule && config ? (
-        <Dialog open={!!editingRule} onOpenChange={(open) => !open && setEditingRule(null)}>
-          <DialogContent className="max-h-[92vh] max-w-6xl overflow-auto p-0">
+        <Dialog
+          open={!!editingRule}
+          onOpenChange={(open) => {
+            if (open) return;
+            if (isEditorSaving) return;
+            if (isEditorDirty) {
+              const ok = typeof window !== "undefined"
+                ? window.confirm("有未保存的修改，确定要放弃吗？")
+                : true;
+              if (!ok) return;
+            }
+            setEditingRule(null);
+          }}
+        >
+          <DialogContent
+            className="max-h-[92vh] max-w-6xl overflow-auto p-0"
+            onEscapeKeyDown={(e) => {
+              if (isEditorSaving) e.preventDefault();
+            }}
+            onPointerDownOutside={(e) => {
+              if (isEditorSaving) e.preventDefault();
+            }}
+            onInteractOutside={(e) => {
+              if (isEditorSaving) e.preventDefault();
+            }}
+          >
+            <DialogTitle className="sr-only">编辑规则: {editingRule.name || '新建规则'}</DialogTitle>
             <RuleEditor
               rule={editingRule}
               config={config}
+              onSavingChange={setIsEditorSaving}
+              onDirtyChange={setIsEditorDirty}
               onSave={async () => {
                 setEditingRule(null);
                 await fetchAll(provider);
@@ -1518,6 +1644,54 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
             <Button variant="destructive" onClick={handleBatchDelete} disabled={isBatchDeleting}>
               {isBatchDeleting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
               确认删除
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Stale Imports Detail Dialog */}
+      <Dialog open={isStaleDetailOpen} onOpenChange={setIsStaleDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-destructive" />
+              已失踪的 Geosite 列表
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            上游 catalog 中已不存在以下 list，关联规则在下次同步时会失败。一键删除可同步移除规则与已发布的产物文件。
+          </p>
+          <ScrollArea className="max-h-[50vh] rounded-lg border border-border/60">
+            <div className="divide-y divide-border/60">
+              {staleImports.map((item) => (
+                <div key={item.name} className="flex flex-col gap-1 p-3 text-sm">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Badge variant="outline" className="font-mono">{item.name}</Badge>
+                    <Badge variant="secondary" className="font-mono text-xs">
+                      {item.ruleName}
+                    </Badge>
+                  </div>
+                  {item.clients.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
+                      <span>影响客户端:</span>
+                      {item.clients.map((cid) => (
+                        <Badge key={cid} variant="outline" className="text-[10px]">
+                          {clients.find((c) => c.id === cid)?.displayName || cid}
+                        </Badge>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </ScrollArea>
+          <DialogFooter className="gap-2 mt-2">
+            <Button variant="outline" onClick={() => setIsStaleDetailOpen(false)} disabled={isStaleCleaning}>
+              关闭
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteStaleImports} disabled={isStaleCleaning}>
+              {isStaleCleaning ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              删除全部失踪规则 ({staleImports.length})
             </Button>
           </DialogFooter>
         </DialogContent>

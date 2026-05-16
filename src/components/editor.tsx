@@ -70,6 +70,16 @@ interface RuleEditorProps {
   config: RulesConfig | null;
   onSave: () => void;
   onCancel: () => void;
+  /**
+   * Called whenever the editor's saving state flips. Parents use this to
+   * disable Dialog close so an in-flight save is never silently cancelled.
+   */
+  onSavingChange?: (saving: boolean) => void;
+  /**
+   * Called whenever the editor's dirty state flips. Parents can use this
+   * to prompt for confirmation before destructive close actions.
+   */
+  onDirtyChange?: (dirty: boolean) => void;
 }
 
 // 帮助文本
@@ -188,10 +198,15 @@ export function RuleEditor({
   config,
   onSave,
   onCancel,
+  onSavingChange,
+  onDirtyChange,
 }: RuleEditorProps) {
   const initialFormData = rule ? migrateRule(rule) : createDefaultRule();
   const isLockedGeositeRule = !!rule && isGeositeRule(initialFormData);
   const [formData, setFormData] = useState<RuleConfig>(initialFormData);
+  // Snapshot of the form at mount-time / after save. We compare against
+  // `formData` to decide whether to prompt before discarding edits.
+  const initialSnapshotRef = useRef<string>(JSON.stringify(initialFormData));
   const [sourceKeys, setSourceKeys] = useState<string[]>(() =>
     createListItemKeys(initialFormData.sources?.length ?? 0)
   );
@@ -207,6 +222,21 @@ export function RuleEditor({
     return keys;
   });
   const [isSaving, setIsSaving] = useState(false);
+  // Notify the parent so it can lock the surrounding dialog while a save
+  // is in flight (clicking the backdrop must not discard pending writes).
+  useEffect(() => {
+    onSavingChange?.(isSaving);
+  }, [isSaving, onSavingChange]);
+
+  // Dirty bit: cheap structural compare against the initial snapshot. We
+  // skip this for the locked geosite rule because users can't actually
+  // edit anything meaningful, and we want to avoid spurious confirm dialogs.
+  const isDirty =
+    !isLockedGeositeRule &&
+    JSON.stringify(formData) !== initialSnapshotRef.current;
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
   const [expandedSections, setExpandedSections] = useState<Set<string>>(
     new Set(["basic", "sources", "transforms", "merge", "output"])
   );
@@ -389,7 +419,7 @@ export function RuleEditor({
       }
 
       // 重新获取最新配置（重命名后可能已更新引用关系），防止覆盖后端的更新
-      const { config: latestConfig } = await getConfig();
+      const { config: latestConfig, rev } = await getConfig();
 
       // 基于最新配置应用本地编辑
       const updatedRules = [...latestConfig.rules];
@@ -406,7 +436,7 @@ export function RuleEditor({
         version: latestConfig.version || 1,
         transformers: latestConfig.transformers || {},
         rules: updatedRules,
-      });
+      }, rev);
 
       // 保存成功后自动刷新该规则
       try {
@@ -418,6 +448,9 @@ export function RuleEditor({
         toast.success("规则保存成功（刷新失败，请手动刷新）");
       }
 
+      // Reset the snapshot so the editor is no longer "dirty" — without
+      // this, closing the dialog would still trigger the confirm prompt.
+      initialSnapshotRef.current = JSON.stringify(cleanedData);
       onSave();
     } catch (error) {
       toast.error("保存失败: " + String(error));
@@ -442,7 +475,7 @@ export function RuleEditor({
     setPreviewData(null);
 
     try {
-      const result = await previewRule(undefined, formData);
+      const result = await previewRule(undefined, formData, 10000);
       setPreviewData(result);
     } catch (error) {
       toast.error("预览失败: " + String(error));
@@ -717,6 +750,17 @@ export function RuleEditor({
 
   const editorTheme = mode === "dark" ? "vs-dark" : "light";
 
+  const handleCancelClick = () => {
+    if (isSaving) return;
+    if (isDirty) {
+      const ok = typeof window !== "undefined"
+        ? window.confirm("有未保存的修改，确定要放弃吗？")
+        : true;
+      if (!ok) return;
+    }
+    onCancel();
+  };
+
   return (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky Header */}
@@ -727,7 +771,7 @@ export function RuleEditor({
             <p className="text-xs text-muted-foreground">配置规则详情与转换逻辑</p>
           </div>
           <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <Button variant="outline" onClick={onCancel} disabled={isSaving}>取消</Button>
+            <Button variant="outline" onClick={handleCancelClick} disabled={isSaving}>取消</Button>
             <Button variant="outline" onClick={handlePreview} disabled={isSaving}>
               <Eye className="w-4 h-4 mr-1" />
               预览

@@ -1,7 +1,13 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
-import { formatTimestamp, formatBytes, formatRelativeTime } from "@/lib/utils";
+import { useState, useEffect, useCallback, useRef } from "react";
+import {
+  formatTimestamp,
+  formatBytes,
+  formatRelativeTime,
+  formatTimeUntil,
+  formatDurationMs,
+} from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -37,6 +43,9 @@ import {
   Globe,
   Clock,
   ArrowUpRight,
+  HardDrive,
+  Calendar,
+  AlertCircle,
   type LucideIcon,
 } from "lucide-react";
 import { useAuth } from "./auth-provider";
@@ -55,6 +64,13 @@ import {
   getChangeDiff,
   getFailureRecords,
   getActivityDates,
+  getFailingSources,
+  getDiskUsage,
+  getWafStats,
+  type FailingSource,
+  type DiskUsageResponse,
+  type DiskUsageBucket,
+  type WafStats,
 } from "@/lib/api-client";
 import { RulesManager } from "./rules";
 import { ConfigEditor } from "./config";
@@ -91,6 +107,265 @@ function getChangeLabel(changeType: ChangeRecordSummary["changeType"]) {
   if (changeType === "created") return "新增";
   if (changeType === "deleted") return "删除";
   return "更新";
+}
+
+// Failure records use a special "geosite:{provider}" rule name to mark a
+// whole-provider geosite outage (the per-list `geosite_*` failures stay
+// hidden because they'd drown out the regular rule feed). This renders that
+// distinction so admins immediately recognise it as infrastructure-level,
+// not a per-rule problem.
+function FailureRuleLabel({ ruleName, className }: { ruleName: string; className?: string }) {
+  if (ruleName.startsWith("geosite-stale:")) {
+    const provider = ruleName.slice("geosite-stale:".length) || "unknown";
+    return (
+      <span className={cn("inline-flex items-center gap-1.5", className)}>
+        <Globe className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{provider}</span>
+        <Badge variant="destructive" className="text-[10px] shrink-0 font-normal">
+          Geosite 列表已删除
+        </Badge>
+      </span>
+    );
+  }
+  if (ruleName.startsWith("geosite:")) {
+    const provider = ruleName.slice("geosite:".length) || "unknown";
+    return (
+      <span className={cn("inline-flex items-center gap-1.5", className)}>
+        <Globe className="w-3.5 h-3.5 shrink-0" />
+        <span className="truncate">{provider}</span>
+        <Badge variant="amber" className="text-[10px] shrink-0 font-normal">
+          Geosite 源
+        </Badge>
+      </span>
+    );
+  }
+  return <span className={cn("truncate", className)}>{ruleName}</span>;
+}
+
+// SyncHealthCard is the dashboard hero — answers "is everything OK?" in one
+// glance. Status badge + dataset summary on top, last/next sync timeline in
+// the middle, last sync result counts at the bottom. We keep all the secondary
+// info inline so admins don't have to scan a column of stat cards.
+function SyncHealthCard({
+  status,
+  health,
+  diskTotal,
+  clientCount,
+}: {
+  status: StatusResponse | null;
+  health: "healthy" | "partial" | "stale" | "never" | "unknown";
+  diskTotal?: number;
+  clientCount: number;
+}) {
+  const lastSync = status?.lastSync;
+  const lastSuccess = lastSync?.lastSuccessfulSyncAt ?? null;
+  const lastFull = lastSync?.lastFullSyncAt ?? null;
+  const failed = lastSync?.failedRulesCount ?? 0;
+  const changed = lastSync?.changedRulesCount ?? 0;
+  const total = lastSync?.totalRulesCount ?? 0;
+  const duration = lastSync?.lastSyncDurationMs ?? null;
+  const next = status?.nextSyncAt ?? "";
+  const scheduleMode = status?.scheduleMode;
+
+  const badge = {
+    healthy: { label: "正常", variant: "emerald" as const },
+    partial: { label: "部分失败", variant: "amber" as const },
+    stale: { label: "长时间未同步", variant: "amber" as const },
+    never: { label: "从未同步", variant: "secondary" as const },
+    unknown: { label: "未知", variant: "secondary" as const },
+  }[health];
+
+  return (
+    <Card className="p-4">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <Badge variant={badge.variant} className="text-xs px-2 py-0.5">
+          {badge.label}
+        </Badge>
+        <span className="text-sm text-muted-foreground">
+          {(status?.rulesCount ?? 0).toLocaleString()} 普通 ·{" "}
+          {(status?.geositeRulesCount ?? 0).toLocaleString()} Geosite ·{" "}
+          {clientCount} 个客户端
+        </span>
+        <span className="ml-auto inline-flex items-center gap-x-5 gap-y-1 text-xs flex-wrap justify-end">
+          <span className="text-muted-foreground">
+            处理 <strong className="font-mono text-foreground">{total}</strong>
+          </span>
+          <span className="text-muted-foreground">
+            变更 <strong className="font-mono text-foreground">{changed}</strong>
+          </span>
+          <span className={cn("text-muted-foreground", failed > 0 && "text-destructive")}>
+            失败 <strong className="font-mono">{failed}</strong>
+          </span>
+          {typeof diskTotal === "number" && diskTotal > 0 && (
+            <span className="text-muted-foreground font-mono inline-flex items-center gap-1.5">
+              <HardDrive className="w-3.5 h-3.5" />
+              {formatBytes(diskTotal)}
+            </span>
+          )}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-5 pt-3 border-t border-border">
+        <SyncTimelineSlot
+          icon={<Clock className="w-3.5 h-3.5" />}
+          label="最近成功同步"
+          tooltip={lastSuccess ? formatTimestamp(lastSuccess) : undefined}
+          value={lastSuccess ? formatRelativeTime(lastSuccess) : "—"}
+        />
+        <SyncTimelineSlot
+          icon={<RefreshCw className="w-3.5 h-3.5" />}
+          label="最近全量同步"
+          tooltip={lastFull ? formatTimestamp(lastFull) : undefined}
+          value={lastFull ? formatRelativeTime(lastFull) : "—"}
+          subtitle={duration != null ? `耗时 ${formatDurationMs(duration)}` : undefined}
+        />
+        <SyncTimelineSlot
+          icon={<Calendar className="w-3.5 h-3.5" />}
+          label="下次计划同步"
+          tooltip={next ? formatTimestamp(next) : undefined}
+          value={next ? formatTimeUntil(next) : "未配置"}
+          subtitle={scheduleMode === "cron" ? "cron 计划" : scheduleMode === "interval" ? "间隔模式" : undefined}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function SyncTimelineSlot({
+  icon,
+  label,
+  value,
+  tooltip,
+  subtitle,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: string;
+  tooltip?: string;
+  subtitle?: string;
+}) {
+  return (
+    <div className="min-w-0 flex items-baseline gap-3 sm:flex-col sm:gap-0.5 sm:items-start">
+      <p className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium inline-flex items-center gap-1.5 shrink-0">
+        {icon}
+        {label}
+      </p>
+      <div className="flex items-baseline gap-2 min-w-0">
+        <p className="text-sm font-mono text-foreground truncate" title={tooltip}>
+          {value}
+        </p>
+        {subtitle && <p className="text-[10px] text-muted-foreground font-mono shrink-0">{subtitle}</p>}
+      </div>
+    </div>
+  );
+}
+
+const DISK_BUCKET_LABELS: Record<DiskUsageBucket["key"], string> = {
+  rules: "Rules 输出",
+  geosite: "Geosite 缓存",
+  sources: "本地源",
+  iconset: "图标资源",
+  client: "客户端文件",
+  db: "SQLite DB",
+};
+const DISK_BUCKET_COLORS: Record<DiskUsageBucket["key"], string> = {
+  rules: "bg-primary",
+  geosite: "bg-emerald-500",
+  sources: "bg-sky-500",
+  iconset: "bg-fuchsia-500",
+  client: "bg-orange-500",
+  db: "bg-amber-500",
+};
+
+function DiskUsageCard({ usage, className }: { usage: DiskUsageResponse | null; className?: string }) {
+  if (!usage || usage.total === 0) {
+    return (
+      <Card className={cn("p-4", className)}>
+        <div className="flex items-center justify-between">
+          <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold inline-flex items-center gap-1.5">
+            <HardDrive className="w-3.5 h-3.5" />
+            磁盘占用
+          </p>
+          <span className="text-xs text-muted-foreground">尚未生成数据</span>
+        </div>
+      </Card>
+    );
+  }
+  const visible = usage.buckets.filter((b) => b.bytes > 0);
+  return (
+    <Card className={cn("p-4 flex flex-col", className)}>
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold inline-flex items-center gap-1.5">
+          <HardDrive className="w-3.5 h-3.5" />
+          磁盘占用
+        </p>
+        <span className="text-sm font-mono font-semibold text-foreground">{formatBytes(usage.total)}</span>
+      </div>
+
+      {/* Single horizontal stacked bar — proportional to bytes. Tiny buckets
+          (< 0.5% of total) are skipped so the bar stays visually scannable. */}
+      <div className="h-1.5 rounded-full overflow-hidden flex bg-muted mb-2.5">
+        {visible.map((b) => {
+          const pct = (b.bytes / usage.total) * 100;
+          if (pct < 0.5) return null;
+          return (
+            <div
+              key={b.key}
+              className={cn(DISK_BUCKET_COLORS[b.key], "transition-all duration-500")}
+              style={{ width: `${pct}%` }}
+              title={`${DISK_BUCKET_LABELS[b.key]} ${formatBytes(b.bytes)}`}
+            />
+          );
+        })}
+      </div>
+
+      <ul className="grid grid-cols-2 sm:grid-cols-3 gap-x-5 gap-y-1 text-xs">
+        {visible.map((b) => (
+          <li key={b.key} className="flex items-center justify-between gap-2 min-w-0">
+            <span className="inline-flex items-center gap-1.5 min-w-0 truncate">
+              <span className={cn(DISK_BUCKET_COLORS[b.key], "size-2 rounded-full shrink-0")} />
+              <span className="truncate text-muted-foreground">{DISK_BUCKET_LABELS[b.key]}</span>
+            </span>
+            <span className="font-mono text-foreground shrink-0">{formatBytes(b.bytes)}</span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
+function WafSummaryCard({ stats, onJump }: { stats: WafStats | null; onJump: () => void }) {
+  const total = stats?.bans.total ?? 0;
+  const permanent = stats?.bans.permanent ?? 0;
+  const blocked = stats?.temporary.currentlyBlocked ?? 0;
+  const tracked = stats?.temporary.totalTracked ?? 0;
+  return (
+    <Card className="p-4 flex flex-col">
+      <div className="flex items-center justify-between mb-2">
+        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold inline-flex items-center gap-1.5">
+          <Shield className="w-3.5 h-3.5" />
+          WAF 防护
+        </p>
+        <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground" onClick={onJump}>
+          详情 <ArrowUpRight className="w-3 h-3 ml-1" />
+        </Button>
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        <div>
+          <div className={cn("text-xl font-mono font-semibold tracking-tight leading-tight", total > 0 ? "text-foreground" : "text-muted-foreground")}>
+            {total}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">活动封禁{permanent > 0 ? `（永久 ${permanent}）` : ""}</p>
+        </div>
+        <div>
+          <div className={cn("text-xl font-mono font-semibold tracking-tight leading-tight", blocked > 0 ? "text-destructive" : "text-muted-foreground")}>
+            {blocked}
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-0.5">当前限速{tracked > 0 ? ` · 跟踪 ${tracked}` : ""}</p>
+        </div>
+      </div>
+    </Card>
+  );
 }
 
 function getChangeBadgeVariant(changeType: ChangeRecordSummary["changeType"]) {
@@ -187,6 +462,10 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [activityTab, setActivityTab] = useState("changes");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [isClearActivityDialogOpen, setIsClearActivityDialogOpen] = useState(false);
+  const [failingSources, setFailingSources] = useState<FailingSource[]>([]);
+  const [diskUsage, setDiskUsage] = useState<DiskUsageResponse | null>(null);
+  const [wafStats, setWafStats] = useState<WafStats | null>(null);
+  const diffRequestRef = useRef(0);
 
   const fetchStatus = async () => {
     try {
@@ -206,6 +485,26 @@ export function Dashboard({ onBack }: DashboardProps) {
       setIsLoading(false);
     }
   };
+
+  // Aux data shown only on the overview tab (failing sources, disk, WAF).
+  // Refreshed alongside status; the WAF and disk endpoints are cheap so we
+  // don't bother debouncing — and any error here just leaves the panels
+  // empty, never crashes the dashboard.
+  const fetchOverviewAux = useCallback(async () => {
+    if (activeTab !== "overview") return;
+    const [sourcesRes, diskRes, wafRes] = await Promise.allSettled([
+      getFailingSources(7, 5),
+      getDiskUsage(),
+      getWafStats(),
+    ]);
+    if (sourcesRes.status === "fulfilled") setFailingSources(sourcesRes.value.sources || []);
+    if (diskRes.status === "fulfilled") setDiskUsage(diskRes.value);
+    if (wafRes.status === "fulfilled") setWafStats(wafRes.value);
+  }, [activeTab]);
+
+  useEffect(() => {
+    fetchOverviewAux();
+  }, [fetchOverviewAux]);
 
   const getClientDisplayName = (clientId: string): string => {
     const client = clients.find(c => c.id === clientId);
@@ -331,16 +630,21 @@ export function Dashboard({ onBack }: DashboardProps) {
   }, [activityClient, clients]);
 
   const openChangeDiff = async (change: ChangeRecordSummary) => {
+    const requestId = diffRequestRef.current + 1;
+    diffRequestRef.current = requestId;
     setSelectedChange(change);
     setDiffContent("");
     setIsDiffLoading(true);
     try {
       const result = await getChangeDiff(change.date, change.fileName);
+      if (diffRequestRef.current !== requestId) return;
       setDiffContent(result.diff);
     } catch (error) {
+      if (diffRequestRef.current !== requestId) return;
       console.error("Failed to fetch diff:", error);
       setDiffContent("diff 已过期或不可用");
     } finally {
+      if (diffRequestRef.current !== requestId) return;
       setIsDiffLoading(false);
     }
   };
@@ -370,38 +674,21 @@ export function Dashboard({ onBack }: DashboardProps) {
   const changeTotalPages = Math.max(1, Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize)));
   const failureTotalPages = Math.max(1, Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize)));
 
-  // 客户端覆盖分布（规则和 Geosite 分开统计）
-  const clientDistribution = useMemo(() => {
-    if (!status || clients.length === 0) return [];
-    const normalRules = status.rules || [];
-    const geositeRulesList = status.geositeRules || [];
-    return clients.map((client) => ({
-      id: client.id,
-      displayName: client.displayName,
-      ruleCount: normalRules.filter((r) => r.clients.includes(client.id)).length,
-      geositeCount: geositeRulesList.filter((r) => r.clients.includes(client.id)).length,
-    }));
-  }, [status, clients]);
-
-  // 最近更新的规则（按 lastUpdated 降序，取前 6 条）
-  const recentlyUpdatedRules = useMemo(() => {
-    if (!status?.rules) return [];
-    return [...status.rules]
-      .filter((r) => r.lastUpdated)
-      .sort((a, b) => new Date(b.lastUpdated!).getTime() - new Date(a.lastUpdated!).getTime())
-      .slice(0, 6);
-  }, [status?.rules]);
-
-  // 同步健康状态
-  const syncHealthStatus = useMemo(() => {
-    if (!status?.lastSync) return "unknown" as const;
-    const { lastSuccessfulSyncAt, failedRulesCount } = status.lastSync;
-    if (!lastSuccessfulSyncAt) return "never" as const;
-    const hoursSince = (Date.now() - new Date(lastSuccessfulSyncAt).getTime()) / (1000 * 60 * 60);
-    if (failedRulesCount > 0) return "partial" as const;
-    if (hoursSince > 48) return "stale" as const;
-    return "healthy" as const;
-  }, [status?.lastSync]);
+  // 同步健康状态：综合最近成功时间 + 失败计数判断。
+  // - never:     从未成功过
+  // - partial:   最近一次同步有失败规则
+  // - stale:     最后成功同步超过 48 小时
+  // - healthy:   两者皆否
+  const syncHealthStatus: "healthy" | "partial" | "stale" | "never" | "unknown" =
+    !status?.lastSync
+      ? "unknown"
+      : !status.lastSync.lastSuccessfulSyncAt
+        ? "never"
+        : status.lastSync.failedRulesCount > 0
+          ? "partial"
+          : (Date.now() - new Date(status.lastSync.lastSuccessfulSyncAt).getTime()) / 3_600_000 > 48
+            ? "stale"
+            : "healthy";
 
   if (isLoading) {
     return (
@@ -454,9 +741,32 @@ export function Dashboard({ onBack }: DashboardProps) {
           </div>
         </header>
 
-        {/* Scrollable Content */}
-        <main className={cn("flex-1 p-6 scroll-smooth bg-muted/5", activeTab === "geosite" ? "overflow-hidden" : "overflow-y-auto")}>
-          <div className={cn("max-w-screen-2xl mx-auto space-y-6", activeTab === "geosite" && "h-full")}>
+        {/* Scrollable Content. On overview/geosite at lg+ we lock main to
+            the viewport (overflow-hidden) so the dashboard's flex-1 chain
+            has a definite height to divide; below lg the content scrolls
+            naturally. Other tabs always scroll. */}
+        <main
+          className={cn(
+            "flex-1 p-6 scroll-smooth bg-muted/5",
+            activeTab === "geosite"
+              ? "overflow-hidden"
+              : activeTab === "overview"
+                ? "overflow-y-auto lg:overflow-hidden"
+                : "overflow-y-auto",
+          )}
+        >
+          {/* Wrapper on overview: only `h-full` at lg+ (with min-h-0 to break
+              the default min-content floor); below lg fall back to min-h-full
+              so the page can grow and the outer scroll works. */}
+          <div
+            className={cn(
+              "max-w-screen-2xl mx-auto",
+              activeTab === "geosite" && "h-full",
+              activeTab === "overview"
+                ? "flex flex-col gap-4 min-h-full lg:h-full lg:min-h-0"
+                : "space-y-6",
+            )}
+          >
             {/* Urgent Alerts */}
             {(needsInit || (needsFirstSync && !needsInit)) && (
               <div className="grid gap-4">
@@ -497,162 +807,67 @@ export function Dashboard({ onBack }: DashboardProps) {
 
             {/* Overview Tab Content */}
             {activeTab === 'overview' && (
-              <div className="space-y-6">
-                {/* Row 1: Sync Health Card + KPIs */}
-                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 sm:gap-6">
-                  {/* Sync Health - Main Card */}
-                  <Card className="lg:col-span-2 p-5">
-                    <div className="flex items-center justify-between mb-4">
-                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">同步状态</p>
-                      <Badge variant={
-                        syncHealthStatus === "healthy" ? "emerald" :
-                        syncHealthStatus === "partial" ? "amber" :
-                        syncHealthStatus === "stale" ? "amber" :
-                        "secondary"
-                      }>
-                        {syncHealthStatus === "healthy" ? "正常" :
-                         syncHealthStatus === "partial" ? "部分失败" :
-                         syncHealthStatus === "stale" ? "长时间未同步" :
-                         syncHealthStatus === "never" ? "从未同步" : "未知"}
-                      </Badge>
-                    </div>
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">最近成功同步</span>
-                        <span className="text-xs font-mono" title={status?.lastSync?.lastSuccessfulSyncAt ? formatTimestamp(status.lastSync.lastSuccessfulSyncAt) : undefined}>
-                          {status?.lastSync?.lastSuccessfulSyncAt ? formatRelativeTime(status.lastSync.lastSuccessfulSyncAt) : '—'}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs text-muted-foreground">最近全量同步</span>
-                        <span className="text-xs font-mono" title={status?.lastSync?.lastFullSyncAt ? formatTimestamp(status.lastSync.lastFullSyncAt) : undefined}>
-                          {status?.lastSync?.lastFullSyncAt ? formatRelativeTime(status.lastSync.lastFullSyncAt) : '—'}
-                        </span>
-                      </div>
-                      <div className="h-px bg-border my-1" />
-                      <div className="flex items-center gap-4 text-xs">
-                        <span className="text-muted-foreground">最近同步结果</span>
-                        <div className="flex items-center gap-3 ml-auto">
-                          <span title="处理规则数">处理 <strong className="font-mono">{status?.lastSync?.totalRulesCount || 0}</strong></span>
-                          <span title="变更规则数">变更 <strong className="font-mono">{status?.lastSync?.changedRulesCount || 0}</strong></span>
-                          <span className={cn((status?.lastSync?.failedRulesCount || 0) > 0 && "text-destructive")} title="失败规则数">
-                            失败 <strong className="font-mono">{status?.lastSync?.failedRulesCount || 0}</strong>
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </Card>
+              <div className="flex flex-col gap-4 lg:flex-1 lg:min-h-0">
+                <SyncHealthCard
+                  status={status}
+                  health={syncHealthStatus}
+                  diskTotal={diskUsage?.total}
+                  clientCount={clients.length}
+                />
 
-                  {/* KPI Cards */}
-                  <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">规则数量</p>
-                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.rulesCount || 0}</div>
-                    <p className="text-[11px] text-muted-foreground">输出文件 {status?.ruleFilesCount || 0}</p>
-                  </Card>
-                  <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">Geosite 数量</p>
-                    <div className="text-3xl font-mono font-bold tracking-tight">{status?.geositeRulesCount || 0}</div>
-                    <p className="text-[11px] text-muted-foreground">输出文件 {status?.geositeRuleFilesCount || 0}</p>
-                  </Card>
-                  <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">今日异常</p>
-                    <div className={cn("text-3xl font-mono font-bold tracking-tight", (status?.todayStats?.failureRecords || 0) > 0 ? "text-destructive" : "")}>
-                      {status?.todayStats?.failureRecords || 0}
-                    </div>
-                    <p className="text-[11px] text-muted-foreground">失败源 {status?.todayStats?.failedSources || 0} 个</p>
-                  </Card>
+                {/* Disk + WAF — middle row, natural height */}
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                  <DiskUsageCard usage={diskUsage} className="lg:col-span-2" />
+                  <WafSummaryCard stats={wafStats} onJump={() => setActiveTab('security')} />
                 </div>
 
-                {/* Row 2: Client Distribution + Recent Activity */}
-                <div className="grid grid-cols-1 items-stretch lg:grid-cols-3 gap-4 lg:gap-6">
-                  {/* Client Distribution + Recently Updated Rules */}
-                  <div className="space-y-4 lg:space-y-6 lg:h-[640px] lg:flex lg:flex-col">
-                    {/* Client Rules */}
-                    <Card className="p-5">
-                      <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">客户端规则</p>
-                        <div className="flex items-center gap-3 text-xs text-muted-foreground font-mono">
-                          <span>普通 {status?.rulesCount || 0}</span>
-                          <span className="text-border">|</span>
-                          <span>Geosite {status?.geositeRulesCount || 0}</span>
-                        </div>
+                {/* Failing sources + Recent activity — bottom row, claims
+                    remaining viewport height. lg:min-h-0 is critical: a
+                    `min-h-[…]` floor would reintroduce the flex `min-content`
+                    behaviour and let inner lists push the grid past flex-1.
+                    Inner scroll containers (TabsContent, ul) handle overflow. */}
+                <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 lg:gap-6 lg:flex-1 lg:min-h-0">
+                  <Card className="lg:col-span-2 p-4 flex flex-col min-h-0 overflow-hidden">
+                    <div className="flex items-center justify-between mb-3 shrink-0">
+                      <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold flex items-center gap-1.5">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        本周失败源
+                      </p>
+                      <span className="text-[10px] text-muted-foreground font-mono">近 7 天</span>
+                    </div>
+                    {failingSources.length === 0 ? (
+                      <div className="flex-1 flex flex-col items-center justify-center text-center">
+                        <CheckCircle className="w-6 h-6 text-success/60 mb-1.5" />
+                        <p className="text-xs text-muted-foreground">7 天内无失败</p>
                       </div>
-                      <div className="space-y-3">
-                        {clientDistribution.map((client) => {
-                          const normalTotal = Math.max(status?.rulesCount || 0, 1);
-                          const geositeTotal = Math.max(status?.geositeRulesCount || 0, 1);
-                          const rulePct = Math.round((client.ruleCount / normalTotal) * 100);
-                          const geositePct = Math.round((client.geositeCount / geositeTotal) * 100);
-                          return (
-                            <div key={client.id}>
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-sm font-medium">{client.displayName}</span>
-                                <div className="flex items-center gap-2 text-xs text-muted-foreground font-mono">
-                                  <span>{client.ruleCount} 普通</span>
-                                  <span>{client.geositeCount} Geosite</span>
-                                </div>
-                              </div>
-                              <div className="space-y-1">
-                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-primary transition-all duration-500"
-                                    style={{ width: `${rulePct}%` }}
-                                  />
-                                </div>
-                                <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                                  <div
-                                    className="h-full rounded-full bg-emerald-500 transition-all duration-500"
-                                    style={{ width: `${geositePct}%` }}
-                                  />
-                                </div>
-                                <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
-                                  <span>普通 {client.ruleCount}/{status?.rulesCount || 0}</span>
-                                  <span>Geosite {client.geositeCount}/{status?.geositeRulesCount || 0}</span>
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                        {clientDistribution.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-4">暂无客户端配置</p>
-                        )}
-                      </div>
-                    </Card>
-
-                    {/* Recently Updated Rules */}
-                    <Card className="p-5 lg:flex-1 lg:min-h-0">
-                      <div className="flex items-center justify-between mb-4">
-                        <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">最近更新规则</p>
-                        <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => setActiveTab('rules')}>
-                          查看全部 <ArrowUpRight className="w-3 h-3 ml-1" />
-                        </Button>
-                      </div>
-                      <div className="space-y-2 lg:h-[calc(100%-2.75rem)] lg:overflow-y-auto">
-                        {recentlyUpdatedRules.map((rule) => (
-                          <div key={rule.name} className="flex items-center justify-between rounded-lg p-2 transition-colors hover:bg-accent">
+                    ) : (
+                      <ul className="space-y-1 overflow-y-auto flex-1">
+                        {failingSources.map((source) => (
+                          <li
+                            key={source.ruleName}
+                            className="flex items-start gap-3 rounded-md px-2 py-1.5 hover:bg-accent transition-colors cursor-pointer"
+                            onClick={() => setActiveTab('activity')}
+                            role="button"
+                          >
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm font-medium truncate">{rule.name}</p>
-                              <p className="text-[11px] text-muted-foreground truncate">{rule.description || "暂无说明"}</p>
+                              <FailureRuleLabel ruleName={source.ruleName} className="text-sm font-medium" />
+                              <p className="text-[11px] text-muted-foreground truncate mt-0.5" title={source.lastMessage}>
+                                {source.lastMessage || "(no message)"}
+                              </p>
                             </div>
-                            <div className="flex items-center gap-2 shrink-0 ml-3">
-                              <span className="text-[11px] text-muted-foreground font-mono flex items-center gap-1">
-                                <Clock className="w-3 h-3" />
-                                {rule.lastUpdated ? formatRelativeTime(rule.lastUpdated) : '—'}
-                              </span>
+                            <div className="text-right shrink-0">
+                              <div className="text-sm font-mono font-semibold text-destructive">{source.count} 次</div>
+                              <div className="text-[10px] text-muted-foreground font-mono">{formatRelativeTime(source.lastTimestamp)}</div>
                             </div>
-                          </div>
+                          </li>
                         ))}
-                        {recentlyUpdatedRules.length === 0 && (
-                          <p className="text-xs text-muted-foreground text-center py-6">暂无更新记录</p>
-                        )}
-                      </div>
-                    </Card>
-                  </div>
+                      </ul>
+                    )}
+                  </Card>
 
-                  {/* Recent Activity - Unified Card */}
-                  <Card className="flex flex-col min-h-[400px] max-h-[640px] lg:col-span-2 lg:h-[640px]">
-                    <CardHeader className="flex-row items-center justify-between border-b border-border shrink-0">
-                      <CardTitle className="flex items-center gap-2">
+                  <Card className="lg:col-span-3 flex flex-col min-h-0 overflow-hidden">
+                    <CardHeader className="flex-row items-center justify-between border-b border-border shrink-0 py-3">
+                      <CardTitle className="flex items-center gap-2 text-sm">
                         <Activity className="w-4 h-4 text-muted-foreground" />
                         最近活动
                       </CardTitle>
@@ -675,10 +890,10 @@ export function Dashboard({ onBack }: DashboardProps) {
                             </TabsTrigger>
                           </TabsList>
                         </div>
-                        <TabsContent value="changes" className="flex-1 overflow-y-auto px-2 pb-2 mt-0">
+                        <TabsContent value="changes" className="flex-1 min-h-0 overflow-y-auto px-2 pb-2 mt-0">
                           <ActivityFeed compact items={filteredChangeItems.slice(0, 8)} onViewDiff={openChangeDiff} getClientDisplayName={getClientDisplayName} />
                         </TabsContent>
-                        <TabsContent value="failures" className="flex-1 overflow-y-auto px-4 pb-4 mt-0">
+                        <TabsContent value="failures" className="flex-1 min-h-0 overflow-y-auto px-4 pb-4 mt-0">
                           {filteredFailureItems.length === 0 ? (
                             <div className="flex flex-col items-center justify-center py-12 text-center text-muted-foreground">
                               <CheckCircle className="mb-2 w-8 h-8 text-success/60" />
@@ -689,9 +904,9 @@ export function Dashboard({ onBack }: DashboardProps) {
                             <div className="space-y-3">
                               {filteredFailureItems.slice(0, 8).map(f => (
                                 <div key={f.id} className="p-3 bg-destructive/5 rounded-xl border border-destructive/10 text-xs hover:bg-destructive/10 transition-colors">
-                                  <div className="flex items-center justify-between mb-1">
-                                    <p className="font-semibold text-destructive truncate">{f.ruleName}</p>
-                                    <span className="text-[10px] text-muted-foreground font-mono">{formatRelativeTime(f.timestamp)}</span>
+                                  <div className="flex items-center justify-between gap-2 mb-1 min-w-0">
+                                    <FailureRuleLabel ruleName={f.ruleName} className="font-semibold text-destructive min-w-0" />
+                                    <span className="text-[10px] text-muted-foreground font-mono shrink-0">{formatRelativeTime(f.timestamp)}</span>
                                   </div>
                                   {f.stage && (
                                     <p className="text-[10px] text-muted-foreground mb-1 font-mono">阶段: {f.stage}</p>
@@ -836,18 +1051,18 @@ export function Dashboard({ onBack }: DashboardProps) {
                       <div className="border border-border rounded-2xl bg-card overflow-hidden divide-y divide-border">
                         {failureItems.map(f => (
                           <div key={f.id} className="p-4 hover:bg-muted/10 transition-colors flex items-start justify-between gap-4 group">
-                            <div className="space-y-1">
-                              <div className="flex items-center gap-2">
-                                <span className="font-medium text-destructive flex items-center gap-1.5">
-                                  <XCircle className="w-4 h-4" />
-                                  {f.ruleName}
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="font-medium text-destructive flex items-center gap-1.5 min-w-0">
+                                  <XCircle className="w-4 h-4 shrink-0" />
+                                  <FailureRuleLabel ruleName={f.ruleName} />
                                 </span>
                                 {f.client && (
-                                  <Badge variant="secondary" className="text-[10px] font-normal">
+                                  <Badge variant="secondary" className="text-[10px] font-normal shrink-0">
                                     {getClientDisplayName(f.client)}
                                   </Badge>
                                 )}
-                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground">
+                                <Badge variant="outline" className="text-[10px] font-mono font-normal text-muted-foreground shrink-0">
                                   {formatTimestamp(f.timestamp)}
                                 </Badge>
                               </div>

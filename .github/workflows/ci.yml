@@ -6,32 +6,59 @@ on:
   workflow_call:
 
 jobs:
-  verify:
+  frontend:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
       - name: Set up pnpm
         uses: pnpm/action-setup@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Run lint
+      - name: Lint
         run: pnpm exec eslint . --max-warnings=0
-
-      - name: Run typecheck
+      - name: Typecheck
         run: pnpm run typecheck
+      - name: Build (next)
+        run: pnpm run build
 
-      - name: Run tests
-        run: pnpm run test
+  backend:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: backend/go.sum
+      - name: Check gofmt
+        run: |
+          out=$(gofmt -l .)
+          if [ -n "$out" ]; then
+            echo "::error::gofmt found unformatted files:"
+            echo "$out"
+            exit 1
+          fi
+      - name: Vet
+        run: go vet ./...
+      - name: Install staticcheck
+        run: go install honnef.co/go/tools/cmd/staticcheck@2026.1
+      - name: Staticcheck
+        run: staticcheck ./...
+      - name: Test
+        run: go test -race ./...
+      - name: Build
+        run: go build -trimpath -ldflags="-s -w" -o /tmp/proxy-rule-manager ./cmd/server

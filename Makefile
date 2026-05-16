@@ -2,8 +2,10 @@
 
 REGISTRY ?= ghcr.io
 REPO ?= fl0w1nd/proxy-rule-manager
-VERSION := $(shell node -p "require('./package.json').version")
-GIT_HASH := $(shell git rev-parse --short HEAD)
+# Single source of truth: package.json. Falls back to "dev" if node is missing.
+VERSION := $(shell node -p "require('./package.json').version" 2>/dev/null || echo "dev")
+GIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
+GO_LDFLAGS := -s -w -X github.com/fl0w1nd/proxy-rule-manager/backend/internal/api.Version=$(VERSION)
 
 GREEN := \033[0;32m
 YELLOW := \033[0;33m
@@ -33,16 +35,34 @@ dev-be: ## Run backend development server only
 	pnpm run dev:be
 
 .PHONY: build
-build: ## Build the application
+build: build-fe build-be ## Build frontend (next) and backend (go) binaries
+
+.PHONY: build-fe
+build-fe: ## Build the Next.js frontend (static export to ./out)
 	pnpm run build
 
+.PHONY: build-be
+build-be: ## Build the Go backend binary into ./bin/proxy-rule-manager
+	cd backend && go build -trimpath -ldflags='$(GO_LDFLAGS)' -o ../bin/proxy-rule-manager ./cmd/server
+
 .PHONY: test
-test: ## Run tests
-	pnpm run test
+test: ## Run Go tests
+	cd backend && go test ./...
 
 .PHONY: lint
-lint: ## Run linter
+lint: lint-fe lint-be ## Run frontend lint + backend lint
+	@echo "$(GREEN)lint OK$(NC)"
+
+.PHONY: lint-fe
+lint-fe: ## Run frontend ESLint
 	pnpm run lint
+
+.PHONY: lint-be
+lint-be: ## Run backend gofmt + go vet + staticcheck
+	@cd backend && out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "$(YELLOW)gofmt found unformatted files:$(NC)"; echo "$$out"; echo "$(YELLOW)run 'gofmt -w backend'$(NC)"; exit 1; fi
+	cd backend && go vet ./...
+	@command -v staticcheck >/dev/null 2>&1 || (echo "$(YELLOW)installing staticcheck...$(NC)" && go install honnef.co/go/tools/cmd/staticcheck@latest)
+	cd backend && PATH="$$(go env GOPATH)/bin:$$PATH" staticcheck ./...
 
 .PHONY: typecheck
 typecheck: ## Run TypeScript type checking

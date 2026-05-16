@@ -20,30 +20,53 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     async function checkAuth() {
-      // 首先检查后端是否需要认证
-      const authStatus = await checkAuthRequired();
-      setAuthRequired(authStatus.required);
+      try {
+        const authStatus = await checkAuthRequired();
+        setAuthRequired(authStatus.required);
 
-      if (!authStatus.required) {
-        // 后端未设置 ADMIN_TOKEN，无需认证
-        setIsAuthenticated(true);
-        setIsLoading(false);
-        return;
-      }
-
-      // 需要认证，检查本地存储的 token
-      const token = localStorage.getItem("admin_token");
-      if (token) {
-        const valid = await verifyToken(token);
-        setIsAuthenticated(valid);
-        if (!valid) {
-          clearToken();
+        if (!authStatus.required) {
+          setIsAuthenticated(true);
+          return;
         }
+
+        const token = localStorage.getItem("admin_token");
+        if (token) {
+          const valid = await verifyToken(token);
+          setIsAuthenticated(valid);
+          if (!valid) {
+            clearToken();
+          }
+        }
+      } catch (err) {
+        // If the initial probe throws (network down, server 500, etc.) we
+        // must not leave the UI stuck in a permanent loading state. Reset
+        // to "auth required + unauthenticated" so the login form is shown.
+        console.error("auth check failed:", err);
+        setAuthRequired(true);
+        setIsAuthenticated(false);
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
     }
 
     checkAuth();
+  }, []);
+
+  // React to backend-driven session loss: if any authenticated API call
+  // comes back 401/403, api-client dispatches "auth-expired" and we flip
+  // back to the login state. We deliberately keep authRequired untouched
+  // so the open-access ("no ADMIN_TOKEN") mode is unaffected.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const handler = () => {
+      clearToken();
+      setIsAuthenticated(false);
+      setAuthRequired(true);
+    };
+    window.addEventListener("auth-expired", handler);
+    return () => {
+      window.removeEventListener("auth-expired", handler);
+    };
   }, []);
 
   const login = async (token: string): Promise<boolean> => {

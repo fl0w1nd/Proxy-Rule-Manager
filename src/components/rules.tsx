@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CodeViewer } from "./code-viewer";
 import {
   Dialog,
   DialogContent,
@@ -49,7 +50,7 @@ import {
   ChevronDown,
   HelpCircle,
 } from "lucide-react";
-import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, PreviewResponse, ClientConfig } from "@/lib/api-client";
+import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
@@ -63,6 +64,10 @@ interface RulesManagerProps {
 export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
+  const [ruleStatusMap, setRuleStatusMap] = useState<Record<string, { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null }>>({});
+  // Captured once per mount/refresh so freshness comparisons remain pure
+  // during render. We refresh this whenever fetchConfig finishes.
+  const [statusFetchedAt, setStatusFetchedAt] = useState<number>(() => Date.now());
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshingRules, setRefreshingRules] = useState<Set<string>>(new Set());
@@ -71,6 +76,10 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [previewClient, setPreviewClient] = useState<ClientType>("clash_meta");
   const [editingRule, setEditingRule] = useState<RuleConfig | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
+  // Track the editor's saving/dirty state so we can prevent unintended
+  // dialog closes that would silently drop in-flight saves or unsaved edits.
+  const [isEditorSaving, setIsEditorSaving] = useState(false);
+  const [isEditorDirty, setIsEditorDirty] = useState(false);
   const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [deletingRule, setDeletingRule] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -86,6 +95,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [batchAddClients, setBatchAddClients] = useState(true);
   const [batchReplaceClients, setBatchReplaceClients] = useState(false);
   const [isBatchSaving, setIsBatchSaving] = useState(false);
+  const previewRequestRef = useRef(0);
 
   const handleDuplicateRule = (rule: RuleConfig) => {
     if (isGeositeRule(rule)) {
@@ -110,12 +120,25 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
   const fetchConfig = async () => {
     try {
-      const [{ config }, { clients: clientList }] = await Promise.all([
+      const [{ config }, { clients: clientList }, statusResult] = await Promise.all([
         getConfig(),
         getClients(),
+        getStatus().catch(() => null),
       ]);
       setConfig(config);
       setClients(clientList);
+      if (statusResult && Array.isArray(statusResult.rules)) {
+        const map: Record<string, { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null }> = {};
+        for (const r of statusResult.rules) {
+          map[r.name] = {
+            lastUpdated: r.lastUpdated ?? null,
+            hasError: !!r.hasError,
+            lastFailureAt: r.lastFailureAt ?? null,
+          };
+        }
+        setRuleStatusMap(map);
+        setStatusFetchedAt(Date.now());
+      }
     } catch (error) {
       console.error("Failed to fetch data:", error);
       toast.error("获取配置失败");
@@ -170,11 +193,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   };
 
   const handlePreviewRule = async (ruleName: string, clients: ClientType[]) => {
+    const requestId = previewRequestRef.current + 1;
+    previewRequestRef.current = requestId;
     setPreviewingRule(ruleName);
     setPreviewClient(clients[0] || "clash_meta");
     setPreviewData(null);
     try {
-      const result = await previewRule(ruleName);
+      const result = await previewRule(ruleName, undefined, 10000);
+      if (previewRequestRef.current !== requestId) return;
       setPreviewData(result);
       // Ensure previewClient matches an actual key in the result.
       // The pre-set value (from rule.output.clients) may not appear in contents
@@ -184,6 +210,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         setPreviewClient(availableClients[0] as ClientType);
       }
     } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
       toast.error("预览失败: " + String(error));
       setPreviewingRule(null);
     }
@@ -311,7 +338,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
     setIsBatchSaving(true);
     try {
-      const { config: latestConfig } = await getConfig();
+      const { config: latestConfig, rev } = await getConfig();
       const selectedSet = new Set(selectedRuleNames);
       const updatedRules = latestConfig.rules.map((rule) => {
         if (!selectedSet.has(rule.name) || isGeositeRule(rule)) {
@@ -343,7 +370,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       await saveConfig({
         ...latestConfig,
         rules: updatedRules,
-      });
+      }, rev);
 
       let refreshFailed = 0;
       if (shouldUpdateClients) {
@@ -504,10 +531,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
             </span>
           </div>
           {Object.entries(previewData.contents).map(([client, content]) => (
-            <TabsContent key={client} value={client} className="flex-1 m-0 min-h-0 overflow-auto">
-              <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre">
-                {content || "暂无内容"}
-              </pre>
+            <TabsContent key={client} value={client} className="flex-1 m-0 min-h-0 overflow-hidden">
+              <CodeViewer
+                content={content}
+                emptyText="暂无内容"
+                showLineNumbers={false}
+                className="h-full rounded-none border-none"
+                height="100%"
+              />
             </TabsContent>
           ))}
         </Tabs>
@@ -824,6 +855,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 ) : (
                   <span className="text-[10px] text-muted-foreground/40 italic">无标签</span>
                 )}
+                <RuleStatusBadge status={ruleStatusMap[rule.name]} now={statusFetchedAt} />
               </div>
 
               {/* Client badges */}
@@ -973,11 +1005,13 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 </div>
                 {Object.entries(previewData.contents).map(([client, content]) => (
                   <TabsContent key={client} value={client} className="flex-1 m-0 relative min-h-0 overflow-hidden">
-                    <div className="h-full overflow-auto bg-surface-subtle/60">
-                      <pre className="p-4 text-sm font-mono text-foreground/80 whitespace-pre min-w-max">
-                        {content || "暂无内容"}
-                      </pre>
-                    </div>
+                    <CodeViewer
+                      content={content}
+                      emptyText="暂无内容"
+                      showLineNumbers={false}
+                      className="h-full rounded-none border-none"
+                      height="100%"
+                    />
                   </TabsContent>
                 ))}
               </Tabs>
@@ -991,8 +1025,37 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       </Dialog>
 
       {/* Rule Editor Dialog */}
-      <Dialog open={isEditorOpen} onOpenChange={setIsEditorOpen}>
-        <DialogContent className="max-w-4xl h-[90vh] p-0 flex flex-col bg-background border-border overflow-hidden gap-0">
+      <Dialog
+        open={isEditorOpen}
+        onOpenChange={(open) => {
+          if (open) {
+            setIsEditorOpen(true);
+            return;
+          }
+          if (isEditorSaving) {
+            return;
+          }
+          if (isEditorDirty) {
+            const ok = typeof window !== "undefined"
+              ? window.confirm("有未保存的修改，确定要放弃吗？")
+              : true;
+            if (!ok) return;
+          }
+          setIsEditorOpen(false);
+        }}
+      >
+        <DialogContent
+          className="max-w-4xl h-[90vh] p-0 flex flex-col bg-background border-border overflow-hidden gap-0"
+          onEscapeKeyDown={(e) => {
+            if (isEditorSaving) e.preventDefault();
+          }}
+          onPointerDownOutside={(e) => {
+            if (isEditorSaving) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (isEditorSaving) e.preventDefault();
+          }}
+        >
           <DialogHeader className="p-6 pb-2 border-b shrink-0 hidden"> {/* Hidden because custom header in Editor */}
             <DialogTitle className="text-foreground">
               {editingRule ? `编辑规则: ${editingRule.name}` : "添加新规则"}
@@ -1004,6 +1067,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           <RuleEditor
             rule={editingRule}
             config={config}
+            onSavingChange={setIsEditorSaving}
+            onDirtyChange={setIsEditorDirty}
             onSave={async () => {
               setIsEditorOpen(false);
               await fetchConfig();
@@ -1182,4 +1247,34 @@ function HelpIcon({ text }: { text: string }) {
       </TooltipContent>
     </Tooltip>
   );
+}
+
+const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+
+function RuleStatusBadge({
+  status,
+  now,
+}: {
+  status?: { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null };
+  now: number;
+}) {
+  if (!status) return null;
+  if (status.hasError) {
+    return (
+      <Badge variant="destructive" className="text-[10px]">
+        上次失败
+      </Badge>
+    );
+  }
+  if (status.lastUpdated) {
+    const ts = Date.parse(status.lastUpdated);
+    if (Number.isFinite(ts) && now - ts > STALE_THRESHOLD_MS) {
+      return (
+        <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
+          数据陈旧
+        </Badge>
+      );
+    }
+  }
+  return null;
 }
