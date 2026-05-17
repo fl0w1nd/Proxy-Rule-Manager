@@ -153,6 +153,16 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if !isAdmin {
+		// Public consumers must not see free-form failure text. Source URLs
+		// occasionally carry tokens or private hostnames that processor.go
+		// (line ~108) splices into the error message verbatim; redact the
+		// whole string and keep only the boolean + timestamp signal.
+		for i := range rulesStatus {
+			rulesStatus[i].LastFailureError = ""
+		}
+		for i := range geositeStatus {
+			geositeStatus[i].LastFailureError = ""
+		}
 		lastSync, _ := s.Store.GetLastSyncInfo(ctx)
 		var lastSyncAt *string
 		if lastSync.LastSuccessfulSyncAt != nil {
