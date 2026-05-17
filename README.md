@@ -177,54 +177,56 @@ backend/        # 后端（Go）
 ```bash
 pnpm install
 
-# 同时启动前端（Next.js dev）和后端（go run，热重载）
+# 同时启动前端（Next.js dev :3000）和后端（go run :3001）
 pnpm run dev
 
 # 或分别启动
-pnpm run dev:fe   # 前端（:3000）
-pnpm run dev:be   # 后端（:3001）
+pnpm run dev:fe   # 前端
+pnpm run dev:be   # 后端
 ```
 
 ### 构建与运行
 
 ```bash
-# 构建前端（输出到 ./out）
-pnpm run build
+# 构建前端（静态输出到 ./out）+ 后端二进制（./bin/proxy-rule-manager）
+make build
 
-# 构建 Go 后端二进制（输出到 ./bin/proxy-rule-manager）
-pnpm run build:server
-# 或
-make build-be
+# 或单独构建
+make build-fe    # 前端
+make build-be    # 后端
 
 # 启动生产服务
 ./bin/proxy-rule-manager
 ```
 
-### 测试
+### 检查与测试
 
 ```bash
-# Go 后端测试
-pnpm run test:backend
-# 或
-make test
+# 一键跑完所有 CI 检查（lint + typecheck + test）
+make check
 
-# 前端类型检查
-pnpm run typecheck
-
-# 代码检查
-pnpm run lint
+# 或单独运行
+make lint        # 前端 ESLint + 后端 gofmt / go vet / staticcheck
+make typecheck   # TypeScript 类型检查
+make test        # Go 测试（-race）
 ```
 
-### 便捷命令
+### Docker
 
 ```bash
-make help         # 查看所有 make 目标
-make dev          # 同 pnpm run dev
-make build        # 构建前端 + Go 后端
-make lint         # 前端 ESLint + 后端 gofmt/vet/staticcheck
-make typecheck    # TypeScript 类型检查
-make build-dev    # 构建本地 dev Docker 镜像
-make run-dev      # 构建并运行 dev 容器
-docker compose up -d    # 启动服务
-docker compose down     # 停止服务
+# 本地构建 + 运行（当前平台，数据挂载 ./data）
+make docker-run
+
+# docker compose 部署
+docker compose up -d    # 启动
+docker compose down     # 停止
+make logs               # 查看日志
+```
+
+### 其他
+
+```bash
+make help       # 查看所有 make 目标
+make version    # 显示版本号
+make clean      # 清理构建产物
 ```
