@@ -1,10 +1,13 @@
 package api
 
 import (
+	"bytes"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -167,9 +170,30 @@ func (s *Server) handleUploadIcons(w http.ResponseWriter, r *http.Request) {
 			errors = append(errors, uploadError{Name: fh.Filename, Error: err.Error()})
 			continue
 		}
+		// SVG is the only icon format that can carry executable content, so
+		// it gets a defense-in-depth content scan in addition to the
+		// CSP-sandbox header applied at serve time. The whole file is
+		// buffered in RAM here, which is fine for the icon use case
+		// (small files) and is already bounded by ParseMultipartForm.
+		var writeReader io.Reader = src
+		if ext == ".svg" {
+			buf, readErr := io.ReadAll(src)
+			src.Close()
+			if readErr != nil {
+				errors = append(errors, uploadError{Name: fh.Filename, Error: readErr.Error()})
+				continue
+			}
+			if reason := scanSVGForActiveContent(buf); reason != "" {
+				errors = append(errors, uploadError{Name: fh.Filename, Error: "SVG rejected: " + reason})
+				continue
+			}
+			writeReader = bytes.NewReader(buf)
+		}
 		dest := filepath.Join(dir, uniq)
-		writeErr := util.AtomicWriteStream(dest, src)
-		src.Close()
+		writeErr := util.AtomicWriteStream(dest, writeReader)
+		if ext != ".svg" {
+			src.Close()
+		}
 		if writeErr != nil {
 			errors = append(errors, uploadError{Name: fh.Filename, Error: writeErr.Error()})
 			continue
@@ -252,6 +276,37 @@ func (s *Server) handleRenameIcon(w http.ResponseWriter, r *http.Request) {
 		CreatedAt: fileBirthtime(newPath, stat).UTC().Format("2006-01-02T15:04:05.000Z"),
 	}
 	s.JSON(w, http.StatusOK, map[string]any{"success": true, "icon": icon})
+}
+
+// svgInlineHandlerRe matches HTML/SVG event handler attributes like
+// onclick=, onmouseover=, etc. We deliberately keep the pattern loose so
+// novel attributes the spec adds later are still caught.
+var svgInlineHandlerRe = regexp.MustCompile(`(?i)\bon[a-z]+\s*=`)
+
+// scanSVGForActiveContent returns a human-readable reason when the SVG
+// payload contains content that could execute in a browser context. The
+// authoritative defense is the CSP `sandbox` directive set by serveIconSet;
+// this check is a coarse blacklist meant only to keep obvious malware out
+// of the icon directory in the first place. We accept that determined
+// attackers can defeat any blacklist, hence the sandbox header.
+func scanSVGForActiveContent(payload []byte) string {
+	// Lowercase once so substring searches are case-insensitive without
+	// per-pattern overhead. SVG/XML is case-sensitive for element names,
+	// but browsers are forgiving and so are we.
+	lower := bytes.ToLower(payload)
+	switch {
+	case bytes.Contains(lower, []byte("<script")):
+		return "contains <script>"
+	case bytes.Contains(lower, []byte("javascript:")):
+		return "contains javascript: URL"
+	case bytes.Contains(lower, []byte("<foreignobject")):
+		// foreignObject lets SVGs embed HTML, which is a known XSS vector
+		// even when scripts are otherwise stripped.
+		return "contains <foreignObject>"
+	case svgInlineHandlerRe.Match(lower):
+		return "contains inline event handler (on*=)"
+	}
+	return ""
 }
 
 func (s *Server) handleDeleteIcon(w http.ResponseWriter, r *http.Request) {

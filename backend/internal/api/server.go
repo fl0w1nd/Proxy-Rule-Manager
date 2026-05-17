@@ -93,6 +93,7 @@ func New(cfg *config.Config, st *store.Store) *Server {
 func (s *Server) Router() http.Handler {
 	r := chi.NewRouter()
 	r.Use(panicRecoverer)
+	r.Use(securityHeadersMiddleware)
 	r.Use(s.corsMiddleware)
 
 	// API routes — admin auth applied per-route (public paths skip it).
@@ -200,13 +201,26 @@ func (s *Server) IP(r *http.Request) string {
 	return util.ClientIP(func(name string) string { return r.Header.Get(name) })
 }
 
+// MaxJSONBodyBytes caps the size of any JSON request body accepted by
+// DecodeJSON. 1 MiB is comfortably larger than the biggest payload the UI
+// produces today (config edits, batch rule updates) while keeping a hard
+// ceiling on the memory a single unauthenticated request can consume.
+const MaxJSONBodyBytes = 1 << 20
+
 // DecodeJSON reads a JSON body into target.
 // Unknown fields are silently dropped to match TS Zod .strip() behaviour.
+// The body is capped at MaxJSONBodyBytes — exceeding it surfaces as a
+// regular decode error which callers translate into 400 Bad Request.
 func (s *Server) DecodeJSON(r *http.Request, target any) error {
 	if r.Body == nil {
 		return fmt.Errorf("empty body")
 	}
 	defer r.Body.Close()
+	// http.MaxBytesReader allows passing a nil ResponseWriter; when the
+	// reader hits the limit it returns *http.MaxBytesError. The JSON
+	// decoder propagates that as a generic decode error which is fine for
+	// our existing 400 paths.
+	r.Body = http.MaxBytesReader(nil, r.Body, MaxJSONBodyBytes)
 	return json.NewDecoder(r.Body).Decode(target)
 }
 
@@ -377,12 +391,28 @@ func panicRecoverer(next http.Handler) http.Handler {
 					log.Printf("PANIC [%s %s]: %v", r.Method, r.URL.Path, rec)
 				}
 				// Write the structured error directly — response helpers may not be
-				// available if the panic occurred inside them.
+				// available if the panic occurred inside them. Mirror the nosniff
+				// header here so panic responses still get the protection that
+				// securityHeadersMiddleware would have applied.
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
+				w.Header().Set("X-Content-Type-Options", "nosniff")
 				w.WriteHeader(http.StatusInternalServerError)
 				_, _ = w.Write([]byte(`{"error":"Internal server error","code":"INTERNAL_ERROR"}`))
 			}
 		}()
+		next.ServeHTTP(w, r)
+	})
+}
+
+// securityHeadersMiddleware applies response headers that should be present
+// on every response. Currently this is limited to X-Content-Type-Options to
+// prevent MIME sniffing — most notably it stops browsers from rendering a
+// .txt or .list response as HTML when the body happens to look like markup.
+// Routes that need a stricter Content-Security-Policy (e.g. SVG icons)
+// layer it on top inside their own handler.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Content-Type-Options", "nosniff")
 		next.ServeHTTP(w, r)
 	})
 }

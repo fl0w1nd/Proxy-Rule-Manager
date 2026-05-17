@@ -128,9 +128,16 @@ func main() {
 
 	addr := fmt.Sprintf(":%d", cfg.Port)
 	httpSrv := &http.Server{
-		Addr:              addr,
-		Handler:           srv.Router(),
+		Addr:    addr,
+		Handler: srv.Router(),
+		// Bound how long the server is willing to wait at each phase so a
+		// slow-loris style client cannot tie up a connection indefinitely.
+		// WriteTimeout is intentionally left at 0 because long-running sync
+		// handlers can stream output for tens of seconds; cancellation is
+		// driven by the request context in those paths.
 		ReadHeaderTimeout: 30 * time.Second,
+		ReadTimeout:       60 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	rootCtx, cancel := context.WithCancel(context.Background())

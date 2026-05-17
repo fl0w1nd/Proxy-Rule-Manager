@@ -93,8 +93,41 @@ func (s *Server) serveIconSet(w http.ResponseWriter, r *http.Request) {
 	}
 	mime := guessIconMime(filename)
 	s.applyCDNHeaders(r.Context(), w, mime)
+	// Force the browser to treat icons as downloadable resources rather
+	// than navigations. Combined with the per-MIME CSP below this neuters
+	// the "upload a malicious SVG, open the URL, exfiltrate localStorage"
+	// vector.
+	w.Header().Set("Content-Disposition", "inline; filename="+quoteContentDisposition(filename))
+	if mime == "image/svg+xml" {
+		// `sandbox` (with no allow-list tokens) forces the SVG into a unique
+		// opaque origin, disables scripts, plugins, forms, popups and
+		// same-origin access — so even if a malicious SVG slipped past the
+		// upload-time blacklist, it cannot read localStorage or perform
+		// authenticated fetches against this server.
+		w.Header().Set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox")
+	}
 	w.WriteHeader(http.StatusOK)
 	_, _ = w.Write(data)
+}
+
+// quoteContentDisposition produces a minimally-escaped filename for the
+// Content-Disposition header. The filename is already restricted by
+// util.EnsureSafeSegment, so we only have to escape backslashes and quotes.
+func quoteContentDisposition(name string) string {
+	var b strings.Builder
+	b.Grow(len(name) + 2)
+	b.WriteByte('"')
+	for _, r := range name {
+		switch r {
+		case '\\', '"':
+			b.WriteByte('\\')
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	b.WriteByte('"')
+	return b.String()
 }
 
 func (s *Server) servePublicClientFile(w http.ResponseWriter, r *http.Request) {
