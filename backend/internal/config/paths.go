@@ -31,6 +31,12 @@ type Config struct {
 	// auto-attach cross-origin. Set this to lock the API down to a known
 	// origin (e.g. https://rules.example.com) and re-enable credentials.
 	AllowedOrigins []string
+
+	// MirrorOrigin means ALLOWED_ORIGINS was set to the special value
+	// "__self". The CORS middleware should echo the request's Origin
+	// header back and enable credentials, effectively allowing only
+	// same-origin browser access without hardcoding a domain.
+	MirrorOrigin bool
 }
 
 // Load reads environment variables and computes derived paths.
@@ -68,6 +74,7 @@ func Load() *Config {
 		// ResolveAdminToken to fill it in.
 		OutDir:         outDir,
 		AllowedOrigins: parseAllowedOrigins(os.Getenv("ALLOWED_ORIGINS")),
+		MirrorOrigin:   os.Getenv("ALLOWED_ORIGINS") == "__self",
 	}
 }
 
@@ -78,6 +85,10 @@ func Load() *Config {
 // permissive default should leave ALLOWED_ORIGINS unset.
 func parseAllowedOrigins(raw string) []string {
 	if raw == "" {
+		return nil
+	}
+	// "__self" is a sentinel handled by MirrorOrigin; not a real origin.
+	if raw == "__self" {
 		return nil
 	}
 	parts := strings.Split(raw, ",")

@@ -100,6 +100,7 @@ services:
       - PORT=3000
       # ADMIN_TOKEN 是可选的；不设时自动生成并持久化到 data/admin-token
       # - ADMIN_TOKEN=your-secure-token-here
+      - ALLOWED_ORIGINS=__self
 ```
 
 ### 环境变量
@@ -112,7 +113,7 @@ services:
 | `ADMIN_TOKEN` | 管理员令牌。不设时自动从 `<DATA_DIR>/admin-token` 读取或生成 32 字节随机令牌（详见下方说明） | 空 |
 | `ALLOW_EMPTY_ADMIN_TOKEN` | 设为 `1` 时允许无令牌运行（完全开放模式），启动日志将持续打印安全警告。**切勿在不可信网络下启用** | 空 |
 | `INITIAL_CONFIG_PATH` | 首次初始化使用的模板 JSON 文件路径 | 自动探测 `out/templates/` 与 `public/templates/` |
-| `ALLOWED_ORIGINS` | 受信任的浏览器跨源白名单（逗号分隔，如 `https://rules.example.com`）。**不设**时默认 `Access-Control-Allow-Origin: *` 且不开启 credentials；管理认证使用 Bearer token，浏览器不会跨源自动携带，所以默认是安全的。仅当你需要在另一个域名下的前端通过 `credentials: include` 调用本服务时再配置此项。 | 空 |
+| `ALLOWED_ORIGINS` | 浏览器跨源白名单（逗号分隔，如 `https://rules.example.com`）。特殊值 `__self` 表示回显请求 Origin + 启用 credentials，效果为仅允许访问者自身域名（推荐默认值）。**不设**时默认 `Access-Control-Allow-Origin: *` 且不开启 credentials；管理认证使用 Bearer token，浏览器不会跨源自动携带，所以默认是安全的。仅当你需要在另一个域名下的前端通过 `credentials: include` 调用本服务时才需要显式设置域名列表。 | `__self`（推荐） |
 
 ### 管理员令牌（Admin Token）
 

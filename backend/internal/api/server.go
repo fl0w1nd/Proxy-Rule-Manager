@@ -280,7 +280,7 @@ func (s *Server) applyAdminGuard(w http.ResponseWriter, r *http.Request) bool {
 	return true
 }
 
-// corsMiddleware sets CORS headers with two distinct modes:
+// corsMiddleware sets CORS headers with three distinct modes:
 //
 //  1. ALLOWED_ORIGINS unset (default) — permissive: respond with
 //     Access-Control-Allow-Origin: * and never enable credentials. This is
@@ -289,10 +289,17 @@ func (s *Server) applyAdminGuard(w http.ResponseWriter, r *http.Request) bool {
 //     cross-origin; an attacker page therefore cannot piggyback on a
 //     user's logged-in session.
 //
-//  2. ALLOWED_ORIGINS set — strict allow-list: only origins on the list
-//     get their Origin echoed back, and only those origins receive
-//     Access-Control-Allow-Credentials: true. Requests from other origins
-//     get no CORS headers at all, so the browser blocks them.
+//  2. ALLOWED_ORIGINS=__self — mirror: echo the request's Origin back
+//     and enable credentials. This effectively restricts browser access
+//     to same-origin only (the browser only sends its own Origin when
+//     making a cross-origin request, and we reflect it — same-origin
+//     requests don't need CORS at all). No domain hardcoding needed.
+//
+//  3. ALLOWED_ORIGINS set to explicit domains — strict allow-list: only
+//     origins on the list get their Origin echoed back, and only those
+//     origins receive Access-Control-Allow-Credentials: true. Requests
+//     from other origins get no CORS headers at all, so the browser
+//     blocks them.
 //
 // Note: cdn_headers.go must not overwrite Access-Control-Allow-Origin.
 func (s *Server) corsMiddleware(next http.Handler) http.Handler {
@@ -301,10 +308,16 @@ func (s *Server) corsMiddleware(next http.Handler) http.Handler {
 		allowed := s.Config.AllowedOrigins
 
 		switch {
-		case len(allowed) == 0:
+		case len(allowed) == 0 && !s.Config.MirrorOrigin:
 			// Permissive default. `*` is incompatible with credentials
 			// per the Fetch spec, which is exactly the safety we want.
 			w.Header().Set("Access-Control-Allow-Origin", "*")
+		case s.Config.MirrorOrigin && origin != "":
+			// __self mode: echo the requesting Origin back so only
+			// the caller's own domain is allowed, with credentials.
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		case origin != "" && originAllowed(origin, allowed):
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Vary", "Origin")
