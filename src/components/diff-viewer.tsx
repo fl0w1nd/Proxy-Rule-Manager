@@ -1,6 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import { PatchDiff } from "@pierre/diffs/react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -14,44 +15,25 @@ interface DiffViewerProps {
   defaultDiffStyle?: DiffStyle;
 }
 
-const LARGE_DIFF_LINE_THRESHOLD = 1200;
+const LARGE_DIFF_LINE_THRESHOLD = 1_200;
 const LARGE_DIFF_CHAR_THRESHOLD = 80_000;
-const INITIAL_VISIBLE_LINES = 240;
-const LOAD_MORE_LINES = 240;
+const DIFF_LINE_HEIGHT = 22;
+const DIFF_OVERSCAN = 24;
 
-interface ParsedDiffLine {
-  key: string;
-  kind: "add" | "remove" | "meta" | "context";
-  content: string;
+type DiffKind = "add" | "remove" | "meta" | "context";
+
+function classifyLine(line: string): DiffKind {
+  if (!line) return "context";
+  const c = line.charCodeAt(0);
+  if (c === 43 /* + */) return "add";
+  if (c === 45 /* - */) return "remove";
+  if (c === 64 /* @ */ && line.startsWith("@@")) return "meta";
+  if (c === 92 /* \ */) return "meta";
+  if (line.startsWith("diff ") || line.startsWith("index ")) return "meta";
+  return "context";
 }
 
-function parseDiffLines(content: string): ParsedDiffLine[] {
-  return content.split("\n").map((line, index) => {
-    let kind: ParsedDiffLine["kind"] = "context";
-    if (line.startsWith("+")) {
-      kind = "add";
-    } else if (line.startsWith("-")) {
-      kind = "remove";
-    } else if (
-      line.startsWith("@@") ||
-      line.startsWith("diff ") ||
-      line.startsWith("index ") ||
-      line.startsWith("---") ||
-      line.startsWith("+++") ||
-      line.startsWith("\\")
-    ) {
-      kind = "meta";
-    }
-
-    return {
-      key: `${index}-${line}`,
-      kind,
-      content: line,
-    };
-  });
-}
-
-function getDiffLineClassName(kind: ParsedDiffLine["kind"]): string {
+function getDiffLineClassName(kind: DiffKind): string {
   switch (kind) {
     case "add":
       return "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
@@ -65,38 +47,58 @@ function getDiffLineClassName(kind: ParsedDiffLine["kind"]): string {
 }
 
 function LargeDiffViewer({ content }: { content: string }) {
-  const parsedLines = useMemo(() => parseDiffLines(content), [content]);
-  const [visibleLineCount, setVisibleLineCount] = useState(() =>
-    Math.min(INITIAL_VISIBLE_LINES, parsedLines.length)
-  );
+  const lines = useMemo(() => content.split("\n"), [content]);
+  const parentRef = useRef<HTMLDivElement | null>(null);
 
-  const visibleLines = parsedLines.slice(0, visibleLineCount);
-  const remainingLineCount = Math.max(parsedLines.length - visibleLineCount, 0);
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is intentionally not memoized; we own scroll state locally.
+  const virtualizer = useVirtualizer({
+    count: lines.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => DIFF_LINE_HEIGHT,
+    overscan: DIFF_OVERSCAN,
+  });
 
   return (
     <div className="flex h-full flex-col">
-      <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-subtle px-3 py-2 text-xs text-muted-foreground">
+      <div className="flex items-center justify-between gap-3 border-b border-border bg-surface-subtle px-3 py-2 text-xs text-muted-foreground shrink-0">
         <span>
-          Large diff detected. Loaded {visibleLineCount.toLocaleString()} / {parsedLines.length.toLocaleString()} lines.
+          Large diff detected. Showing {lines.length.toLocaleString()} lines via virtual scrolling.
         </span>
-        {remainingLineCount > 0 && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setVisibleLineCount((current) => Math.min(current + LOAD_MORE_LINES, parsedLines.length))}
-          >
-            Load More ({Math.min(LOAD_MORE_LINES, remainingLineCount)} lines)
-          </Button>
-        )}
       </div>
-      <div className="overflow-auto">
-        <pre className="min-w-full p-0 font-mono text-sm leading-6">
-          {visibleLines.map((line) => (
-            <div key={line.key} className={cn("px-4", getDiffLineClassName(line.kind))}>
-              {line.content || " "}
-            </div>
-          ))}
-        </pre>
+      <div
+        ref={parentRef}
+        className="flex-1 overflow-auto"
+        style={{ contain: "strict" }}
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize()}px`,
+            width: "100%",
+            position: "relative",
+          }}
+          className="font-mono text-sm leading-6"
+        >
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const line = lines[virtualRow.index];
+            const kind = classifyLine(line);
+            return (
+              <div
+                key={virtualRow.key}
+                className={cn(
+                  "absolute left-0 right-0 whitespace-pre px-4",
+                  getDiffLineClassName(kind),
+                )}
+                style={{
+                  top: 0,
+                  transform: `translateY(${virtualRow.start}px)`,
+                  height: `${DIFF_LINE_HEIGHT}px`,
+                }}
+              >
+                {line || " "}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

@@ -909,7 +909,9 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     });
 
     try {
-      const result = await previewGeosite(provider, listName, clientId, [], 10000);
+      // Ask for the backend hard cap (500k lines); virtualised renderer
+       // handles arbitrarily large content, so there's no reason to truncate.
+      const result = await previewGeosite(provider, listName, clientId, [], 500000);
       if (previewRequestRef.current !== requestId) return;
       setPreviewState({
         title: `${provider}/${listName}`,
@@ -1462,16 +1464,13 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
               ) : null}
             </DialogTitle>
           </DialogHeader>
-          <div className="rounded-2xl border border-border/70 bg-surface-subtle">
-            <div className="h-[70vh] p-4">
-              <CodeViewer
-                content={previewState?.content || ""}
-                loading={isPreviewLoading}
-                showLineNumbers={false}
-                className="h-full rounded-xl"
-                height="100%"
-              />
-            </div>
+          <div className="h-[70vh]">
+            <CodeViewer
+              content={previewState?.content || ""}
+              loading={isPreviewLoading}
+              className="h-full"
+              height="100%"
+            />
           </div>
         </DialogContent>
       </Dialog>

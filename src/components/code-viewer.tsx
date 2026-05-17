@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { Copy, Loader2, AlertTriangle } from "lucide-react";
-import { toast } from "sonner";
+import { useMemo, useRef } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LazyMonacoEditor } from "./lazy-monaco";
 import { useTheme } from "./theme-provider";
-import { Button } from "./ui/button";
 
 interface CodeViewerProps {
   content?: string | null;
@@ -18,17 +17,19 @@ interface CodeViewerProps {
   height?: string;
   /**
    * Hard cap before falling back from Monaco to a virtualized plain renderer.
-   * Defaults are tuned for typical mihomo rule files; oversized previews
-   * (think geosite category-ads-all) would otherwise block the main thread
-   * for several seconds while Monaco constructs its model.
+   * Tuned conservatively: Monaco mounting + tokenization of a few thousand
+   * plaintext lines is enough to block the main thread for multiple seconds,
+   * especially when the dialog also has to do layout work. Anything above
+   * the threshold goes through the lightweight virtualized renderer.
    */
   largeLineThreshold?: number;
   largeByteThreshold?: number;
 }
 
-const DEFAULT_LARGE_LINE_THRESHOLD = 10_000;
-const DEFAULT_LARGE_BYTE_THRESHOLD = 1_000_000;
-const FALLBACK_VISIBLE_LINES = 5_000;
+const DEFAULT_LARGE_LINE_THRESHOLD = 1_500;
+const DEFAULT_LARGE_BYTE_THRESHOLD = 150_000;
+const VIRTUAL_LINE_HEIGHT = 20;
+const VIRTUAL_OVERSCAN = 16;
 
 function countLines(text: string): number {
   if (!text) return 0;
@@ -38,21 +39,6 @@ function countLines(text: string): number {
   }
   if (text.charCodeAt(text.length - 1) === 10) n--;
   return n;
-}
-
-function computeVisibleText(text: string, lineCount: number, expanded: boolean): string {
-  if (expanded) return text;
-  if (lineCount <= FALLBACK_VISIBLE_LINES) return text;
-  let count = 0;
-  for (let i = 0; i < text.length; i++) {
-    if (text.charCodeAt(i) === 10) {
-      count++;
-      if (count === FALLBACK_VISIBLE_LINES) {
-        return text.slice(0, i);
-      }
-    }
-  }
-  return text;
 }
 
 export function CodeViewer({
@@ -108,12 +94,11 @@ export function CodeViewer({
 
   if (isLarge) {
     return (
-      <LargeContentFallback
+      <VirtualizedContentFallback
         text={text}
-        lineCount={lineCount}
-        byteSize={byteSize}
         className={className}
         height={resolvedHeight}
+        showLineNumbers={showLineNumbers}
       />
     );
   }
@@ -157,81 +142,108 @@ export function CodeViewer({
           occurrencesHighlight: "off",
           folding: false,
           contextmenu: false,
+          // Disable the expensive bracket pair colorization pass; plain text
+          // does not benefit from it and it would otherwise touch every line.
+          bracketPairColorization: { enabled: false },
         }}
       />
     </div>
   );
 }
 
-interface LargeContentFallbackProps {
+interface VirtualizedContentFallbackProps {
   text: string;
-  lineCount: number;
-  byteSize: number;
   className?: string;
   height: string;
+  showLineNumbers: boolean;
 }
 
-function LargeContentFallback({
+function VirtualizedContentFallback({
   text,
-  lineCount,
-  byteSize,
   className,
   height,
-}: LargeContentFallbackProps) {
-  const [expanded, setExpanded] = useState(false);
+  showLineNumbers,
+}: VirtualizedContentFallbackProps) {
+  const parentRef = useRef<HTMLDivElement | null>(null);
 
-  const visibleText = computeVisibleText(text, lineCount, expanded);
+  // Splitting once and memoising avoids re-splitting on every scroll tick.
+  const lines = useMemo(() => text.split("\n"), [text]);
 
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(text);
-      toast.success("已复制全部内容");
-    } catch {
-      toast.error("复制失败，请使用浏览器右键");
-    }
-  };
+  // eslint-disable-next-line react-hooks/incompatible-library -- TanStack Virtual is intentionally not memoized; we own scroll state locally.
+  const virtualizer = useVirtualizer({
+    count: lines.length,
+    getScrollElement: () => parentRef.current,
+    estimateSize: () => VIRTUAL_LINE_HEIGHT,
+    overscan: VIRTUAL_OVERSCAN,
+  });
 
-  const sizeKb = (byteSize / 1024).toFixed(1);
+  // Reserve a left gutter that visually matches Monaco's lineNumbersMinChars
+  // (~4 chars × ~8px) so content does not slam into the rounded corner.
+  const gutterWidth = showLineNumbers
+    ? Math.max(String(lines.length).length, 2) * 8 + 16
+    : 16;
+  // Pad top/bottom so the first and last lines don't touch the border /
+  // rounded corner, matching Monaco's `padding: { top: 12, bottom: 12 }`.
+  const verticalPadding = 12;
 
+  // Match the Monaco branch wrapper exactly so callers passing
+  // `rounded-none border-none` get the same flat full-fill layout regardless
+  // of which renderer is active.
   return (
     <div
       className={cn(
-        "flex flex-col overflow-hidden rounded-xl border border-warning/30 bg-surface-elevated shadow-[var(--shadow-sm)]",
+        "overflow-hidden rounded-xl border border-border/50 bg-surface-elevated shadow-[var(--shadow-sm)]",
         className,
       )}
       style={{ height }}
     >
-      <div className="flex items-center gap-2 border-b border-warning/30 bg-warning-soft/60 px-4 py-2 text-xs text-warning shrink-0">
-        <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
-        <span className="flex-1 leading-relaxed">
-          内容过大（{lineCount.toLocaleString()} 行 / {sizeKb} KB），已切换到精简渲染。
-          {!expanded && lineCount > FALLBACK_VISIBLE_LINES && (
-            <> 仅显示前 {FALLBACK_VISIBLE_LINES.toLocaleString()} 行。</>
-          )}
-        </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          className="h-7 px-2 text-xs"
-          onClick={handleCopy}
+      <div
+        ref={parentRef}
+        className="h-full overflow-auto font-mono text-[13px] leading-5"
+        style={{ contain: "strict" }}
+      >
+        <div
+          style={{
+            height: `${virtualizer.getTotalSize() + verticalPadding * 2}px`,
+            width: "100%",
+            position: "relative",
+          }}
         >
-          <Copy className="w-3 h-3 mr-1" />
-          复制全部
-        </Button>
-        {!expanded && lineCount > FALLBACK_VISIBLE_LINES && (
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-7 px-2 text-xs"
-            onClick={() => setExpanded(true)}
-          >
-            渲染全部
-          </Button>
-        )}
+          {virtualizer.getVirtualItems().map((virtualRow) => {
+            const line = lines[virtualRow.index];
+            return (
+              <div
+                key={virtualRow.key}
+                data-index={virtualRow.index}
+                ref={virtualizer.measureElement}
+                className="absolute left-0 right-0 flex items-start whitespace-pre"
+                style={{
+                  top: 0,
+                  transform: `translateY(${virtualRow.start + verticalPadding}px)`,
+                }}
+              >
+                {showLineNumbers ? (
+                  <span
+                    className="sticky left-0 inline-block select-none text-right text-muted-foreground/70 pr-3 pl-2"
+                    style={{ width: gutterWidth, minWidth: gutterWidth }}
+                  >
+                    {virtualRow.index + 1}
+                  </span>
+                ) : (
+                  <span
+                    aria-hidden
+                    className="inline-block shrink-0"
+                    style={{ width: gutterWidth, minWidth: gutterWidth }}
+                  />
+                )}
+                <span className="flex-1 pr-4 text-foreground/85">
+                  {line || " "}
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </div>
-      <pre className="flex-1 overflow-auto px-4 py-3 text-xs font-mono leading-5 text-foreground/85 whitespace-pre">
-        {visibleText}
-      </pre>
     </div>
   );
 }

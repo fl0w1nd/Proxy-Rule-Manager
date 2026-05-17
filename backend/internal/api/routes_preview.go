@@ -34,8 +34,8 @@ type previewRequest struct {
 // "use the default cap" so we never accidentally serve a multi-megabyte
 // preview that locks up the browser.
 const (
-	previewDefaultLimitLines = 10000
-	previewMaxLimitLines     = 50000
+	previewDefaultLimitLines = 50000
+	previewMaxLimitLines     = 500000
 )
 
 func resolvePreviewLimit(requested int) int {
