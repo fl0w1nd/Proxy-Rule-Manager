@@ -1,17 +1,26 @@
 [changelog]
-header = """
-"""
+header = ""
 body = """
+{% if version -%}
+## What's Changed in {{ version }}
+{% if previous and previous.version -%}
+_Compare: [`{{ previous.version }}...{{ version }}`](https://github.com/fl0w1nd/Proxy-Rule-Manager/compare/{{ previous.version }}...{{ version }})_
+{% endif %}
+{% endif -%}
 {% for group, commits in commits | group_by(attribute="group") %}
-## {{ group }}
-{% for commit in commits %}
-- {{ commit.message | trim }} ({{ commit.id | truncate(length=7, end="") }})
+### {{ group | split(pat="-->") | last | trim }}
+{% for commit in commits -%}
+- {{ commit.message | split(pat="\n") | first | trim }} ([`{{ commit.id | truncate(length=7, end="") }}`](https://github.com/fl0w1nd/Proxy-Rule-Manager/commit/{{ commit.id }}){% if commit.remote.pr_number %} · [#{{ commit.remote.pr_number }}](https://github.com/fl0w1nd/Proxy-Rule-Manager/pull/{{ commit.remote.pr_number }}){% endif %}){% if commit.remote.username %} by [@{{ commit.remote.username }}](https://github.com/{{ commit.remote.username }}){% endif %}
 {% endfor %}
-
 {% endfor %}
+{%- if github.contributors | filter(attribute="is_first_time", value=true) | length > 0 %}
+### 🎉 New Contributors
+{% for contributor in github.contributors | filter(attribute="is_first_time", value=true) -%}
+- [@{{ contributor.username }}](https://github.com/{{ contributor.username }}) made their first contribution{% if contributor.pr_number %} in [#{{ contributor.pr_number }}](https://github.com/fl0w1nd/Proxy-Rule-Manager/pull/{{ contributor.pr_number }}){% endif %}
+{% endfor %}
+{% endif %}
 """
-footer = """
-"""
+footer = ""
 trim = true
 
 [git]
@@ -19,14 +28,29 @@ conventional_commits = false
 filter_unconventional = false
 split_commits = false
 topo_order = false
-sort_commits = "oldest"
+sort_commits = "newest"
 commit_preprocessors = [
+  # Keep only the subject line for the bullet text
   { pattern = '(?s)\n.*$', replace = '' },
 ]
+# Group prefixes like "<!-- 00 -->" enforce a stable section order and are
+# stripped out in the template via `split(pat="-->") | last | trim`.
 commit_parsers = [
   { message = '.*bump version to .*', skip = true },
   { message = '^Merge .*', skip = true },
-  { message = '^[^[:alnum:]]*feat(?:\([^)]+\))?: .*$', group = 'feature' },
-  { message = '^[^[:alnum:]]*fix(?:\([^)]+\))?: .*$', group = 'fix' },
-  { message = '.*', group = 'misc' },
+  { message = '^[^[:alnum:]]*feat(?:\([^)]+\))?!?: .*$',     group = "<!-- 00 -->🚀 Features" },
+  { message = '^[^[:alnum:]]*fix(?:\([^)]+\))?!?: .*$',      group = "<!-- 01 -->🐛 Bug Fixes" },
+  { message = '^[^[:alnum:]]*perf(?:\([^)]+\))?!?: .*$',     group = "<!-- 02 -->⚡ Performance" },
+  { message = '^[^[:alnum:]]*refactor(?:\([^)]+\))?!?: .*$', group = "<!-- 03 -->♻️ Refactor" },
+  { message = '^[^[:alnum:]]*docs?(?:\([^)]+\))?!?: .*$',    group = "<!-- 04 -->📚 Documentation" },
+  { message = '^[^[:alnum:]]*test(?:\([^)]+\))?!?: .*$',     group = "<!-- 05 -->✅ Tests" },
+  { message = '^[^[:alnum:]]*build(?:\([^)]+\))?!?: .*$',    group = "<!-- 06 -->📦 Build" },
+  { message = '^[^[:alnum:]]*ci(?:\([^)]+\))?!?: .*$',       group = "<!-- 07 -->🤖 CI" },
+  { message = '^[^[:alnum:]]*chore(?:\([^)]+\))?!?: .*$',    group = "<!-- 08 -->🧹 Chore" },
+  { message = '^[^[:alnum:]]*style(?:\([^)]+\))?!?: .*$',    group = "<!-- 09 -->💄 Style" },
+  { message = '.*',                                          group = "<!-- 99 -->🔧 Other Changes" },
 ]
+
+[remote.github]
+owner = "fl0w1nd"
+repo = "Proxy-Rule-Manager"

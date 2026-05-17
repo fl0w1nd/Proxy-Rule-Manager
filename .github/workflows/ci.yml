@@ -246,14 +246,34 @@ jobs:
           provenance: false
           sbom: false
 
+      # Drop the local tag (if fetched via tag-push) so git-cliff treats HEAD
+      # as unreleased and groups commits under the upcoming TAG uniformly for
+      # both tag-push and workflow_dispatch events.
+      - name: Prepare git-cliff range
+        env:
+          TAG: ${{ steps.meta.outputs.tag }}
+        run: git tag -d "$TAG" 2>/dev/null || true
+
+      - name: Generate release notes
+        id: notes
+        uses: orhun/git-cliff-action@v4
+        with:
+          config: .git-cliff.toml
+          args: --tag ${{ steps.meta.outputs.tag }} --unreleased --strip header
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       # Note: for workflow_dispatch the tag is created by the Releases API
       # below (via target_commitish), not by `git push`. This avoids triggering
-      # a second CI run from a tag push event.
+      # a second CI run from a tag push event. Releases are published as
+      # drafts so you can review/polish the auto-generated notes before going
+      # live; flip the toggle in the GitHub UI to publish.
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.meta.outputs.tag }}
           target_commitish: ${{ steps.meta.outputs.target_sha }}
           name: ${{ steps.meta.outputs.tag }}
-          generate_release_notes: true
+          body: ${{ steps.notes.outputs.content }}
+          draft: true
           prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
