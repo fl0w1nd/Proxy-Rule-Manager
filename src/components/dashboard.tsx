@@ -67,11 +67,15 @@ import {
   getFailingSources,
   getDiskUsage,
   getWafStats,
+  getSyncProgress,
+  cancelSync,
   type FailingSource,
   type DiskUsageResponse,
   type DiskUsageBucket,
   type WafStats,
+  type SyncProgress,
 } from "@/lib/api-client";
+import { SyncProgressPill } from "./sync-progress-pill";
 import { RulesManager } from "./rules";
 import { ConfigEditor } from "./config";
 import { TransformersManager } from "./transformers";
@@ -442,7 +446,16 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [status, setStatus] = useState<StatusResponse | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSyncing, setIsSyncing] = useState(false);
+  // syncProgress is kept fresh by polling; when running=true the top-right
+  // action switches to SyncProgressPill.
+  // syncKickoff stays true briefly after POST /sync/full until polling sees
+  // running=true, which prevents duplicate clicks.
+  const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
+  const [syncKickoff, setSyncKickoff] = useState(false);
+  const [isCancellingSync, setIsCancellingSync] = useState(false);
+  // lastShownJobIdRef deduplicates completion snapshots that have already
+  // triggered a toast.
+  const lastShownJobIdRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [needsInit, setNeedsInit] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -561,27 +574,112 @@ export function Dashboard({ onBack }: DashboardProps) {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Full sync runs asynchronously: the trigger returns an ack immediately and
+  // the effect below pulls real progress. Only kickoff failures (409 or
+  // network errors) surface in the catch block.
   const handleFullSync = async () => {
-    setIsSyncing(true);
+    if (syncKickoff || syncProgress?.running) return;
+    setSyncKickoff(true);
     try {
-      const result = await executeFullSync();
-      if (result.success) {
-        if (result.changedRules.length > 0) {
-          toast.success(`同步成功！${result.changedRules.length} 条规则已更新`);
-        } else {
-          toast.success("同步成功！本次无规则变更");
-        }
-        setNeedsFirstSync(false);
-      } else {
-        toast.warning(`同步完成，但有 ${result.failedRules.length} 条规则失败`);
+      await executeFullSync();
+      // Probe progress immediately so the button does not feel idle for 1.5s.
+      try {
+        const progress = await getSyncProgress();
+        setSyncProgress(progress);
+      } catch {
+        // Silent fallback: the next poll will pick it up.
       }
-      await fetchStatus();
     } catch (error) {
-      toast.error("同步失败: " + String(error));
+      const msg = String(error);
+      if (msg.includes("SYNC_ALREADY_RUNNING") || msg.includes("409")) {
+        toast.info("已有同步正在进行，可在右上角查看进度");
+        try {
+          setSyncProgress(await getSyncProgress());
+        } catch {
+          // Silent fallback here as well.
+        }
+      } else {
+        toast.error("同步触发失败: " + msg);
+      }
     } finally {
-      setIsSyncing(false);
+      setSyncKickoff(false);
     }
   };
+
+  // Sync cancel only requests server-side cancellation; polling owns the
+  // actual state transition.
+  const handleCancelSync = async () => {
+    if (isCancellingSync) return;
+    setIsCancellingSync(true);
+    try {
+      await cancelSync();
+      toast.message("已请求取消同步，正在等待引擎收尾");
+    } catch (error) {
+      const msg = String(error);
+      if (msg.includes("404")) {
+        // The sync has already finished; the next poll will sync state.
+        setSyncProgress((prev) => (prev ? { ...prev, running: false } : prev));
+      } else {
+        toast.error("取消失败: " + msg);
+      }
+    } finally {
+      setIsCancellingSync(false);
+    }
+  };
+
+  // Polling behavior:
+  //   - Default to 5s polls to cover syncs started from another window or a schedule
+  //   - Switch to 1.5s polls while running=true for near-real-time feedback
+  //   - When the sync finishes, use the last snapshot for a toast and refresh
+  //     the overview status
+  useEffect(() => {
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const progress = await getSyncProgress();
+        if (cancelled) return;
+        setSyncProgress(() => {
+          // Detect the latest completion snapshot; the first poll can hit too.
+          const snap = progress.last;
+          if (!progress.running && snap && snap.jobId !== lastShownJobIdRef.current) {
+            lastShownJobIdRef.current = snap.jobId;
+            queueMicrotask(() => {
+              if (snap.cancelled) {
+                toast.warning("同步已取消");
+              } else if (snap.success) {
+                if (snap.changedCount > 0) {
+                  toast.success(`同步成功！${snap.changedCount} 条规则已更新`);
+                } else {
+                  toast.success("同步成功！本次无规则变更");
+                }
+                setNeedsFirstSync(false);
+              } else if (snap.error) {
+                toast.error("同步失败: " + snap.error);
+              } else {
+                toast.warning(`同步完成，但有 ${snap.failedCount} 条规则失败`);
+              }
+              fetchStatus();
+            });
+          }
+          return progress;
+        });
+      } catch {
+        // Network hiccups and unauthenticated responses land here. Keep the
+        // previous state and try again on the next poll.
+      }
+    };
+    tick();
+    const intervalMs = syncProgress?.running ? 1500 : 5000;
+    const id = window.setInterval(tick, intervalMs);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [syncProgress?.running]);
+
+  // Derived state for the top-right control. kickoff counts as syncing so
+  // the button enters loading state immediately and resists duplicate clicks.
+  const isSyncing = syncKickoff || (syncProgress?.running ?? false);
 
   const fetchActivity = useCallback(async () => {
     // Only fetch for relevant tabs
@@ -592,7 +690,7 @@ export function Dashboard({ onBack }: DashboardProps) {
       setActivityDates(dates.dates);
 
       if (activeTab === "overview") {
-        // Overview 获取最近 7 天的记录，最多显示 8 条
+        // Overview pulls the last 7 days of records and shows at most 8 rows.
         const [changes, failures] = await Promise.all([
           getChangeRecords(undefined, 1, 8, undefined, 7),
           getFailureRecords(undefined, 1, 8, undefined, 7),
@@ -676,11 +774,11 @@ export function Dashboard({ onBack }: DashboardProps) {
   const changeTotalPages = Math.max(1, Math.ceil((changeData?.total || 0) / (changeData?.pageSize || activityPageSize)));
   const failureTotalPages = Math.max(1, Math.ceil((failureData?.total || 0) / (failureData?.pageSize || activityPageSize)));
 
-  // 同步健康状态：综合最近成功时间 + 失败计数判断。
-  // - never:     从未成功过
-  // - partial:   最近一次同步有失败规则
-  // - stale:     最后成功同步超过 48 小时
-  // - healthy:   两者皆否
+  // Sync health combines the latest successful sync time and the failure count.
+  // - never: no successful sync yet
+  // - partial: the latest sync had failed rules
+  // - stale: the last successful sync is older than 48 hours
+  // - healthy: neither condition applies
   const syncHealthStatus: "healthy" | "partial" | "stale" | "never" | "unknown" =
     !status?.lastSync
       ? "unknown"
@@ -739,14 +837,22 @@ export function Dashboard({ onBack }: DashboardProps) {
             </h2>
           </div>
           <div className="flex items-center gap-3">
-            <Button
-              variant="default"
-              onClick={handleFullSync}
-              disabled={isSyncing}
-            >
-              {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
-              同步规则
-            </Button>
+            {syncProgress?.running ? (
+              <SyncProgressPill
+                progress={syncProgress}
+                onCancel={handleCancelSync}
+                isCancelling={isCancellingSync}
+              />
+            ) : (
+              <Button
+                variant="default"
+                onClick={handleFullSync}
+                disabled={isSyncing}
+              >
+                {isSyncing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                同步规则
+              </Button>
+            )}
           </div>
         </header>
 

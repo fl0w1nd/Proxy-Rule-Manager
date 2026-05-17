@@ -103,14 +103,28 @@ type Result struct {
 	JobID        string                 `json:"jobId"`
 }
 
-// ExecuteFullSync re-syncs every rule.
+// ExecuteFullSync re-syncs every rule. Equivalent to
+// ExecuteFullSyncReport(ctx, NopReporter{}); kept as the no-reporter entry
+// point so existing callers (tests, partial-sync internals) don't need to
+// know about the Reporter interface.
 func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
-	// Track wall-clock duration so the dashboard can show "上次耗时 3.4s".
-	// We start before the lock attempt — the dashboard cares about the user-
-	// observable latency, including the case where another sync was already
-	// holding the lock and we waited.
+	return e.ExecuteFullSyncReport(ctx, NopReporter{})
+}
+
+// ExecuteFullSyncReport runs a full sync and pipes coarse-grained
+// progress events through reporter. Pass NopReporter{} when no observer
+// is needed. The reporter is invoked synchronously from the engine
+// goroutine; it MUST be cheap and non-blocking.
+func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (Result, error) {
+	if reporter == nil {
+		reporter = NopReporter{}
+	}
+	// Track wall-clock duration so the dashboard can show the last sync duration.
+	// We start before the lock attempt because the dashboard should reflect
+	// user-visible latency, including time spent waiting on a lock holder.
 	start := time.Now()
 
+	reporter.SetPhase("acquire_lock", "")
 	acquired, reason, err := e.Store.AcquireGlobalSyncLock(ctx)
 	if err != nil {
 		log.Printf("[sync] full sync: acquire lock failed: %v", err)
@@ -118,6 +132,7 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 	}
 	if !acquired {
 		log.Printf("[sync] full sync: skipped (%s)", reason)
+		reporter.Log("skipped: " + reason)
 		return Result{
 			Success:     false,
 			FailedRules: []schema.JobFailedRule{{Name: "sync", Error: reason}},
@@ -134,6 +149,7 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 		logFinalizeErr("release lock", "", e.Store.ReleaseGlobalSyncLock(rctx))
 	}()
 
+	reporter.SetPhase("loading_config", "")
 	cfg, err := e.Store.GetConfig(ctx)
 	if err != nil {
 		log.Printf("[sync] full sync: load config failed: %v", err)
@@ -150,6 +166,8 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 		log.Printf("[sync] full sync: create job failed: %v", err)
 		return Result{}, err
 	}
+	reporter.SetJobID(job.JobID)
+	reporter.Log(fmt.Sprintf("started (rules=%d clients=%d)", len(cfg.Rules), len(clients)))
 	log.Printf("[sync] full sync started (job=%s rules=%d clients=%d)", job.JobID, len(cfg.Rules), len(clients))
 
 	var (
@@ -162,6 +180,8 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 	)
 
 	if providers := collectGeositeProviders(cfg.Rules); len(providers) > 0 {
+		reporter.SetPhase("refreshing_geosite", fmt.Sprintf("%d providers", len(providers)))
+		reporter.Log(fmt.Sprintf("refreshing %d geosite providers", len(providers)))
 		failedProviders := refreshGeositeProviders(ctx, e.Geosite, providers)
 		if len(failedProviders) > 0 {
 			nowISO := util.NowISO()
@@ -226,12 +246,31 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 		}, nil
 	}
 
+	reporter.SetTotal(len(sorted))
+	reporter.SetPhase("processing", "")
 	cache := NewRuleContentsCache()
 	missingByProvider := map[string]map[string]struct{}{}
 	var pendingAttempts []store.ArtifactAttempt
 	for i := range sorted {
+		// Honour cancellation before each rule so a cancel issued by the
+		// HTTP layer takes effect within at most one rule's runtime
+		// (fetcher/transformer also respect ctx so an in-flight rule
+		// aborts even faster). We emit a synthetic failure for "sync"
+		// to make the cancel visible in the activity log.
+		if err := ctx.Err(); err != nil {
+			if obs, ok := reporter.(interface{ MarkCancelObserved() }); ok {
+				obs.MarkCancelObserved()
+			}
+			reporter.Log("cancelled by client; stopping rule loop")
+			failedRules = append(failedRules, schema.JobFailedRule{
+				Name:  "sync",
+				Error: "cancelled: " + err.Error(),
+			})
+			break
+		}
 		rule := &sorted[i]
 		trackActivity := !schema.IsGeositeRule(rule)
+		reporter.StartRule(rule.Name, i)
 		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cache, clients)
 		for _, m := range res.MissingGeositeLists {
 			if m.Provider == "" || m.List == "" {
@@ -249,12 +288,15 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 			failedRules = append(failedRules, schema.JobFailedRule{Name: rule.Name, Error: joinErrors(res.Errors)})
 			pendingAttempts = append(pendingAttempts,
 				attemptsForFailedRule(rule, res.Errors)...)
+			reporter.FinishRule(rule.Name, false)
 			continue
 		}
 		cache.Set(rule.Name, res.Contents, res.ClientOrder)
+		ruleOk := true
 		for client, content := range res.Contents {
 			art, err := e.flushArtifact(ctx, rule, client, content, trackActivity)
 			if err != nil {
+				ruleOk = false
 				if trackActivity {
 					failureRecords = append(failureRecords, schema.FailureRecord{
 						ID:        uuid.New().String(),
@@ -287,11 +329,13 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 				}
 			}
 		}
+		reporter.FinishRule(rule.Name, ruleOk)
 	}
 
 	// Switch to a detached context for ALL terminal persistence so a
 	// cancelled request (HTTP client disconnect, curl timeout, ...) still
 	// leaves a consistent job + activity record on disk.
+	reporter.SetPhase("finalizing", "")
 	fctx, fcancel := finalizeCtx()
 	defer fcancel()
 
@@ -346,6 +390,9 @@ func (e *Engine) ExecuteFullSync(ctx context.Context) (Result, error) {
 	logRuleFailures("full sync", job.JobID, failedRules)
 	log.Printf("[sync] full sync finished (job=%s rules=%d changed=%d failed=%d duration=%dms)",
 		job.JobID, len(sorted), len(changedRules), len(failedRules), durMs)
+	reporter.Log(fmt.Sprintf("finished: changed=%d failed=%d duration=%dms",
+		len(changedRules), len(failedRules), durMs))
+	reporter.SetPhase("done", "")
 
 	return Result{
 		Success:      len(failedRules) == 0,

@@ -1,26 +1,26 @@
 import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider, SystemSettings } from "./schema";
 
-// API 客户端 - 用于前端调用后端 API
+// API client for frontend calls into the backend.
 
 const API_BASE = "/api";
 
-// 获取存储的 token
+// Read the stored token.
 function getToken(): string | null {
   if (typeof window === "undefined") return null;
   return localStorage.getItem("admin_token");
 }
 
-// 设置 token
+// Store the token.
 export function setToken(token: string): void {
   localStorage.setItem("admin_token", token);
 }
 
-// 清除 token
+// Remove the token.
 export function clearToken(): void {
   localStorage.removeItem("admin_token");
 }
 
-/** 构建 fetch，统一错误处理，返回原始 Response。auth=false 时跳过鉴权头 */
+/** Build fetch with unified error handling and return the raw Response. */
 async function apiFetch(
   endpoint: string,
   init: RequestInit = {},
@@ -70,7 +70,7 @@ async function apiFetch(
   return response;
 }
 
-// 通用 JSON 请求函数
+// Generic JSON request helper.
 async function apiRequest<T>(
   endpoint: string,
   options: RequestInit = {}
@@ -90,7 +90,7 @@ async function apiRequest<T>(
   return data as T;
 }
 
-// 配置 API
+// Config API
 export interface ConfigResponse {
   config: RulesConfig;
   rev: number;
@@ -123,7 +123,7 @@ export async function restoreDatabase(file: File): Promise<{ success: boolean }>
   return response.json();
 }
 
-// 状态 API
+// Status API
 export interface ChangeRecordSummary {
   id: string;
   timestamp: string;
@@ -231,7 +231,7 @@ export interface PublicStatusResponse {
 }
 
 export async function getPublicStatus(): Promise<PublicStatusResponse> {
-  // 公开接口不携带 admin token，确保服务端返回公开数据结构
+  // Public endpoints omit the admin token so the server returns public data.
   const response = await apiFetch("/status", {}, { auth: false });
   return response.json();
 }
@@ -419,7 +419,7 @@ export async function clearActivityRecords(): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>("/activity/clear", { method: "POST" });
 }
 
-// 同步 API
+// Sync API
 export interface SyncResult {
   success: boolean;
   changedRules: string[];
@@ -427,8 +427,61 @@ export interface SyncResult {
   jobId: string;
 }
 
-export async function executeFullSync(): Promise<SyncResult> {
-  return apiRequest<SyncResult>("/sync/full", { method: "POST" });
+// SyncStartAck matches the 202 Accepted body from POST /api/sync/full.
+// The call returns immediately and progress is polled through getSyncProgress.
+export interface SyncStartAck {
+  status: "started";
+  jobType: "full_sync";
+  startedAt: string;
+}
+
+export async function executeFullSync(): Promise<SyncStartAck> {
+  return apiRequest<SyncStartAck>("/sync/full", { method: "POST" });
+}
+
+// SyncLastSnapshot comes from SyncTracker.last and captures the final sync result.
+// success/failedCount/changedCount feed the toast, and cancelled distinguishes
+// an explicit user cancel.
+export interface SyncLastSnapshot {
+  jobId: string;
+  jobType: string;
+  startedAt: string;
+  finishedAt: string;
+  success: boolean;
+  cancelled: boolean;
+  changedCount: number;
+  failedCount: number;
+  durationMs: number;
+  error?: string;
+}
+
+// SyncProgress matches GET /api/sync/progress.
+// When running=false, most fields are empty, while last can still carry the
+// most recent completed snapshot.
+export interface SyncProgress {
+  running: boolean;
+  jobId?: string;
+  jobType?: string;
+  startedAt?: string;
+  phase?: string;
+  phaseDetail?: string;
+  currentRule?: string;
+  total: number;
+  processed: number;
+  failed: number;
+  elapsedMs?: number;
+  logTail?: string[];
+  cancelled?: boolean;
+  cancelReason?: string;
+  last?: SyncLastSnapshot;
+}
+
+export async function getSyncProgress(): Promise<SyncProgress> {
+  return apiRequest<SyncProgress>("/sync/progress");
+}
+
+export async function cancelSync(): Promise<{ success: boolean }> {
+  return apiRequest<{ success: boolean }>("/sync/cancel", { method: "POST" });
 }
 
 export async function refreshRules(ruleNames: string[]): Promise<SyncResult> {
@@ -438,7 +491,7 @@ export async function refreshRules(ruleNames: string[]): Promise<SyncResult> {
   });
 }
 
-// 定时同步配置
+// Scheduled sync configuration
 export interface SyncSchedule {
   mode: "interval" | "cron";
   intervalHours: number;
@@ -468,7 +521,7 @@ export async function refreshRule(ruleName: string): Promise<SyncResult> {
   });
 }
 
-// 删除规则
+// Delete rule
 export interface DeleteRuleResult {
   success: boolean;
   deletedRule: string;
@@ -495,7 +548,7 @@ export async function batchDeleteRules(ruleNames: string[]): Promise<BatchDelete
   });
 }
 
-// 预览 API
+// Preview API
 export interface PreviewResponse {
   contents: Record<ClientType, string>;
   diagnostics: {
@@ -516,7 +569,7 @@ export async function previewRule(
   });
 }
 
-// 验证 token（也检查是否需要认证）
+// Validate the token and check whether authentication is required.
 export async function verifyToken(token: string): Promise<boolean> {
   try {
     const response = await fetch(`${API_BASE}/status`, {
@@ -530,8 +583,7 @@ export async function verifyToken(token: string): Promise<boolean> {
   }
 }
 
-// 检查后端是否需要认证
-// 如果不需要认证（未设置 ADMIN_TOKEN），直接返回 true
+// Check whether the backend requires authentication.
 export async function checkAuthRequired(): Promise<{ required: boolean; authenticated: boolean }> {
   try {
     const response = await fetch(`${API_BASE}/auth/required`);
@@ -546,7 +598,7 @@ export async function checkAuthRequired(): Promise<{ required: boolean; authenti
   }
 }
 
-// 检查是否已初始化
+// Check whether initialization has completed.
 export interface InitStatusResponse {
   initialized: boolean;
   rulesCount: number;
@@ -556,7 +608,7 @@ export async function checkInitStatus(): Promise<InitStatusResponse> {
   return apiRequest<InitStatusResponse>("/init");
 }
 
-// 执行初始化
+// Run initialization.
 export interface InitResult {
   success: boolean;
   message: string;
@@ -586,7 +638,7 @@ export async function renameRule(oldName: string, newName: string): Promise<Rena
 export interface ClientConfig {
   id: string;
   displayName: string;
-  transforms?: Transform[]; // 客户端全局转换器
+  transforms?: Transform[]; // Global per-client transformers.
 }
 
 export async function getClients(): Promise<{ clients: ClientConfig[] }> {

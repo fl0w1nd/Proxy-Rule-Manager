@@ -789,16 +789,24 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     }
   };
 
+  // Pull the upstream catalog and then trigger a full sync. The sync itself
+  // is asynchronous: this call returns immediately, while progress and
+  // completion toasts come from the Dashboard's SyncProgressPill.
   const handleUpdateImported = async () => {
     setIsUpdating(true);
     try {
       const result = await refreshGeositeProvider(provider);
       await fetchAll(provider);
-      const syncResult = await executeFullSync();
-      if (syncResult.success) {
-        toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，同步变更 ${syncResult.changedRules.length} 条规则`);
-      } else {
-        toast.warning(`${provider} 缓存已刷新，但同步有 ${syncResult.failedRules.length} 条失败`);
+      try {
+        await executeFullSync();
+        toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，已触发同步（进度见右上角）`);
+      } catch (syncErr) {
+        const msg = String(syncErr);
+        if (msg.includes("SYNC_ALREADY_RUNNING") || msg.includes("409")) {
+          toast.info(`${provider} 缓存已刷新；已有同步在进行，跳过新一轮触发`);
+        } else {
+          toast.error(`${provider} 缓存已刷新，但同步触发失败: ${msg}`);
+        }
       }
       await fetchAll(provider);
       onRefresh?.();

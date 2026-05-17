@@ -285,8 +285,18 @@ func checkAndRun(parent context.Context, srv *api.Server) {
 	if !needsSync {
 		return
 	}
+	// Route through the tracker so the dashboard sees scheduled syncs in
+	// flight (and so a scheduled tick can't race a manual sync from the
+	// UI). Begin returns false when another sync is already running —
+	// honour that and try again on the next tick.
+	rs, syncCtx, claimed := srv.SyncTracker.Begin(ctx, "full_sync")
+	if !claimed {
+		log.Printf("[scheduled sync] skipped: another sync is running")
+		return
+	}
 	log.Printf("[scheduled sync] running full sync …")
-	res, err := srv.Engine.ExecuteFullSync(ctx)
+	res, err := srv.Engine.ExecuteFullSyncReport(syncCtx, rs)
+	srv.SyncTracker.End(res, err)
 	// IMPORTANT: always advance LastScheduledSyncAt + NextSyncAt, even on
 	// failure. Otherwise a persistently failing sync re-fires every minute
 	// (the tick interval) and produces a retry storm. The next attempt should

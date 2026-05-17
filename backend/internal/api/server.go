@@ -36,6 +36,11 @@ type Server struct {
 	Geosite     *geosite.Manager
 	Engine      *syncengine.Engine
 	RateLimiter *RateLimiter
+	// SyncTracker holds the currently running full-sync (if any) plus a
+	// short-lived snapshot of the last finished sync. Both the HTTP
+	// handlers and the scheduled-sync loop in main go through this
+	// tracker so the dashboard never sees two syncs racing.
+	SyncTracker *SyncTracker
 	AdminToken  string
 }
 
@@ -85,6 +90,7 @@ func New(cfg *config.Config, st *store.Store) *Server {
 		Geosite:     mgr,
 		Engine:      engine,
 		RateLimiter: NewRateLimiter(),
+		SyncTracker: NewSyncTracker(),
 		AdminToken:  cfg.AdminToken,
 	}
 }

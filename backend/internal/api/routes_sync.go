@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+	"log"
 	"net/http"
 	"strings"
 
@@ -15,15 +17,90 @@ func (s *Server) registerSyncRoutes(r chi.Router) {
 	r.Post("/sync/partial/batch", s.adminGuard(s.handleSyncBatch))
 	r.Get("/sync/schedule", s.adminGuard(s.handleGetSyncSchedule))
 	r.Put("/sync/schedule", s.adminGuard(s.handleUpdateSyncSchedule))
+	// Progress / cancel are part of the same sync surface so they live
+	// here next to the trigger endpoint. GET /sync/progress is the only
+	// admin endpoint a polling client hits — it is intentionally cheap
+	// (in-memory state, no DB queries) so a 1-2s poll interval is fine.
+	r.Get("/sync/progress", s.adminGuard(s.handleSyncProgress))
+	r.Post("/sync/cancel", s.adminGuard(s.handleSyncCancel))
 }
 
+// handleSyncFull kicks off a full sync in the background. The request
+// returns 202 Accepted as soon as the tracker slot is claimed; the
+// client then polls /sync/progress to watch it run and POST /sync/cancel
+// to abort. Two concurrent triggers receive 409 Conflict — the in-memory
+// tracker is the single source of truth, separate from the DB-level
+// global sync lock the engine will still acquire.
 func (s *Server) handleSyncFull(w http.ResponseWriter, r *http.Request) {
-	res, err := s.Engine.ExecuteFullSync(r.Context())
-	if err != nil {
-		s.Error(w, http.StatusInternalServerError, err.Error())
+	// Detached parent context: the goroutine must outlive the HTTP
+	// request. RunningSync.Cancel() / SyncTracker.Cancel() drive
+	// cancellation explicitly; we never want a transient client
+	// disconnect to abort the sync.
+	rs, syncCtx, ok := s.SyncTracker.Begin(context.Background(), "full_sync")
+	if !ok {
+		s.ErrorWith(w, http.StatusConflict, map[string]any{
+			"error": "Another sync is already running",
+			"code":  "SYNC_ALREADY_RUNNING",
+		})
 		return
 	}
-	s.JSON(w, http.StatusOK, normalizeSyncResult(res))
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[sync] async full sync panic: %v", rec)
+				s.SyncTracker.End(syncengine.Result{}, asError(rec))
+			}
+		}()
+		res, err := s.Engine.ExecuteFullSyncReport(syncCtx, rs)
+		s.SyncTracker.End(res, err)
+	}()
+	s.JSON(w, http.StatusAccepted, map[string]any{
+		"status":    "started",
+		"jobType":   "full_sync",
+		"startedAt": rs.Snapshot().StartedAt,
+	})
+}
+
+// handleSyncProgress returns the current in-flight sync snapshot or, if
+// none is running, an idle payload with the most recent completion
+// summary embedded under "last". The shape is identical in both states
+// so the frontend can render with a single component.
+func (s *Server) handleSyncProgress(w http.ResponseWriter, r *http.Request) {
+	if active := s.SyncTracker.Active(); active != nil {
+		snap := active.Snapshot()
+		snap.Last = s.SyncTracker.Last()
+		s.JSON(w, http.StatusOK, snap)
+		return
+	}
+	s.JSON(w, http.StatusOK, s.SyncTracker.IdleProgress())
+}
+
+// handleSyncCancel signals the running sync to stop. Idempotent: a
+// second cancel during the same run is silently accepted because the
+// engine may still be wrapping up. Returns 404 when no sync is active.
+func (s *Server) handleSyncCancel(w http.ResponseWriter, r *http.Request) {
+	if s.SyncTracker.Cancel("admin_request") {
+		s.JSON(w, http.StatusOK, map[string]any{"success": true})
+		return
+	}
+	s.Error(w, http.StatusNotFound, "No sync is currently running")
+}
+
+// asError lifts a recovered panic value into an error so End can record it.
+func asError(v any) error {
+	if err, ok := v.(error); ok {
+		return err
+	}
+	return panicErr{v: v}
+}
+
+type panicErr struct{ v any }
+
+func (p panicErr) Error() string {
+	if s, ok := p.v.(string); ok {
+		return "panic: " + s
+	}
+	return "panic"
 }
 
 func (s *Server) handleSyncBatch(w http.ResponseWriter, r *http.Request) {
