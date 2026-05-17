@@ -45,6 +45,16 @@ func main() {
 	}
 
 	cfg := config.Load()
+
+	// Resolve the admin token before opening the store so any "first run"
+	// generated token is visible in the boot logs even if later steps fail.
+	tokenRes, err := config.ResolveAdminToken(cfg)
+	if err != nil {
+		log.Fatalf("resolve admin token: %v", err)
+	}
+	cfg.AdminToken = tokenRes.Token
+	logAdminTokenStatus(tokenRes)
+
 	paths := store.Paths{
 		DataDir:       cfg.DataDir,
 		RulesDir:      cfg.RulesDir,
@@ -148,6 +158,36 @@ func main() {
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer shutdownCancel()
 	_ = httpSrv.Shutdown(shutdownCtx)
+}
+
+// logAdminTokenStatus prints a one-time boot banner describing how the
+// admin token was resolved. The token value is printed only when we
+// generated it ourselves on this boot (operators need to know it once);
+// pre-existing tokens (env or persisted) are never echoed to the log.
+func logAdminTokenStatus(res config.AdminTokenResult) {
+	for _, w := range res.Warnings {
+		log.Printf("[security] %s", w)
+	}
+	switch res.Source {
+	case config.AdminTokenFromEnv:
+		log.Printf("[security] admin token: loaded from ADMIN_TOKEN env var")
+	case config.AdminTokenFromFile:
+		log.Printf("[security] admin token: loaded from %s", res.FilePath)
+	case config.AdminTokenGenerated:
+		log.Printf("============================================================")
+		log.Printf("[Proxy Rule Manager] admin token generated")
+		log.Printf("  file:  %s", res.FilePath)
+		log.Printf("  token: %s", res.Token)
+		log.Printf("  override with ADMIN_TOKEN env var or by editing the file")
+		log.Printf("============================================================")
+	case config.AdminTokenAllowedEmpty:
+		log.Printf("============================================================")
+		log.Printf("[SECURITY WARNING] running with no admin token")
+		log.Printf("  ALLOW_EMPTY_ADMIN_TOKEN=1 is set — every admin API is")
+		log.Printf("  publicly accessible. Do NOT expose this server to an")
+		log.Printf("  untrusted network in this mode.")
+		log.Printf("============================================================")
+	}
 }
 
 // runScheduledSync mirrors the TS scheduled-sync timer (1-minute cadence).

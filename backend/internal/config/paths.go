@@ -17,8 +17,12 @@ type Config struct {
 	ClientFileDir string
 	WAFDir        string
 	Port          int
-	AdminToken    string
-	OutDir        string
+	// AdminToken is populated by ResolveAdminToken after Load() — Load itself
+	// no longer consults ADMIN_TOKEN so that all resolution paths
+	// (env / on-disk file / generated / explicit fail-open) live in one place.
+	// Tests that construct Config{} directly may set this field themselves.
+	AdminToken string
+	OutDir     string
 
 	// AllowedOrigins is the parsed list of trusted browser origins. When
 	// empty, the CORS middleware falls back to permissive behaviour
@@ -51,16 +55,17 @@ func Load() *Config {
 	}
 
 	return &Config{
-		DataDir:        dataDir,
-		DBPath:         filepath.Join(dataDir, "db.sqlite"),
-		RulesDir:       filepath.Join(dataDir, "Rules"),
-		SourcesDir:     filepath.Join(dataDir, "sources"),
-		GeositeDir:     filepath.Join(dataDir, "geosite"),
-		IconSetDir:     filepath.Join(dataDir, "iconset"),
-		ClientFileDir:  filepath.Join(dataDir, "client"),
-		WAFDir:         filepath.Join(dataDir, "waf"),
-		Port:           port,
-		AdminToken:     os.Getenv("ADMIN_TOKEN"),
+		DataDir:       dataDir,
+		DBPath:        filepath.Join(dataDir, "db.sqlite"),
+		RulesDir:      filepath.Join(dataDir, "Rules"),
+		SourcesDir:    filepath.Join(dataDir, "sources"),
+		GeositeDir:    filepath.Join(dataDir, "geosite"),
+		IconSetDir:    filepath.Join(dataDir, "iconset"),
+		ClientFileDir: filepath.Join(dataDir, "client"),
+		WAFDir:        filepath.Join(dataDir, "waf"),
+		Port:          port,
+		// AdminToken is intentionally left zero here; main.go calls
+		// ResolveAdminToken to fill it in.
 		OutDir:         outDir,
 		AllowedOrigins: parseAllowedOrigins(os.Getenv("ALLOWED_ORIGINS")),
 	}
