@@ -642,24 +642,29 @@ export function Dashboard({ onBack }: DashboardProps) {
           // Detect the latest completion snapshot; the first poll can hit too.
           const snap = progress.last;
           if (!progress.running && snap && snap.jobId !== lastShownJobIdRef.current) {
+            const isFirstPoll = lastShownJobIdRef.current === null;
             lastShownJobIdRef.current = snap.jobId;
-            queueMicrotask(() => {
-              if (snap.cancelled) {
-                toast.warning("同步已取消");
-              } else if (snap.success) {
-                if (snap.changedCount > 0) {
-                  toast.success(`同步成功！${snap.changedCount} 条规则已更新`);
+            // On first poll after mount, only record the jobId so we don't
+            // re-announce a sync that completed before the page loaded.
+            if (!isFirstPoll) {
+              queueMicrotask(() => {
+                if (snap.cancelled) {
+                  toast.warning("同步已取消");
+                } else if (snap.success) {
+                  if (snap.changedCount > 0) {
+                    toast.success(`同步成功！${snap.changedCount} 条规则已更新`);
+                  } else {
+                    toast.success("同步成功！本次无规则变更");
+                  }
+                  setNeedsFirstSync(false);
+                } else if (snap.error) {
+                  toast.error("同步失败: " + snap.error);
                 } else {
-                  toast.success("同步成功！本次无规则变更");
+                  toast.warning(`同步完成，但有 ${snap.failedCount} 条规则失败`);
                 }
-                setNeedsFirstSync(false);
-              } else if (snap.error) {
-                toast.error("同步失败: " + snap.error);
-              } else {
-                toast.warning(`同步完成，但有 ${snap.failedCount} 条规则失败`);
-              }
-              fetchStatus();
-            });
+                fetchStatus();
+              });
+            }
           }
           return progress;
         });
