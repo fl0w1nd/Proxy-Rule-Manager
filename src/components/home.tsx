@@ -37,7 +37,7 @@ import {
 import { Icon } from "@iconify/react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
-import { ClientFileMeta } from "@/lib/schema";
+import { ClientFileMeta, DEFAULT_SYSTEM_SETTINGS } from "@/lib/schema";
 import { RuleIcon } from "./icon-picker";
 import {
   listIcons,
@@ -63,7 +63,7 @@ const MAIN_TABS = [
 
 const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
 
-const DEFAULT_FAILURE_THRESHOLD = 3;
+const DEFAULT_FAILURE_THRESHOLD = DEFAULT_SYSTEM_SETTINGS.sync.failureThreshold;
 
 // FailureBadge renders a single status pill describing the rule's recent sync
 // health. We no longer time-window "数据陈旧"; the badge is purely driven by

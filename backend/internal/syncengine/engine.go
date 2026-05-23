@@ -784,6 +784,7 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 						copy := *existing
 						copy.LastHash = hash
 						copy.LastUpdatedAt = syncedAt
+						copy.ConsecutiveFailures = 0
 						return artifactFlush{Meta: &copy}, nil
 					}
 					upload, uerr := UploadForRule(e.RulesDir, rule, client, outputContent)

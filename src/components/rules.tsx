@@ -51,7 +51,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
-import { RulesConfig, RuleConfig, ClientType } from "@/lib/schema";
+import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
@@ -65,7 +65,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [ruleStatusMap, setRuleStatusMap] = useState<Record<string, { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number }>>({});
-  const [failureThreshold, setFailureThreshold] = useState<number>(3);
+  const [failureThreshold, setFailureThreshold] = useState<number>(DEFAULT_SYSTEM_SETTINGS.sync.failureThreshold);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshingRules, setRefreshingRules] = useState<Set<string>>(new Set());

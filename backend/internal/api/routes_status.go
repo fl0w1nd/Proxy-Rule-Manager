@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"log"
 	"net/http"
 	"time"
 
@@ -159,7 +160,10 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	// Resolve the consecutive-failure threshold once per response so both the
 	// admin and public payloads can pre-compute the "更新失败" tag client-side
 	// without an extra round-trip to /api/system-settings.
-	sysSettings, _ := s.Store.GetSystemSettings(ctx)
+	sysSettings, sysErr := s.Store.GetSystemSettings(ctx)
+	if sysErr != nil {
+		log.Printf("[status] failed to load system settings: %v; using defaults", sysErr)
+	}
 	failureThreshold := sysSettings.Sync.FailureThreshold
 	if failureThreshold <= 0 {
 		failureThreshold = schema.DefaultSystemSettings().Sync.FailureThreshold
