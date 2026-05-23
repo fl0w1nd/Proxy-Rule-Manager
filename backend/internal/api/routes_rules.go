@@ -409,16 +409,28 @@ func (s *Server) handleUpdateLocalSource(w http.ResponseWriter, r *http.Request)
 		s.Error(w, http.StatusNotFound, "Source is not a local source")
 		return
 	}
+	oldRef := src.ContentRef
 	ref, err := s.Store.WriteLocalSource(ctx, src.ContentRef, *body.Content)
 	if err != nil {
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
 	src.ContentRef = ref
-	// Persist contentRef change.
-	if _, err := s.Store.SaveConfig(ctx, cfg); err != nil {
-		s.Error(w, http.StatusInternalServerError, err.Error())
-		return
+	// Only persist the config when the ref actually changed (i.e. a new
+	// ref was minted because oldRef was empty / invalid). The common path
+	// — updating an existing local source — must skip SaveConfig: the
+	// in-memory cfg was hydrated by GetConfig, so src.Content currently
+	// holds the *previous* DB value. Re-saving would let saveConfig's
+	// "src.Content != nil ⇒ externalize" branch write that stale value
+	// back to local_sources, undoing the WriteLocalSource we just did.
+	if ref != oldRef {
+		// Drop the hydrated stale content before saving so saveConfig
+		// keeps the freshly written DB row instead of overwriting it.
+		src.Content = nil
+		if _, err := s.Store.SaveConfig(ctx, cfg); err != nil {
+			s.Error(w, http.StatusInternalServerError, err.Error())
+			return
+		}
 	}
 	syncRes, err := s.Engine.ExecutePartialSync(ctx, ruleName)
 	if err != nil {
