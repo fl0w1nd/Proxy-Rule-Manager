@@ -277,6 +277,22 @@ export async function refreshGeositeProvider(provider: GeositeProvider): Promise
   });
 }
 
+export interface GeositeProviderSyncResult {
+  success: boolean;
+  provider: GeositeProvider;
+  catalogCount: number;
+  sync: {
+    syncedRules: string[];
+    failedRules: { name: string; error: string }[];
+  };
+}
+
+export async function syncGeositeProvider(provider: GeositeProvider): Promise<GeositeProviderSyncResult> {
+  return apiRequest(`/geosite/providers/${encodeURIComponent(provider)}/sync`, {
+    method: "POST",
+  });
+}
+
 export interface GeositeStaleImport {
   name: string;
   ruleName: string;

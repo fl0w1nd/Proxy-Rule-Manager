@@ -17,6 +17,7 @@ import (
 func (s *Server) registerGeositeRoutes(r chi.Router) {
 	r.Get("/geosite/providers", s.adminGuard(s.handleGeositeProviders))
 	r.Post("/geosite/providers/{provider}/refresh", s.adminGuard(s.handleGeositeRefresh))
+	r.Post("/geosite/providers/{provider}/sync", s.adminGuard(s.handleGeositeProviderSync))
 	r.Get("/geosite/catalog", s.adminGuard(s.handleGeositeCatalog))
 	r.Get("/geosite/domain-lookup", s.adminGuard(s.handleGeositeDomainLookup))
 	r.Post("/geosite/import-all", s.adminGuard(s.handleGeositeImportAll))
@@ -55,6 +56,83 @@ func (s *Server) handleGeositeRefresh(w http.ResponseWriter, r *http.Request) {
 		"resolvedVersion": cache.ResolvedVersion,
 		"fetchedAt":       cache.FetchedAt,
 		"catalogCount":    len(cache.Catalog),
+	})
+}
+
+// handleGeositeProviderSync syncs only the geosite rules that belong to the
+// given provider. It refreshes the upstream cache first, then runs a partial
+// batch sync over the matching rule names. This avoids triggering a full sync
+// (which would also re-process all non-geosite rules) when the user only
+// wants to update geosite content for one provider.
+func (s *Server) handleGeositeProviderSync(w http.ResponseWriter, r *http.Request) {
+	provider, ok := validateProvider(chi.URLParam(r, "provider"))
+	if !ok {
+		s.Error(w, http.StatusBadRequest, "Unsupported geosite provider")
+		return
+	}
+	// Refresh upstream cache so the sync picks up any catalog changes.
+	cache, err := s.Geosite.Refresh(r.Context(), provider)
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	// Collect rule names belonging to this provider.
+	cfg, err := s.Store.GetConfig(r.Context())
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	var ruleNames []string
+	for i := range cfg.Rules {
+		rule := &cfg.Rules[i]
+		if !schema.IsGeositeRule(rule) {
+			continue
+		}
+		src := schema.PrimaryGeositeSource(rule)
+		if src == nil || src.Provider != provider {
+			continue
+		}
+		ruleNames = append(ruleNames, rule.Name)
+	}
+	if len(ruleNames) == 0 {
+		s.JSON(w, http.StatusOK, map[string]any{
+			"success":      true,
+			"provider":     provider,
+			"catalogCount": len(cache.Catalog),
+			"sync": map[string]any{
+				"syncedRules": []string{},
+				"failedRules": []schema.JobFailedRule{},
+			},
+		})
+		return
+	}
+	res, err := s.Engine.ExecuteBatchPartialSync(r.Context(), ruleNames)
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	failedRules := res.FailedRules
+	if failedRules == nil {
+		failedRules = []schema.JobFailedRule{}
+	}
+	syncedRules := make([]string, 0, len(ruleNames))
+	failedSet := make(map[string]struct{}, len(failedRules))
+	for _, f := range failedRules {
+		failedSet[f.Name] = struct{}{}
+	}
+	for _, name := range ruleNames {
+		if _, bad := failedSet[name]; !bad {
+			syncedRules = append(syncedRules, name)
+		}
+	}
+	s.JSON(w, http.StatusOK, map[string]any{
+		"success":      true,
+		"provider":     provider,
+		"catalogCount": len(cache.Catalog),
+		"sync": map[string]any{
+			"syncedRules": syncedRules,
+			"failedRules": failedRules,
+		},
 	})
 }
 

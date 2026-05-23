@@ -68,9 +68,9 @@ import {
   previewRule,
   refreshRules,
   refreshGeositeProvider,
+  syncGeositeProvider,
   saveConfig,
   batchDeleteRules,
-  executeFullSync,
   type ClientConfig,
   type GeositeCatalogItem,
   type GeositeProviderStatus,
@@ -789,26 +789,31 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     }
   };
 
-  // Pull the upstream catalog and then trigger a full sync. The sync itself
-  // is asynchronous: this call returns immediately, while progress and
-  // completion toasts come from the Dashboard's SyncProgressPill.
+  // When the provider cache is missing (first-time pull), just fetch the
+  // upstream data — no sync needed since the data is already fresh.
+  // When the provider already has cached data, refresh the cache and then
+  // sync only the geosite rules belonging to this provider.
   const handleUpdateImported = async () => {
     setIsUpdating(true);
     try {
-      const result = await refreshGeositeProvider(provider);
-      await fetchAll(provider);
-      try {
-        await executeFullSync();
-        toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，已触发同步（进度见右上角）`);
-      } catch (syncErr) {
-        const msg = String(syncErr);
-        if (msg.includes("SYNC_ALREADY_RUNNING") || msg.includes("409")) {
-          toast.info(`${provider} 缓存已刷新；已有同步在进行，跳过新一轮触发`);
+      if (!providerStatus?.ready) {
+        // First-time pull: fetch upstream data only.
+        const result = await refreshGeositeProvider(provider);
+        await fetchAll(provider);
+        toast.success(`${provider} 数据已拉取：缓存 ${result.catalogCount} 个列表`);
+      } else {
+        // Subsequent update: refresh cache + sync provider's geosite rules.
+        const result = await syncGeositeProvider(provider);
+        await fetchAll(provider);
+        const failedCount = result.sync.failedRules.length;
+        if (failedCount > 0) {
+          toast.warning(`${provider} 已更新：缓存 ${result.catalogCount} 列表，同步 ${result.sync.syncedRules.length} 条规则，${failedCount} 条失败`);
+        } else if (result.sync.syncedRules.length === 0) {
+          toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，无已导入规则需同步`);
         } else {
-          toast.error(`${provider} 缓存已刷新，但同步触发失败: ${msg}`);
+          toast.success(`${provider} 已更新：缓存 ${result.catalogCount} 列表，同步 ${result.sync.syncedRules.length} 条规则`);
         }
       }
-      await fetchAll(provider);
       onRefresh?.();
     } catch (error) {
       toast.error("更新失败: " + String(error));
@@ -997,8 +1002,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
                 </SelectContent>
               </Select>
               <Button variant="outline" onClick={handleUpdateImported} disabled={isUpdating}>
-                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-                立即更新
+                {isUpdating ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : providerStatus?.ready ? <RefreshCw className="mr-2 h-4 w-4" /> : <Globe className="mr-2 h-4 w-4" />}
+                {providerStatus?.ready ? "立即更新" : "拉取数据"}
               </Button>
               <Button variant="success" onClick={openImportDialog} disabled={catalog.length === 0}>
                 <Plus className="mr-2 h-4 w-4" />

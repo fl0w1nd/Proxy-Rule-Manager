@@ -58,6 +58,14 @@ func NewManager(dir string) *Manager {
 	}
 }
 
+// SetHTTPClient replaces the HTTP client used for upstream fetches.
+// Intended for tests that need to inject a mock transport.
+func (m *Manager) SetHTTPClient(c *http.Client) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.httpClient = c
+}
+
 // SetCacheTTL controls Ensure's auto-refresh behaviour. ttl<=0 disables it.
 func (m *Manager) SetCacheTTL(ttl time.Duration) {
 	m.mu.Lock()
