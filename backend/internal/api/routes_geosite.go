@@ -111,6 +111,10 @@ func (s *Server) handleGeositeProviderSync(w http.ResponseWriter, r *http.Reques
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
+	if !res.Success && res.JobID == "" {
+		s.ErrorWithCode(w, http.StatusConflict, "SYNC_ALREADY_RUNNING", res.FailedRules[0].Error)
+		return
+	}
 	failedRules := res.FailedRules
 	if failedRules == nil {
 		failedRules = []schema.JobFailedRule{}

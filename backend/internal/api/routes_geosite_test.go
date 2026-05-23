@@ -105,6 +105,49 @@ func TestGeositeProviderSync_RejectsInvalidProvider(t *testing.T) {
 	}
 }
 
+func TestGeositeProviderSync_Returns409WhenSyncAlreadyRunning(t *testing.T) {
+	srv, ts := setupGeositeSyncTest(t)
+	ctx := context.Background()
+
+	// Seed a geosite rule so the handler proceeds to ExecuteBatchPartialSync.
+	cfg := schema.DefaultConfig()
+	cfg.Rules = []schema.RuleConfig{{
+		Name: "geosite_v2fly_test-list",
+		Sources: []schema.SourceConfig{{
+			Type:     "geosite",
+			Provider: "v2fly",
+			List:     "test-list",
+		}},
+		Output: schema.OutputConfig{Clients: []string{"clash_meta"}},
+		Tags:   []string{},
+	}}
+	if _, err := srv.Store.SaveConfig(ctx, cfg); err != nil {
+		t.Fatalf("save config: %v", err)
+	}
+
+	// Hold the global sync lock to simulate another sync in progress.
+	acquired, _, err := srv.Store.AcquireGlobalSyncLock(ctx)
+	if err != nil {
+		t.Fatalf("acquire lock: %v", err)
+	}
+	if !acquired {
+		t.Fatalf("expected to acquire lock")
+	}
+	defer func() {
+		rctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		srv.Store.ReleaseGlobalSyncLock(rctx)
+	}()
+
+	code, body := postJSON(t, ts.URL, "/api/geosite/providers/v2fly/sync", "secret", nil)
+	if code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d (%v)", code, body)
+	}
+	if c, _ := body["code"].(string); c != "SYNC_ALREADY_RUNNING" {
+		t.Errorf("code: got %q want SYNC_ALREADY_RUNNING", c)
+	}
+}
+
 func TestGeositeProviderSync_ReturnsEmptySyncWhenNoRules(t *testing.T) {
 	_, ts := setupGeositeSyncTest(t)
 

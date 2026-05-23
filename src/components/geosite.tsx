@@ -816,7 +816,14 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       }
       onRefresh?.();
     } catch (error) {
-      toast.error("更新失败: " + String(error));
+      const msg = String(error);
+      const status = (error as Error & { status?: number }).status;
+      const code = (error as Error & { code?: string }).code;
+      if (status === 409 || code === "SYNC_ALREADY_RUNNING" || msg.includes("SYNC_ALREADY_RUNNING")) {
+        toast.info(`${provider} 缓存已刷新；已有同步在进行，跳过新一轮触发`);
+      } else {
+        toast.error("更新失败: " + msg);
+      }
     } finally {
       setIsUpdating(false);
     }
