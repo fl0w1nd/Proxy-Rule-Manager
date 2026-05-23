@@ -888,6 +888,24 @@ function SystemSettingsForm({
         </div>
       </SettingsCard>
 
+      <SettingsCard
+        title="同步行为 (Sync)"
+        description="规则同步状态在面板上的展示阈值"
+        icon={<Network className="w-5 h-5" />}
+      >
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <SettingItem
+            label="持续失败阈值"
+            description="某条规则连续失败达到此次数后，面板将显示「更新失败」徽标"
+            unit="次"
+            min={1} max={50}
+            defaultValue={defaults.sync.failureThreshold}
+            value={value.sync.failureThreshold}
+            onChange={(v) => update("sync", "failureThreshold", v)}
+          />
+        </div>
+      </SettingsCard>
+
       {/* Sticky Action Bar */}
       <div className="fixed bottom-6 right-6 left-6 md:left-[calc(16rem+1.5rem)] lg:left-[calc(16rem+1.5rem)] max-w-5xl z-10 flex justify-end gap-3 p-4 bg-surface-elevated/90 backdrop-blur-md border border-border/60 rounded-2xl shadow-xl">
         <div className="flex items-center gap-4 w-full justify-between sm:justify-end">

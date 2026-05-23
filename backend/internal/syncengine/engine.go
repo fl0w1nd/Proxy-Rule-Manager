@@ -778,12 +778,14 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 				previousNormalizedHash := util.SHA256Hex(transformer.NormalizeEffectiveRuleContent(previousSource))
 				if previousNormalizedHash == hash {
 					if previousSource == content {
-						if existing.LastHash != hash {
-							copy := *existing
-							copy.LastHash = hash
-							return artifactFlush{Meta: &copy}, nil
-						}
-						return artifactFlush{Meta: existing}, nil
+						// Content unchanged: still bump LastUpdatedAt so the
+						// "stale" badge reflects "last confirmed up-to-date"
+						// rather than "last time bytes actually changed".
+						copy := *existing
+						copy.LastHash = hash
+						copy.LastUpdatedAt = syncedAt
+						copy.ConsecutiveFailures = 0
+						return artifactFlush{Meta: &copy}, nil
 					}
 					upload, uerr := UploadForRule(e.RulesDir, rule, client, outputContent)
 					if uerr != nil {

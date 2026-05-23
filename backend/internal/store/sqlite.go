@@ -192,6 +192,7 @@ CREATE TABLE IF NOT EXISTS artifacts (
   last_attempted_at TEXT NOT NULL DEFAULT '',
   last_attempt_status TEXT NOT NULL DEFAULT '',
   last_attempt_error TEXT NOT NULL DEFAULT '',
+  consecutive_failures INTEGER NOT NULL DEFAULT 0,
   PRIMARY KEY (rule_name, client)
 );
 CREATE INDEX IF NOT EXISTS idx_artifacts_rule ON artifacts(rule_name);
@@ -280,6 +281,7 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"artifacts", "last_attempted_at", "TEXT NOT NULL DEFAULT ''"},
 		{"artifacts", "last_attempt_status", "TEXT NOT NULL DEFAULT ''"},
 		{"artifacts", "last_attempt_error", "TEXT NOT NULL DEFAULT ''"},
+		{"artifacts", "consecutive_failures", "INTEGER NOT NULL DEFAULT 0"},
 	}
 	for _, c := range addColumns {
 		if err := s.ensureColumn(ctx, c.table, c.col, c.def); err != nil {

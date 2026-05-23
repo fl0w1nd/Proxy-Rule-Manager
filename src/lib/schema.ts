@@ -292,6 +292,10 @@ export const SystemSettingsSchema = z.object({
     permanentBanLimit: z.number().int().min(1).max(1000).default(10),
     recordMaxAgeHours: z.number().int().min(1).max(720).default(24),
   }),
+  sync: z.object({
+    // 连续失败多少次后规则在面板上显示「更新失败」徽标
+    failureThreshold: z.number().int().min(1).max(50).default(3),
+  }),
 });
 export type SystemSettings = z.infer<typeof SystemSettingsSchema>;
 
@@ -311,6 +315,9 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
     maxBlockSeconds: 3600,
     permanentBanLimit: 10,
     recordMaxAgeHours: 24,
+  },
+  sync: {
+    failureThreshold: 3,
   },
 };
 

@@ -12,7 +12,7 @@ import (
 func (s *Store) GetArtifactMeta(ctx context.Context, ruleName, client string) (*schema.ArtifactMeta, error) {
 	row := s.DB.QueryRowContext(ctx,
 		`SELECT rule_name, client, last_hash, last_updated_at, blob_path, blob_url, size_bytes,
-		        last_attempted_at, last_attempt_status, last_attempt_error
+		        last_attempted_at, last_attempt_status, last_attempt_error, consecutive_failures
 		 FROM artifacts WHERE rule_name = ? AND client = ?`, ruleName, client)
 	return scanArtifact(row)
 }
@@ -28,8 +28,8 @@ func (s *Store) SaveArtifactMetas(ctx context.Context, metas []schema.ArtifactMe
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		stmt, err := tx.PrepareContext(ctx,
 			`INSERT INTO artifacts (rule_name, client, last_hash, last_updated_at, blob_path, blob_url, size_bytes,
-			                        last_attempted_at, last_attempt_status, last_attempt_error)
-			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'success', '')
+			                        last_attempted_at, last_attempt_status, last_attempt_error, consecutive_failures)
+			 VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'success', '', 0)
 			 ON CONFLICT(rule_name, client) DO UPDATE SET
 			   last_hash = excluded.last_hash,
 			   last_updated_at = excluded.last_updated_at,
@@ -38,7 +38,8 @@ func (s *Store) SaveArtifactMetas(ctx context.Context, metas []schema.ArtifactMe
 			   size_bytes = excluded.size_bytes,
 			   last_attempted_at = excluded.last_attempted_at,
 			   last_attempt_status = 'success',
-			   last_attempt_error = ''`)
+			   last_attempt_error = '',
+			   consecutive_failures = 0`)
 		if err != nil {
 			return err
 		}
@@ -84,20 +85,29 @@ func (s *Store) RecordArtifactAttempts(ctx context.Context, items []ArtifactAtte
 		return nil
 	}
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
+		// consecutive_failures bookkeeping: failed attempts bump the counter
+		// by 1 (seeded at 1 for a brand-new row that's failing on its first
+		// touch), any other status resets it to 0. This complements
+		// SaveArtifactMetas, which always resets to 0 on a successful publish.
 		stmt, err := tx.PrepareContext(ctx,
 			`INSERT INTO artifacts (rule_name, client, last_hash, last_updated_at, blob_path, blob_url, size_bytes,
-			                        last_attempted_at, last_attempt_status, last_attempt_error)
-			 VALUES (?, ?, '', '', '', NULL, NULL, ?, ?, ?)
+			                        last_attempted_at, last_attempt_status, last_attempt_error, consecutive_failures)
+			 VALUES (?, ?, '', '', '', NULL, NULL, ?, ?, ?,
+			         CASE WHEN ? = 'failed' THEN 1 ELSE 0 END)
 			 ON CONFLICT(rule_name, client) DO UPDATE SET
 			   last_attempted_at = excluded.last_attempted_at,
 			   last_attempt_status = excluded.last_attempt_status,
-			   last_attempt_error = excluded.last_attempt_error`)
+			   last_attempt_error = excluded.last_attempt_error,
+			   consecutive_failures = CASE
+			     WHEN excluded.last_attempt_status = 'failed' THEN artifacts.consecutive_failures + 1
+			     ELSE 0
+			   END`)
 		if err != nil {
 			return err
 		}
 		defer stmt.Close()
 		for _, it := range items {
-			if _, err := stmt.ExecContext(ctx, it.RuleName, it.Client, it.AttemptedAt, it.Status, it.Error); err != nil {
+			if _, err := stmt.ExecContext(ctx, it.RuleName, it.Client, it.AttemptedAt, it.Status, it.Error, it.Status); err != nil {
 				return err
 			}
 		}
@@ -151,7 +161,7 @@ type ArtifactKey struct {
 func (s *Store) GetAllArtifactMetas(ctx context.Context) ([]schema.ArtifactMeta, error) {
 	rows, err := s.DB.QueryContext(ctx,
 		`SELECT rule_name, client, last_hash, last_updated_at, blob_path, blob_url, size_bytes,
-		        last_attempted_at, last_attempt_status, last_attempt_error FROM artifacts`)
+		        last_attempted_at, last_attempt_status, last_attempt_error, consecutive_failures FROM artifacts`)
 	if err != nil {
 		return nil, err
 	}
@@ -187,7 +197,7 @@ func scanArtifact(row rowScanner) (*schema.ArtifactMeta, error) {
 	var sz sql.NullInt64
 	var url sql.NullString
 	if err := row.Scan(&m.RuleName, &m.Client, &m.LastHash, &m.LastUpdatedAt, &m.BlobPath, &url, &sz,
-		&m.LastAttemptedAt, &m.LastAttemptStatus, &m.LastAttemptError); err != nil {
+		&m.LastAttemptedAt, &m.LastAttemptStatus, &m.LastAttemptError, &m.ConsecutiveFailures); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}

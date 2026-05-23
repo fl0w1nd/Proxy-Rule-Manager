@@ -327,6 +327,11 @@ type ArtifactMeta struct {
 	LastAttemptedAt   string `json:"lastAttemptedAt,omitempty"`
 	LastAttemptStatus string `json:"lastAttemptStatus,omitempty"`
 	LastAttemptError  string `json:"lastAttemptError,omitempty"`
+	// ConsecutiveFailures counts the number of failed sync attempts since
+	// the most recent successful publish for this (rule, client) pair. Reset
+	// to 0 on any successful sync. Used by the dashboard to flag rules whose
+	// upstream has been broken for too long (vs. a single transient blip).
+	ConsecutiveFailures int `json:"consecutiveFailures"`
 }
 
 // JobFailedRule mirrors the failedRules entry inside a job.
@@ -429,6 +434,7 @@ type SystemSettings struct {
 	Fetch       FetchSettings       `json:"fetch"`
 	Transformer TransformerSettings `json:"transformer"`
 	RateLimit   RateLimitSettings   `json:"rateLimit"`
+	Sync        SyncSettings        `json:"sync"`
 }
 
 // FetchSettings controls the URL fetcher used by the sync engine.
@@ -453,6 +459,14 @@ type RateLimitSettings struct {
 	RecordMaxAgeHours int `json:"recordMaxAgeHours"`
 }
 
+// SyncSettings controls how the dashboard interprets sync-attempt history.
+// FailureThreshold is the consecutive-failure count at which a rule starts
+// rendering the "更新失败" badge. Set low to catch outages early; set high
+// to tolerate noisy upstreams that occasionally 5xx.
+type SyncSettings struct {
+	FailureThreshold int `json:"failureThreshold"`
+}
+
 // DefaultSystemSettings returns the values the codebase historically hard-coded.
 // Any new field added here must keep parity with the corresponding constant
 // elsewhere in the backend (fetcher.go / js.go / auth.go).
@@ -473,6 +487,9 @@ func DefaultSystemSettings() SystemSettings {
 			MaxBlockSeconds:   3600,
 			PermanentBanLimit: 10,
 			RecordMaxAgeHours: 24,
+		},
+		Sync: SyncSettings{
+			FailureThreshold: 3,
 		},
 	}
 }
@@ -511,6 +528,9 @@ func (s *SystemSettings) MergeDefaults() {
 	}
 	if s.RateLimit.RecordMaxAgeHours <= 0 {
 		s.RateLimit.RecordMaxAgeHours = d.RateLimit.RecordMaxAgeHours
+	}
+	if s.Sync.FailureThreshold <= 0 {
+		s.Sync.FailureThreshold = d.Sync.FailureThreshold
 	}
 }
 
@@ -552,6 +572,9 @@ func (s SystemSettings) Validate() error {
 		return err
 	}
 	if err := check("rateLimit.recordMaxAgeHours", s.RateLimit.RecordMaxAgeHours, 1, 720, "h"); err != nil {
+		return err
+	}
+	if err := check("sync.failureThreshold", s.Sync.FailureThreshold, 1, 50, ""); err != nil {
 		return err
 	}
 	return nil
