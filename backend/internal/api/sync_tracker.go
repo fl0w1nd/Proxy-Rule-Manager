@@ -42,6 +42,7 @@ type RunningSync struct {
 	mu sync.RWMutex
 
 	jobType     string
+	trigger     string // "manual" or "scheduled"
 	jobID       string
 	startedAt   time.Time
 	phase       string
@@ -64,6 +65,7 @@ type RunningSync struct {
 type LastSyncSnapshot struct {
 	JobID        string    `json:"jobId"`
 	JobType      string    `json:"jobType"`
+	Trigger      string    `json:"trigger,omitempty"`
 	StartedAt    time.Time `json:"startedAt"`
 	FinishedAt   time.Time `json:"finishedAt"`
 	Success      bool      `json:"success"`
@@ -116,6 +118,7 @@ func (t *SyncTracker) End(res syncengine.Result, err error) {
 		jobID = res.JobID
 	}
 	jobType := t.active.jobType
+	trigger := t.active.trigger
 	started := t.active.startedAt
 	cancelled := t.active.cancelSeen
 	t.active.mu.RUnlock()
@@ -123,6 +126,7 @@ func (t *SyncTracker) End(res syncengine.Result, err error) {
 	snap := &LastSyncSnapshot{
 		JobID:        jobID,
 		JobType:      jobType,
+		Trigger:      trigger,
 		StartedAt:    started,
 		FinishedAt:   now,
 		Success:      err == nil && res.Success,
@@ -204,6 +208,7 @@ type SyncProgress struct {
 	Running      bool      `json:"running"`
 	JobID        string    `json:"jobId,omitempty"`
 	JobType      string    `json:"jobType,omitempty"`
+	Trigger      string    `json:"trigger,omitempty"`
 	StartedAt    time.Time `json:"startedAt,omitempty"`
 	Phase        string    `json:"phase,omitempty"`
 	PhaseDetail  string    `json:"phaseDetail,omitempty"`
@@ -231,6 +236,7 @@ func (rs *RunningSync) Snapshot() SyncProgress {
 		Running:     true,
 		JobID:       rs.jobID,
 		JobType:     rs.jobType,
+		Trigger:     rs.trigger,
 		StartedAt:   rs.startedAt,
 		Phase:       rs.phase,
 		PhaseDetail: rs.phaseDetail,
@@ -256,6 +262,13 @@ func (rs *RunningSync) Snapshot() SyncProgress {
 func (rs *RunningSync) SetJobID(id string) {
 	rs.mu.Lock()
 	rs.jobID = id
+	rs.mu.Unlock()
+}
+
+// SetTrigger records whether this sync was "manual" or "scheduled".
+func (rs *RunningSync) SetTrigger(trigger string) {
+	rs.mu.Lock()
+	rs.trigger = trigger
 	rs.mu.Unlock()
 }
 

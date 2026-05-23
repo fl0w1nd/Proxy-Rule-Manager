@@ -294,6 +294,7 @@ func checkAndRun(parent context.Context, srv *api.Server) {
 		log.Printf("[scheduled sync] skipped: another sync is running")
 		return
 	}
+	rs.SetTrigger("scheduled")
 	log.Printf("[scheduled sync] running full sync …")
 	res, err := srv.Engine.ExecuteFullSyncReport(syncCtx, rs)
 	srv.SyncTracker.End(res, err)

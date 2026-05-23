@@ -44,6 +44,7 @@ func (s *Server) handleSyncFull(w http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	rs.SetTrigger("manual")
 	go func() {
 		defer func() {
 			if rec := recover(); rec != nil {

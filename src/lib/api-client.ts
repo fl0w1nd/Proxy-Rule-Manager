@@ -469,6 +469,7 @@ export async function executeFullSync(): Promise<SyncStartAck> {
 export interface SyncLastSnapshot {
   jobId: string;
   jobType: string;
+  trigger?: string;
   startedAt: string;
   finishedAt: string;
   success: boolean;
@@ -486,6 +487,7 @@ export interface SyncProgress {
   running: boolean;
   jobId?: string;
   jobType?: string;
+  trigger?: string;
   startedAt?: string;
   phase?: string;
   phaseDetail?: string;

@@ -74,6 +74,7 @@ import {
   type DiskUsageBucket,
   type WafStats,
   type SyncProgress,
+  type SyncLastSnapshot,
 } from "@/lib/api-client";
 import { SyncProgressPill } from "./sync-progress-pill";
 import { RulesManager } from "./rules";
@@ -106,6 +107,28 @@ const TAB_META: Record<string, { label: string; icon: LucideIcon }> = {
   geosite: { label: "Geosite", icon: Globe },
   config: { label: "系统配置", icon: Settings },
 };
+
+const LAST_SYNC_NOTICE_KEY = "proxy-rule-manager:last-sync-notice-key";
+
+function getSyncNoticeKey(snap: SyncLastSnapshot) {
+  return snap.jobId || `${snap.jobType}:${snap.startedAt}:${snap.finishedAt}`;
+}
+
+function getLastSyncNoticeKey() {
+  try {
+    return window.localStorage.getItem(LAST_SYNC_NOTICE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setLastSyncNoticeKey(key: string) {
+  try {
+    window.localStorage.setItem(LAST_SYNC_NOTICE_KEY, key);
+  } catch {
+    // Storage can be unavailable in restricted browser contexts.
+  }
+}
 
 function getChangeLabel(changeType: ChangeRecordSummary["changeType"]) {
   if (changeType === "created") return "新增";
@@ -453,9 +476,6 @@ export function Dashboard({ onBack }: DashboardProps) {
   const [syncProgress, setSyncProgress] = useState<SyncProgress | null>(null);
   const [syncKickoff, setSyncKickoff] = useState(false);
   const [isCancellingSync, setIsCancellingSync] = useState(false);
-  // lastShownJobIdRef deduplicates completion snapshots that have already
-  // triggered a toast.
-  const lastShownJobIdRef = useRef<string | null>(null);
   const [activeTab, setActiveTab] = useState("overview");
   const [needsInit, setNeedsInit] = useState(false);
   const [isInitializing, setIsInitializing] = useState(false);
@@ -641,12 +661,10 @@ export function Dashboard({ onBack }: DashboardProps) {
         setSyncProgress(() => {
           // Detect the latest completion snapshot; the first poll can hit too.
           const snap = progress.last;
-          if (!progress.running && snap && snap.jobId !== lastShownJobIdRef.current) {
-            const isFirstPoll = lastShownJobIdRef.current === null;
-            lastShownJobIdRef.current = snap.jobId;
-            // On first poll after mount, only record the jobId so we don't
-            // re-announce a sync that completed before the page loaded.
-            if (!isFirstPoll) {
+          if (!progress.running && snap) {
+            const noticeKey = getSyncNoticeKey(snap);
+            if (noticeKey !== getLastSyncNoticeKey()) {
+              setLastSyncNoticeKey(noticeKey);
               queueMicrotask(() => {
                 if (snap.cancelled) {
                   toast.warning("同步已取消");
