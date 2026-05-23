@@ -63,24 +63,42 @@ const MAIN_TABS = [
 
 const TAG_BADGE_VARIANTS = ["blue", "rose", "amber", "violet", "teal", "emerald"] as const;
 
-const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
+const DEFAULT_FAILURE_THRESHOLD = 3;
 
-function isStale(lastUpdated: string | null | undefined): boolean {
-  if (!lastUpdated) return false;
-  const ts = Date.parse(lastUpdated);
-  if (!Number.isFinite(ts)) return false;
-  return Date.now() - ts > STALE_THRESHOLD_MS;
-}
-
-function FreshnessBadge({
-  lastUpdated,
+// FailureBadge renders a single status pill describing the rule's recent sync
+// health. We no longer time-window "数据陈旧"; the badge is purely driven by
+// actual sync-attempt outcomes:
+//   - consecutiveFailures >= threshold → "更新失败 ×N" (warning, persistent)
+//   - hasError (last attempt failed but not yet at threshold) → "上次失败"
+//   - otherwise nothing
+function FailureBadge({
   hasError,
   lastFailureAt,
+  consecutiveFailures,
+  threshold,
 }: {
-  lastUpdated: string | null;
   hasError: boolean;
   lastFailureAt: string | null;
+  consecutiveFailures: number;
+  threshold: number;
 }) {
+  if (consecutiveFailures >= threshold && threshold > 0) {
+    return (
+      <Tooltip delayDuration={300}>
+        <TooltipTrigger asChild>
+          <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
+            更新失败 ×{consecutiveFailures}
+          </Badge>
+        </TooltipTrigger>
+        <TooltipContent side="top" align="start" showArrow={false}>
+          <p className="text-xs">
+            已连续 {consecutiveFailures} 次同步失败
+            {lastFailureAt ? `，最近一次：${formatRelativeTime(lastFailureAt)}` : ""}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    );
+  }
   if (hasError) {
     return (
       <Tooltip delayDuration={300}>
@@ -97,22 +115,6 @@ function FreshnessBadge({
       </Tooltip>
     );
   }
-  if (isStale(lastUpdated)) {
-    return (
-      <Tooltip delayDuration={300}>
-        <TooltipTrigger asChild>
-          <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
-            数据陈旧
-          </Badge>
-        </TooltipTrigger>
-        <TooltipContent side="top" align="start" showArrow={false}>
-          <p className="text-xs">
-            {lastUpdated ? `上次更新：${formatRelativeTime(lastUpdated)}` : "尚未生成"}
-          </p>
-        </TooltipContent>
-      </Tooltip>
-    );
-  }
   return null;
 }
 
@@ -123,6 +125,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [clientFiles, setClientFiles] = useState<ClientFileMeta[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<string | null>(null);
+  const [failureThreshold, setFailureThreshold] = useState<number>(DEFAULT_FAILURE_THRESHOLD);
   const [version, setVersion] = useState<string>("");
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -201,6 +204,9 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
       setRules(statusResult.rules || []);
       setGeositeRules(statusResult.geositeRules || []);
       setLastSyncAt(statusResult.lastSyncAt || null);
+      if (typeof statusResult.failureThreshold === "number" && statusResult.failureThreshold > 0) {
+        setFailureThreshold(statusResult.failureThreshold);
+      }
       setVersion(statusResult.version || "");
       if (statusResult.clients && statusResult.clients.length > 0) {
         setClients(statusResult.clients);
@@ -762,7 +768,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                     </div>
 
                     <div className="min-h-5 mt-2">
-                      {(rule.tags && rule.tags.length > 0) || rule.hasError || isStale(rule.lastUpdated) ? (
+                      {(rule.tags && rule.tags.length > 0) || rule.hasError || (rule.consecutiveFailures ?? 0) >= failureThreshold ? (
                         <div className="flex flex-wrap items-center gap-1.5">
                           {rule.tags?.slice(0, 4).map((tag) => (
                             <Badge
@@ -776,10 +782,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                           {rule.tags && rule.tags.length > 4 && (
                             <span className="text-[11px] text-muted-foreground">+{rule.tags.length - 4}</span>
                           )}
-                          <FreshnessBadge
-                            lastUpdated={rule.lastUpdated ?? null}
+                          <FailureBadge
                             hasError={!!rule.hasError}
                             lastFailureAt={rule.lastFailureAt ?? null}
+                            consecutiveFailures={rule.consecutiveFailures ?? 0}
+                            threshold={failureThreshold}
                           />
                         </div>
                       ) : null}
@@ -871,10 +878,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                         {rule.attrs.map((attr) => (
                           <Badge key={`${rule.outputName}-${attr}`} variant="secondary">@{attr}</Badge>
                         ))}
-                        <FreshnessBadge
-                          lastUpdated={rule.lastUpdated ?? null}
+                        <FailureBadge
                           hasError={!!rule.hasError}
                           lastFailureAt={rule.lastFailureAt ?? null}
+                          consecutiveFailures={rule.consecutiveFailures ?? 0}
+                          threshold={failureThreshold}
                         />
                       </div>
                     </div>

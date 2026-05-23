@@ -189,10 +189,14 @@ export interface StatusResponse {
     hasError: boolean;
     lastFailureAt?: string | null;
     lastFailureError?: string;
+    consecutiveFailures?: number;
   }[];
   geositeRules: PublicGeositeInfo[];
   clients: Pick<ClientConfig, "id" | "displayName">[];
   version?: string;
+  // Consecutive-failure count at which a rule starts rendering the
+  // "更新失败" badge. Falls back to a sane default if missing.
+  failureThreshold?: number;
 }
 
 export async function getStatus(): Promise<StatusResponse> {
@@ -210,6 +214,9 @@ export interface PublicRuleInfo {
   hasError?: boolean;
   lastFailureAt?: string | null;
   lastFailureError?: string;
+  // Consecutive failed sync attempts since the last successful publish.
+  // Drives the "更新失败" badge once it crosses the global threshold.
+  consecutiveFailures?: number;
 }
 
 export interface PublicGeositeInfo extends PublicRuleInfo {
@@ -228,6 +235,7 @@ export interface PublicStatusResponse {
   geositeRules: PublicGeositeInfo[];
   clients: Pick<ClientConfig, "id" | "displayName">[];
   version?: string;
+  failureThreshold?: number;
 }
 
 export async function getPublicStatus(): Promise<PublicStatusResponse> {

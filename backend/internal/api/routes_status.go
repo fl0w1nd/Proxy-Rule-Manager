@@ -69,32 +69,34 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	}
 
 	type publicRule struct {
-		Name             string   `json:"name"`
-		DisplayName      string   `json:"displayName,omitempty"`
-		Description      string   `json:"description,omitempty"`
-		Icon             string   `json:"icon,omitempty"`
-		Tags             []string `json:"tags"`
-		Clients          []string `json:"clients"`
-		LastUpdated      *string  `json:"lastUpdated"`
-		HasError         bool     `json:"hasError"`
-		LastFailureAt    *string  `json:"lastFailureAt,omitempty"`
-		LastFailureError string   `json:"lastFailureError,omitempty"`
+		Name                string   `json:"name"`
+		DisplayName         string   `json:"displayName,omitempty"`
+		Description         string   `json:"description,omitempty"`
+		Icon                string   `json:"icon,omitempty"`
+		Tags                []string `json:"tags"`
+		Clients             []string `json:"clients"`
+		LastUpdated         *string  `json:"lastUpdated"`
+		HasError            bool     `json:"hasError"`
+		LastFailureAt       *string  `json:"lastFailureAt,omitempty"`
+		LastFailureError    string   `json:"lastFailureError,omitempty"`
+		ConsecutiveFailures int      `json:"consecutiveFailures"`
 	}
 	type publicGeosite struct {
-		Name             string   `json:"name"`
-		DisplayName      string   `json:"displayName,omitempty"`
-		Description      string   `json:"description,omitempty"`
-		Icon             string   `json:"icon,omitempty"`
-		Tags             []string `json:"tags"`
-		Clients          []string `json:"clients"`
-		Provider         string   `json:"provider"`
-		List             string   `json:"list"`
-		Attrs            []string `json:"attrs"`
-		OutputName       string   `json:"outputName"`
-		LastUpdated      *string  `json:"lastUpdated"`
-		HasError         bool     `json:"hasError,omitempty"`
-		LastFailureAt    *string  `json:"lastFailureAt,omitempty"`
-		LastFailureError string   `json:"lastFailureError,omitempty"`
+		Name                string   `json:"name"`
+		DisplayName         string   `json:"displayName,omitempty"`
+		Description         string   `json:"description,omitempty"`
+		Icon                string   `json:"icon,omitempty"`
+		Tags                []string `json:"tags"`
+		Clients             []string `json:"clients"`
+		Provider            string   `json:"provider"`
+		List                string   `json:"list"`
+		Attrs               []string `json:"attrs"`
+		OutputName          string   `json:"outputName"`
+		LastUpdated         *string  `json:"lastUpdated"`
+		HasError            bool     `json:"hasError,omitempty"`
+		LastFailureAt       *string  `json:"lastFailureAt,omitempty"`
+		LastFailureError    string   `json:"lastFailureError,omitempty"`
+		ConsecutiveFailures int      `json:"consecutiveFailures"`
 	}
 
 	rulesStatus := []publicRule{}
@@ -108,39 +110,41 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	for i := range cfg.Rules {
 		rule := &cfg.Rules[i]
 		metas := artsByRule[rule.Name]
-		lastUpdated, lastFailureAt, lastFailureMsg, hasError := summarizeArtifacts(metas)
+		lastUpdated, lastFailureAt, lastFailureMsg, hasError, consecutiveFailures := summarizeArtifacts(metas)
 		if schema.IsGeositeRule(rule) {
 			source := schema.PrimaryGeositeSource(rule)
 			geositeStatus = append(geositeStatus, publicGeosite{
-				Name:             choose(source.List, rule.Name),
-				DisplayName:      rule.DisplayName,
-				Description:      rule.Description,
-				Icon:             rule.Icon,
-				Tags:             defaultStrings(rule.Tags),
-				Clients:          rule.Output.Clients,
-				Provider:         choose(source.Provider, "v2fly"),
-				List:             choose(source.List, rule.Name),
-				Attrs:            defaultStrings(source.Attrs),
-				OutputName:       schema.GeositeOutputName(source),
-				LastUpdated:      lastUpdated,
-				HasError:         hasError,
-				LastFailureAt:    lastFailureAt,
-				LastFailureError: lastFailureMsg,
+				Name:                choose(source.List, rule.Name),
+				DisplayName:         rule.DisplayName,
+				Description:         rule.Description,
+				Icon:                rule.Icon,
+				Tags:                defaultStrings(rule.Tags),
+				Clients:             rule.Output.Clients,
+				Provider:            choose(source.Provider, "v2fly"),
+				List:                choose(source.List, rule.Name),
+				Attrs:               defaultStrings(source.Attrs),
+				OutputName:          schema.GeositeOutputName(source),
+				LastUpdated:         lastUpdated,
+				HasError:            hasError,
+				LastFailureAt:       lastFailureAt,
+				LastFailureError:    lastFailureMsg,
+				ConsecutiveFailures: consecutiveFailures,
 			})
 			geositeCount++
 			geositeFiles += len(rule.Output.Clients)
 		} else {
 			rulesStatus = append(rulesStatus, publicRule{
-				Name:             rule.Name,
-				DisplayName:      rule.DisplayName,
-				Description:      rule.Description,
-				Icon:             rule.Icon,
-				Tags:             defaultStrings(rule.Tags),
-				Clients:          rule.Output.Clients,
-				LastUpdated:      lastUpdated,
-				HasError:         hasError,
-				LastFailureAt:    lastFailureAt,
-				LastFailureError: lastFailureMsg,
+				Name:                rule.Name,
+				DisplayName:         rule.DisplayName,
+				Description:         rule.Description,
+				Icon:                rule.Icon,
+				Tags:                defaultStrings(rule.Tags),
+				Clients:             rule.Output.Clients,
+				LastUpdated:         lastUpdated,
+				HasError:            hasError,
+				LastFailureAt:       lastFailureAt,
+				LastFailureError:    lastFailureMsg,
+				ConsecutiveFailures: consecutiveFailures,
 			})
 			rulesCount++
 			ruleFiles += len(rule.Output.Clients)
@@ -150,6 +154,15 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 	clientsList := make([]map[string]string, 0, len(clients))
 	for _, c := range clients {
 		clientsList = append(clientsList, map[string]string{"id": c.ID, "displayName": c.DisplayName})
+	}
+
+	// Resolve the consecutive-failure threshold once per response so both the
+	// admin and public payloads can pre-compute the "更新失败" tag client-side
+	// without an extra round-trip to /api/system-settings.
+	sysSettings, _ := s.Store.GetSystemSettings(ctx)
+	failureThreshold := sysSettings.Sync.FailureThreshold
+	if failureThreshold <= 0 {
+		failureThreshold = schema.DefaultSystemSettings().Sync.FailureThreshold
 	}
 
 	if !isAdmin {
@@ -178,6 +191,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			"geositeRules":      geositeStatus,
 			"clients":           clientsList,
 			"version":           Version,
+			"failureThreshold":  failureThreshold,
 		})
 		return
 	}
@@ -215,20 +229,23 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 			"ruleFilesChanged":    changeCount,
 			"failureRecords":      failureCount,
 		},
-		"rules":        rulesStatus,
-		"geositeRules": geositeStatus,
-		"clients":      clientsList,
-		"version":      Version,
+		"rules":            rulesStatus,
+		"geositeRules":     geositeStatus,
+		"clients":          clientsList,
+		"version":          Version,
+		"failureThreshold": failureThreshold,
 	})
 }
 
-// summarizeArtifacts collapses per-(rule,client) attempt rows into the four
-// pieces the UI cares about: latest successful publish time, latest failed
-// attempt time + message, and a flag for "any client currently in failed
-// state". Empty strings on legacy rows are treated as no-data.
-func summarizeArtifacts(metas []schema.ArtifactMeta) (lastUpdated *string, lastFailureAt *string, lastFailureMsg string, hasError bool) {
+// summarizeArtifacts collapses per-(rule,client) attempt rows into the pieces
+// the UI cares about: latest successful publish time, latest failed attempt
+// time + message, a flag for "any client currently in failed state", and the
+// maximum consecutive-failure count across clients (used by the dashboard to
+// render the "更新失败" badge when it exceeds the configured threshold).
+// Empty strings on legacy rows are treated as no-data.
+func summarizeArtifacts(metas []schema.ArtifactMeta) (lastUpdated *string, lastFailureAt *string, lastFailureMsg string, hasError bool, maxConsecutiveFailures int) {
 	if len(metas) == 0 {
-		return nil, nil, "", false
+		return nil, nil, "", false, 0
 	}
 	var latestSuccess string
 	var latestFailure string
@@ -236,6 +253,9 @@ func summarizeArtifacts(metas []schema.ArtifactMeta) (lastUpdated *string, lastF
 		m := &metas[i]
 		if m.LastUpdatedAt != "" && m.LastUpdatedAt > latestSuccess {
 			latestSuccess = m.LastUpdatedAt
+		}
+		if m.ConsecutiveFailures > maxConsecutiveFailures {
+			maxConsecutiveFailures = m.ConsecutiveFailures
 		}
 		if m.LastAttemptStatus == "failed" {
 			hasError = true

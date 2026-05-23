@@ -64,10 +64,8 @@ interface RulesManagerProps {
 export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
   const [clients, setClients] = useState<ClientConfig[]>([]);
-  const [ruleStatusMap, setRuleStatusMap] = useState<Record<string, { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null }>>({});
-  // Captured once per mount/refresh so freshness comparisons remain pure
-  // during render. We refresh this whenever fetchConfig finishes.
-  const [statusFetchedAt, setStatusFetchedAt] = useState<number>(() => Date.now());
+  const [ruleStatusMap, setRuleStatusMap] = useState<Record<string, { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number }>>({});
+  const [failureThreshold, setFailureThreshold] = useState<number>(3);
   const [isLoading, setIsLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [refreshingRules, setRefreshingRules] = useState<Set<string>>(new Set());
@@ -128,16 +126,18 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
       setConfig(config);
       setClients(clientList);
       if (statusResult && Array.isArray(statusResult.rules)) {
-        const map: Record<string, { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null }> = {};
+        const map: Record<string, { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number }> = {};
         for (const r of statusResult.rules) {
           map[r.name] = {
-            lastUpdated: r.lastUpdated ?? null,
             hasError: !!r.hasError,
             lastFailureAt: r.lastFailureAt ?? null,
+            consecutiveFailures: r.consecutiveFailures ?? 0,
           };
         }
         setRuleStatusMap(map);
-        setStatusFetchedAt(Date.now());
+        if (typeof statusResult.failureThreshold === "number" && statusResult.failureThreshold > 0) {
+          setFailureThreshold(statusResult.failureThreshold);
+        }
       }
     } catch (error) {
       console.error("Failed to fetch data:", error);
@@ -855,7 +855,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                 ) : (
                   <span className="text-[10px] text-muted-foreground/40 italic">无标签</span>
                 )}
-                <RuleStatusBadge status={ruleStatusMap[rule.name]} now={statusFetchedAt} />
+                <RuleStatusBadge status={ruleStatusMap[rule.name]} threshold={failureThreshold} />
               </div>
 
               {/* Client badges */}
@@ -1249,32 +1249,32 @@ function HelpIcon({ text }: { text: string }) {
   );
 }
 
-const STALE_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000;
-
+// RuleStatusBadge is the admin-side counterpart of FailureBadge in home.tsx.
+// Severity ladder (most → least informative):
+//   1. consecutiveFailures >= threshold → "更新失败 ×N" (warning, persistent)
+//   2. hasError (last attempt failed, not yet at threshold) → "上次失败"
+//   3. otherwise nothing
 function RuleStatusBadge({
   status,
-  now,
+  threshold,
 }: {
-  status?: { lastUpdated: string | null; hasError: boolean; lastFailureAt: string | null };
-  now: number;
+  status?: { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number };
+  threshold: number;
 }) {
   if (!status) return null;
+  if (status.consecutiveFailures >= threshold && threshold > 0) {
+    return (
+      <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
+        更新失败 ×{status.consecutiveFailures}
+      </Badge>
+    );
+  }
   if (status.hasError) {
     return (
       <Badge variant="destructive" className="text-[10px]">
         上次失败
       </Badge>
     );
-  }
-  if (status.lastUpdated) {
-    const ts = Date.parse(status.lastUpdated);
-    if (Number.isFinite(ts) && now - ts > STALE_THRESHOLD_MS) {
-      return (
-        <Badge variant="outline" className="border-warning/30 bg-warning-soft text-warning text-[10px]">
-          数据陈旧
-        </Badge>
-      );
-    }
   }
   return null;
 }
