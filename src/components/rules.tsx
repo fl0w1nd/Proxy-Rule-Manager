@@ -51,7 +51,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
-import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS } from "@/lib/schema";
+import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
@@ -217,7 +217,8 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   };
 
   const copyRuleUrl = async (ruleName: string, client: ClientType) => {
-    const url = `${window.location.origin}/Rules/${encodeURIComponent(client)}/${encodeURIComponent(ruleName)}.list`;
+    const ext = resolveOutputExt(clients.find((c) => c.id === client)?.outputExt);
+    const url = `${window.location.origin}/Rules/${encodeURIComponent(client)}/${encodeURIComponent(ruleName)}.${ext}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("已复制规则 URL");

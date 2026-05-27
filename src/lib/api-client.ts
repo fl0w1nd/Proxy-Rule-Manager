@@ -192,7 +192,7 @@ export interface StatusResponse {
     consecutiveFailures?: number;
   }[];
   geositeRules: PublicGeositeInfo[];
-  clients: Pick<ClientConfig, "id" | "displayName">[];
+  clients: Pick<ClientConfig, "id" | "displayName" | "outputExt">[];
   version?: string;
   // Consecutive-failure count at which a rule starts rendering the
   // "更新失败" badge. Falls back to a sane default if missing.
@@ -233,7 +233,7 @@ export interface PublicStatusResponse {
   lastSyncAt: string | null;
   rules: PublicRuleInfo[];
   geositeRules: PublicGeositeInfo[];
-  clients: Pick<ClientConfig, "id" | "displayName">[];
+  clients: Pick<ClientConfig, "id" | "displayName" | "outputExt">[];
   version?: string;
   failureThreshold?: number;
 }
@@ -664,6 +664,8 @@ export async function renameRule(oldName: string, newName: string): Promise<Rena
 export interface ClientConfig {
   id: string;
   displayName: string;
+  // 自定义产出文件后缀（如 yaml/json/srs）；缺省视为 list，保持历史行为。
+  outputExt?: string;
   transforms?: Transform[]; // Global per-client transformers.
 }
 

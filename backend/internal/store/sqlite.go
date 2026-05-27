@@ -162,6 +162,7 @@ CREATE TABLE IF NOT EXISTS clients (
   id TEXT PRIMARY KEY,
   display_name TEXT NOT NULL,
   transforms_json TEXT,
+  output_ext TEXT NOT NULL DEFAULT '',
   position INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_clients_position ON clients(position);
@@ -282,6 +283,8 @@ func (s *Store) migrate(ctx context.Context) error {
 		{"artifacts", "last_attempt_status", "TEXT NOT NULL DEFAULT ''"},
 		{"artifacts", "last_attempt_error", "TEXT NOT NULL DEFAULT ''"},
 		{"artifacts", "consecutive_failures", "INTEGER NOT NULL DEFAULT 0"},
+		// Custom output extension per client; blank = use schema.DefaultOutputExt.
+		{"clients", "output_ext", "TEXT NOT NULL DEFAULT ''"},
 	}
 	for _, c := range addColumns {
 		if err := s.ensureColumn(ctx, c.table, c.col, c.def); err != nil {

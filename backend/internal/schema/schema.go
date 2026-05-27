@@ -30,10 +30,74 @@ func validationErr(field, value string, allowed []string) *ValidationError {
 }
 
 // ClientConfig describes one proxy client and its global transforms.
+//
+// OutputExt controls the file extension of every published rule artifact
+// belonging to this client (including geosite outputs). A blank value falls
+// back to DefaultOutputExt so that legacy clients keep producing `.list`
+// files. Use ResolvedOutputExt() everywhere we touch a filename so the
+// callers never have to think about the empty-string fallback.
 type ClientConfig struct {
 	ID          string      `json:"id"`
 	DisplayName string      `json:"displayName"`
+	OutputExt   string      `json:"outputExt,omitempty"`
 	Transforms  []Transform `json:"transforms,omitempty"`
+}
+
+// DefaultOutputExt is the historical default extension used for any client
+// that hasn't picked a custom format. Kept lowercase and without a leading
+// dot so it composes cleanly with `<name>.<ext>` joins everywhere.
+const DefaultOutputExt = "list"
+
+// outputExtRe restricts the file extension to a small alnum set so it can
+// never escape the on-disk join or the public URL path.
+var outputExtRe = regexp.MustCompile(`^[a-z0-9]{1,16}$`)
+
+// ResolvedOutputExt returns the normalised (no leading dot, lowercase)
+// extension for this client, falling back to DefaultOutputExt when empty.
+func (c ClientConfig) ResolvedOutputExt() string {
+	ext := NormalizeOutputExt(c.OutputExt)
+	if ext == "" {
+		return DefaultOutputExt
+	}
+	return ext
+}
+
+// NormalizeOutputExt strips a leading dot and lowercases the string, but
+// does not validate it. Use ValidateOutputExt for the regex check.
+func NormalizeOutputExt(s string) string {
+	t := strings.TrimSpace(s)
+	t = strings.TrimPrefix(t, ".")
+	return strings.ToLower(t)
+}
+
+// CanonicalStoredOutputExt returns the persisted form for the clients table.
+// It collapses both "" (legacy rows from before the migration) and an
+// explicit DefaultOutputExt back to the empty string so the database holds a
+// single representation for "use the default". Callers should still go
+// through ResolvedOutputExt() when they need a concrete value.
+func CanonicalStoredOutputExt(s string) string {
+	e := NormalizeOutputExt(s)
+	if e == DefaultOutputExt {
+		return ""
+	}
+	return e
+}
+
+// ValidateOutputExt checks that the (already normalised) extension matches
+// the allow-list regex. Blank input is treated as "use the default" and
+// considered valid so the UI can clear the field.
+func ValidateOutputExt(s string) error {
+	if s == "" {
+		return nil
+	}
+	if !outputExtRe.MatchString(s) {
+		return &ValidationError{
+			Field:   "outputExt",
+			Value:   s,
+			Message: "must be 1-16 lowercase letters or digits",
+		}
+	}
+	return nil
 }
 
 // ClientFileMeta is the metadata for a per-client published configuration file.

@@ -76,7 +76,7 @@ import {
   type GeositeProviderStatus,
   type GeositeStaleImport,
 } from "@/lib/api-client";
-import type { ClientType, GeositeProvider, RuleConfig, RulesConfig } from "@/lib/schema";
+import { resolveOutputExt, type ClientType, type GeositeProvider, type RuleConfig, type RulesConfig } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { getPrimaryGeositeSource, isGeositeRule } from "@/lib/rule-classification";
@@ -958,7 +958,8 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
     const outputName = source.attrs && source.attrs.length > 0
       ? `${source.list}@${Array.from(new Set(source.attrs.map((item) => item.trim().toLowerCase()).filter(Boolean))).sort().join("+")}`
       : source.list;
-    const url = `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.list`;
+    const ext = resolveOutputExt(clients.find((c) => c.id === clientId)?.outputExt);
+    const url = `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.${ext}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("已复制 URL");

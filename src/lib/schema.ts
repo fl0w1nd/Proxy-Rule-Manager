@@ -4,13 +4,30 @@ import { z } from "zod";
 export const ClientTypeSchema = z.string();
 export type ClientType = z.infer<typeof ClientTypeSchema>;
 
+// 默认输出文件后缀，沿用历史的 .list 行为
+export const DEFAULT_OUTPUT_EXT = "list";
+
+// 输出后缀允许的字符集：1-16 位的小写字母数字
+export const OUTPUT_EXT_REGEX = /^[a-z0-9]{1,16}$/;
+
 // 客户端配置 Schema
 export const ClientConfigSchema = z.object({
   id: z.string(), // 客户端标识符（用于内部引用）
   displayName: z.string(), // 显示名称
+  outputExt: z
+    .string()
+    .regex(OUTPUT_EXT_REGEX, "Output ext must be 1-16 lowercase letters or digits")
+    .optional(),
   transforms: z.array(z.lazy(() => TransformSchema)).optional(), // 客户端全局转换器
 });
 export type ClientConfig = z.infer<typeof ClientConfigSchema>;
+
+// 解析客户端输出后缀，空字符串返回默认 list；不做正则校验，仅做归一化
+export function resolveOutputExt(ext?: string | null): string {
+  if (!ext) return DEFAULT_OUTPUT_EXT;
+  const trimmed = ext.trim().replace(/^\./, "").toLowerCase();
+  return trimmed || DEFAULT_OUTPUT_EXT;
+}
 
 // 客户端配置文件元数据
 export const ClientFileMetaSchema = z.object({

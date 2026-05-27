@@ -180,11 +180,34 @@ func (s *Store) GetAllArtifactMetas(ctx context.Context) ([]schema.ArtifactMeta,
 }
 
 // RenameRuleArtifacts cascades a rename across artifact rows.
+//
+// The path/URL look like `/Rules/<client>/<ruleName>.<ext>` for non-geosite
+// rules. To stay ext-agnostic and resilient to future client-id validation
+// changes, the REPLACE is anchored to the full client-directory segment
+// (`/Rules/<client>/<oldName>.`) using the row's own `client` column,
+// rather than just `/<oldName>.`. This guarantees the rename only touches
+// the rule-name segment for that row and never partially matches a client
+// directory or another rule name that happens to share a prefix.
 func (s *Store) RenameRuleArtifacts(ctx context.Context, oldName, newName string) error {
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE artifacts SET rule_name = ?, blob_path = REPLACE(blob_path, ?, ?) WHERE rule_name = ?`,
-			newName, "/"+oldName+".list", "/"+newName+".list", oldName,
+			`UPDATE artifacts
+			   SET rule_name = ?,
+			       blob_path = REPLACE(
+			           blob_path,
+			           '/Rules/' || client || '/' || ? || '.',
+			           '/Rules/' || client || '/' || ? || '.'
+			       ),
+			       blob_url  = REPLACE(
+			           COALESCE(blob_url, ''),
+			           '/Rules/' || client || '/' || ? || '.',
+			           '/Rules/' || client || '/' || ? || '.'
+			       )
+			 WHERE rule_name = ?`,
+			newName,
+			oldName, newName,
+			oldName, newName,
+			oldName,
 		); err != nil {
 			return err
 		}

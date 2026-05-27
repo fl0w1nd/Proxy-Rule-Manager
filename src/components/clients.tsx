@@ -44,7 +44,14 @@ import {
     getConfig,
     ClientConfig,
 } from "@/lib/api-client";
-import { Transform, ScriptTransformer, ClientFileMeta } from "@/lib/schema";
+import {
+    DEFAULT_OUTPUT_EXT,
+    OUTPUT_EXT_REGEX,
+    Transform,
+    ScriptTransformer,
+    ClientFileMeta,
+    resolveOutputExt,
+} from "@/lib/schema";
 import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
 
@@ -55,15 +62,20 @@ interface ClientsManagerProps {
 interface ClientFormData {
     id: string;
     displayName: string;
+    outputExt: string;
     transforms: Transform[];
 }
+
+// Commonly published rule formats. The user can also type any extension that
+// matches the regex; the presets just make the obvious choices one-click.
+const OUTPUT_EXT_PRESETS = ["list", "yaml", "yml", "json", "srs", "txt", "conf"];
 
 export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [clients, setClients] = useState<ClientConfig[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingClient, setEditingClient] = useState<ClientConfig | null>(null);
-    const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", transforms: [] });
+    const [formData, setFormData] = useState<ClientFormData>({ id: "", displayName: "", outputExt: "", transforms: [] });
     const [transformKeys, setTransformKeys] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
@@ -169,7 +181,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
     const openAddDialog = () => {
         setEditingClient(null);
-        setFormData({ id: "", displayName: "", transforms: [] });
+        setFormData({ id: "", displayName: "", outputExt: "", transforms: [] });
         setTransformKeys([]);
         setIsDialogOpen(true);
     };
@@ -179,6 +191,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
         setFormData({
             id: client.id,
             displayName: client.displayName,
+            outputExt: client.outputExt || "",
             transforms: client.transforms || [],
         });
         setTransformKeys(createListItemKeys(client.transforms?.length || 0));
@@ -254,17 +267,27 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             toast.error("请填写所有字段");
             return;
         }
+        const normalizedExt = formData.outputExt.trim().replace(/^\./, "").toLowerCase();
+        if (normalizedExt && !OUTPUT_EXT_REGEX.test(normalizedExt)) {
+            toast.error("输出后缀只能是 1-16 位小写字母或数字");
+            return;
+        }
 
         setIsSaving(true);
         try {
+            // Normalize once before hitting the API so the saved value
+            // matches what the backend stores after its own NormalizeOutputExt
+            // (avoids the dashboard flickering between user-typed and
+            // server-canonical forms after the next refetch).
+            const payload = { ...formData, outputExt: normalizedExt };
             if (editingClient) {
-                await updateClient(editingClient.id, formData);
+                await updateClient(editingClient.id, payload);
                 toast.success("客户端已更新");
                 if (editingClient.id !== formData.id) {
                     setSelectedClientId(formData.id);
                 }
             } else {
-                await addClient(formData);
+                await addClient(payload);
                 toast.success("客户端已添加");
             }
             setIsDialogOpen(false);
@@ -613,6 +636,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                     <div className="mt-3 space-y-1 text-xs text-muted-foreground font-mono">
                                                         <p title={`/Rules/${selectedClient.id}/`}>规则目录：/Rules/{selectedClient.id}/</p>
                                                         <p title={`/client/${selectedClient.id}/`}>配置文件：/client/{selectedClient.id}/</p>
+                                                        <p title="所有产物的文件后缀">输出后缀：.{resolveOutputExt(selectedClient.outputExt)}</p>
                                                     </div>
                                                 </div>
                                                 <div className="flex items-center gap-2">
@@ -764,6 +788,44 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                 onChange={(e) => setFormData((prev) => ({ ...prev, displayName: e.target.value }))}
                                 placeholder="例如: Surge"
                             />
+                        </div>
+                        <div className="space-y-2">
+                            <Label htmlFor="outputExt">输出后缀</Label>
+                            <Input
+                                id="outputExt"
+                                value={formData.outputExt}
+                                onChange={(e) => setFormData((prev) => ({ ...prev, outputExt: e.target.value }))}
+                                placeholder={DEFAULT_OUTPUT_EXT}
+                                className="font-mono"
+                            />
+                            <div className="flex flex-wrap items-center gap-1.5">
+                                {OUTPUT_EXT_PRESETS.map((ext) => {
+                                    const active = (formData.outputExt || DEFAULT_OUTPUT_EXT).toLowerCase() === ext;
+                                    return (
+                                        <button
+                                            key={ext}
+                                            type="button"
+                                            onClick={() =>
+                                                setFormData((prev) => ({ ...prev, outputExt: ext === DEFAULT_OUTPUT_EXT ? "" : ext }))
+                                            }
+                                            className={`rounded-md border px-2 py-0.5 text-xs font-mono transition-colors ${active
+                                                ? "border-primary/30 bg-primary-soft text-primary"
+                                                : "border-border text-muted-foreground hover:text-foreground"
+                                                }`}
+                                        >
+                                            .{ext}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                                控制该客户端产出文件的后缀（1-16 位小写字母或数字）。留空使用默认 .{DEFAULT_OUTPUT_EXT}。
+                                {editingClient && formData.outputExt && resolveOutputExt(formData.outputExt) !== resolveOutputExt(editingClient.outputExt) && (
+                                    <span className="block mt-1 text-warning">
+                                        保存后将把已有 .{resolveOutputExt(editingClient.outputExt)} 文件重命名为 .{resolveOutputExt(formData.outputExt)}。
+                                    </span>
+                                )}
+                            </p>
                         </div>
                         {/* 全局转换器配置 */}
                         <div className="space-y-2 pt-2 border-t border-border">

@@ -74,6 +74,11 @@ func (s *Server) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 
 	rule := cfg.Rules[idx]
 	trackActivity := !schema.IsGeositeRule(&rule)
+	extByClient, err := s.loadClientExtMap(ctx)
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 
 	// Capture previous content BEFORE we touch the filesystem so the activity
 	// diff is still correct even if a later cleanup step fails.
@@ -86,7 +91,7 @@ func (s *Server) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 	for _, client := range rule.Output.Clients {
 		snap := artifactSnapshot{client: client}
 		if trackActivity {
-			snap.prev, _ = syncengine.ReadForRule(s.Config.RulesDir, &rule, client)
+			snap.prev, _ = syncengine.ReadForRule(s.Config.RulesDir, &rule, client, extByClient[client])
 		}
 		snap.meta, _ = s.Store.GetArtifactMeta(ctx, ruleName, client)
 		snapshots = append(snapshots, snap)
@@ -108,7 +113,7 @@ func (s *Server) handleDeleteRule(w http.ResponseWriter, r *http.Request) {
 		cleanupErrors []string
 	)
 	for _, snap := range snapshots {
-		if err := syncengine.RemoveArtifactFile(s.Config.RulesDir, &rule, snap.client); err != nil {
+		if err := syncengine.RemoveArtifactFile(s.Config.RulesDir, &rule, snap.client, extByClient[snap.client]); err != nil {
 			cleanupErrors = append(cleanupErrors,
 				fmt.Sprintf("remove artifact file (client=%s): %s", snap.client, err.Error()))
 		}
@@ -227,6 +232,12 @@ func (s *Server) handleBatchDeleteRules(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	extByClient, err := s.loadClientExtMap(ctx)
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+
 	// Snapshot per-(rule, client) state BEFORE any side-effects so the
 	// activity diff is correct even if cleanup partially fails.
 	type batchSnap struct {
@@ -247,7 +258,7 @@ func (s *Server) handleBatchDeleteRules(w http.ResponseWriter, r *http.Request) 
 		for _, client := range rule.Output.Clients {
 			snap := batchSnap{ruleName: name, rule: rule, client: client}
 			if trackActivity {
-				snap.prev, _ = syncengine.ReadForRule(s.Config.RulesDir, rule, client)
+				snap.prev, _ = syncengine.ReadForRule(s.Config.RulesDir, rule, client, extByClient[client])
 			}
 			snap.meta, _ = s.Store.GetArtifactMeta(ctx, name, client)
 			snapshots = append(snapshots, snap)
@@ -279,7 +290,7 @@ func (s *Server) handleBatchDeleteRules(w http.ResponseWriter, r *http.Request) 
 	)
 	for _, snap := range snapshots {
 		trackActivity := !schema.IsGeositeRule(snap.rule)
-		if err := syncengine.RemoveArtifactFile(s.Config.RulesDir, snap.rule, snap.client); err != nil {
+		if err := syncengine.RemoveArtifactFile(s.Config.RulesDir, snap.rule, snap.client, extByClient[snap.client]); err != nil {
 			cleanupErrors = append(cleanupErrors,
 				fmt.Sprintf("remove artifact file (rule=%s client=%s): %s", snap.ruleName, snap.client, err.Error()))
 		}
@@ -490,10 +501,15 @@ func (s *Server) handleRenameRule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	extByClient, err := s.loadClientExtMap(ctx)
+	if err != nil {
+		s.Error(w, http.StatusInternalServerError, err.Error())
+		return
+	}
 	// Plan all artifact renames first. We do NOT touch the filesystem until
 	// every target path has been validated as free, so a single conflict
 	// cannot leave us half-renamed.
-	plan, planErr := planRuleArtifactRenames(s.Config.RulesDir, target, body.NewName)
+	plan, planErr := planRuleArtifactRenames(s.Config.RulesDir, target, body.NewName, extByClient)
 	if planErr != nil {
 		s.ErrorWith(w, http.StatusConflict, map[string]any{
 			"error": planErr.Error(),
@@ -561,17 +577,18 @@ type ruleArtifactRename struct {
 // planRuleArtifactRenames builds the per-client move plan and validates that
 // every target path is free. Returns an error if any target already exists or
 // any path cannot be derived.
-func planRuleArtifactRenames(rulesDir string, rule *schema.RuleConfig, newName string) ([]ruleArtifactRename, error) {
+func planRuleArtifactRenames(rulesDir string, rule *schema.RuleConfig, newName string, extByClient map[string]string) ([]ruleArtifactRename, error) {
 	if schema.IsGeositeRule(rule) {
 		return nil, nil
 	}
 	plans := make([]ruleArtifactRename, 0, len(rule.Output.Clients))
 	for _, client := range rule.Output.Clients {
-		oldArt, err := syncengine.RuleArtifactPath(rulesDir, rule.Name, client)
+		ext := extByClient[client]
+		oldArt, err := syncengine.RuleArtifactPath(rulesDir, rule.Name, client, ext)
 		if err != nil {
 			return nil, fmt.Errorf("derive old path (client=%s): %w", client, err)
 		}
-		newArt, err := syncengine.RuleArtifactPath(rulesDir, newName, client)
+		newArt, err := syncengine.RuleArtifactPath(rulesDir, newName, client, ext)
 		if err != nil {
 			return nil, fmt.Errorf("derive new path (client=%s): %w", client, err)
 		}

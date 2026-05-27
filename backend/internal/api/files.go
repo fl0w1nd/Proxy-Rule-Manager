@@ -6,12 +6,32 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/util"
 )
+
+// publicRuleFileExtRe restricts the trailing extension of a public rule
+// filename to 1-16 lowercase alphanumerics so we can drop the historical
+// hard-coded `.list` check without opening up arbitrary suffixes. The base
+// name is still policed by util.EnsureSafeSegment, so we only need to
+// validate that the ext segment is well-formed.
+var publicRuleFileExtRe = regexp.MustCompile(`^[a-z0-9]{1,16}$`)
+
+// validatePublicRuleFile enforces "<name>.<ext>" with a sane extension.
+// Returns false (caller should respond 400) when the file is missing a
+// dot, ends with a dot, or carries an extension we wouldn't accept from
+// the admin form.
+func validatePublicRuleFile(file string) bool {
+	idx := strings.LastIndexByte(file, '.')
+	if idx <= 0 || idx == len(file)-1 {
+		return false
+	}
+	return publicRuleFileExtRe.MatchString(file[idx+1:])
+}
 
 // plainTextErr writes a plain-text error response, matching the TS reference
 // behaviour where proxy clients (Clash, Shadowrocket, …) consume raw rule
@@ -41,8 +61,11 @@ func (s *Server) serveRuleFile(w http.ResponseWriter, r *http.Request, isGeosite
 		plainTextErr(w, http.StatusBadRequest, "# Bad request")
 		return
 	}
-	// Enforce .list extension — matches TS rule-files.ts behaviour.
-	if !strings.HasSuffix(file, ".list") {
+	// File name must look like `<name>.<ext>` with a sane extension. The
+	// hard `.list` restriction was relaxed so each client can publish in
+	// its own format (yaml/json/...); the on-disk file still has to exist
+	// for the read below to succeed, so we don't need a per-ext allow-list.
+	if !validatePublicRuleFile(file) {
 		plainTextErr(w, http.StatusBadRequest, "# Invalid file format")
 		return
 	}

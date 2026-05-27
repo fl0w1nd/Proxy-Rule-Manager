@@ -37,7 +37,7 @@ import {
 import { Icon } from "@iconify/react";
 import { useTheme } from "./theme-provider";
 import { toast } from "sonner";
-import { ClientFileMeta, DEFAULT_SYSTEM_SETTINGS } from "@/lib/schema";
+import { ClientFileMeta, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt } from "@/lib/schema";
 import { RuleIcon } from "./icon-picker";
 import {
   listIcons,
@@ -230,12 +230,15 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
     return clients.find(c => c.id === clientId);
   };
 
+  // 客户端可以自定义产出文件后缀；缺省值回退到 .list 以兼容历史 URL。
+  const getClientExt = (clientId: string) => resolveOutputExt(getClientConfig(clientId)?.outputExt);
+
   const getRuleUrl = (ruleName: string, clientId: string) => {
-    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/${encodeURIComponent(ruleName)}.list`;
+    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/${encodeURIComponent(ruleName)}.${getClientExt(clientId)}`;
   };
 
   const getGeositeUrl = (provider: string, outputName: string, clientId: string) => {
-    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.list`;
+    return `${window.location.origin}/Rules/${encodeURIComponent(clientId)}/geosite/${encodeURIComponent(provider)}/${encodeURIComponent(outputName)}.${getClientExt(clientId)}`;
   };
 
   const getConfigUrl = (clientId: string, name: string, ext: string) => {

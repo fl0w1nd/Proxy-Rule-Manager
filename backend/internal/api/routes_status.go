@@ -154,7 +154,14 @@ func (s *Server) handleStatus(w http.ResponseWriter, r *http.Request) {
 
 	clientsList := make([]map[string]string, 0, len(clients))
 	for _, c := range clients {
-		clientsList = append(clientsList, map[string]string{"id": c.ID, "displayName": c.DisplayName})
+		clientsList = append(clientsList, map[string]string{
+			"id":          c.ID,
+			"displayName": c.DisplayName,
+			// Always emit the resolved value (never blank) so the frontend
+			// can naively join `<name>.<ext>` without re-implementing the
+			// fallback logic.
+			"outputExt": c.ResolvedOutputExt(),
+		})
 	}
 
 	// Resolve the consecutive-failure threshold once per response so both the
