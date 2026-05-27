@@ -411,12 +411,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
             {(() => {
               const rule = rules.find(r => r.name === previewItem.name);
               return rule?.icon ? (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(128,128,128,0.08)]">
+                  <RuleIcon icon={rule.icon} className="w-5 h-5" />
                 </div>
               ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <FileText className="w-5 h-5 text-primary" />
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(128,128,128,0.08)]">
+                  <FileText className="w-5 h-5 text-[#6b7280]" />
                 </div>
               );
             })()}
@@ -733,11 +733,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(128,128,128,0.08)] shrink-0">
                         {rule.icon ? (
-                          <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
+                          <RuleIcon icon={rule.icon} className="w-5 h-5" />
                         ) : (
-                          <FileText className="w-[18px] h-[18px] text-primary" />
+                          <FileText className="w-[18px] h-[18px] text-[#6b7280]" />
                         )}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -854,8 +854,8 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft shrink-0">
-                        <Globe className="w-[18px] h-[18px] text-primary" />
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[rgba(128,128,128,0.08)] shrink-0">
+                        <Globe className="w-[18px] h-[18px] text-[#6b7280]" />
                       </div>
                       <div className="min-w-0 flex-1">
                         <h3 className="text-sm font-semibold text-foreground truncate leading-tight">
@@ -1075,12 +1075,12 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {(() => {
                   const rule = rules.find(r => r.name === previewItem?.name);
                   return rule?.icon ? (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
-                      <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(128,128,128,0.08)]">
+                      <RuleIcon icon={rule.icon} className="w-4 h-4" />
                     </div>
                   ) : (
-                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-soft">
-                      <FileText className="w-4 h-4 text-primary" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[rgba(128,128,128,0.08)]">
+                      <FileText className="w-4 h-4 text-[#6b7280]" />
                     </div>
                   );
                 })()}

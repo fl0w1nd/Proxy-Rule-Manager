@@ -738,11 +738,11 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
               {/* Header: Icon + Name + Description */}
               <div className="flex items-start gap-3 pr-8">
-                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-primary-soft">
+                <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-[rgba(128,128,128,0.08)]">
                   {rule.icon ? (
-                    <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
+                    <RuleIcon icon={rule.icon} className="w-5 h-5" />
                   ) : (
-                    <FileText className="w-[18px] h-[18px] text-primary" />
+                    <FileText className="w-[18px] h-[18px] text-[#6b7280]" />
                   )}
                 </div>
                 <div className="min-w-0 flex-1">
