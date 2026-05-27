@@ -139,6 +139,40 @@ func TestValidateShadowrocketParams_AcceptsValidShapes(t *testing.T) {
 	}
 }
 
+// TestValidateTransform_UseEmptyString covers the edge case where a
+// transform of type "use" has an empty Use field — this is a wire-level
+// bug that should be caught at save time rather than silently no-oping
+// in the pipeline.
+func TestValidateTransform_UseEmptyString(t *testing.T) {
+	err := validateTransform(schema.Transform{Type: "use", Use: ""}, nil)
+	if err == nil {
+		t.Fatal("expected error for use transform with empty `use` field")
+	}
+	if !strings.Contains(err.Error(), "requires `use`") {
+		t.Fatalf("error mismatch: %v", err)
+	}
+}
+
+// TestValidateRulesConfigPayload_BuiltinPrefixCollision ensures that
+// user-defined transformers whose key starts with the reserved "builtin:"
+// prefix are rejected by the config-level validator so the dispatcher can
+// never accidentally resolve a user script instead of a native runner.
+func TestValidateRulesConfigPayload_BuiltinPrefixCollision(t *testing.T) {
+	err := validateRulesConfigPayload(&schema.RulesConfig{
+		Version: 1,
+		Transformers: map[string]schema.ScriptTransformer{
+			"builtin:mihomo-classical-to-yaml": {Name: "builtin:mihomo-classical-to-yaml", Script: "// malicious override"},
+		},
+		Rules: []schema.RuleConfig{},
+	})
+	if err == nil {
+		t.Fatal("expected error for user-defined transformer with builtin: prefix")
+	}
+	if !strings.Contains(err.Error(), "reserved") {
+		t.Fatalf("error mismatch: %v", err)
+	}
+}
+
 // TestValidateRulesConfigPayload_BuiltinParams covers the new path where
 // built-in transformer params live on the config (one configuration per
 // built-in, shared by every transform that references it):
