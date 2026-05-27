@@ -112,9 +112,16 @@ export function PreviewDialog({
   // Falls back to raw line count only when the backend didn't return a
   // report — i.e. for callers that consume the preview API without admin
   // privileges (today nobody, kept for forward-compat).
+  //
+  // The label is format-aware so a sing-box JSON output is not mislabelled
+  // as "条规则" (the totalLines value there counts matcher entries, not
+  // rule objects). yaml-payload mode keeps the historical "条规则" label
+  // because each payload entry already maps 1:1 to a mihomo rule.
   const headerCount = useMemo(() => {
     if (activeReport) {
-      return { value: activeReport.finalStats.totalLines, label: "条规则" };
+      const format = activeReport.finalStats.format ?? "classical";
+      const label = format === "singbox_source" ? "条匹配" : "条规则";
+      return { value: activeReport.finalStats.totalLines, label };
     }
     const raw = activeContent ? activeContent.split("\n").length : 0;
     return { value: raw, label: "行" };
@@ -332,6 +339,27 @@ function FinalStatsCard({ stats }: FinalStatsCardProps) {
   const entries = Object.entries(stats.byType || {}).sort((a, b) => b[1] - a[1]);
   const max = entries.length > 0 ? Math.max(...entries.map(([, v]) => v)) : 0;
 
+  // The total-count label is format-aware so the right-hand number always
+  // means the same thing as the dominant metric for that format:
+  //   - classical: rule lines
+  //   - yaml payload: payload entries
+  //   - sing-box source: matcher values across rule objects
+  // Older backends omit `format`; default to classical so the badge text
+  // stays accurate without requiring a schema migration.
+  const format = stats.format ?? "classical";
+  const totalLabel =
+    format === "singbox_source"
+      ? "匹配条目"
+      : format === "yaml_payload"
+        ? "payload 行"
+        : "规则数";
+  const payloadBadge =
+    typeof stats.payloadCount === "number"
+      ? format === "singbox_source"
+        ? `sing-box rules ${stats.payloadCount.toLocaleString()}`
+        : `YAML payload ${stats.payloadCount.toLocaleString()}`
+      : null;
+
   return (
     <div className="rounded-2xl border border-border bg-card shadow-[var(--shadow-xs)]">
       <div className="flex items-baseline justify-between px-5 pt-4 pb-3 border-b border-border/50">
@@ -340,13 +368,13 @@ function FinalStatsCard({ stats }: FinalStatsCardProps) {
           最终内容统计
         </h3>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">规则数</span>
+          <span className="text-xs text-muted-foreground">{totalLabel}</span>
           <span className="text-2xl font-bold text-foreground tabular-nums">
             {stats.totalLines.toLocaleString()}
           </span>
-          {typeof stats.payloadCount === "number" && (
+          {payloadBadge && (
             <Badge variant="outline" className="border-primary/25 bg-primary-soft text-primary text-xs">
-              YAML payload {stats.payloadCount.toLocaleString()}
+              {payloadBadge}
             </Badge>
           )}
         </div>

@@ -609,11 +609,17 @@ export const StepReportSchema = z.object({
 });
 export type StepReport = z.infer<typeof StepReportSchema>;
 
-// 最终内容的统计快照（顶部统计卡）
+// 最终内容的统计快照（顶部统计卡）。
+// format 标识后端识别出的内容格式，决定 UI 端 PayloadCount 应当如何被标注：
+//   - "classical"        经典文本规则列表（没有 payloadCount）
+//   - "yaml_payload"     mihomo 的 `payload:` YAML 文档（payloadCount = payload 长度）
+//   - "singbox_source"   sing-box rule-set source JSON（payloadCount = 顶层 rules 长度）
+// 缺省值（旧后端不返回该字段）按 "classical" 处理。
 export const FinalStatsSchema = z.object({
   totalLines: z.number().int().nonnegative(),
   byType: z.record(z.string(), z.number().int().nonnegative()).default({}),
   payloadCount: z.number().int().nonnegative().optional(),
+  format: z.enum(["classical", "yaml_payload", "singbox_source"]).optional(),
 });
 export type FinalStats = z.infer<typeof FinalStatsSchema>;
 

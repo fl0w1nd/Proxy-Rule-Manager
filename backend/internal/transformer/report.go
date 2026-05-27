@@ -101,15 +101,44 @@ type StepReport struct {
 	AddedTotal    int `json:"addedTotal,omitempty"`
 }
 
-// FinalStats summarises the post-pipeline content for one client. ByType
-// groups rule lines by their leading token (text formats) or by the
-// leading token of each payload entry (yaml). PayloadCount is set only
-// when the content parses as a yaml document with a top-level payload
-// sequence.
+// FormatClassical / FormatYAMLPayload / FormatSingboxSource label the
+// detected content format so the frontend can render format-specific
+// badges (e.g. "YAML payload N" vs "sing-box rules N"). Anything that
+// fails detection falls back to FormatClassical, which is also the
+// historical default.
+const (
+	FormatClassical     = "classical"
+	FormatYAMLPayload   = "yaml_payload"
+	FormatSingboxSource = "singbox_source"
+)
+
+// FinalStats summarises the post-pipeline content for one client.
+//
+// ByType groups entries by their semantic type:
+//   - Classical / yaml payload: leading comma-delimited token
+//     (DOMAIN, DOMAIN-SUFFIX, IP-CIDR, ...).
+//   - sing-box rule-set source: the matcher field name inside each
+//     rule object (domain, domain_suffix, ip_cidr, port, ...).
+//
+// TotalLines counts the semantically meaningful units:
+//   - Classical: significant lines (non-blank, non-comment).
+//   - yaml payload: number of payload entries.
+//   - sing-box source: total number of matcher values across every rule
+//     object (one mihomo-classical line maps to one matcher value, so
+//     the count stays comparable across formats).
+//
+// PayloadCount remains optional and carries the "container" count when
+// the format ships a wrapping array:
+//   - yaml payload: len(payload).
+//   - sing-box source: len(rules) — the number of rule objects.
+//
+// Format records which detector accepted the content; an empty Format
+// is treated as FormatClassical for backward compatibility.
 type FinalStats struct {
 	TotalLines   int            `json:"totalLines"`
 	ByType       map[string]int `json:"byType"`
 	PayloadCount *int           `json:"payloadCount,omitempty"`
+	Format       string         `json:"format,omitempty"`
 }
 
 // TransformReport bundles all StepReports for one client plus the final
