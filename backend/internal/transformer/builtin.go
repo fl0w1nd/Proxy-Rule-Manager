@@ -440,8 +440,12 @@ func runMihomoToShadowrocket(rawParams json.RawMessage, content string) BuiltinR
 			out = append(out, strings.TrimSpace(line.raw))
 		}
 	}
+	output := strings.Join(out, "\n")
+	if output != "" {
+		output += "\n"
+	}
 	return BuiltinResult{
-		Output:        strings.Join(out, "\n"),
+		Output:        output,
 		Dropped:       dropped,
 		Modified:      modified,
 		DroppedTotal:  droppedTotal,

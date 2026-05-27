@@ -45,7 +45,7 @@ func TestApplyNewTransformsReported_BuiltinStepHasDropAndModifyTotals(t *testing
 	if len(out) != 1 {
 		t.Fatalf("expected 1 output stream, got %d", len(out))
 	}
-	wantOut := "DOMAIN,example.com\nFINAL,DIRECT"
+	wantOut := "DOMAIN,example.com\nFINAL,DIRECT\n"
 	if out[0] != wantOut {
 		t.Fatalf("unexpected output: %q", out[0])
 	}

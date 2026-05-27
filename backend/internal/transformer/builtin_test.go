@@ -201,6 +201,7 @@ func TestRunMihomoToShadowrocket_PreservesMultilineOrder(t *testing.T) {
 		"DOMAIN,a.com",
 		"FINAL,DIRECT",
 		"IP-CIDR,1.1.1.1/32",
+		"", // trailing newline
 	}
 	gotLines := strings.Split(res.Output, "\n")
 	if !equalStringSlice(gotLines, wantLines) {
