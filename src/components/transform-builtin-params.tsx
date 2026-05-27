@@ -107,19 +107,16 @@ function ShadowrocketMappingEditor({
   const value = useMemo(() => shadowrocketParamsFromUnknown(params), [params]);
 
   const update = (next: ShadowrocketParams) => {
-    // Empty rule type rows would silently fall through to UnknownAction on
-    // the backend; we keep them so the operator can finish typing mid-edit,
-    // but trim them on serialisation so saved configs stay tidy. `r.type`
-    // is coerced through `?? ""` because a legacy / hand-edited blob could
-    // arrive with `undefined`, and a missed defensive check here is
-    // exactly the kind of regression that crashes the dashboard.
+    // Trim type / renameTo on serialisation so saved configs stay tidy,
+    // but leave reason untrimmed — it is a human-readable note where
+    // spaces are meaningful and mid-edit trimming would swallow the
+    // spacebar. The backend validates type independently.
     const cleaned: ShadowrocketParams = {
       ...next,
       rules: next.rules.map((r) => ({
         ...r,
         type: (r.type ?? "").trim(),
         renameTo: r.renameTo?.trim() || undefined,
-        reason: r.reason?.trim() || undefined,
       })),
     };
     onChange(cleaned);
