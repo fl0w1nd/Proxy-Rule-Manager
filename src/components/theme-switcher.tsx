@@ -29,12 +29,12 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
           title="切换品牌主题"
         >
           <span
-            className="w-3.5 h-3.5 rounded-full border border-sidebar-border"
+            className="w-3.5 h-3.5 rounded-full ring-1 ring-inset ring-black/10 dark:ring-white/15"
             style={{ backgroundColor: BRAND_LIST.find((b) => b.id === brand)?.accent }}
           />
         </button>
         {open && (
-          <div className="absolute bottom-full mb-1 left-0 z-50 min-w-[140px] rounded-xl bg-popover border border-popover-border shadow-md p-1 animate-fade-in">
+          <div className="absolute bottom-full mb-2 left-0 z-50 min-w-[140px] rounded-xl bg-popover border border-border shadow-[var(--shadow-md)] p-1 animate-fade-in">
             {BRAND_LIST.map((b) => (
               <button
                 key={b.id}
@@ -47,7 +47,7 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
                 )}
               >
                 <span
-                  className="w-3 h-3 rounded-full shrink-0 border border-border"
+                  className="w-3 h-3 rounded-full shrink-0 ring-1 ring-inset ring-black/10 dark:ring-white/15"
                   style={{ backgroundColor: b.accent }}
                 />
                 <span className="flex-1 text-left">{b.label}</span>
@@ -63,11 +63,14 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
   return (
     <div ref={ref} className="space-y-1.5">
       <div className="flex items-center justify-between px-2">
-        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-widest">主题</span>
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-[0.18em]">
+          主题
+        </span>
         <button
           onClick={toggleMode}
-          className="h-7 w-7 rounded-full inline-flex items-center justify-center hover:bg-accent transition-colors"
+          className="h-7 w-7 rounded-full inline-flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
           title={mode === "light" ? "切换到暗色模式" : "切换到亮色模式"}
+          aria-label={mode === "light" ? "切换到暗色模式" : "切换到亮色模式"}
         >
           {mode === "light" ? <Moon className="w-3.5 h-3.5" /> : <Sun className="w-3.5 h-3.5" />}
         </button>
@@ -79,22 +82,25 @@ export function ThemeSwitcher({ compact = false }: { compact?: boolean }) {
             key={b.id}
             onClick={() => setBrand(b.id)}
             className={cn(
-              "flex flex-col items-center gap-1 py-1.5 rounded-lg transition-all",
+              "group flex flex-col items-center gap-1 py-1.5 rounded-lg transition-colors duration-150",
               brand === b.id
-                ? "bg-accent ring-1 ring-primary/30"
-                : "hover:bg-accent"
+                ? "bg-accent"
+                : "hover:bg-accent/60"
             )}
             title={b.label}
+            aria-pressed={brand === b.id}
           >
             <span
               className={cn(
-                "w-4 h-4 rounded-full border transition-transform",
-                brand === b.id ? "border-primary scale-110" : "border-border"
+                "block w-4 h-4 rounded-full transition-all duration-200 ease-out ring-1 ring-inset ring-black/10 dark:ring-white/15",
+                brand === b.id
+                  ? "shadow-[0_0_0_2px_var(--background),0_0_0_3.5px_var(--primary)] scale-105"
+                  : "group-hover:scale-105"
               )}
               style={{ backgroundColor: b.accent }}
             />
             <span className={cn(
-              "text-[9px] leading-none truncate w-full text-center",
+              "text-[9px] leading-none truncate w-full text-center transition-colors",
               brand === b.id ? "text-foreground font-semibold" : "text-muted-foreground"
             )}>
               {b.label}

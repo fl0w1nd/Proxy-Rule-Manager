@@ -465,26 +465,26 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
         {/* Header */}
         <header
           className={cn(
-            "sticky top-0 z-50 border-b border-border bg-background/95 backdrop-blur-md transition-shadow",
-            isScrolled ? "shadow-[var(--shadow-sm)]" : ""
+            "sticky top-0 z-50 border-b border-transparent bg-background/80 backdrop-blur-xl backdrop-saturate-150 transition-[border-color,box-shadow] duration-200 ease-out",
+            isScrolled ? "border-border shadow-[var(--shadow-xs)]" : ""
           )}
         >
           <div className="container mx-auto px-4 sm:px-6 py-4">
             <div className="flex items-center justify-between gap-3">
               <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-10 w-10 items-center justify-center rounded-full border border-border bg-white shadow-[var(--shadow-xs)]">
+                <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-border/60 bg-card shadow-[var(--shadow-xs)]">
                   <NextImage src="/logo.svg" alt="Logo" width={22} height={22} className="w-[22px] h-[22px]" />
                 </div>
                 <div className="min-w-0">
                   <h1 className="text-lg sm:text-xl font-bold text-foreground truncate tracking-tight leading-tight">
                     代理规则集
                   </h1>
-                  <div className="flex items-center gap-2">
-                    <p className="text-xs text-muted-foreground hidden xs:block">
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-[11px] text-muted-foreground hidden xs:block">
                       Proxy Rule Manager
                     </p>
                     {version && (
-                      <span className="rounded-full bg-primary/10 px-2 py-0.5 font-mono text-[10px] font-semibold text-primary">
+                      <span className="rounded-full border border-border/60 bg-surface-subtle px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground leading-none tabular">
                         v{version}
                       </span>
                     )}
@@ -495,8 +495,11 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {lastSyncAt && (
                   <Tooltip delayDuration={100}>
                     <TooltipTrigger asChild>
-                      <div className="hidden cursor-default items-center gap-1.5 rounded-full border border-border bg-surface-subtle px-3 py-1.5 text-xs font-medium text-muted-foreground sm:flex">
-                        <Clock className="w-3 h-3" />
+                      <div className="hidden cursor-default items-center gap-1.5 rounded-full border border-border/70 bg-surface-subtle px-3 py-1.5 text-[11px] font-medium text-muted-foreground tabular sm:flex">
+                        <span className="relative flex h-1.5 w-1.5 shrink-0">
+                          <span className="absolute inline-flex h-full w-full rounded-full bg-success/40 opacity-60 animate-ping" />
+                          <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-success" />
+                        </span>
                         <span>{new Date(lastSyncAt).toLocaleString("zh-CN", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" })}</span>
                       </div>
                     </TooltipTrigger>
@@ -711,9 +714,13 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
           {/* Content Grid */}
           {isLoading ? (
             <div className="flex items-center justify-center py-24">
-              <div className="flex flex-col items-center gap-3">
-                <Loader2 className="w-6 h-6 animate-spin text-primary" />
-                <p className="text-sm font-medium text-muted-foreground">加载中...</p>
+              <div className="flex flex-col items-center gap-3 text-muted-foreground" aria-live="polite">
+                <div className="flex items-center gap-1.5" aria-hidden="true">
+                  <span className="block h-1.5 w-1.5 rounded-full bg-primary animate-[bounce_1s_ease-in-out_infinite] [animation-delay:-0.2s]" />
+                  <span className="block h-1.5 w-1.5 rounded-full bg-primary animate-[bounce_1s_ease-in-out_infinite] [animation-delay:-0.1s]" />
+                  <span className="block h-1.5 w-1.5 rounded-full bg-primary animate-[bounce_1s_ease-in-out_infinite]" />
+                </div>
+                <p className="text-xs font-medium">正在加载</p>
               </div>
             </div>
           ) : activeMainTab === "rules" ? (
@@ -729,7 +736,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {clientRules.map((rule, index) => (
                     <Card
                       key={rule.name}
-                      className="group relative h-full p-5 animate-slide-up opacity-0 transition-shadow duration-200 hover:shadow-[var(--shadow-md)]"
+                      className="group relative h-full p-5 animate-slide-up opacity-0 hover-lift"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                     <div className="flex items-start gap-3">
@@ -850,7 +857,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {filteredGeositeRules.map((rule, index) => (
                     <Card
                       key={`${rule.provider}-${rule.outputName}`}
-                      className="group relative h-full p-5 animate-slide-up opacity-0 transition-shadow duration-200 hover:shadow-[var(--shadow-md)]"
+                      className="group relative h-full p-5 animate-slide-up opacity-0 hover-lift"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                     <div className="flex items-start gap-3">
@@ -947,7 +954,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                   return (
                     <Card
                       key={file.id}
-                      className="h-full p-5 animate-slide-up opacity-0"
+                      className="h-full p-5 animate-slide-up opacity-0 hover-lift"
                       style={{ animationDelay: `${index * 40}ms` }}
                     >
                       <div className="flex items-start gap-3">
@@ -1021,7 +1028,7 @@ export function PublicRulesPage({ onAdminClick }: { onAdminClick: () => void }) 
                 {filteredIcons.map((icon, index) => (
                   <Card
                     key={icon.id}
-                    className="group p-3 animate-slide-up opacity-0"
+                    className="group p-3 animate-slide-up opacity-0 hover-lift"
                     style={{ animationDelay: `${index * 25}ms` }}
                   >
                     <div className="relative mb-2 flex aspect-square w-full items-center justify-center overflow-hidden rounded-xl border border-border bg-surface-subtle p-2">
