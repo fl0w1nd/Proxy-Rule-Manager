@@ -103,6 +103,8 @@ func validateBuiltinParams(name string, raw json.RawMessage) error {
 	switch name {
 	case transformer.BuiltinMihomoToShadowrocket:
 		return validateShadowrocketParams(raw)
+	case transformer.BuiltinMihomoClassicalToSingboxSource:
+		return validateSingboxSourceParams(raw)
 	}
 	return nil
 }
@@ -165,6 +167,80 @@ func validateShadowrocketParams(raw json.RawMessage) error {
 // rename to without a per-row spec.
 func isShadowrocketUnknownAction(action string) bool {
 	return action == transformer.ShadowrocketActionKeep || action == transformer.ShadowrocketActionDrop
+}
+
+// singboxSourceParamsPayload mirrors the persisted shape of the
+// builtin:mihomo-classical-to-singbox-source params. We keep it local
+// to the validator so we can reject malformed input (typoed mapTo,
+// duplicate types, out-of-range version) without re-using the runner's
+// permissive decoder.
+type singboxSourceParamsPayload struct {
+	Version int                        `json:"version"`
+	Rules   []singboxSourceRulePayload `json:"rules"`
+}
+
+type singboxSourceRulePayload struct {
+	Type   string `json:"type"`
+	Action string `json:"action"`
+	MapTo  string `json:"mapTo"`
+	Reason string `json:"reason"`
+}
+
+func validateSingboxSourceParams(raw json.RawMessage) error {
+	if len(raw) == 0 {
+		// Empty params is fine: the runner falls back to the default
+		// curated mapping table and the default schema version.
+		return nil
+	}
+	var p singboxSourceParamsPayload
+	if err := json.Unmarshal(raw, &p); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	if p.Version != 0 && (p.Version < transformer.MinSingboxSourceVersion || p.Version > transformer.MaxSingboxSourceVersion) {
+		return fmt.Errorf("version must be between %d and %d, got %d",
+			transformer.MinSingboxSourceVersion, transformer.MaxSingboxSourceVersion, p.Version)
+	}
+	// resolvedVersion mirrors the runner's fallback: an unset (0) /
+	// out-of-range value is treated as DefaultSingboxSourceVersion, so
+	// the per-field version gate below reflects what the runner will
+	// actually emit.
+	resolvedVersion := p.Version
+	if resolvedVersion == 0 {
+		resolvedVersion = transformer.DefaultSingboxSourceVersion
+	}
+	seen := make(map[string]struct{}, len(p.Rules))
+	for i, r := range p.Rules {
+		if r.Type == "" {
+			return fmt.Errorf("rules[%d].type is required", i)
+		}
+		if _, dup := seen[r.Type]; dup {
+			return fmt.Errorf("rules[%d].type %q appears more than once", i, r.Type)
+		}
+		seen[r.Type] = struct{}{}
+		switch r.Action {
+		case transformer.SingboxSourceActionDrop:
+			// mapTo is ignored for drops; no further check.
+		case transformer.SingboxSourceActionMap:
+			if r.MapTo == "" {
+				return fmt.Errorf("rules[%d] (%q): map action requires `mapTo`", i, r.Type)
+			}
+			if !transformer.IsSingboxSourceField(r.MapTo) {
+				return fmt.Errorf("rules[%d] (%q): mapTo %q is not a known sing-box headless rule field", i, r.Type, r.MapTo)
+			}
+			// Reject "map to a field that doesn't exist in the
+			// declared rule-set version" at save time so the produced
+			// JSON stays compileable for the targeted sing-box
+			// release. The fix-up advice is in the error message so
+			// the operator can self-serve.
+			if minVer := transformer.SingboxFieldMinVersion(r.MapTo); minVer > resolvedVersion {
+				return fmt.Errorf("rules[%d] (%q): mapTo %q 要求 sing-box rule-set version ≥ %d，但当前 version=%d；请提高 version 或将该行改为 drop",
+					i, r.Type, r.MapTo, minVer, resolvedVersion)
+			}
+		default:
+			return fmt.Errorf("rules[%d] (%q): action must be \"map\" | \"drop\", got %q", i, r.Type, r.Action)
+		}
+	}
+	return nil
 }
 
 // validateClientTransforms is the dedicated entry point for the client

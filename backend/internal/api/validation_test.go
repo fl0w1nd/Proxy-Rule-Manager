@@ -153,6 +153,166 @@ func TestValidateTransform_UseEmptyString(t *testing.T) {
 	}
 }
 
+// TestValidateSingboxSourceParams_RejectsBadShapes covers every wire-level
+// failure the validator must catch before a config is persisted for the
+// builtin:mihomo-classical-to-singbox-source transformer.
+func TestValidateSingboxSourceParams_RejectsBadShapes(t *testing.T) {
+	type row struct {
+		name    string
+		params  any
+		wantSub string
+	}
+	cases := []row{
+		{
+			name:    "bad json",
+			params:  json.RawMessage(`{"rules":[`),
+			wantSub: "invalid JSON",
+		},
+		{
+			name:    "type required",
+			params:  map[string]any{"rules": []any{map[string]string{"action": "map", "mapTo": "domain"}}},
+			wantSub: "type is required",
+		},
+		{
+			name:    "unknown action enum",
+			params:  map[string]any{"rules": []any{map[string]string{"type": "DOMAIN", "action": "rename"}}},
+			wantSub: "action must be",
+		},
+		{
+			name:    "map missing mapTo",
+			params:  map[string]any{"rules": []any{map[string]string{"type": "DOMAIN", "action": "map"}}},
+			wantSub: "map action requires `mapTo`",
+		},
+		{
+			name:    "map mapTo unknown sing-box field",
+			params:  map[string]any{"rules": []any{map[string]string{"type": "DOMAIN", "action": "map", "mapTo": "fake_field"}}},
+			wantSub: "not a known sing-box headless rule field",
+		},
+		{
+			name: "duplicate type",
+			params: map[string]any{
+				"rules": []any{
+					map[string]string{"type": "DOMAIN", "action": "map", "mapTo": "domain"},
+					map[string]string{"type": "DOMAIN", "action": "drop"},
+				},
+			},
+			wantSub: "appears more than once",
+		},
+		{
+			name:    "version below floor",
+			params:  map[string]any{"version": 0, "rules": []any{}}, // 0 is fine (default sentinel), so we use -1
+			wantSub: "",                                             // sentinel: we replace below
+		},
+		{
+			name:    "version above ceiling",
+			params:  map[string]any{"version": 99, "rules": []any{}},
+			wantSub: "version must be between",
+		},
+	}
+	for _, c := range cases {
+		if c.name == "version below floor" {
+			// 0 is a valid sentinel ("use default"). The real "below
+			// floor" test uses a negative value, which is rejected.
+			c.params = map[string]any{"version": -1, "rules": []any{}}
+			c.wantSub = "version must be between"
+		}
+		t.Run(c.name, func(t *testing.T) {
+			var rm json.RawMessage
+			if m, ok := c.params.(json.RawMessage); ok {
+				rm = m
+			} else {
+				rm = raw(c.params)
+			}
+			err := validateSingboxSourceParams(rm)
+			if err == nil {
+				t.Fatalf("expected error, got nil (params=%s)", string(rm))
+			}
+			if !strings.Contains(err.Error(), c.wantSub) {
+				t.Fatalf("error %q does not contain %q", err.Error(), c.wantSub)
+			}
+		})
+	}
+}
+
+// TestValidateSingboxSourceParams_AcceptsValidShapes ensures the
+// validator doesn't over-reject the happy paths the editor produces.
+func TestValidateSingboxSourceParams_AcceptsValidShapes(t *testing.T) {
+	cases := [][]byte{
+		nil, // empty → defaults
+		[]byte(`{}`),
+		[]byte(`{"version": 0}`),              // sentinel: runner picks default
+		[]byte(`{"version": 3}`),              // explicit current default
+		[]byte(`{"version": 1, "rules": []}`), // floor
+		[]byte(`{"version": 5, "rules": []}`), // ceiling
+		[]byte(`{"rules":[{"type":"DOMAIN","action":"map","mapTo":"domain"}]}`),         // simple map
+		[]byte(`{"rules":[{"type":"GEOSITE","action":"drop","reason":"unsupported"}]}`), // drop with reason
+		// version ceilings permit their own ceiling-only fields:
+		[]byte(`{"version": 5, "rules":[{"type":"P","action":"map","mapTo":"package_name_regex"}]}`),
+		[]byte(`{"version": 3, "rules":[{"type":"W","action":"map","mapTo":"wifi_ssid"}]}`),
+		// regression for Bug 1: an explicit empty rules array is a
+		// valid "drop everything" intent, not a config error.
+		[]byte(`{"rules": []}`),
+	}
+	for _, c := range cases {
+		if err := validateSingboxSourceParams(c); err != nil {
+			t.Errorf("validateSingboxSourceParams(%q) unexpected error: %v", string(c), err)
+		}
+	}
+}
+
+// TestValidateSingboxSourceParams_RejectsCrossVersionField guards the
+// save-time check for the second reviewed bug: a row that targets a
+// sing-box field newer than the declared rule-set version produces
+// JSON the targeted sing-box release will reject. The validator must
+// catch the mismatch before the config is persisted, and the error
+// message must point the operator at the fix.
+func TestValidateSingboxSourceParams_RejectsCrossVersionField(t *testing.T) {
+	type row struct {
+		name      string
+		params    string
+		wantField string
+	}
+	cases := []row{
+		{
+			name:      "v1 rejects process_path_regex (v2-only)",
+			params:    `{"version": 1, "rules": [{"type": "PROCESS-PATH-REGEX", "action": "map", "mapTo": "process_path_regex"}]}`,
+			wantField: "process_path_regex",
+		},
+		{
+			name:      "v2 rejects network_type (v3-only)",
+			params:    `{"version": 2, "rules": [{"type": "NETWORK-TYPE", "action": "map", "mapTo": "network_type"}]}`,
+			wantField: "network_type",
+		},
+		{
+			name:      "v4 rejects package_name_regex (v5-only)",
+			params:    `{"version": 4, "rules": [{"type": "PKG", "action": "map", "mapTo": "package_name_regex"}]}`,
+			wantField: "package_name_regex",
+		},
+		{
+			// Default version is DefaultSingboxSourceVersion (3), so
+			// package_name_regex (requires v5) is rejected even when
+			// the user didn't pick a version explicitly.
+			name:      "default version (3) rejects package_name_regex (v5-only)",
+			params:    `{"rules": [{"type": "PKG", "action": "map", "mapTo": "package_name_regex"}]}`,
+			wantField: "package_name_regex",
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := validateSingboxSourceParams(json.RawMessage(c.params))
+			if err == nil {
+				t.Fatalf("expected error, got nil")
+			}
+			if !strings.Contains(err.Error(), c.wantField) {
+				t.Fatalf("error %q does not mention field %q", err.Error(), c.wantField)
+			}
+			if !strings.Contains(err.Error(), "version") {
+				t.Fatalf("error %q does not mention version", err.Error())
+			}
+		})
+	}
+}
+
 // TestValidateRulesConfigPayload_BuiltinPrefixCollision ensures that
 // user-defined transformers whose key starts with the reserved "builtin:"
 // prefix are rejected by the config-level validator so the dispatcher can
