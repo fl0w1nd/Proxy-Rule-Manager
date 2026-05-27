@@ -384,30 +384,31 @@ func cascadeArtifactExt(ctx context.Context, tx *sql.Tx, clientID, oldExt, newEx
 	if oldExt == newExt {
 		return nil
 	}
-	rows, err := tx.QueryContext(ctx,
-		`SELECT rule_name, blob_path, blob_url FROM artifacts WHERE client = ?`, clientID)
-	if err != nil {
-		return err
-	}
 	type artifactRow struct {
 		ruleName string
 		path     string
 		url      sql.NullString
 	}
-	var items []artifactRow
-	for rows.Next() {
-		var it artifactRow
-		if err := rows.Scan(&it.ruleName, &it.path, &it.url); err != nil {
-			rows.Close()
-			return err
+	items, err := func() ([]artifactRow, error) {
+		rows, err := tx.QueryContext(ctx,
+			`SELECT rule_name, blob_path, blob_url FROM artifacts WHERE client = ?`, clientID)
+		if err != nil {
+			return nil, err
 		}
-		items = append(items, it)
-	}
-	if err := rows.Err(); err != nil {
-		rows.Close()
+		defer rows.Close()
+		var out []artifactRow
+		for rows.Next() {
+			var it artifactRow
+			if err := rows.Scan(&it.ruleName, &it.path, &it.url); err != nil {
+				return nil, err
+			}
+			out = append(out, it)
+		}
+		return out, rows.Err()
+	}()
+	if err != nil {
 		return err
 	}
-	rows.Close()
 	oldSuffix := "." + oldExt
 	newSuffix := "." + newExt
 	for _, it := range items {
