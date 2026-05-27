@@ -762,10 +762,9 @@ export function Dashboard({ onBack }: DashboardProps) {
       const result = await getChangeDiff(change.date, change.fileName);
       if (diffRequestRef.current !== requestId) return;
       setDiffContent(result.diff);
-    } catch (error) {
+    } catch {
       if (diffRequestRef.current !== requestId) return;
-      console.error("Failed to fetch diff:", error);
-      setDiffContent("diff 已过期或不可用");
+      setDiffContent("");
     } finally {
       if (diffRequestRef.current !== requestId) return;
       setIsDiffLoading(false);

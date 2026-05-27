@@ -117,10 +117,6 @@ func (s *Server) handleActivityChangeDiff(w http.ResponseWriter, r *http.Request
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
 	}
-	if diff == "" {
-		s.Error(w, http.StatusNotFound, "Diff not found")
-		return
-	}
 	s.JSON(w, http.StatusOK, map[string]any{"diff": diff})
 }
 

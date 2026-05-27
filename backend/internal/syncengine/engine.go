@@ -857,14 +857,19 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 			content,
 			3,
 		)
-		change = &store.ChangeRecordInput{
-			ID:         uuid.New().String(),
-			Timestamp:  meta.LastUpdatedAt,
-			RuleName:   rule.Name,
-			Client:     client,
-			ChangeType: string(changeType),
-			SizeBytes:  &size,
-			Diff:       body,
+		// Only record a change when there is an actual diff to show.
+		// This avoids 0-byte empty-diff records when both the on-disk
+		// content and the freshly produced content are empty.
+		if body != "" {
+			change = &store.ChangeRecordInput{
+				ID:         uuid.New().String(),
+				Timestamp:  meta.LastUpdatedAt,
+				RuleName:   rule.Name,
+				Client:     client,
+				ChangeType: string(changeType),
+				SizeBytes:  &size,
+				Diff:       body,
+			}
 		}
 	}
 	return artifactFlush{Meta: &meta, Wrote: true, Change: change}, nil

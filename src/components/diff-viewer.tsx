@@ -109,6 +109,17 @@ export function DiffViewer({ content, className, defaultDiffStyle = "unified" }:
 
   if (!content) return null;
 
+  const isUnifiedDiff = /^(?:Index:|diff |--- )/.test(content.trimStart());
+  if (!isUnifiedDiff) {
+    return (
+      <div className={cn("overflow-x-auto rounded-xl border border-border bg-card p-4", className)}>
+        <pre className="whitespace-pre-wrap break-all font-mono text-sm text-muted-foreground">
+          {content}
+        </pre>
+      </div>
+    );
+  }
+
   const lineCount = content.split("\n").length;
   const useLargeDiffMode = lineCount > LARGE_DIFF_LINE_THRESHOLD || content.length > LARGE_DIFF_CHAR_THRESHOLD;
 
