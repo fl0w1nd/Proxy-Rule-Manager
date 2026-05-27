@@ -644,10 +644,25 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
         rules: updatedRules,
       }, rev);
 
-      let refreshFailed = 0;
+      // The batch partial-sync endpoint is async (202 Accepted); the engine
+      // runs in the background under a single global sync lock and the
+      // dashboard's SyncProgressPill takes over progress reporting. We
+      // intentionally do NOT await completion here so the dialog can close
+      // immediately even when the affected rule set is large.
+      let syncDispatched = false;
+      let syncBusy = false;
       if (shouldUpdateClients) {
-        const syncResult = await refreshRules(selectedRuleNames);
-        refreshFailed = syncResult.failedRules.length;
+        try {
+          await refreshRules(selectedRuleNames);
+          syncDispatched = true;
+        } catch (error) {
+          const err = error as Error & { code?: string; status?: number };
+          if (err.code === "SYNC_ALREADY_RUNNING" || err.status === 409) {
+            syncBusy = true;
+          } else {
+            throw error;
+          }
+        }
       }
 
       setIsBatchDialogOpen(false);
@@ -655,10 +670,13 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       await fetchAll(provider);
       onRefresh?.();
 
-      if (refreshFailed > 0) {
-        toast.warning(`已处理 ${selectedRuleNames.length} 条规则，${refreshFailed} 条刷新失败`);
+      const ruleCount = selectedRuleNames.length;
+      if (syncBusy) {
+        toast.warning(`已保存 ${ruleCount} 条规则；当前已有同步在进行，请待其完成后手动触发刷新`);
+      } else if (syncDispatched) {
+        toast.success(`已保存 ${ruleCount} 条规则，已在后台同步中`);
       } else {
-        toast.success(`已处理 ${selectedRuleNames.length} 条规则`);
+        toast.success(`已处理 ${ruleCount} 条规则`);
       }
     } catch (error) {
       toast.error("批量处理失败: " + String(error));

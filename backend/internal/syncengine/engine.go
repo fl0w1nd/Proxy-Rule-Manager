@@ -406,12 +406,25 @@ func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (
 
 // ExecutePartialSync runs a single rule and its affected downstream rules under the global sync lock.
 func (e *Engine) ExecutePartialSync(ctx context.Context, ruleName string) (Result, error) {
-	return e.executeSelective(ctx, []string{ruleName}, lockModeGlobal)
+	return e.executeSelective(ctx, []string{ruleName}, lockModeGlobal, NopReporter{})
 }
 
 // ExecuteBatchPartialSync runs multiple rules with a global lock.
 func (e *Engine) ExecuteBatchPartialSync(ctx context.Context, ruleNames []string) (Result, error) {
-	return e.executeSelective(ctx, ruleNames, lockModeGlobal)
+	return e.executeSelective(ctx, ruleNames, lockModeGlobal, NopReporter{})
+}
+
+// ExecuteBatchPartialSyncReport runs multiple rules under the global sync lock
+// and pipes coarse-grained progress events through reporter. Pass NopReporter{}
+// when no observer is needed. The reporter is invoked synchronously from the
+// engine goroutine; it MUST be cheap and non-blocking. Mirrors
+// ExecuteFullSyncReport for the partial path so the HTTP layer can wire the
+// SyncTracker pill while a batch sync runs.
+func (e *Engine) ExecuteBatchPartialSyncReport(ctx context.Context, ruleNames []string, reporter Reporter) (Result, error) {
+	if reporter == nil {
+		reporter = NopReporter{}
+	}
+	return e.executeSelective(ctx, ruleNames, lockModeGlobal, reporter)
 }
 
 type lockMode int
@@ -421,13 +434,17 @@ const (
 	lockModeGlobal
 )
 
-func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode lockMode) (Result, error) {
+func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode lockMode, reporter Reporter) (Result, error) {
+	if reporter == nil {
+		reporter = NopReporter{}
+	}
 	uniqueSeeds := uniqueSlice(seedNames)
 	primary := "sync"
 	if len(uniqueSeeds) > 0 {
 		primary = uniqueSeeds[0]
 	}
 
+	reporter.SetPhase("acquire_lock", "")
 	var (
 		acquired bool
 		reason   string
@@ -445,6 +462,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	}
 	if !acquired {
 		log.Printf("[sync] partial sync: skipped (%s seeds=%v)", reason, uniqueSeeds)
+		reporter.Log("skipped: " + reason)
 		return Result{
 			Success:     false,
 			FailedRules: []schema.JobFailedRule{{Name: primary, Error: reason}},
@@ -461,6 +479,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		}
 	}()
 
+	reporter.SetPhase("loading_config", "")
 	cfg, err := e.Store.GetConfig(ctx)
 	if err != nil {
 		return Result{}, err
@@ -525,6 +544,8 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		log.Printf("[sync] partial sync: create job failed: %v", err)
 		return Result{}, err
 	}
+	reporter.SetJobID(job.JobID)
+	reporter.Log(fmt.Sprintf("started (seeds=%d affected=%d)", len(uniqueSeeds), len(affectedList)))
 	log.Printf("[sync] partial sync started (job=%s seeds=%v affected=%d)", job.JobID, uniqueSeeds, len(affectedList))
 
 	// Refresh upstream geosite caches that the affected rules touch. This
@@ -536,6 +557,8 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	// report success while serving stale data. We now turn each failed
 	// provider into a JobFailedRule + FailureRecord and short-circuit.
 	if providers := collectGeositeProviders(subset); len(providers) > 0 {
+		reporter.SetPhase("refreshing_geosite", fmt.Sprintf("%d providers", len(providers)))
+		reporter.Log(fmt.Sprintf("refreshing %d geosite providers", len(providers)))
 		failedProviders := refreshGeositeProviders(ctx, e.Geosite, providers)
 		if len(failedProviders) > 0 {
 			nowISO := util.NowISO()
@@ -600,6 +623,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	for _, r := range sorted {
 		collect(r.Name)
 	}
+	// Pre-resolve the dependency warm-up subset so we can include it in
+	// the total progress count BEFORE the main loop begins. Without this
+	// the pill's "X/Y" jumps backward when deps run first.
+	var sortedDeps []schema.RuleConfig
 	if len(allDeps) > 0 {
 		var depRules []schema.RuleConfig
 		for _, r := range cfg.Rules {
@@ -607,36 +634,31 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 				depRules = append(depRules, r)
 			}
 		}
-		sortedDeps, err := TopologicalSort(depRules, true)
-		if err != nil {
-			failures := []schema.JobFailedRule{{Name: "sync", Error: err.Error()}}
+		var depSortErr error
+		sortedDeps, depSortErr = TopologicalSort(depRules, true)
+		if depSortErr != nil {
+			failures := []schema.JobFailedRule{{Name: "sync", Error: depSortErr.Error()}}
 			fctx, fcancel := finalizeCtx()
 			defer fcancel()
 			logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failures))
-			log.Printf("[sync] partial sync: dependency sort failed (job=%s): %v", job.JobID, err)
+			log.Printf("[sync] partial sync: dependency sort failed (job=%s): %v", job.JobID, depSortErr)
 			return Result{
 				Success:     false,
 				FailedRules: failures,
 				JobID:       job.JobID,
 			}, nil
 		}
-		for i := range sortedDeps {
-			result := e.Processor.ProcessRule(ctx, &sortedDeps[i], cfg.Transformers, cfg.BuiltinParams, cache, clients)
-			if len(result.Errors) > 0 {
-				failures := []schema.JobFailedRule{{Name: sortedDeps[i].Name, Error: joinErrors(result.Errors)}}
-				fctx, fcancel := finalizeCtx()
-				defer fcancel()
-				logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failures))
-				logRuleFailures("partial sync", job.JobID, failures)
-				return Result{
-					Success:     false,
-					FailedRules: failures,
-					JobID:       job.JobID,
-				}, nil
-			}
-			if len(result.Contents) > 0 {
-				cache.Set(sortedDeps[i].Name, result.Contents, result.ClientOrder)
-			}
+	}
+
+	reporter.SetTotal(len(sortedDeps) + len(sorted))
+	reporter.SetPhase("processing", "")
+
+	// observeCancel records that the engine has acknowledged a cancel request
+	// before bailing out of either rule loop. SyncTracker.End reads cancelSeen
+	// to decide whether to render a "cancelled" toast vs a generic failure.
+	observeCancel := func() {
+		if obs, ok := reporter.(interface{ MarkCancelObserved() }); ok {
+			obs.MarkCancelObserved()
 		}
 	}
 
@@ -651,9 +673,63 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	missingByProvider := map[string]map[string]struct{}{}
 	var pendingAttempts []store.ArtifactAttempt
 	extLookup := extByClient(clients)
+
+	cancelled := false
+	for i := range sortedDeps {
+		// Honour cancellation before each dependency so a cancel triggered
+		// during the warm-up phase actually takes effect within one rule.
+		if err := ctx.Err(); err != nil {
+			observeCancel()
+			reporter.Log("cancelled by client; stopping dependency loop")
+			failedRules = append(failedRules, schema.JobFailedRule{
+				Name:  "sync",
+				Error: "cancelled: " + err.Error(),
+			})
+			cancelled = true
+			break
+		}
+		reporter.StartRule(sortedDeps[i].Name, i)
+		result := e.Processor.ProcessRule(ctx, &sortedDeps[i], cfg.Transformers, cfg.BuiltinParams, cache, clients)
+		if len(result.Errors) > 0 {
+			reporter.FinishRule(sortedDeps[i].Name, false)
+			failures := []schema.JobFailedRule{{Name: sortedDeps[i].Name, Error: joinErrors(result.Errors)}}
+			fctx, fcancel := finalizeCtx()
+			defer fcancel()
+			logFinalizeErr("complete job", job.JobID, e.Store.CompleteJob(fctx, job.JobID, nil, failures))
+			logRuleFailures("partial sync", job.JobID, failures)
+			return Result{
+				Success:     false,
+				FailedRules: failures,
+				JobID:       job.JobID,
+			}, nil
+		}
+		if len(result.Contents) > 0 {
+			cache.Set(sortedDeps[i].Name, result.Contents, result.ClientOrder)
+		}
+		reporter.FinishRule(sortedDeps[i].Name, true)
+	}
+
 	for i := range sorted {
+		if cancelled {
+			break
+		}
+		// Mirror the per-rule cancel check from ExecuteFullSyncReport. Without
+		// this, a cancel requested mid-batch would still let ProcessRule march
+		// through the remaining rules — each failing fast on ctx — and inflate
+		// the failure count instead of cleanly aborting.
+		if err := ctx.Err(); err != nil {
+			observeCancel()
+			reporter.Log("cancelled by client; stopping rule loop")
+			failedRules = append(failedRules, schema.JobFailedRule{
+				Name:  "sync",
+				Error: "cancelled: " + err.Error(),
+			})
+			cancelled = true
+			break
+		}
 		rule := &sorted[i]
 		trackActivity := !schema.IsGeositeRule(rule)
+		reporter.StartRule(rule.Name, len(sortedDeps)+i)
 		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cfg.BuiltinParams, cache, clients)
 		for _, m := range res.MissingGeositeLists {
 			if m.Provider == "" || m.List == "" {
@@ -671,12 +747,15 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 			failedRules = append(failedRules, schema.JobFailedRule{Name: rule.Name, Error: joinErrors(res.Errors)})
 			pendingAttempts = append(pendingAttempts,
 				attemptsForFailedRule(rule, res.Errors)...)
+			reporter.FinishRule(rule.Name, false)
 			continue
 		}
 		cache.Set(rule.Name, res.Contents, res.ClientOrder)
+		ruleOk := true
 		for client, content := range res.Contents {
 			art, err := e.flushArtifact(ctx, rule, client, lookupExt(extLookup, client), content, trackActivity)
 			if err != nil {
+				ruleOk = false
 				if trackActivity {
 					failureRecords = append(failureRecords, schema.FailureRecord{
 						ID:        uuid.New().String(),
@@ -709,8 +788,10 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 				}
 			}
 		}
+		reporter.FinishRule(rule.Name, ruleOk)
 	}
 
+	reporter.SetPhase("finalizing", "")
 	fctx, fcancel := finalizeCtx()
 	defer fcancel()
 
@@ -742,6 +823,9 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	logRuleFailures("partial sync", job.JobID, failedRules)
 	log.Printf("[sync] partial sync finished (job=%s rules=%d changed=%d failed=%d)",
 		job.JobID, len(sorted), len(changedRules), len(failedRules))
+	reporter.Log(fmt.Sprintf("finished: rules=%d changed=%d failed=%d",
+		len(sorted), len(changedRules), len(failedRules)))
+	reporter.SetPhase("done", "")
 
 	return Result{
 		Success:      len(failedRules) == 0,

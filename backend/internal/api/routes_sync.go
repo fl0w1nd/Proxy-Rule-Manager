@@ -104,6 +104,16 @@ func (p panicErr) Error() string {
 	return "panic"
 }
 
+// handleSyncBatch kicks off a batch partial sync in the background. It
+// mirrors handleSyncFull: the tracker slot is claimed synchronously, the
+// engine runs in a goroutine, and the client gets 202 Accepted immediately
+// so the batch dialog can close without blocking on a long sync. Progress
+// is then polled through /sync/progress and the dashboard's
+// SyncProgressPill, with a completion toast on the next idle snapshot.
+//
+// Returning 409 here keeps the front-end contract identical to /sync/full:
+// the caller can detect a concurrent run with the same SYNC_ALREADY_RUNNING
+// code instead of inventing a partial-sync-specific error path.
 func (s *Server) handleSyncBatch(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		RuleNames []string `json:"ruleNames"`
@@ -124,12 +134,37 @@ func (s *Server) handleSyncBatch(w http.ResponseWriter, r *http.Request) {
 		s.Error(w, http.StatusBadRequest, "ruleNames is required")
 		return
 	}
-	res, err := s.Engine.ExecuteBatchPartialSync(r.Context(), body.RuleNames)
-	if err != nil {
-		s.Error(w, http.StatusInternalServerError, err.Error())
+
+	// Snapshot the seeds before handing them to the goroutine so concurrent
+	// modifications to the request body slice (highly unlikely but cheap to
+	// guard against) cannot race the engine.
+	seeds := append([]string(nil), body.RuleNames...)
+
+	rs, syncCtx, ok := s.SyncTracker.Begin(context.Background(), "partial_sync")
+	if !ok {
+		s.ErrorWith(w, http.StatusConflict, map[string]any{
+			"error": "Another sync is already running",
+			"code":  "SYNC_ALREADY_RUNNING",
+		})
 		return
 	}
-	s.JSON(w, http.StatusOK, normalizeSyncResult(res))
+	rs.SetTrigger("manual")
+	go func() {
+		defer func() {
+			if rec := recover(); rec != nil {
+				log.Printf("[sync] async partial sync panic: %v", rec)
+				s.SyncTracker.End(syncengine.Result{}, asError(rec))
+			}
+		}()
+		res, err := s.Engine.ExecuteBatchPartialSyncReport(syncCtx, seeds, rs)
+		s.SyncTracker.End(res, err)
+	}()
+	s.JSON(w, http.StatusAccepted, map[string]any{
+		"status":    "started",
+		"jobType":   "partial_sync",
+		"startedAt": rs.Snapshot().StartedAt,
+		"seeds":     len(seeds),
+	})
 }
 
 func normalizeSyncResult(res syncengine.Result) syncengine.Result {

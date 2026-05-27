@@ -457,12 +457,14 @@ export interface SyncResult {
   jobId: string;
 }
 
-// SyncStartAck matches the 202 Accepted body from POST /api/sync/full.
-// The call returns immediately and progress is polled through getSyncProgress.
+// SyncStartAck matches the 202 Accepted body from POST /api/sync/full
+// and /api/sync/partial/batch. The call returns immediately and progress
+// is polled through getSyncProgress; seeds is only set for partial_sync.
 export interface SyncStartAck {
   status: "started";
-  jobType: "full_sync";
+  jobType: "full_sync" | "partial_sync";
   startedAt: string;
+  seeds?: number;
 }
 
 export async function executeFullSync(): Promise<SyncStartAck> {
@@ -516,8 +518,14 @@ export async function cancelSync(): Promise<{ success: boolean }> {
   return apiRequest<{ success: boolean }>("/sync/cancel", { method: "POST" });
 }
 
-export async function refreshRules(ruleNames: string[]): Promise<SyncResult> {
-  return apiRequest<SyncResult>("/sync/partial/batch", {
+// refreshRules kicks off an async batch partial sync. The endpoint returns
+// 202 Accepted as soon as the SyncTracker slot is claimed; the engine then
+// runs in the background and the caller is expected to drive progress UI
+// through getSyncProgress (typically via the dashboard's SyncProgressPill).
+// On a concurrent run the server returns 409 SYNC_ALREADY_RUNNING; the
+// thrown error string carries that code so callers can detect it.
+export async function refreshRules(ruleNames: string[]): Promise<SyncStartAck> {
+  return apiRequest<SyncStartAck>("/sync/partial/batch", {
     method: "POST",
     body: JSON.stringify({ ruleNames }),
   });

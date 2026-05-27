@@ -160,7 +160,11 @@ export function SyncProgressPill({
           <div className="flex items-start justify-between gap-2">
             <div>
               <div className="text-sm font-medium">
-                {progress.jobType === "full_sync" ? "全量同步" : progress.jobType ?? "同步"}
+                {progress.jobType === "full_sync"
+                  ? "全量同步"
+                  : progress.jobType === "partial_sync"
+                  ? "局部同步"
+                  : progress.jobType ?? "同步"}
               </div>
               {progress.jobId && (
                 <div className="text-[10px] text-muted-foreground tabular-nums">
