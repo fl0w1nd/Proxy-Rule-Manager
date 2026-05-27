@@ -420,7 +420,7 @@ func TestPreviewRule_ReportsBuiltinPipeline(t *testing.T) {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	engine := NewEngine(st, nil, rulesDir)
-	res, err := engine.PreviewRule(ctx, &cfg.Rules[0], cfg.Transformers, 0)
+	res, err := engine.PreviewRule(ctx, &cfg.Rules[0], cfg.Transformers, cfg.BuiltinParams, 0)
 	if err != nil {
 		t.Fatalf("PreviewRule: %v", err)
 	}
@@ -474,7 +474,7 @@ func TestPreviewRule_FinalStatsYamlPayload(t *testing.T) {
 		t.Fatalf("SaveConfig: %v", err)
 	}
 	engine := NewEngine(st, nil, rulesDir)
-	res, err := engine.PreviewRule(ctx, &cfg.Rules[0], cfg.Transformers, 0)
+	res, err := engine.PreviewRule(ctx, &cfg.Rules[0], cfg.Transformers, cfg.BuiltinParams, 0)
 	if err != nil {
 		t.Fatalf("PreviewRule: %v", err)
 	}

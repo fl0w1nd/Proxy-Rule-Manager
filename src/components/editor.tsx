@@ -55,11 +55,11 @@ import {
   MergeStrategy,
   ScriptTransformer,
   BuiltinTransformer,
+  isBuiltinTransformerName,
 } from "@/lib/schema";
 import { saveConfig, getConfig, renameRule, previewRule, refreshRule, PreviewResponse, getClients, ClientConfig, getGeositeCatalog, type GeositeCatalogItem } from "@/lib/api-client";
 import { LocalContentDialog } from "./editor-local-content";
 import { PreviewDialog } from "./editor-preview";
-import { BuiltinTransformParams } from "./transform-builtin-params";
 import { createTransformByType } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
 import { toast } from "sonner";
@@ -448,6 +448,7 @@ export function RuleEditor({
       await saveConfig({
         version: latestConfig.version || 1,
         transformers: latestConfig.transformers || {},
+        builtinParams: latestConfig.builtinParams || {},
         rules: updatedRules,
       }, rev);
 
@@ -1591,12 +1592,10 @@ function TransformCard({
               {Object.keys(transformers).length === 0 && builtinTransformers.length === 0 && (
                 <p className="text-sm text-warning">暂无预定义转换器，请先在配置中添加</p>
               )}
-              {transform.use && (
-                <BuiltinTransformParams
-                  use={transform.use}
-                  params={transform.params}
-                  onChange={(next) => onChange({ params: next })}
-                />
+              {transform.use && isBuiltinTransformerName(transform.use) && (
+                <p className="text-xs text-muted-foreground">
+                  内置转换器的可配置参数（如映射表）在「转换器」页面统一管理；这里只引用名称。
+                </p>
               )}
             </div>
           )}

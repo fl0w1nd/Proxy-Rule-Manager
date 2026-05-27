@@ -99,6 +99,10 @@ export const TransformTypeSchema = z.enum(["use", "replace", "remove_lines"]);
 export type TransformType = z.infer<typeof TransformTypeSchema>;
 
 // 后处理操作
+//
+// 内置转换器的参数（如 mihomo→shadowrocket 的映射表）统一放在
+// RulesConfig.builtinParams 里：每个 builtin 整个部署只配一次，
+// rule / client / override 的 Transform 都只引用名字，不重复配置。
 export const TransformSchema = z.object({
   // 操作类型
   type: TransformTypeSchema,
@@ -112,9 +116,6 @@ export const TransformSchema = z.object({
   replacement: z.string().optional(),
   // 正则标志
   flags: z.string().optional(),
-  // 内置转换器的可选参数（任意 JSON）。当前 mihomo→shadowrocket 用它存映射表，
-  // 未来其它 builtin: 同理；schema 不在前端做强校验，给 builtin 自己反序列化。
-  params: z.unknown().optional(),
 });
 export type Transform = z.infer<typeof TransformSchema>;
 
@@ -185,10 +186,17 @@ export type ScriptTransformer = z.infer<typeof ScriptTransformerSchema>;
 export const TransformersConfigSchema = z.record(z.string(), ScriptTransformerSchema);
 export type TransformersConfig = z.infer<typeof TransformersConfigSchema>;
 
+// 内置转换器的参数表：键为内置转换器名（如 "builtin:mihomo-to-shadowrocket"），
+// 值为该转换器自定义解码的 JSON 对象（前端不做强 schema，
+// 由后端 validateBuiltinParams 校验）。
+export const BuiltinParamsConfigSchema = z.record(z.string(), z.unknown());
+export type BuiltinParamsConfig = z.infer<typeof BuiltinParamsConfigSchema>;
+
 // 完整的编排配置文件
 export const RulesConfigSchema = z.object({
   version: z.number().default(1),
   transformers: TransformersConfigSchema.optional().default({}),
+  builtinParams: BuiltinParamsConfigSchema.optional().default({}),
   rules: z.array(RuleConfigSchema),
 });
 export type RulesConfig = z.infer<typeof RulesConfigSchema>;
@@ -345,6 +353,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
 export const DEFAULT_CONFIG: RulesConfig = {
   version: 1,
   transformers: {},
+  builtinParams: {},
   rules: [],
 };
 

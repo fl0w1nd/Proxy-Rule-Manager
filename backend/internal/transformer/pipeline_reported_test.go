@@ -18,6 +18,12 @@ func targetIndices(idx ...int) json.RawMessage {
 	return raw
 }
 
+// testCtx wraps the built-in registry in a PipelineCtx so the existing
+// tests don't have to repeat the builder at every call site.
+func testCtx() PipelineCtx {
+	return PipelineCtx{Transformers: BuiltinTransformers()}
+}
+
 // TestApplyNewTransformsReported_BuiltinStepHasDropAndModifyTotals verifies
 // that the reported pipeline propagates the dropped/modified buckets from
 // the built-in transformer all the way into StepReport, and stamps stage +
@@ -32,7 +38,7 @@ func TestApplyNewTransformsReported_BuiltinStepHasDropAndModifyTotals(t *testing
 	transforms := []schema.Transform{
 		{Type: "use", Use: BuiltinMihomoToShadowrocket, Target: targetAll},
 	}
-	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageRule)
+	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageRule)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -73,7 +79,7 @@ func TestApplyNewTransformsReported_UnknownBuiltinFallsThroughAsNoop(t *testing.
 	transforms := []schema.Transform{
 		{Type: "use", Use: "builtin:nonexistent-transformer", Target: targetAll},
 	}
-	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageRule)
+	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageRule)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -94,11 +100,11 @@ func TestApplyNewTransforms_NonReported_MatchesReported(t *testing.T) {
 	transforms := []schema.Transform{
 		{Type: "use", Use: BuiltinMihomoToShadowrocket, Target: targetAll},
 	}
-	gotPlain, err := eng.ApplyNewTransforms(in, transforms, BuiltinTransformers())
+	gotPlain, err := eng.ApplyNewTransforms(in, transforms, testCtx())
 	if err != nil {
 		t.Fatalf("plain: %v", err)
 	}
-	gotReported, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageRule)
+	gotReported, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageRule)
 	if err != nil {
 		t.Fatalf("reported: %v", err)
 	}
@@ -116,7 +122,7 @@ func TestApplyNewTransformsReported_PerSourceTracking(t *testing.T) {
 	transforms := []schema.Transform{
 		{Type: "use", Use: BuiltinMihomoToShadowrocket, Target: targetAll},
 	}
-	_, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageRule)
+	_, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageRule)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -136,7 +142,7 @@ func TestApplyNewTransformsReported_TargetSubsetSkipsUntargetedSources(t *testin
 	transforms := []schema.Transform{
 		{Type: "use", Use: BuiltinMihomoToShadowrocket, Target: targetIndices(1)},
 	}
-	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageRule)
+	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageRule)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -163,7 +169,7 @@ func TestApplyNewTransformsReported_ReplaceAndRemoveLinesReported(t *testing.T) 
 		{Type: "replace", Pattern: "DOMAIN", Replacement: "DOMAIN-SUFFIX", Flags: "g", Target: targetAll},
 		{Type: "remove_lines", Pattern: "b\\.com", Target: targetAll},
 	}
-	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, BuiltinTransformers(), StageClient)
+	out, steps, err := eng.ApplyNewTransformsReported(in, transforms, testCtx(), StageClient)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

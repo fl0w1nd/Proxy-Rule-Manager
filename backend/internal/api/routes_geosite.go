@@ -490,7 +490,7 @@ func (s *Server) handleGeositePreview(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	apply := s.Engine.Transformer.ApplyNewTransforms
-	res, err := geosite.Preview(r.Context(), s.Geosite, provider, list, clientID, attrs, "", clients, cfg.Transformers, apply, limit)
+	res, err := geosite.Preview(r.Context(), s.Geosite, provider, list, clientID, attrs, "", clients, cfg.Transformers, cfg.BuiltinParams, apply, limit)
 	if err != nil {
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return

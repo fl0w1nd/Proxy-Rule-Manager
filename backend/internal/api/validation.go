@@ -22,6 +22,19 @@ func validateRulesConfigPayload(cfg *schema.RulesConfig) error {
 			return fmt.Errorf("transformer name %q uses the reserved \"builtin:\" prefix", name)
 		}
 	}
+	// Built-in transformer params live on the config so each built-in is
+	// configured exactly once for the whole deployment; rule/client
+	// transforms only reference the built-in by name. Validate any value
+	// the user persisted, and reject keys that don't correspond to a real
+	// built-in so a config-restore typo can't silently change publishing.
+	for name, raw := range cfg.BuiltinParams {
+		if !transformer.HasBuiltinPrefix(name) || !transformer.IsBuiltinName(name) {
+			return fmt.Errorf("builtinParams[%q] is not a known built-in transformer", name)
+		}
+		if err := validateBuiltinParams(name, raw); err != nil {
+			return fmt.Errorf("builtinParams[%q]: %w", name, err)
+		}
+	}
 	for i := range cfg.Rules {
 		if err := validateRulePayload(&cfg.Rules[i], cfg.Transformers); err != nil {
 			return fmt.Errorf("rule %q: %w", cfg.Rules[i].Name, err)
@@ -61,8 +74,9 @@ func validateRulePayload(rule *schema.RuleConfig, transformers map[string]schema
 //     Shadowrocket targets where mihomo classical is invalid).
 //   - `use` with a non-builtin name must resolve to a user-defined entry,
 //     otherwise the transform is a silent no-op.
-//   - For known builtins that accept params, defer to the builtin-specific
-//     validator so we catch enum typos at save time, not at publish time.
+//
+// Built-in transformer parameters live on RulesConfig.BuiltinParams, not on
+// the transform itself, so a `use` reference is just a name lookup.
 func validateTransform(t schema.Transform, transformers map[string]schema.ScriptTransformer) error {
 	if t.Type != "use" {
 		return nil
@@ -73,9 +87,6 @@ func validateTransform(t schema.Transform, transformers map[string]schema.Script
 	if transformer.HasBuiltinPrefix(t.Use) {
 		if !transformer.IsBuiltinName(t.Use) {
 			return fmt.Errorf("unknown built-in transformer %q", t.Use)
-		}
-		if err := validateBuiltinParams(t.Use, t.Params); err != nil {
-			return fmt.Errorf("builtin %q params: %w", t.Use, err)
 		}
 		return nil
 	}

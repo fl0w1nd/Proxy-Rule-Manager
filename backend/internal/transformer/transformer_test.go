@@ -88,7 +88,7 @@ func TestApplyNewTransforms_Replace(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"replace","target":"all","pattern":"old\\.com","replacement":"new.com"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"DOMAIN,old.com", "DOMAIN,other.com"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"DOMAIN,old.com", "DOMAIN,other.com"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("replace: %v", err)
 	}
@@ -102,7 +102,7 @@ func TestApplyNewTransforms_ReplaceTargets(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"replace","target":[0,2],"pattern":"line","replacement":"row"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"line1", "line2", "line3"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"line1", "line2", "line3"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("replace targets: %v", err)
 	}
@@ -116,7 +116,7 @@ func TestApplyNewTransforms_RemoveLines(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"remove_lines","target":"all","pattern":"^#"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,test.com\n# another"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,test.com\n# another"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("remove_lines: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestApplyNewTransforms_UseScript(t *testing.T) {
 	transformers := map[string]schema.ScriptTransformer{
 		"uppercase": {Name: "uppercase", Script: "function transform(content) { return content.toUpperCase(); }"},
 	}
-	got, err := engine.ApplyNewTransforms([]string{"test content"}, transforms, transformers)
+	got, err := engine.ApplyNewTransforms([]string{"test content"}, transforms, PipelineCtx{Transformers: transformers})
 	if err != nil {
 		t.Fatalf("use script: %v", err)
 	}
@@ -142,7 +142,7 @@ func TestApplyNewTransforms_UseScript(t *testing.T) {
 	}
 	// Missing transformer keeps input intact.
 	transforms = []schema.Transform{newTransform(t, `{"type":"use","target":"all","use":"missing"}`)}
-	got, err = engine.ApplyNewTransforms([]string{"test"}, transforms, nil)
+	got, err = engine.ApplyNewTransforms([]string{"test"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("missing transformer: %v", err)
 	}
@@ -157,7 +157,7 @@ func TestApplyNewTransforms_Chain(t *testing.T) {
 		newTransform(t, `{"type":"remove_lines","target":"all","pattern":"^#"}`),
 		newTransform(t, `{"type":"replace","target":"all","pattern":"old","replacement":"new"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,old.com"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,old.com"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("chain: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestApplyNewTransforms_InvalidRegex(t *testing.T) {
 		newTransform(t, `{"type":"replace","target":"all","pattern":"(","replacement":"x"}`),
 	}
 	// TS silently returns original content on invalid regex; Go mirrors this.
-	got, err := engine.ApplyNewTransforms([]string{"test"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"test"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

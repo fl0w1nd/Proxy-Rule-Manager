@@ -139,24 +139,61 @@ func TestValidateShadowrocketParams_AcceptsValidShapes(t *testing.T) {
 	}
 }
 
-// TestValidateTransform_BuiltinParamsRoundtrip exercises the full
-// validateTransform path with shadowrocket params, including the error
-// path where unknownAction is invalid.
-func TestValidateTransform_BuiltinParamsRoundtrip(t *testing.T) {
-	good := schema.Transform{
-		Type:   "use",
-		Use:    transformer.BuiltinMihomoToShadowrocket,
-		Params: raw(map[string]any{"rules": []any{map[string]string{"type": "DOMAIN", "action": "keep"}}}),
+// TestValidateRulesConfigPayload_BuiltinParams covers the new path where
+// built-in transformer params live on the config (one configuration per
+// built-in, shared by every transform that references it):
+//
+//   - keys must be real registered built-in names (no typos, no
+//     user-defined names).
+//   - the per-builtin validator still runs against the value.
+//   - well-formed entries pass.
+func TestValidateRulesConfigPayload_BuiltinParams(t *testing.T) {
+	base := func(builtin map[string]json.RawMessage) *schema.RulesConfig {
+		return &schema.RulesConfig{
+			Version:       1,
+			Transformers:  map[string]schema.ScriptTransformer{},
+			BuiltinParams: builtin,
+			Rules:         []schema.RuleConfig{},
+		}
 	}
-	if err := validateTransform(good, nil); err != nil {
-		t.Fatalf("good transform should pass: %v", err)
-	}
-	bad := schema.Transform{
-		Type:   "use",
-		Use:    transformer.BuiltinMihomoToShadowrocket,
-		Params: raw(map[string]any{"rules": []any{map[string]string{"type": "MATCH", "action": "rename"}}}),
-	}
-	if err := validateTransform(bad, nil); err == nil {
-		t.Fatal("bad transform (rename missing renameTo) should fail")
-	}
+	t.Run("unknown key rejected", func(t *testing.T) {
+		err := validateRulesConfigPayload(base(map[string]json.RawMessage{
+			"builtin:does-not-exist": json.RawMessage(`{}`),
+		}))
+		if err == nil || !strings.Contains(err.Error(), "not a known built-in") {
+			t.Fatalf("expected unknown built-in error, got %v", err)
+		}
+	})
+	t.Run("user namespace rejected", func(t *testing.T) {
+		err := validateRulesConfigPayload(base(map[string]json.RawMessage{
+			"my-custom-transformer": json.RawMessage(`{}`),
+		}))
+		if err == nil || !strings.Contains(err.Error(), "not a known built-in") {
+			t.Fatalf("expected non-builtin-prefix rejection, got %v", err)
+		}
+	})
+	t.Run("invalid params propagate", func(t *testing.T) {
+		err := validateRulesConfigPayload(base(map[string]json.RawMessage{
+			transformer.BuiltinMihomoToShadowrocket: raw(map[string]any{
+				"rules": []any{map[string]string{"type": "MATCH", "action": "rename"}},
+			}),
+		}))
+		if err == nil || !strings.Contains(err.Error(), "rename action requires") {
+			t.Fatalf("expected nested params validation error, got %v", err)
+		}
+	})
+	t.Run("happy path", func(t *testing.T) {
+		err := validateRulesConfigPayload(base(map[string]json.RawMessage{
+			transformer.BuiltinMihomoToShadowrocket: raw(map[string]any{
+				"rules": []any{
+					map[string]string{"type": "DOMAIN", "action": "keep"},
+					map[string]string{"type": "MATCH", "action": "rename", "renameTo": "FINAL"},
+				},
+				"unknownAction": "drop",
+			}),
+		}))
+		if err != nil {
+			t.Fatalf("expected nil for valid params, got %v", err)
+		}
+	})
 }

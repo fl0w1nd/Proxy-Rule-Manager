@@ -2,6 +2,7 @@ package syncengine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
@@ -272,7 +273,7 @@ func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (
 		rule := &sorted[i]
 		trackActivity := !schema.IsGeositeRule(rule)
 		reporter.StartRule(rule.Name, i)
-		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cache, clients)
+		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cfg.BuiltinParams, cache, clients)
 		for _, m := range res.MissingGeositeLists {
 			if m.Provider == "" || m.List == "" {
 				continue
@@ -620,7 +621,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 			}, nil
 		}
 		for i := range sortedDeps {
-			result := e.Processor.ProcessRule(ctx, &sortedDeps[i], cfg.Transformers, cache, clients)
+			result := e.Processor.ProcessRule(ctx, &sortedDeps[i], cfg.Transformers, cfg.BuiltinParams, cache, clients)
 			if len(result.Errors) > 0 {
 				failures := []schema.JobFailedRule{{Name: sortedDeps[i].Name, Error: joinErrors(result.Errors)}}
 				fctx, fcancel := finalizeCtx()
@@ -653,7 +654,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	for i := range sorted {
 		rule := &sorted[i]
 		trackActivity := !schema.IsGeositeRule(rule)
-		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cache, clients)
+		res := e.Processor.ProcessRule(ctx, rule, cfg.Transformers, cfg.BuiltinParams, cache, clients)
 		for _, m := range res.MissingGeositeLists {
 			if m.Provider == "" || m.List == "" {
 				continue
@@ -894,8 +895,10 @@ type PreviewSource struct {
 	Size    int    `json:"size,omitempty"`
 }
 
-// PreviewRule executes a rule without persisting anything.
-func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, transformers map[string]schema.ScriptTransformer, limitLines int) (PreviewResult, error) {
+// PreviewRule executes a rule without persisting anything. builtinParams
+// (typically the live RulesConfig.BuiltinParams map) supplies global
+// configuration for any built-in transformers referenced by the rule.
+func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, transformers map[string]schema.ScriptTransformer, builtinParams map[string]json.RawMessage, limitLines int) (PreviewResult, error) {
 	clients, err := e.Store.GetClients(ctx)
 	if err != nil {
 		return PreviewResult{}, err
@@ -946,7 +949,7 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 			return PreviewResult{}, err
 		}
 		for i := range sortedDeps {
-			res := e.Processor.ProcessRule(ctx, &sortedDeps[i], transformers, cache, clients)
+			res := e.Processor.ProcessRule(ctx, &sortedDeps[i], transformers, builtinParams, cache, clients)
 			if len(res.Errors) > 0 {
 				return PreviewResult{}, errors.New(joinErrors(res.Errors))
 			}
@@ -1041,7 +1044,7 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 		}
 	}
 
-	res := e.Processor.ProcessRuleReported(ctx, rule, transformers, cache, clients)
+	res := e.Processor.ProcessRuleReported(ctx, rule, transformers, builtinParams, cache, clients)
 	if len(res.Errors) > 0 {
 		return PreviewResult{}, errors.New(joinErrors(res.Errors))
 	}

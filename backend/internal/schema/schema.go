@@ -166,10 +166,10 @@ func (s SourceConfig) SourceType() string {
 
 // Transform represents a single post-processing operation.
 // Target always serialises (no omitempty) to match the TS default of "all".
-// Params carries optional, transform-specific configuration. Today it is
-// consumed only by the built-in transformers (e.g. builtin:mihomo-to-shadowrocket
-// reads a `{ rules: [...] }` mapping table from here). Stored as raw JSON
-// so each transform implementation can decode its own shape.
+// Built-in transformer parameters live on RulesConfig.BuiltinParams (one
+// configuration per built-in name); a Transform with Type=use only references
+// the built-in by Use, identical to how user-defined script transformers are
+// referenced.
 type Transform struct {
 	Type        string          `json:"type"`
 	Target      json.RawMessage `json:"target"`
@@ -177,7 +177,6 @@ type Transform struct {
 	Pattern     string          `json:"pattern,omitempty"`
 	Replacement string          `json:"replacement,omitempty"`
 	Flags       string          `json:"flags,omitempty"`
-	Params      json.RawMessage `json:"params,omitempty"`
 }
 
 // TargetIndices resolves the target field, returning the list of indices the
@@ -344,10 +343,16 @@ type ScriptTransformer struct {
 }
 
 // RulesConfig is the full orchestration document persisted under config.config_json.
+//
+// BuiltinParams is keyed by built-in transformer name (e.g.
+// "builtin:mihomo-to-shadowrocket") and carries that transformer's
+// per-deployment configuration. We keep the value as raw JSON so each
+// built-in owns its own decoding logic and validation rules.
 type RulesConfig struct {
-	Version      int                          `json:"version"`
-	Transformers map[string]ScriptTransformer `json:"transformers"`
-	Rules        []RuleConfig                 `json:"rules"`
+	Version       int                          `json:"version"`
+	Transformers  map[string]ScriptTransformer `json:"transformers"`
+	BuiltinParams map[string]json.RawMessage   `json:"builtinParams,omitempty"`
+	Rules         []RuleConfig                 `json:"rules"`
 }
 
 // EnsureDefaults populates defaults (version=1, non-nil maps/slices).
@@ -357,6 +362,9 @@ func (r *RulesConfig) EnsureDefaults() {
 	}
 	if r.Transformers == nil {
 		r.Transformers = map[string]ScriptTransformer{}
+	}
+	if r.BuiltinParams == nil {
+		r.BuiltinParams = map[string]json.RawMessage{}
 	}
 	if r.Rules == nil {
 		r.Rules = []RuleConfig{}
@@ -378,7 +386,12 @@ func ensureTransformDefaults(transforms []Transform) {
 
 // DefaultConfig returns the empty default.
 func DefaultConfig() RulesConfig {
-	return RulesConfig{Version: 1, Transformers: map[string]ScriptTransformer{}, Rules: []RuleConfig{}}
+	return RulesConfig{
+		Version:       1,
+		Transformers:  map[string]ScriptTransformer{},
+		BuiltinParams: map[string]json.RawMessage{},
+		Rules:         []RuleConfig{},
+	}
 }
 
 // ArtifactMeta represents a produced rule artifact for a (rule, client) pair.

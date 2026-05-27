@@ -2,6 +2,7 @@ package syncengine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
@@ -93,14 +94,20 @@ func (c *RuleContentsCache) Get(ruleName string) (map[string]string, []string, b
 // ProcessRule mirrors processRule(rule, transformers, cache, clients) in TS.
 // Used by the sync pipeline; per-step diagnostics are not collected. Call
 // ProcessRuleReported when you need a TransformReport.
+//
+// builtinParams maps a built-in transformer name (e.g.
+// "builtin:mihomo-to-shadowrocket") to its global parameter blob. Callers
+// should pass cfg.BuiltinParams here; nil is equivalent to "no overrides,
+// each built-in falls back to its default behaviour".
 func (p *Processor) ProcessRule(
 	ctx context.Context,
 	rule *schema.RuleConfig,
 	transformersConfig map[string]schema.ScriptTransformer,
+	builtinParams map[string]json.RawMessage,
 	cache *RuleContentsCache,
 	clients []schema.ClientConfig,
 ) ProcessResult {
-	res, _ := p.processRule(ctx, rule, transformersConfig, cache, clients, false)
+	res, _ := p.processRule(ctx, rule, transformersConfig, builtinParams, cache, clients, false)
 	return res
 }
 
@@ -112,10 +119,11 @@ func (p *Processor) ProcessRuleReported(
 	ctx context.Context,
 	rule *schema.RuleConfig,
 	transformersConfig map[string]schema.ScriptTransformer,
+	builtinParams map[string]json.RawMessage,
 	cache *RuleContentsCache,
 	clients []schema.ClientConfig,
 ) ProcessResult {
-	res, reports := p.processRule(ctx, rule, transformersConfig, cache, clients, true)
+	res, reports := p.processRule(ctx, rule, transformersConfig, builtinParams, cache, clients, true)
 	res.Reports = reports
 	return res
 }
@@ -124,6 +132,7 @@ func (p *Processor) processRule(
 	ctx context.Context,
 	rule *schema.RuleConfig,
 	transformersConfig map[string]schema.ScriptTransformer,
+	builtinParams map[string]json.RawMessage,
 	cache *RuleContentsCache,
 	clients []schema.ClientConfig,
 	withReport bool,
@@ -133,6 +142,7 @@ func (p *Processor) processRule(
 	// resolves correctly. The dispatcher in pipeline.go also short-circuits
 	// builtins by name, so this merge is defence-in-depth.
 	transformersConfig = transformer.MergeBuiltinTransformers(transformersConfig)
+	pipelineCtx := transformer.PipelineCtx{Transformers: transformersConfig, BuiltinParams: builtinParams}
 	result := ProcessResult{RuleName: rule.Name, Contents: map[string]string{}}
 	var reports map[string]transformer.TransformReport
 	if withReport {
@@ -265,10 +275,10 @@ func (p *Processor) processRule(
 				steps []transformer.StepReport
 			)
 			if withReport {
-				processed, steps, err = p.Transformer.ApplyNewTransformsReported(sourceContents, rule.Transforms, transformersConfig, transformer.StageRule)
+				processed, steps, err = p.Transformer.ApplyNewTransformsReported(sourceContents, rule.Transforms, pipelineCtx, transformer.StageRule)
 				clientReport.Steps = append(clientReport.Steps, steps...)
 			} else {
-				processed, err = p.Transformer.ApplyNewTransforms(sourceContents, rule.Transforms, transformersConfig)
+				processed, err = p.Transformer.ApplyNewTransforms(sourceContents, rule.Transforms, pipelineCtx)
 			}
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))
@@ -325,10 +335,10 @@ func (p *Processor) processRule(
 						steps       []transformer.StepReport
 					)
 					if withReport {
-						transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, cConfig.Transforms, transformersConfig, transformer.StageClient)
+						transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, cConfig.Transforms, pipelineCtx, transformer.StageClient)
 						clientReport.Steps = append(clientReport.Steps, steps...)
 					} else {
-						transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, cConfig.Transforms, transformersConfig)
+						transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, cConfig.Transforms, pipelineCtx)
 					}
 					if err != nil {
 						result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))
@@ -354,10 +364,10 @@ func (p *Processor) processRule(
 				steps       []transformer.StepReport
 			)
 			if withReport {
-				transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, override.Transforms, transformersConfig, transformer.StageOverride)
+				transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, override.Transforms, pipelineCtx, transformer.StageOverride)
 				clientReport.Steps = append(clientReport.Steps, steps...)
 			} else {
-				transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, override.Transforms, transformersConfig)
+				transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, override.Transforms, pipelineCtx)
 			}
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))

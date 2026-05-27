@@ -85,7 +85,7 @@ func (s *Server) handlePreviewRule(w http.ResponseWriter, r *http.Request) {
 		s.Error(w, http.StatusBadRequest, "Either ruleName or rule config is required")
 		return
 	}
-	res, err := s.Engine.PreviewRule(r.Context(), rule, cfg.Transformers, resolvePreviewLimit(req.LimitLines))
+	res, err := s.Engine.PreviewRule(r.Context(), rule, cfg.Transformers, cfg.BuiltinParams, resolvePreviewLimit(req.LimitLines))
 	if err != nil {
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return

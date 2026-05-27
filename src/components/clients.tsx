@@ -52,10 +52,10 @@ import {
     ClientFileMeta,
     BuiltinTransformer,
     resolveOutputExt,
+    isBuiltinTransformerName,
 } from "@/lib/schema";
 import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
-import { BuiltinTransformParams } from "./transform-builtin-params";
 
 interface ClientsManagerProps {
     onRefresh?: () => void;
@@ -921,12 +921,10 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                {transform.use && (
-                                                    <BuiltinTransformParams
-                                                        use={transform.use}
-                                                        params={transform.params}
-                                                        onChange={(next) => updateTransform(index, { params: next })}
-                                                    />
+                                                {transform.use && isBuiltinTransformerName(transform.use) && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        内置转换器的参数（如映射表）在「转换器」页面统一管理；这里只引用名称。
+                                                    </p>
                                                 )}
                                             </>
                                         )}

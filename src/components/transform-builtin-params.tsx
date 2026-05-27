@@ -26,6 +26,13 @@ import {
 // switch below so future builtins are easy to slot in.
 const SHADOWROCKET_BUILTIN = "builtin:mihomo-to-shadowrocket";
 
+// isBuiltinConfigurable lets the transformers page decide whether to render
+// the "edit params" affordance for a given built-in. Keep in lockstep with
+// the switch inside BuiltinTransformParams.
+export function isBuiltinConfigurable(name: string): boolean {
+  return name === SHADOWROCKET_BUILTIN;
+}
+
 // shadowrocketParamsFromUnknown is a tolerant decoder: we accept the
 // already-typed object, undefined, or a raw blob from the API. We normalise
 // every row defensively so a malformed entry (missing `type`, unknown
@@ -68,9 +75,10 @@ const ACTION_LABEL: Record<ShadowrocketAction, string> = {
 };
 
 interface BuiltinTransformParamsProps {
-  // The full builtin: name selected in the parent dropdown.
+  // The full builtin: name selected in the parent context.
   use: string;
-  // Current Transform.params blob (typed as unknown to match the schema).
+  // Current params blob for this built-in, sourced from
+  // RulesConfig.builtinParams[name] (typed as unknown to match the schema).
   params: unknown;
   // Owner notifies the editor to write a fresh params blob; passing
   // `undefined` clears the field so the backend falls back to defaults.

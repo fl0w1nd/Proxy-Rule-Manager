@@ -3,6 +3,7 @@
 package transformer
 
 import (
+	"encoding/json"
 	"strings"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
@@ -18,12 +19,20 @@ func NewEngine() *Engine {
 	return &Engine{JS: NewScriptRunner(DefaultScriptOptions())}
 }
 
+// PipelineCtx bundles the per-invocation lookup tables consumed by a
+// pipeline run: user-defined script transformers and the global parameter
+// blobs for the built-in transformers. Both maps may be nil.
+type PipelineCtx struct {
+	Transformers  map[string]schema.ScriptTransformer
+	BuiltinParams map[string]json.RawMessage
+}
+
 // ApplyNewTransforms runs each transform in order, returning the resulting
 // contents (one entry per input source). Used by the sync pipeline where
 // the per-step diagnostics are not needed; preview callers should use
 // ApplyNewTransformsReported instead.
-func (e *Engine) ApplyNewTransforms(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer) ([]string, error) {
-	result, _, err := e.applyNewTransforms(contents, transforms, transformers, false, StageRule)
+func (e *Engine) ApplyNewTransforms(contents []string, transforms []schema.Transform, ctx PipelineCtx) ([]string, error) {
+	result, _, err := e.applyNewTransforms(contents, transforms, ctx, false, StageRule)
 	return result, err
 }
 
@@ -33,18 +42,18 @@ func (e *Engine) ApplyNewTransforms(contents []string, transforms []schema.Trans
 // identifies which slot of the engine pipeline (rule/client/override) this
 // invocation belongs to and is propagated verbatim into each StepReport so
 // downstream callers don't have to post-stamp the field.
-func (e *Engine) ApplyNewTransformsReported(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer, stage string) ([]string, []StepReport, error) {
+func (e *Engine) ApplyNewTransformsReported(contents []string, transforms []schema.Transform, ctx PipelineCtx, stage string) ([]string, []StepReport, error) {
 	if stage == "" {
 		stage = StageRule
 	}
-	return e.applyNewTransforms(contents, transforms, transformers, true, stage)
+	return e.applyNewTransforms(contents, transforms, ctx, true, stage)
 }
 
-func (e *Engine) applyNewTransforms(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer, withReport bool, stage string) ([]string, []StepReport, error) {
+func (e *Engine) applyNewTransforms(contents []string, transforms []schema.Transform, ctx PipelineCtx, withReport bool, stage string) ([]string, []StepReport, error) {
 	result := append([]string(nil), contents...)
 	var reports []StepReport
 	for idx, t := range transforms {
-		next, stepReports, err := e.executeNewTransform(result, t, transformers, withReport, stage, idx)
+		next, stepReports, err := e.executeNewTransform(result, t, ctx, withReport, stage, idx)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -56,7 +65,7 @@ func (e *Engine) applyNewTransforms(contents []string, transforms []schema.Trans
 	return result, reports, nil
 }
 
-func (e *Engine) executeNewTransform(contents []string, transform schema.Transform, transformers map[string]schema.ScriptTransformer, withReport bool, stage string, stepIdx int) ([]string, []StepReport, error) {
+func (e *Engine) executeNewTransform(contents []string, transform schema.Transform, ctx PipelineCtx, withReport bool, stage string, stepIdx int) ([]string, []StepReport, error) {
 	indices, all, err := transform.TargetIndices()
 	if err != nil {
 		return contents, nil, nil
@@ -85,7 +94,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 			// user-script map so a "builtin:" name always means the
 			// native Go implementation, never a JS shadow.
 			if HasBuiltinPrefix(transform.Use) {
-				res, ok := RunBuiltin(transform.Use, transform.Params, content)
+				res, ok := RunBuiltin(transform.Use, ctx.BuiltinParams[transform.Use], content)
 				if ok {
 					out[i] = res.Output
 					if withReport {
@@ -112,7 +121,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 				}
 				continue
 			}
-			t, ok := transformers[transform.Use]
+			t, ok := ctx.Transformers[transform.Use]
 			if !ok || strings.TrimSpace(t.Script) == "" {
 				out[i] = content
 				if withReport {

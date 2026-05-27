@@ -34,6 +34,11 @@ import {
 import { EmptyState } from "@/components/ui/empty-state";
 import { getConfig, saveConfig } from "@/lib/api-client";
 import { RulesConfig, ScriptTransformer, BuiltinTransformer } from "@/lib/schema";
+import {
+  BuiltinTransformParams,
+  isBuiltinConfigurable,
+} from "@/components/transform-builtin-params";
+import { Settings2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface TransformersManagerProps {
@@ -153,6 +158,14 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   const [testInput, setTestInput] = useState("");
   const [testOutput, setTestOutput] = useState("");
   const [testError, setTestError] = useState("");
+  // Editing-state for built-in transformer params: the dialog reads
+  // `draft` so the user can cancel without persisting to config.
+  const [editingBuiltin, setEditingBuiltin] = useState<{
+    name: string;
+    description: string;
+    draft: unknown;
+  } | null>(null);
+  const [isSavingBuiltin, setIsSavingBuiltin] = useState(false);
 
   const fetchConfig = async () => {
     try {
@@ -288,6 +301,74 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
     }
   };
 
+  // openBuiltinEditor seeds the dialog draft from the persisted config
+  // entry (if any). Passing the live config keeps unsaved edits in other
+  // sections out of the picture.
+  const openBuiltinEditor = (b: BuiltinTransformer) => {
+    const current = config?.builtinParams?.[b.name];
+    setEditingBuiltin({
+      name: b.name,
+      description: b.description,
+      draft: current,
+    });
+  };
+
+  const handleBuiltinSave = async () => {
+    if (!editingBuiltin || isSavingBuiltin) return;
+    setIsSavingBuiltin(true);
+    try {
+      // Re-fetch to avoid clobbering concurrent edits; saveConfig is
+      // optimistic-locked through `rev`.
+      const { config: latestConfig, rev } = await getConfig();
+      const newBuiltinParams = { ...(latestConfig.builtinParams || {}) };
+      if (editingBuiltin.draft === undefined || editingBuiltin.draft === null) {
+        delete newBuiltinParams[editingBuiltin.name];
+      } else {
+        newBuiltinParams[editingBuiltin.name] = editingBuiltin.draft;
+      }
+      await saveConfig(
+        {
+          ...latestConfig,
+          builtinParams: newBuiltinParams,
+        },
+        rev,
+      );
+      toast.success("内置转换器参数已保存");
+      setEditingBuiltin(null);
+      await fetchConfig();
+      onRefresh?.();
+    } catch (error) {
+      toast.error("保存失败: " + formatSaveError(error));
+    } finally {
+      setIsSavingBuiltin(false);
+    }
+  };
+
+  const handleBuiltinReset = async () => {
+    if (!editingBuiltin || isSavingBuiltin) return;
+    setIsSavingBuiltin(true);
+    try {
+      const { config: latestConfig, rev } = await getConfig();
+      const newBuiltinParams = { ...(latestConfig.builtinParams || {}) };
+      delete newBuiltinParams[editingBuiltin.name];
+      await saveConfig(
+        {
+          ...latestConfig,
+          builtinParams: newBuiltinParams,
+        },
+        rev,
+      );
+      toast.success("已恢复为内置默认配置");
+      setEditingBuiltin(null);
+      await fetchConfig();
+      onRefresh?.();
+    } catch (error) {
+      toast.error("重置失败: " + formatSaveError(error));
+    } finally {
+      setIsSavingBuiltin(false);
+    }
+  };
+
   const handleTest = () => {
     if (!editingTransformer) return;
 
@@ -353,7 +434,7 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
         </div>
       </div>
 
-      {/* 内置转换器（只读） */}
+      {/* 内置转换器 */}
       {builtins.length > 0 && (
         <div className="space-y-3">
           <div className="flex items-baseline justify-between">
@@ -361,33 +442,122 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
               <Lock className="w-3.5 h-3.5 text-muted-foreground" />
               内置转换器
             </h3>
+            <p className="text-xs text-muted-foreground">
+              逻辑由后端实现不可编辑；可配置项（如映射表）在这里统一管理，规则/客户端中只需引用名称。
+            </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {builtins.map((b) => (
-              <div
-                key={b.name}
-                className="group relative overflow-hidden rounded-2xl border border-dashed border-border bg-surface-subtle/40 shadow-[var(--shadow-xs)]"
-              >
-                <div className="px-5 py-5 z-10 relative">
-                  <div className="flex items-start gap-3">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-muted/40 bg-muted/30 text-muted-foreground">
-                      <Lock className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <h3 className="text-[15px] font-semibold text-foreground font-mono truncate" title={b.name}>
-                        {b.name}
-                      </h3>
-                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-3" title={b.description}>
-                        {b.description || "无描述"}
-                      </p>
+            {builtins.map((b) => {
+              const configurable = isBuiltinConfigurable(b.name);
+              const hasOverride = !!config?.builtinParams?.[b.name];
+              return (
+                <div
+                  key={b.name}
+                  className="group relative overflow-hidden rounded-2xl border border-dashed border-border bg-surface-subtle/40 shadow-[var(--shadow-xs)]"
+                >
+                  <div className="px-5 py-5 z-10 relative">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-muted/40 bg-muted/30 text-muted-foreground">
+                        <Lock className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <h3
+                            className="text-[15px] font-semibold text-foreground font-mono truncate"
+                            title={b.name}
+                          >
+                            {b.name}
+                          </h3>
+                          {configurable && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-7 shrink-0"
+                              onClick={() => openBuiltinEditor(b)}
+                              title="编辑该内置转换器的可配置参数"
+                            >
+                              <Settings2 className="w-3.5 h-3.5 mr-1" />
+                              配置
+                            </Button>
+                          )}
+                        </div>
+                        <p
+                          className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-3"
+                          title={b.description}
+                        >
+                          {b.description || "无描述"}
+                        </p>
+                        {configurable && (
+                          <p className="text-[11px] mt-2 text-muted-foreground/80">
+                            {hasOverride
+                              ? "已自定义参数 · 规则/客户端引用此转换器时会沿用该配置"
+                              : "使用内置默认配置 · 可点击「配置」自定义参数"}
+                          </p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
+
+      {/* 内置转换器参数编辑对话框 */}
+      <Dialog
+        open={!!editingBuiltin}
+        onOpenChange={(open) => !open && !isSavingBuiltin && setEditingBuiltin(null)}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Settings2 className="w-5 h-5 text-primary" />
+              {editingBuiltin?.name}
+            </DialogTitle>
+            <DialogDescription>
+              {editingBuiltin?.description || "编辑该内置转换器的可配置参数"}
+            </DialogDescription>
+          </DialogHeader>
+          {editingBuiltin && (
+            <div className="space-y-4">
+              <BuiltinTransformParams
+                use={editingBuiltin.name}
+                params={editingBuiltin.draft}
+                onChange={(next) =>
+                  setEditingBuiltin({ ...editingBuiltin, draft: next })
+                }
+              />
+              <div className="flex items-center justify-between gap-3 pt-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBuiltinReset}
+                  disabled={isSavingBuiltin || !config?.builtinParams?.[editingBuiltin.name]}
+                  title="清除当前自定义参数，恢复为内置默认值"
+                >
+                  恢复内置默认
+                </Button>
+                <div className="flex gap-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setEditingBuiltin(null)}
+                    disabled={isSavingBuiltin}
+                  >
+                    取消
+                  </Button>
+                  <Button onClick={handleBuiltinSave} disabled={isSavingBuiltin}>
+                    {isSavingBuiltin ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : null}
+                    保存
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (
