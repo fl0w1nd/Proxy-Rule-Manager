@@ -84,7 +84,7 @@ interface RuleEditorProps {
 
 // 帮助文本
 const HELP_TEXTS = {
-  ruleName: "规则的唯一标识符，用于生成文件路径。例如：YouTube 会生成 /Rules/clash_meta/YouTube.list",
+  ruleName: "规则的唯一标识符，用于生成文件路径。例如：YouTube 会生成 /Rules/clash_meta/YouTube.<ext>，文件后缀由所属客户端的「输出后缀」决定（默认 .list）",
   description: "对规则的简短描述，方便管理和查找",
   sources: "添加数据来源，支持四种类型：URL（远程规则）、引用（已有规则）、本地（自定义内容）、Geosite（上游地理站点规则）",
   sourceUrl: "从远程 URL 获取规则内容",
@@ -798,7 +798,7 @@ export function RuleEditor({
                 <div className="space-y-2">
                   <Label className="flex items-center gap-2 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
                     规则 ID <span className="text-destructive">*</span>
-                    <HelpIcon text="规则的唯一标识符，决定 URL 路径。例如：YouTube 会生成 /Rules/clash_meta/YouTube.list" />
+                    <HelpIcon text="规则的唯一标识符，决定 URL 路径。例如：YouTube 在 clash_meta 客户端下默认生成 /Rules/clash_meta/YouTube.list；如果该客户端把输出后缀改成 yaml，URL 将变为 /Rules/clash_meta/YouTube.yaml" />
                   </Label>
                   <Input
                     value={formData.name}

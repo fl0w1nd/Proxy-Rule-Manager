@@ -180,11 +180,24 @@ func (s *Store) GetAllArtifactMetas(ctx context.Context) ([]schema.ArtifactMeta,
 }
 
 // RenameRuleArtifacts cascades a rename across artifact rows.
+//
+// The path/URL contain the rule name as `/<name>.<ext>` for non-geosite rules.
+// To stay ext-agnostic (clients may publish .yaml/.json/...), we replace the
+// `/<oldName>.` substring instead of hard-coding ".list". The leading slash
+// + trailing dot anchor the rule-name segment so we never partially match a
+// client directory or substring inside another rule name.
 func (s *Store) RenameRuleArtifacts(ctx context.Context, oldName, newName string) error {
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE artifacts SET rule_name = ?, blob_path = REPLACE(blob_path, ?, ?) WHERE rule_name = ?`,
-			newName, "/"+oldName+".list", "/"+newName+".list", oldName,
+			`UPDATE artifacts
+			   SET rule_name = ?,
+			       blob_path = REPLACE(blob_path, ?, ?),
+			       blob_url  = REPLACE(COALESCE(blob_url, ''), ?, ?)
+			 WHERE rule_name = ?`,
+			newName,
+			"/"+oldName+".", "/"+newName+".",
+			"/"+oldName+".", "/"+newName+".",
+			oldName,
 		); err != nil {
 			return err
 		}

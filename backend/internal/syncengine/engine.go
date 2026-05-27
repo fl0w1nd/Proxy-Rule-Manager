@@ -251,6 +251,7 @@ func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (
 	cache := NewRuleContentsCache()
 	missingByProvider := map[string]map[string]struct{}{}
 	var pendingAttempts []store.ArtifactAttempt
+	extLookup := extByClient(clients)
 	for i := range sorted {
 		// Honour cancellation before each rule so a cancel issued by the
 		// HTTP layer takes effect within at most one rule's runtime
@@ -294,7 +295,7 @@ func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (
 		cache.Set(rule.Name, res.Contents, res.ClientOrder)
 		ruleOk := true
 		for client, content := range res.Contents {
-			art, err := e.flushArtifact(ctx, rule, client, content, trackActivity)
+			art, err := e.flushArtifact(ctx, rule, client, lookupExt(extLookup, client), content, trackActivity)
 			if err != nil {
 				ruleOk = false
 				if trackActivity {
@@ -648,6 +649,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 	)
 	missingByProvider := map[string]map[string]struct{}{}
 	var pendingAttempts []store.ArtifactAttempt
+	extLookup := extByClient(clients)
 	for i := range sorted {
 		rule := &sorted[i]
 		trackActivity := !schema.IsGeositeRule(rule)
@@ -672,7 +674,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 		}
 		cache.Set(rule.Name, res.Contents, res.ClientOrder)
 		for client, content := range res.Contents {
-			art, err := e.flushArtifact(ctx, rule, client, content, trackActivity)
+			art, err := e.flushArtifact(ctx, rule, client, lookupExt(extLookup, client), content, trackActivity)
 			if err != nil {
 				if trackActivity {
 					failureRecords = append(failureRecords, schema.FailureRecord{
@@ -756,7 +758,10 @@ type artifactFlush struct {
 
 // flushArtifact writes the rule output for a single (rule, client) and returns
 // metadata + change record (if any).
-func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, client, content string, trackActivity bool) (artifactFlush, error) {
+//
+// `ext` is the client-resolved output extension. Empty falls back to
+// schema.DefaultOutputExt via resolveExt in ruledisk.go.
+func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, client, ext, content string, trackActivity bool) (artifactFlush, error) {
 	existing, err := e.Store.GetArtifactMeta(ctx, rule.Name, client)
 	if err != nil {
 		return artifactFlush{}, err
@@ -769,7 +774,7 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 	var previousContent string
 	previousFetched := false
 	if existing != nil {
-		prev, err := ReadForRule(e.RulesDir, rule, client)
+		prev, err := ReadForRule(e.RulesDir, rule, client, ext)
 		if err == nil {
 			previousContent = prev
 			previousFetched = true
@@ -787,7 +792,7 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 						copy.ConsecutiveFailures = 0
 						return artifactFlush{Meta: &copy}, nil
 					}
-					upload, uerr := UploadForRule(e.RulesDir, rule, client, outputContent)
+					upload, uerr := UploadForRule(e.RulesDir, rule, client, ext, outputContent)
 					if uerr != nil {
 						return artifactFlush{}, uerr
 					}
@@ -804,11 +809,11 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 		}
 	}
 	if !previousFetched {
-		prev, _ := ReadForRule(e.RulesDir, rule, client)
+		prev, _ := ReadForRule(e.RulesDir, rule, client, ext)
 		previousContent = prev
 	}
 
-	upload, err := UploadForRule(e.RulesDir, rule, client, outputContent)
+	upload, err := UploadForRule(e.RulesDir, rule, client, ext, outputContent)
 	if err != nil {
 		return artifactFlush{}, err
 	}
@@ -1038,6 +1043,26 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 }
 
 // ---- helpers ----
+
+// extByClient builds a quick id -> resolved output extension lookup so the
+// flushArtifact loop can stay independent of the underlying slice ordering.
+// Returns the schema default for any client missing from the slice (defensive
+// against stale references coming out of a rule's Output.Clients).
+func extByClient(clients []schema.ClientConfig) map[string]string {
+	out := make(map[string]string, len(clients))
+	for _, c := range clients {
+		out[c.ID] = c.ResolvedOutputExt()
+	}
+	return out
+}
+
+// lookupExt returns the ext for client id, falling back to the schema default.
+func lookupExt(m map[string]string, clientID string) string {
+	if e, ok := m[clientID]; ok && e != "" {
+		return e
+	}
+	return schema.DefaultOutputExt
+}
 
 type providerFail struct {
 	Provider string

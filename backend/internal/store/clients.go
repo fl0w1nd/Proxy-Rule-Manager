@@ -26,7 +26,7 @@ var ReservedClientDirs = map[string]struct{}{
 
 // GetClients returns all registered clients ordered by their stored position.
 func (s *Store) GetClients(ctx context.Context) ([]schema.ClientConfig, error) {
-	rows, err := s.DB.QueryContext(ctx, `SELECT id, display_name, transforms_json FROM clients ORDER BY position ASC, rowid ASC`)
+	rows, err := s.DB.QueryContext(ctx, `SELECT id, display_name, transforms_json, output_ext FROM clients ORDER BY position ASC, rowid ASC`)
 	if err != nil {
 		return nil, err
 	}
@@ -36,11 +36,15 @@ func (s *Store) GetClients(ctx context.Context) ([]schema.ClientConfig, error) {
 	for rows.Next() {
 		var c schema.ClientConfig
 		var tjson sql.NullString
-		if err := rows.Scan(&c.ID, &c.DisplayName, &tjson); err != nil {
+		var ext sql.NullString
+		if err := rows.Scan(&c.ID, &c.DisplayName, &tjson, &ext); err != nil {
 			return nil, err
 		}
 		if tjson.Valid && tjson.String != "" {
 			_ = json.Unmarshal([]byte(tjson.String), &c.Transforms)
+		}
+		if ext.Valid {
+			c.OutputExt = ext.String
 		}
 		out = append(out, c)
 	}
@@ -54,6 +58,13 @@ func (s *Store) AddClient(ctx context.Context, c schema.ClientConfig) error {
 	if err := ValidateClientID(c.ID); err != nil {
 		return err
 	}
+	normalizedExt := schema.NormalizeOutputExt(c.OutputExt)
+	if err := schema.ValidateOutputExt(normalizedExt); err != nil {
+		return err
+	}
+	// Persist "" for the default so the DB has a single canonical form;
+	// legacy rows (no migration value written) already store "".
+	storedExt := schema.CanonicalStoredOutputExt(normalizedExt)
 	return s.WithTx(ctx, func(tx *sql.Tx) error {
 		var exists int
 		if err := tx.QueryRowContext(ctx, `SELECT COUNT(*) FROM clients WHERE id = ?`, c.ID).Scan(&exists); err != nil {
@@ -70,15 +81,15 @@ func (s *Store) AddClient(ctx context.Context, c schema.ClientConfig) error {
 		}
 		transformsJSON, _ := json.Marshal(c.Transforms)
 		_, err := tx.ExecContext(ctx,
-			`INSERT INTO clients (id, display_name, transforms_json, position) VALUES (?, ?, ?, ?)`,
-			c.ID, c.DisplayName, string(transformsJSON), pos,
+			`INSERT INTO clients (id, display_name, transforms_json, output_ext, position) VALUES (?, ?, ?, ?, ?)`,
+			c.ID, c.DisplayName, string(transformsJSON), storedExt, pos,
 		)
 		return err
 	})
 }
 
-// UpdateClient updates fields and cascades id renames into artifacts, client
-// files, on-disk directories, and the config (rules and overrides).
+// UpdateClient updates fields and cascades id/ext renames into artifacts,
+// client files, on-disk directories, and the config (rules and overrides).
 //
 // When the client id changes we use a two-phase ordering so the DB and the
 // filesystem stay in sync even on partial failure:
@@ -91,7 +102,13 @@ func (s *Store) AddClient(ctx context.Context, c schema.ClientConfig) error {
 //     rewrite config). If the DB tx fails we move the directories back to
 //     their original paths and return the error.
 //
-// This guarantees that a successful return means {DB id == directory names}
+// When only outputExt changes we follow the same shape but operate on file
+// extensions instead of directory names: walk data/Rules/{id} and rename
+// every `*.<oldExt>` to `*.<newExt>`, then update the clients row + cascade
+// artifacts blob_path/blob_url, rolling back the file moves if the DB tx
+// fails.
+//
+// This guarantees that a successful return means {DB row == on-disk layout}
 // and a failure leaves the filesystem in its original state.
 func (s *Store) UpdateClient(ctx context.Context, clientID string, updates schema.ClientConfig) error {
 	old, err := s.findClientByID(ctx, clientID)
@@ -113,18 +130,53 @@ func (s *Store) UpdateClient(ctx context.Context, clientID string, updates schem
 	if updates.Transforms == nil {
 		transforms = old.Transforms
 	}
+	newExtNormalized := schema.NormalizeOutputExt(updates.OutputExt)
+	if err := schema.ValidateOutputExt(newExtNormalized); err != nil {
+		return err
+	}
+	// storedExt collapses "list" back to "" so the persisted column has a
+	// single canonical representation for "use the default".
+	storedExt := schema.CanonicalStoredOutputExt(newExtNormalized)
+	oldResolvedExt := old.ResolvedOutputExt()
+	newResolvedExt := newExtNormalized
+	if newResolvedExt == "" {
+		newResolvedExt = schema.DefaultOutputExt
+	}
 
 	idChanged := newID != clientID
+	extChanged := oldResolvedExt != newResolvedExt
+
 	if !idChanged {
-		// Metadata-only update: simple write.
-		return s.WithTx(ctx, func(tx *sql.Tx) error {
-			transformsJSON, _ := json.Marshal(transforms)
-			_, err := tx.ExecContext(ctx,
-				`UPDATE clients SET display_name = ?, transforms_json = ? WHERE id = ?`,
-				newDisplayName, string(transformsJSON), clientID,
-			)
+		if !extChanged {
+			return s.WithTx(ctx, func(tx *sql.Tx) error {
+				transformsJSON, _ := json.Marshal(transforms)
+				_, err := tx.ExecContext(ctx,
+					`UPDATE clients SET display_name = ?, transforms_json = ?, output_ext = ? WHERE id = ?`,
+					newDisplayName, string(transformsJSON), storedExt, clientID,
+				)
+				return err
+			})
+		}
+		// Ext-only change: rename files first, then update DB.
+		moved, err := renameClientArtifactFiles(s.RulesDir, clientID, oldResolvedExt, newResolvedExt)
+		if err != nil {
+			rollbackArtifactFileRenames(moved)
 			return err
-		})
+		}
+		if err := s.WithTx(ctx, func(tx *sql.Tx) error {
+			transformsJSON, _ := json.Marshal(transforms)
+			if _, err := tx.ExecContext(ctx,
+				`UPDATE clients SET display_name = ?, transforms_json = ?, output_ext = ? WHERE id = ?`,
+				newDisplayName, string(transformsJSON), storedExt, clientID,
+			); err != nil {
+				return err
+			}
+			return cascadeArtifactExt(ctx, tx, clientID, oldResolvedExt, newResolvedExt)
+		}); err != nil {
+			rollbackArtifactFileRenames(moved)
+			return fmt.Errorf("commit client ext change: %w", err)
+		}
+		return nil
 	}
 
 	// --- ID change: pre-flight validation ---
@@ -182,20 +234,39 @@ func (s *Store) UpdateClient(ctx context.Context, clientID string, updates schem
 		m.moved = true
 	}
 
+	// --- Optional ext rename inside the now-renamed dir ---
+	var movedExtFiles []renamedFile
+	if extChanged {
+		movedExtFiles, err = renameClientArtifactFiles(s.RulesDir, newID, oldResolvedExt, newResolvedExt)
+		if err != nil {
+			rollbackArtifactFileRenames(movedExtFiles)
+			rollbackMoves()
+			return err
+		}
+	}
+
 	// --- Commit DB changes; roll back filesystem on failure ---
 	if err := s.WithTx(ctx, func(tx *sql.Tx) error {
 		transformsJSON, _ := json.Marshal(transforms)
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE clients SET id = ?, display_name = ?, transforms_json = ? WHERE id = ?`,
-			newID, newDisplayName, string(transformsJSON), clientID,
+			`UPDATE clients SET id = ?, display_name = ?, transforms_json = ?, output_ext = ? WHERE id = ?`,
+			newID, newDisplayName, string(transformsJSON), storedExt, clientID,
 		); err != nil {
 			return err
 		}
 		if _, err := tx.ExecContext(ctx,
-			`UPDATE artifacts SET client = ?, blob_path = REPLACE(blob_path, ?, ?) WHERE client = ?`,
-			newID, "/Rules/"+clientID+"/", "/Rules/"+newID+"/", clientID,
+			`UPDATE artifacts SET client = ?, blob_path = REPLACE(blob_path, ?, ?), blob_url = REPLACE(COALESCE(blob_url, ''), ?, ?) WHERE client = ?`,
+			newID,
+			"/Rules/"+clientID+"/", "/Rules/"+newID+"/",
+			"/Rules/"+clientID+"/", "/Rules/"+newID+"/",
+			clientID,
 		); err != nil {
 			return err
+		}
+		if extChanged {
+			if err := cascadeArtifactExt(ctx, tx, newID, oldResolvedExt, newResolvedExt); err != nil {
+				return err
+			}
 		}
 		if _, err := tx.ExecContext(ctx,
 			`UPDATE client_files SET client_id = ? WHERE client_id = ?`,
@@ -233,8 +304,131 @@ func (s *Store) UpdateClient(ctx context.Context, clientID string, updates schem
 		}
 		return nil
 	}); err != nil {
+		rollbackArtifactFileRenames(movedExtFiles)
 		rollbackMoves()
 		return fmt.Errorf("commit client rename: %w", err)
+	}
+	return nil
+}
+
+// renamedFile records a successful file rename for rollback.
+type renamedFile struct {
+	old string
+	new string
+}
+
+// renameClientArtifactFiles walks data/Rules/{clientID} recursively and
+// renames every regular file ending in `.{oldExt}` to use `.{newExt}`. The
+// returned slice lists the successful renames so the caller can roll back
+// when a later step fails. The walk is aborted on the first error and the
+// already-completed renames are returned so the caller can still undo them.
+func renameClientArtifactFiles(rulesDir, clientID, oldExt, newExt string) ([]renamedFile, error) {
+	if oldExt == newExt {
+		return nil, nil
+	}
+	root := filepath.Join(rulesDir, clientID)
+	if _, err := os.Stat(root); err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("stat %s: %w", root, err)
+	}
+	oldSuffix := "." + oldExt
+	newSuffix := "." + newExt
+	var moved []renamedFile
+	walkErr := filepath.Walk(root, func(path string, info os.FileInfo, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if info.IsDir() {
+			return nil
+		}
+		if !strings.HasSuffix(info.Name(), oldSuffix) {
+			return nil
+		}
+		newPath := strings.TrimSuffix(path, oldSuffix) + newSuffix
+		if _, err := os.Stat(newPath); err == nil {
+			return fmt.Errorf(`target artifact already exists: %s`, newPath)
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("stat %s: %w", newPath, err)
+		}
+		if err := os.Rename(path, newPath); err != nil {
+			return fmt.Errorf("rename %s -> %s: %w", path, newPath, err)
+		}
+		moved = append(moved, renamedFile{old: path, new: newPath})
+		return nil
+	})
+	if walkErr != nil {
+		return moved, walkErr
+	}
+	return moved, nil
+}
+
+// rollbackArtifactFileRenames reverses the moves recorded by
+// renameClientArtifactFiles. Best-effort; logs warnings on failure so the
+// caller never panics partway through a multi-step UpdateClient rollback.
+func rollbackArtifactFileRenames(moved []renamedFile) {
+	for i := len(moved) - 1; i >= 0; i-- {
+		p := moved[i]
+		if err := os.Rename(p.new, p.old); err != nil {
+			log.Printf("[client ext] WARNING: rollback %s -> %s failed: %v", p.new, p.old, err)
+		}
+	}
+}
+
+// cascadeArtifactExt updates blob_path/blob_url on every artifact row for
+// the given client so the stored URLs match the renamed on-disk files.
+// Must run inside a transaction; relies on the path/URL ending in
+// `.<oldExt>` (true for every row written by ruledisk.go).
+func cascadeArtifactExt(ctx context.Context, tx *sql.Tx, clientID, oldExt, newExt string) error {
+	if oldExt == newExt {
+		return nil
+	}
+	rows, err := tx.QueryContext(ctx,
+		`SELECT rule_name, blob_path, blob_url FROM artifacts WHERE client = ?`, clientID)
+	if err != nil {
+		return err
+	}
+	type artifactRow struct {
+		ruleName string
+		path     string
+		url      sql.NullString
+	}
+	var items []artifactRow
+	for rows.Next() {
+		var it artifactRow
+		if err := rows.Scan(&it.ruleName, &it.path, &it.url); err != nil {
+			rows.Close()
+			return err
+		}
+		items = append(items, it)
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	oldSuffix := "." + oldExt
+	newSuffix := "." + newExt
+	for _, it := range items {
+		newPath := it.path
+		if strings.HasSuffix(newPath, oldSuffix) {
+			newPath = strings.TrimSuffix(newPath, oldSuffix) + newSuffix
+		}
+		var newURL sql.NullString
+		if it.url.Valid {
+			u := it.url.String
+			if strings.HasSuffix(u, oldSuffix) {
+				u = strings.TrimSuffix(u, oldSuffix) + newSuffix
+			}
+			newURL = sql.NullString{String: u, Valid: true}
+		}
+		if _, err := tx.ExecContext(ctx,
+			`UPDATE artifacts SET blob_path = ?, blob_url = ? WHERE rule_name = ? AND client = ?`,
+			newPath, newURL, it.ruleName, clientID,
+		); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -294,10 +488,11 @@ func (s *Store) DeleteClient(ctx context.Context, clientID string) error {
 }
 
 func (s *Store) findClientByID(ctx context.Context, clientID string) (schema.ClientConfig, error) {
-	row := s.DB.QueryRowContext(ctx, `SELECT id, display_name, transforms_json FROM clients WHERE id = ?`, clientID)
+	row := s.DB.QueryRowContext(ctx, `SELECT id, display_name, transforms_json, output_ext FROM clients WHERE id = ?`, clientID)
 	var c schema.ClientConfig
 	var tjson sql.NullString
-	if err := row.Scan(&c.ID, &c.DisplayName, &tjson); err != nil {
+	var ext sql.NullString
+	if err := row.Scan(&c.ID, &c.DisplayName, &tjson, &ext); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return c, fmt.Errorf(`client %q not found`, clientID)
 		}
@@ -305,6 +500,9 @@ func (s *Store) findClientByID(ctx context.Context, clientID string) (schema.Cli
 	}
 	if tjson.Valid && tjson.String != "" {
 		_ = json.Unmarshal([]byte(tjson.String), &c.Transforms)
+	}
+	if ext.Valid {
+		c.OutputExt = ext.String
 	}
 	return c, nil
 }

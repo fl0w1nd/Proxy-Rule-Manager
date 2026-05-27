@@ -44,6 +44,21 @@ type Server struct {
 	AdminToken  string
 }
 
+// loadClientExtMap returns id -> resolved output extension for every client.
+// Convenience helper for routes that touch on-disk artifact paths; centralises
+// the GetClients fetch + ResolvedOutputExt() walk so we don't repeat it.
+func (s *Server) loadClientExtMap(ctx context.Context) (map[string]string, error) {
+	clients, err := s.Store.GetClients(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make(map[string]string, len(clients))
+	for _, c := range clients {
+		out[c.ID] = c.ResolvedOutputExt()
+	}
+	return out, nil
+}
+
 // ApplySystemSettings forwards the user-tunable knobs to the live components
 // (fetcher, transformer, rate limiter). Safe to call from any goroutine —
 // every component implementation guards its own state. Returns the post-merge

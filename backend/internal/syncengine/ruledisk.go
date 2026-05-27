@@ -17,9 +17,20 @@ type UploadResult struct {
 	FilePath string
 }
 
+// resolveExt normalises and falls back to the default extension. Callers
+// pass the client-resolved ext but defensively accept blank/dotted input
+// without rejecting them — the validation already happens at the API edge.
+func resolveExt(ext string) string {
+	e := schema.NormalizeOutputExt(ext)
+	if e == "" {
+		return schema.DefaultOutputExt
+	}
+	return e
+}
+
 // UploadRuleContent writes a non-geosite rule's content to disk.
-func UploadRuleContent(rulesDir string, ruleName, client, content string) (UploadResult, error) {
-	result, err := RuleArtifactPath(rulesDir, ruleName, client)
+func UploadRuleContent(rulesDir, ruleName, client, ext, content string) (UploadResult, error) {
+	result, err := RuleArtifactPath(rulesDir, ruleName, client, ext)
 	if err != nil {
 		return UploadResult{}, err
 	}
@@ -34,14 +45,14 @@ func UploadRuleContent(rulesDir string, ruleName, client, content string) (Uploa
 }
 
 // RuleArtifactPath returns the non-geosite artifact path without writing files.
-func RuleArtifactPath(rulesDir string, ruleName, client string) (UploadResult, error) {
+func RuleArtifactPath(rulesDir, ruleName, client, ext string) (UploadResult, error) {
 	if err := util.EnsureSafeSegment(ruleName, "rule name"); err != nil {
 		return UploadResult{}, err
 	}
 	if err := util.EnsureSafeSegment(client, "client"); err != nil {
 		return UploadResult{}, err
 	}
-	fileName := ruleName + ".list"
+	fileName := ruleName + "." + resolveExt(ext)
 	full := filepath.Join(rulesDir, client, fileName)
 	return UploadResult{
 		URL:      fmt.Sprintf("/Rules/%s/%s", client, fileName),
@@ -51,7 +62,7 @@ func RuleArtifactPath(rulesDir string, ruleName, client string) (UploadResult, e
 }
 
 // UploadGeositeRuleContent writes a geosite rule output under .../geosite/<provider>/<file>.
-func UploadGeositeRuleContent(rulesDir, client, provider, outputName, content string) (UploadResult, error) {
+func UploadGeositeRuleContent(rulesDir, client, provider, outputName, ext, content string) (UploadResult, error) {
 	if err := util.EnsureSafeSegment(client, "client"); err != nil {
 		return UploadResult{}, err
 	}
@@ -65,7 +76,7 @@ func UploadGeositeRuleContent(rulesDir, client, provider, outputName, content st
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return UploadResult{}, err
 	}
-	fileName := outputName + ".list"
+	fileName := outputName + "." + resolveExt(ext)
 	full := filepath.Join(dir, fileName)
 	if err := util.AtomicWriteFile(full, []byte(content)); err != nil {
 		return UploadResult{}, err
@@ -79,14 +90,14 @@ func UploadGeositeRuleContent(rulesDir, client, provider, outputName, content st
 
 // ReadRuleContent loads the on-disk content for a non-geosite rule, returning
 // nil if missing.
-func ReadRuleContent(rulesDir, ruleName, client string) (string, error) {
+func ReadRuleContent(rulesDir, ruleName, client, ext string) (string, error) {
 	if err := util.EnsureSafeSegment(ruleName, "rule name"); err != nil {
 		return "", err
 	}
 	if err := util.EnsureSafeSegment(client, "client"); err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(filepath.Join(rulesDir, client, ruleName+".list"))
+	data, err := os.ReadFile(filepath.Join(rulesDir, client, ruleName+"."+resolveExt(ext)))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -97,7 +108,7 @@ func ReadRuleContent(rulesDir, ruleName, client string) (string, error) {
 }
 
 // ReadGeositeRuleContent loads geosite rule output content.
-func ReadGeositeRuleContent(rulesDir, client, provider, outputName string) (string, error) {
+func ReadGeositeRuleContent(rulesDir, client, provider, outputName, ext string) (string, error) {
 	if err := util.EnsureSafeSegment(client, "client"); err != nil {
 		return "", err
 	}
@@ -107,7 +118,7 @@ func ReadGeositeRuleContent(rulesDir, client, provider, outputName string) (stri
 	if err := util.EnsureSafeSegment(outputName, "geosite output name"); err != nil {
 		return "", err
 	}
-	data, err := os.ReadFile(filepath.Join(rulesDir, client, "geosite", provider, outputName+".list"))
+	data, err := os.ReadFile(filepath.Join(rulesDir, client, "geosite", provider, outputName+"."+resolveExt(ext)))
 	if err != nil {
 		if os.IsNotExist(err) {
 			return "", nil
@@ -118,27 +129,27 @@ func ReadGeositeRuleContent(rulesDir, client, provider, outputName string) (stri
 }
 
 // UploadForRule dispatches the upload path based on whether `rule` is geosite.
-func UploadForRule(rulesDir string, rule *schema.RuleConfig, client, content string) (UploadResult, error) {
+func UploadForRule(rulesDir string, rule *schema.RuleConfig, client, ext, content string) (UploadResult, error) {
 	if schema.IsGeositeRule(rule) {
 		src := schema.PrimaryGeositeSource(rule)
-		return UploadGeositeRuleContent(rulesDir, client, src.Provider, schema.GeositeOutputName(src), content)
+		return UploadGeositeRuleContent(rulesDir, client, src.Provider, schema.GeositeOutputName(src), ext, content)
 	}
-	return UploadRuleContent(rulesDir, rule.Name, client, content)
+	return UploadRuleContent(rulesDir, rule.Name, client, ext, content)
 }
 
 // ReadForRule mirrors UploadForRule for reads.
-func ReadForRule(rulesDir string, rule *schema.RuleConfig, client string) (string, error) {
+func ReadForRule(rulesDir string, rule *schema.RuleConfig, client, ext string) (string, error) {
 	if schema.IsGeositeRule(rule) {
 		src := schema.PrimaryGeositeSource(rule)
-		return ReadGeositeRuleContent(rulesDir, client, src.Provider, schema.GeositeOutputName(src))
+		return ReadGeositeRuleContent(rulesDir, client, src.Provider, schema.GeositeOutputName(src), ext)
 	}
-	return ReadRuleContent(rulesDir, rule.Name, client)
+	return ReadRuleContent(rulesDir, rule.Name, client, ext)
 }
 
 // RemoveArtifactFile deletes the on-disk artifact file. Errors are ignored when
 // the file is already gone.
-func RemoveArtifactFile(rulesDir string, rule *schema.RuleConfig, client string) error {
-	full, err := artifactFilePath(rulesDir, rule, client)
+func RemoveArtifactFile(rulesDir string, rule *schema.RuleConfig, client, ext string) error {
+	full, err := artifactFilePath(rulesDir, rule, client, ext)
 	if err != nil {
 		return err
 	}
@@ -148,7 +159,8 @@ func RemoveArtifactFile(rulesDir string, rule *schema.RuleConfig, client string)
 	return nil
 }
 
-func artifactFilePath(rulesDir string, rule *schema.RuleConfig, client string) (string, error) {
+func artifactFilePath(rulesDir string, rule *schema.RuleConfig, client, ext string) (string, error) {
+	resolved := resolveExt(ext)
 	if schema.IsGeositeRule(rule) {
 		src := schema.PrimaryGeositeSource(rule)
 		if src == nil {
@@ -166,7 +178,7 @@ func artifactFilePath(rulesDir string, rule *schema.RuleConfig, client string) (
 		if err := store.ValidateClientID(client); err != nil {
 			return "", err
 		}
-		return filepath.Join(rulesDir, client, "geosite", src.Provider, schema.GeositeOutputName(src)+".list"), nil
+		return filepath.Join(rulesDir, client, "geosite", src.Provider, schema.GeositeOutputName(src)+"."+resolved), nil
 	}
 	if err := util.EnsureSafeSegment(rule.Name, "rule name"); err != nil {
 		return "", err
@@ -174,5 +186,5 @@ func artifactFilePath(rulesDir string, rule *schema.RuleConfig, client string) (
 	if err := store.ValidateClientID(client); err != nil {
 		return "", err
 	}
-	return filepath.Join(rulesDir, client, rule.Name+".list"), nil
+	return filepath.Join(rulesDir, client, rule.Name+"."+resolved), nil
 }

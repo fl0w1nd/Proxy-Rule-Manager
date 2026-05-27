@@ -38,7 +38,9 @@ type ConsistencyReport struct {
 //
 // Detections (first pass):
 //   - artifact_file_missing: artifact meta points at a non-existent file.
-//   - artifact_orphan: on-disk .list file with no matching artifact row.
+//   - artifact_orphan: on-disk rule artifact with no matching artifact row.
+//     Catches stray files of any extension; useful for spotting leftovers
+//     from a previous client.outputExt that wasn't fully rolled forward.
 //   - client_file_missing: client_files row with no matching file on disk.
 //   - client_file_orphan: on-disk client file with no matching DB row.
 //   - client_dir_orphan: Rules/<client> or client/<client> dir for a client
@@ -58,8 +60,10 @@ func CheckConsistency(ctx context.Context, st *store.Store, rulesDir, clientFile
 		return report, fmt.Errorf("read clients: %w", err)
 	}
 	clientSet := map[string]struct{}{}
+	clientExt := map[string]string{}
 	for _, c := range clients {
 		clientSet[c.ID] = struct{}{}
+		clientExt[c.ID] = c.ResolvedOutputExt()
 	}
 
 	arts, err := st.GetAllArtifactMetas(ctx)
@@ -93,7 +97,7 @@ func CheckConsistency(ctx context.Context, st *store.Store, rulesDir, clientFile
 			})
 			continue
 		}
-		path, perr := artifactFilePath(rulesDir, rule, art.Client)
+		path, perr := artifactFilePath(rulesDir, rule, art.Client, clientExt[art.Client])
 		if perr != nil {
 			report.Issues = append(report.Issues, ConsistencyIssue{
 				Type:     "artifact_path_error",
@@ -130,7 +134,7 @@ func CheckConsistency(ctx context.Context, st *store.Store, rulesDir, clientFile
 	for ri := range cfg.Rules {
 		rule := &cfg.Rules[ri]
 		for _, clientID := range rule.Output.Clients {
-			path, perr := artifactFilePath(rulesDir, rule, clientID)
+			path, perr := artifactFilePath(rulesDir, rule, clientID, clientExt[clientID])
 			if perr != nil {
 				continue
 			}
@@ -163,9 +167,9 @@ func CheckConsistency(ctx context.Context, st *store.Store, rulesDir, clientFile
 			})
 			return nil
 		}
-		if !strings.HasSuffix(base, ".list") {
-			return nil
-		}
+		// Every file under data/Rules/ is supposed to be a rule artifact;
+		// extension may be anything per client.outputExt. Anything not in
+		// our authoritative set is an orphan worth reporting.
 		if _, known := artifactFiles[path]; !known {
 			report.Issues = append(report.Issues, ConsistencyIssue{
 				Type:     "artifact_orphan",

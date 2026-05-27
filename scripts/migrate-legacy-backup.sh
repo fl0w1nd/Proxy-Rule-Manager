@@ -101,6 +101,10 @@ else:
 
 # Backfill blobPath when the legacy envelope omitted it. Go's ArtifactMeta has
 # no omitempty on blobPath, so we make sure every entry carries a sane default.
+# We hard-code `.list` here because the TS era didn't support per-client
+# outputExt — every legacy artifact was published as .list. If the operator
+# wants a different extension after restoring, they can change it on each
+# client and the Go backend will rename the files in-place on save.
 for a in arts:
     if not isinstance(a, dict):
         continue
