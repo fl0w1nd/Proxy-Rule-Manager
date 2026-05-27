@@ -65,7 +65,7 @@ func TestProcessor_LocalMissingRefSurfacesError(t *testing.T) {
 			{Type: "local", ContentRef: ref},
 		},
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if len(res.Errors) == 0 {
 		t.Fatalf("expected a local-source error, got none")
 	}
@@ -85,7 +85,7 @@ func TestProcessor_LocalEmptySourceSurfacesError(t *testing.T) {
 		Output:  clashOutput(),
 		Sources: []schema.SourceConfig{{Type: "local"}},
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if len(res.Errors) == 0 {
 		t.Fatalf("expected an empty-source error, got none")
 	}
@@ -94,7 +94,7 @@ func TestProcessor_LocalEmptySourceSurfacesError(t *testing.T) {
 func TestProcessor_NoSources(t *testing.T) {
 	p, _ := newTempProcessor(t)
 	rule := schema.RuleConfig{Name: "r", Output: clashOutput()}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if len(res.Errors) == 0 || !strings.Contains(res.Errors[0], "no sources") {
 		t.Fatalf("expected 'Rule has no sources' error, got %v", res.Errors)
 	}
@@ -107,7 +107,7 @@ func TestProcessor_LocalInline(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "local", Content: strPtr("DOMAIN,local.com")}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if res.Contents["clash_meta"] != "DOMAIN,local.com" {
 		t.Fatalf("inline local: %q", res.Contents["clash_meta"])
 	}
@@ -124,7 +124,7 @@ func TestProcessor_LocalContentRef(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "local", ContentRef: ref}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if res.Contents["clash_meta"] != "DOMAIN,ref.com" {
 		t.Fatalf("local contentRef: %q", res.Contents["clash_meta"])
 	}
@@ -143,7 +143,7 @@ func TestProcessor_RuleTransforms(t *testing.T) {
 		}},
 		Output: clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	if res.Contents["clash_meta"] != "DOMAIN,new.com" {
 		t.Fatalf("transform: %q", res.Contents["clash_meta"])
 	}
@@ -182,7 +182,7 @@ func TestProcessor_MergeStrategies(t *testing.T) {
 				srcs = append(srcs, schema.SourceConfig{Type: "local", Content: strPtr(s)})
 			}
 			rule := schema.RuleConfig{Name: "r", Sources: srcs, Merge: tc.merge, Output: clashOutput()}
-			res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+			res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 			if got := res.Contents["clash_meta"]; got != tc.want {
 				t.Fatalf("%s: got %q want %q", tc.name, got, tc.want)
 			}
@@ -199,7 +199,7 @@ func TestProcessor_RefFromCache(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "ref", Ref: "base"}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, cache, schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, cache, schema.DefaultClients)
 	if res.Contents["clash_meta"] != "DOMAIN,base.com" {
 		t.Fatalf("ref: %q", res.Contents["clash_meta"])
 	}
@@ -214,7 +214,7 @@ func TestProcessor_RefFallbackToAnyClient(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "ref", Ref: "base"}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, cache, schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, cache, schema.DefaultClients)
 	if res.Contents["clash_meta"] != "DOMAIN,sr.com" {
 		t.Fatalf("ref fallback: %q", res.Contents["clash_meta"])
 	}
@@ -232,7 +232,7 @@ func TestProcessor_RefFallbackUsesCachedOrder(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "ref", Ref: "base"}},
 		Output:  schema.OutputConfig{Clients: []string{"singbox"}},
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, cache, schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, cache, schema.DefaultClients)
 	if res.Contents["singbox"] != "DOMAIN,sr.com" {
 		t.Fatalf("ref fallback order: %q", res.Contents["singbox"])
 	}
@@ -245,7 +245,7 @@ func TestProcessor_RefMissingErrors(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "ref", Ref: "missing"}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), schema.DefaultClients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), schema.DefaultClients)
 	joined := strings.Join(res.Errors, "|")
 	if !strings.Contains(joined, "not found in cache") {
 		t.Fatalf("expected 'not found in cache' error, got %v", res.Errors)
@@ -269,7 +269,7 @@ func TestProcessor_ClientGlobalTransformsApplied(t *testing.T) {
 		Sources: []schema.SourceConfig{{Type: "local", Content: strPtr("DOMAIN,test.com")}},
 		Output:  clashOutput(),
 	}
-	res := p.ProcessRule(context.Background(), &rule, nil, NewRuleContentsCache(), clients)
+	res := p.ProcessRule(context.Background(), &rule, nil, nil, NewRuleContentsCache(), clients)
 	if res.Contents["clash_meta"] != "DOMAIN,client.com" {
 		t.Fatalf("client-global transform: %q", res.Contents["clash_meta"])
 	}

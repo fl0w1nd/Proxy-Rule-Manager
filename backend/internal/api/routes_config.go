@@ -19,6 +19,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/store"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/syncengine"
+	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/transformer"
 )
 
 func (s *Server) registerConfigRoutes(r chi.Router) {
@@ -87,7 +88,22 @@ func (s *Server) handleGetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	rev, _ := s.Store.GetConfigRev(r.Context())
-	s.JSON(w, http.StatusOK, map[string]any{"config": cfg, "rev": rev})
+	// Surface the built-in transformer registry alongside the user config
+	// so the dashboard can render selectable items without an extra round
+	// trip. The frontend treats these as read-only (lock-icon items).
+	metas := transformer.BuiltinMetas()
+	builtins := make([]map[string]string, 0, len(metas))
+	for _, m := range metas {
+		builtins = append(builtins, map[string]string{
+			"name":        m.Name,
+			"description": m.Description,
+		})
+	}
+	s.JSON(w, http.StatusOK, map[string]any{
+		"config":              cfg,
+		"rev":                 rev,
+		"builtinTransformers": builtins,
+	})
 }
 
 func (s *Server) handlePutConfig(w http.ResponseWriter, r *http.Request) {

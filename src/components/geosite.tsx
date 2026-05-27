@@ -75,9 +75,11 @@ import {
   type GeositeCatalogItem,
   type GeositeProviderStatus,
   type GeositeStaleImport,
+  type PreviewResponse,
 } from "@/lib/api-client";
-import { resolveOutputExt, type ClientType, type GeositeProvider, type RuleConfig, type RulesConfig } from "@/lib/schema";
+import { resolveOutputExt, type GeositeProvider, type RuleConfig, type RulesConfig, type BuiltinTransformer } from "@/lib/schema";
 import { RuleEditor } from "./editor";
+import { PreviewDialog } from "./editor-preview";
 import { toast } from "sonner";
 import { getPrimaryGeositeSource, isGeositeRule } from "@/lib/rule-classification";
 
@@ -285,6 +287,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [isStaleDetailOpen, setIsStaleDetailOpen] = useState(false);
   const [isStaleCleaning, setIsStaleCleaning] = useState(false);
   const [config, setConfig] = useState<RulesConfig | null>(null);
+  const [builtinTransformers, setBuiltinTransformers] = useState<BuiltinTransformer[]>([]);
   const [resolvedVersion, setResolvedVersion] = useState("");
   const [fetchedAt, setFetchedAt] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -321,6 +324,11 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const [isBatchSaving, setIsBatchSaving] = useState(false);
   const [showHelp, setShowHelp] = useState(false);
   const previewRequestRef = useRef(0);
+  // Full preview response (with reports) for rule-level previews using
+  // PreviewDialog. Catalog previews use the simpler previewState below.
+  const [rulePreviewData, setRulePreviewData] = useState<PreviewResponse | null>(null);
+  const [rulePreviewName, setRulePreviewName] = useState("");
+  const [isRulePreviewLoading, setIsRulePreviewLoading] = useState(false);
   // Monotonic request id used to ignore out-of-order fetchAll responses.
   // Without this, switching the provider quickly can let an older response
   // overwrite the catalog/resolvedVersion that belongs to the new provider.
@@ -329,11 +337,12 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const fetchAll = useCallback(async (selectedProvider: GeositeProvider = provider) => {
     const reqId = ++fetchAllRequestRef.current;
     try {
-      const [{ providers: providerList }, { clients: clientList }, { config: latestConfig }] = await Promise.all([
+      const [{ providers: providerList }, { clients: clientList }, configResp] = await Promise.all([
         getGeositeProviders(),
         getClients(),
         getConfig(),
       ]);
+      const { config: latestConfig } = configResp;
 
       if (reqId !== fetchAllRequestRef.current) {
         // A newer fetchAll has started; bail out without touching state.
@@ -343,6 +352,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
       setProviders(providerList);
       setClients(clientList);
       setConfig(latestConfig);
+      setBuiltinTransformers(configResp.builtinTransformers ?? []);
       if (clientList.length > 0) {
         setClientId((current) => current || clientList[0].id);
       }
@@ -874,33 +884,22 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
   const handleOpenRulePreview = async (rule: RuleConfig) => {
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
-    setIsPreviewLoading(true);
-    setPreviewState({
-      title: rule.displayName || rule.name,
-      clientLabel: clients.find((item) => item.id === clientId)?.displayName || clientId,
-      content: "",
-      lineCount: 0,
-    });
+    setIsRulePreviewLoading(true);
+    setRulePreviewName(rule.displayName || rule.name);
+    setRulePreviewData(null);
 
     try {
       const result = await previewRule(rule.name);
       if (previewRequestRef.current !== requestId) return;
-      const availableClients = Object.keys(result.contents);
-      const targetClient = availableClients.includes(clientId) ? clientId : availableClients[0];
-      const content = targetClient ? result.contents[targetClient as ClientType] || "" : "";
-      setPreviewState({
-        title: rule.displayName || rule.name,
-        clientLabel: clients.find((item) => item.id === targetClient)?.displayName || targetClient || "无客户端",
-        content,
-        lineCount: content ? content.split("\n").length : 0,
-      });
+      setRulePreviewData(result);
     } catch (error) {
       if (previewRequestRef.current !== requestId) return;
       toast.error("预览失败: " + String(error));
-      setPreviewState(null);
+      setRulePreviewData(null);
+      setRulePreviewName("");
     } finally {
       if (previewRequestRef.current !== requestId) return;
-      setIsPreviewLoading(false);
+      setIsRulePreviewLoading(false);
     }
   };
 
@@ -1488,6 +1487,22 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
         </DialogContent>
       </Dialog>
 
+      {/* Rule preview with transform pipeline report */}
+      <PreviewDialog
+        open={!!rulePreviewData || isRulePreviewLoading}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRulePreviewData(null);
+            setRulePreviewName("");
+          }
+        }}
+        ruleName={rulePreviewName}
+        isLoading={isRulePreviewLoading}
+        previewData={rulePreviewData}
+        clientsList={clients}
+        transformers={config?.transformers}
+      />
+
       {editingRule && config ? (
         <Dialog
           open={!!editingRule}
@@ -1519,6 +1534,7 @@ export function GeositeManager({ onRefresh }: GeositeManagerProps) {
             <RuleEditor
               rule={editingRule}
               config={config}
+              builtinTransformers={builtinTransformers}
               onSavingChange={setIsEditorSaving}
               onDirtyChange={setIsEditorDirty}
               onSave={async () => {

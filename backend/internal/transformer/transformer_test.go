@@ -2,7 +2,6 @@ package transformer
 
 import (
 	"encoding/json"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -89,7 +88,7 @@ func TestApplyNewTransforms_Replace(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"replace","target":"all","pattern":"old\\.com","replacement":"new.com"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"DOMAIN,old.com", "DOMAIN,other.com"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"DOMAIN,old.com", "DOMAIN,other.com"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("replace: %v", err)
 	}
@@ -103,7 +102,7 @@ func TestApplyNewTransforms_ReplaceTargets(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"replace","target":[0,2],"pattern":"line","replacement":"row"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"line1", "line2", "line3"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"line1", "line2", "line3"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("replace targets: %v", err)
 	}
@@ -117,7 +116,7 @@ func TestApplyNewTransforms_RemoveLines(t *testing.T) {
 	transforms := []schema.Transform{
 		newTransform(t, `{"type":"remove_lines","target":"all","pattern":"^#"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,test.com\n# another"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,test.com\n# another"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("remove_lines: %v", err)
 	}
@@ -134,7 +133,7 @@ func TestApplyNewTransforms_UseScript(t *testing.T) {
 	transformers := map[string]schema.ScriptTransformer{
 		"uppercase": {Name: "uppercase", Script: "function transform(content) { return content.toUpperCase(); }"},
 	}
-	got, err := engine.ApplyNewTransforms([]string{"test content"}, transforms, transformers)
+	got, err := engine.ApplyNewTransforms([]string{"test content"}, transforms, PipelineCtx{Transformers: transformers})
 	if err != nil {
 		t.Fatalf("use script: %v", err)
 	}
@@ -143,7 +142,7 @@ func TestApplyNewTransforms_UseScript(t *testing.T) {
 	}
 	// Missing transformer keeps input intact.
 	transforms = []schema.Transform{newTransform(t, `{"type":"use","target":"all","use":"missing"}`)}
-	got, err = engine.ApplyNewTransforms([]string{"test"}, transforms, nil)
+	got, err = engine.ApplyNewTransforms([]string{"test"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("missing transformer: %v", err)
 	}
@@ -158,7 +157,7 @@ func TestApplyNewTransforms_Chain(t *testing.T) {
 		newTransform(t, `{"type":"remove_lines","target":"all","pattern":"^#"}`),
 		newTransform(t, `{"type":"replace","target":"all","pattern":"old","replacement":"new"}`),
 	}
-	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,old.com"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"# comment\nDOMAIN,old.com"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("chain: %v", err)
 	}
@@ -173,7 +172,7 @@ func TestApplyNewTransforms_InvalidRegex(t *testing.T) {
 		newTransform(t, `{"type":"replace","target":"all","pattern":"(","replacement":"x"}`),
 	}
 	// TS silently returns original content on invalid regex; Go mirrors this.
-	got, err := engine.ApplyNewTransforms([]string{"test"}, transforms, nil)
+	got, err := engine.ApplyNewTransforms([]string{"test"}, transforms, PipelineCtx{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -182,28 +181,47 @@ func TestApplyNewTransforms_InvalidRegex(t *testing.T) {
 	}
 }
 
-func TestAddRuleHeader(t *testing.T) {
-	content := "# existing header\nDOMAIN,test.com\nDOMAIN-SUFFIX,example.com\nDOMAIN,test2.com\n"
-	got := AddRuleHeader(content, "TestRule", "Test desc", "2026-04-15T10:30:45.000Z")
-	if !strings.Contains(got, "# 规则数量：3 条") {
-		t.Fatalf("count missing: %s", got)
-	}
-	if !regexp.MustCompile(`# 更新时间：2026-04-15 \d{2}:30:45`).MatchString(got) {
-		t.Fatalf("timestamp missing: %s", got)
-	}
-	if !strings.Contains(got, "# DOMAIN: 2 条") {
-		t.Fatalf("DOMAIN count: %s", got)
-	}
-	if !strings.Contains(got, "# DOMAIN-SUFFIX: 1 条") {
-		t.Fatalf("DOMAIN-SUFFIX count: %s", got)
+func TestStripManagedRuleHeader(t *testing.T) {
+	// Simulate a header produced by an older release. Production no longer
+	// emits the managed header; this test only verifies that resyncs after
+	// upgrade still strip it before content comparison.
+	legacy := "# 规则数量：1 条\n# 更新时间：2026-04-15 10:30:45\n# 规则类型：\n# DOMAIN: 1 条\n\n# upstream\nDOMAIN,test.com\n"
+	want := "# upstream\nDOMAIN,test.com\n"
+	if got := StripManagedRuleHeader(legacy); got != want {
+		t.Fatalf("strip lost upstream: %q vs %q", got, want)
 	}
 }
 
-func TestStripManagedRuleHeader(t *testing.T) {
-	original := "# upstream\nDOMAIN,test.com\n"
-	combined := AddRuleHeader(original, "TestRule", "", "2026-04-15T10:30:45.000Z")
-	if got := StripManagedRuleHeader(combined); got != original {
-		t.Fatalf("strip lost upstream: %q vs %q", got, original)
+// TestStripManagedRuleHeader_PreservesCRLFBody guards the byte-precise
+// strip behaviour: when the legacy header is found, only the header is
+// dropped and the body's CRLF line endings are returned verbatim. This
+// matters for the legacy-migration sync — the first resync rewrites the
+// file with whatever line endings the freshly produced content has, and
+// from that point on byte-equal comparisons must hold.
+func TestStripManagedRuleHeader_PreservesCRLFBody(t *testing.T) {
+	legacy := "# 规则数量：1 条\n# 更新时间：2026-04-15 10:30:45\n# 规则类型：\n# DOMAIN: 1 条\n\nDOMAIN,a.com\r\nDOMAIN,b.com\r\n"
+	want := "DOMAIN,a.com\r\nDOMAIN,b.com\r\n"
+	if got := StripManagedRuleHeader(legacy); got != want {
+		t.Fatalf("expected CRLF body to round-trip verbatim, got %q want %q", got, want)
+	}
+}
+
+// TestStripManagedRuleHeader_NoHeaderReturnsVerbatim is the regression
+// guard for the CRLF idempotency bug: when no legacy header is present,
+// the function must return content unchanged (no LF normalisation) so
+// the byte-equality comparison in flushArtifact stays honest for CRLF
+// artifacts.
+func TestStripManagedRuleHeader_NoHeaderReturnsVerbatim(t *testing.T) {
+	cases := []string{
+		"DOMAIN,a.com\r\nDOMAIN,b.com\r\n",       // pure CRLF body, no header
+		"# upstream comment\r\nDOMAIN,a.com\r\n", // body that happens to start with `#`
+		"DOMAIN,a.com\nDOMAIN,b.com\n",           // pure LF, idempotent
+		"# 规则数量：not a header\nDOMAIN,a.com\n",    // shape mismatch (line 2 prefix wrong)
+	}
+	for _, in := range cases {
+		if got := StripManagedRuleHeader(in); got != in {
+			t.Errorf("StripManagedRuleHeader(%q) should be verbatim, got %q", in, got)
+		}
 	}
 }
 

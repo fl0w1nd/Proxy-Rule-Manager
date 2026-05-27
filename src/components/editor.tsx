@@ -43,6 +43,7 @@ import {
   X,
   Tag,
   Globe,
+  Lock,
 } from "lucide-react";
 import {
   RuleConfig,
@@ -53,6 +54,8 @@ import {
   Transform,
   MergeStrategy,
   ScriptTransformer,
+  BuiltinTransformer,
+  isBuiltinTransformerName,
 } from "@/lib/schema";
 import { saveConfig, getConfig, renameRule, previewRule, refreshRule, PreviewResponse, getClients, ClientConfig, getGeositeCatalog, type GeositeCatalogItem } from "@/lib/api-client";
 import { LocalContentDialog } from "./editor-local-content";
@@ -68,6 +71,14 @@ import { useTheme } from "./theme-provider";
 interface RuleEditorProps {
   rule: RuleConfig | null;
   config: RulesConfig | null;
+  /**
+   * Built-in transformer registry forwarded by the parent so the
+   * `use`-transform dropdowns can show entries shipped with the backend.
+   * Defaults to an empty list when the parent does not provide it; in
+   * that case the dropdowns simply display user-defined transformers
+   * only.
+   */
+  builtinTransformers?: BuiltinTransformer[];
   onSave: () => void;
   onCancel: () => void;
   /**
@@ -196,6 +207,7 @@ function SectionHeader({
 export function RuleEditor({
   rule,
   config,
+  builtinTransformers = [],
   onSave,
   onCancel,
   onSavingChange,
@@ -247,6 +259,7 @@ export function RuleEditor({
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewReloadingFull, setIsPreviewReloadingFull] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
 
@@ -435,6 +448,7 @@ export function RuleEditor({
       await saveConfig({
         version: latestConfig.version || 1,
         transformers: latestConfig.transformers || {},
+        builtinParams: latestConfig.builtinParams || {},
         rules: updatedRules,
       }, rev);
 
@@ -475,13 +489,32 @@ export function RuleEditor({
     setPreviewData(null);
 
     try {
-      const result = await previewRule(undefined, formData, 10000);
+      const result = await previewRule(undefined, formData, PREVIEW_DEFAULT_LIMIT);
       setPreviewData(result);
     } catch (error) {
       toast.error("预览失败: " + String(error));
       setIsPreviewOpen(false);
     } finally {
       setIsPreviewLoading(false);
+    }
+  };
+
+  // PREVIEW_DEFAULT_LIMIT mirrors rules.tsx so first-open stays snappy; the
+  // truncation badge offers a "load full" button that bumps the limit to
+  // PREVIEW_MAX_LIMIT (= backend max).
+  const PREVIEW_DEFAULT_LIMIT = 10_000;
+  const PREVIEW_MAX_LIMIT = 500_000;
+
+  const handleLoadFullPreview = async () => {
+    if (!isPreviewOpen) return;
+    setIsPreviewReloadingFull(true);
+    try {
+      const result = await previewRule(undefined, formData, PREVIEW_MAX_LIMIT);
+      setPreviewData(result);
+    } catch (error) {
+      toast.error("加载完整内容失败: " + String(error));
+    } finally {
+      setIsPreviewReloadingFull(false);
     }
   };
 
@@ -1145,6 +1178,7 @@ export function RuleEditor({
                   transform={transform}
                   sources={formData.sources || []}
                   transformers={transformers}
+                  builtinTransformers={builtinTransformers}
                   onChange={(updates) => updateTransform(index, updates)}
                   onRemove={() => removeTransform(index)}
                   onDragStart={() => handleDragStart(index)}
@@ -1161,7 +1195,7 @@ export function RuleEditor({
                   <HelpIcon text="对来源数据进行处理，可指定处理特定来源或全部" />
                 </p>
                 <div className="flex flex-wrap gap-2">
-                  {Object.keys(transformers).length > 0 && (
+                  {(Object.keys(transformers).length > 0 || builtinTransformers.length > 0) && (
                     <Button
                       type="button"
                       variant="outline"
@@ -1309,6 +1343,7 @@ export function RuleEditor({
                         clientGlobalTransforms={clientConfig?.transforms || []}
                         config={formData.output.client_overrides?.[client as ClientType]}
                         transformers={transformers}
+                        builtinTransformers={builtinTransformers}
                         onToggle={(enabled) => toggleClientOverride(client as ClientType, enabled)}
                         onToggleUseGlobal={(useGlobal) => toggleUseGlobalTransforms(client as ClientType, useGlobal)}
                         onAddTransform={(type) => addClientTransform(client as ClientType, type)}
@@ -1346,6 +1381,9 @@ export function RuleEditor({
         isLoading={isPreviewLoading}
         previewData={previewData}
         clientsList={clientsList}
+        transformers={config?.transformers}
+        onLoadFull={previewData?.diagnostics.truncated ? handleLoadFullPreview : undefined}
+        isReloadingFull={isPreviewReloadingFull}
       />
     </div>
   );
@@ -1356,6 +1394,7 @@ interface TransformCardProps {
   transform: Transform;
   sources: SourceConfig[];
   transformers: Record<string, ScriptTransformer>;
+  builtinTransformers?: BuiltinTransformer[];
   onChange: (updates: Partial<Transform>) => void;
   onRemove: () => void;
   onDragStart?: () => void;
@@ -1370,6 +1409,7 @@ function TransformCard({
   transform,
   sources,
   transformers,
+  builtinTransformers = [],
   onChange,
   onRemove,
   onDragStart,
@@ -1532,6 +1572,17 @@ function TransformCard({
                   <SelectValue placeholder="选择预定义转换器" />
                 </SelectTrigger>
                 <SelectContent>
+                  {builtinTransformers.map((b) => (
+                    <SelectItem key={b.name} value={b.name}>
+                      <span className="flex items-center gap-1.5">
+                        <Lock className="w-3 h-3 text-muted-foreground" />
+                        <span className="font-mono">{b.name}</span>
+                        {b.description && (
+                          <span className="text-xs text-muted-foreground"> — {b.description}</span>
+                        )}
+                      </span>
+                    </SelectItem>
+                  ))}
                   {Object.entries(transformers).map(([name, t]) => (
                     <SelectItem key={name} value={name}>
                       {name} {t.description && `- ${t.description}`}
@@ -1539,8 +1590,13 @@ function TransformCard({
                   ))}
                 </SelectContent>
               </Select>
-              {Object.keys(transformers).length === 0 && (
+              {Object.keys(transformers).length === 0 && builtinTransformers.length === 0 && (
                 <p className="text-sm text-warning">暂无预定义转换器，请先在配置中添加</p>
+              )}
+              {transform.use && isBuiltinTransformerName(transform.use) && (
+                <p className="text-xs text-muted-foreground">
+                  内置转换器的可配置参数（如映射表）在「转换器」页面统一管理；这里只引用名称。
+                </p>
               )}
             </div>
           )}
@@ -1613,6 +1669,7 @@ interface ClientOverrideSectionProps {
   clientGlobalTransforms: Transform[];
   config?: { enabled?: boolean; useGlobalTransforms?: boolean; transforms?: Transform[] };
   transformers: Record<string, ScriptTransformer>;
+  builtinTransformers?: BuiltinTransformer[];
   onToggle: (enabled: boolean) => void;
   onToggleUseGlobal: (useGlobal: boolean) => void;
   onAddTransform: (type: "use" | "replace" | "remove_lines") => void;
@@ -1627,6 +1684,7 @@ function ClientOverrideSection({
   clientGlobalTransforms,
   config,
   transformers,
+  builtinTransformers = [],
   onToggle,
   onToggleUseGlobal,
   onAddTransform,
@@ -1722,6 +1780,7 @@ function ClientOverrideSection({
                 transform={transform}
                 sources={[]} // 客户端转换通常不针对特定来源，或者需要传递sources？这里简化处理
                 transformers={transformers}
+                builtinTransformers={builtinTransformers}
                 onChange={(updates) => onUpdateTransform(index, updates)}
                 onRemove={() => onRemoveTransform(index)}
                 isDragging={false}
@@ -1734,7 +1793,7 @@ function ClientOverrideSection({
             ))}
 
             <div className="flex flex-wrap gap-2">
-              {Object.keys(transformers).length > 0 && (
+              {(Object.keys(transformers).length > 0 || builtinTransformers.length > 0) && (
                 <Button
                   type="button"
                   variant="outline"

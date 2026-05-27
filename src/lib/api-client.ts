@@ -1,4 +1,4 @@
-import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider, SystemSettings } from "./schema";
+import { RulesConfig, RuleConfig, ClientType, Transform, ClientFileMeta, GeositeProvider, SystemSettings, BuiltinTransformer, TransformReport } from "./schema";
 
 // API client for frontend calls into the backend.
 
@@ -94,6 +94,12 @@ async function apiRequest<T>(
 export interface ConfigResponse {
   config: RulesConfig;
   rev: number;
+  // Built-in transformers shipped with the backend. Surfaced here (rather
+  // than a dedicated endpoint) so the dashboard renders selectable items
+  // in one round trip. The list is always present in fresh responses but
+  // older mocks/backends may omit it, so the consumer treats undefined as
+  // an empty array.
+  builtinTransformers?: BuiltinTransformer[];
 }
 
 export async function getConfig(): Promise<ConfigResponse> {
@@ -582,6 +588,10 @@ export interface PreviewResponse {
     truncated: boolean;
     totalLines: number;
   };
+  // Per-client transform reports — populated only by the admin preview
+  // endpoint. Map key is the client id; reports may be missing for
+  // clients whose pipeline was short-circuited (e.g. disabled override).
+  reports?: Record<ClientType, TransformReport>;
 }
 
 export async function previewRule(

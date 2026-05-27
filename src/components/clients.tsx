@@ -23,7 +23,7 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X, AlertTriangle } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Monitor, Settings2, FileText, Globe, Maximize2, X, AlertTriangle, Lock } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import { type Monaco } from "@monaco-editor/react";
@@ -50,7 +50,9 @@ import {
     Transform,
     ScriptTransformer,
     ClientFileMeta,
+    BuiltinTransformer,
     resolveOutputExt,
+    isBuiltinTransformerName,
 } from "@/lib/schema";
 import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
@@ -79,6 +81,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
     const [transformKeys, setTransformKeys] = useState<string[]>([]);
     const [isSaving, setIsSaving] = useState(false);
     const [transformers, setTransformers] = useState<Record<string, ScriptTransformer>>({});
+    const [builtins, setBuiltins] = useState<BuiltinTransformer[]>([]);
     const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
     // Mirror of selectedClientId kept on a ref so that async file-list fetches
     // can compare against the *current* selection without needing fresh closures.
@@ -116,6 +119,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
             ]);
             setClients(clientsResult.clients);
             setTransformers(configResult.config.transformers || {});
+            setBuiltins(configResult.builtinTransformers ?? []);
         } catch (error) {
             toast.error("获取客户端列表失败: " + String(error));
         } finally {
@@ -884,7 +888,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                                 <SelectValue />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                {Object.keys(transformers).length > 0 && (
+                                                {(Object.keys(transformers).length > 0 || builtins.length > 0) && (
                                                     <SelectItem value="use">预定义转换器</SelectItem>
                                                 )}
                                                 <SelectItem value="replace">正则替换</SelectItem>
@@ -893,21 +897,36 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                         </Select>
 
                                         {transform.type === "use" && (
-                                            <Select
-                                                value={transform.use || ""}
-                                                onValueChange={(value) => updateTransform(index, { use: value })}
-                                            >
-                                                <SelectTrigger className="h-8">
-                                                    <SelectValue placeholder="选择转换器" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {Object.entries(transformers).map(([name]) => (
-                                                        <SelectItem key={name} value={name}>
-                                                            {name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <>
+                                                <Select
+                                                    value={transform.use || ""}
+                                                    onValueChange={(value) => updateTransform(index, { use: value })}
+                                                >
+                                                    <SelectTrigger className="h-8">
+                                                        <SelectValue placeholder="选择转换器" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {builtins.map((b) => (
+                                                            <SelectItem key={b.name} value={b.name}>
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <Lock className="w-3 h-3 text-muted-foreground" />
+                                                                    <span className="font-mono">{b.name}</span>
+                                                                </span>
+                                                            </SelectItem>
+                                                        ))}
+                                                        {Object.entries(transformers).map(([name]) => (
+                                                            <SelectItem key={name} value={name}>
+                                                                {name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {transform.use && isBuiltinTransformerName(transform.use) && (
+                                                    <p className="text-xs text-muted-foreground">
+                                                        内置转换器的参数（如映射表）在「转换器」页面统一管理；这里只引用名称。
+                                                    </p>
+                                                )}
+                                            </>
                                         )}
 
                                         {transform.type === "replace" && (
@@ -941,7 +960,7 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
 
                             {/* 添加转换器按钮 */}
                             <div className="flex flex-wrap gap-2">
-                                {Object.keys(transformers).length > 0 && (
+                                {(Object.keys(transformers).length > 0 || builtins.length > 0) && (
                                     <Button
                                         type="button"
                                         variant="outline"

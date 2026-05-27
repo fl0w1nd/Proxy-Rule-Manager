@@ -7,6 +7,7 @@ import (
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/syncengine"
+	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/transformer"
 )
 
 // normalizePreviewResult ensures slice/map fields are never nil so that JSON
@@ -17,6 +18,9 @@ func normalizePreviewResult(res *syncengine.PreviewResult) {
 	}
 	if res.Diagnostics.SourceResults == nil {
 		res.Diagnostics.SourceResults = []syncengine.PreviewSource{}
+	}
+	if res.Reports == nil {
+		res.Reports = make(map[string]transformer.TransformReport)
 	}
 }
 
@@ -72,7 +76,7 @@ func (s *Server) handlePreviewRule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if req.Rule != nil {
-		if err := validateRulePayload(req.Rule); err != nil {
+		if err := validateRulePayload(req.Rule, cfg.Transformers); err != nil {
 			s.ErrorWithCode(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 			return
 		}
@@ -81,7 +85,7 @@ func (s *Server) handlePreviewRule(w http.ResponseWriter, r *http.Request) {
 		s.Error(w, http.StatusBadRequest, "Either ruleName or rule config is required")
 		return
 	}
-	res, err := s.Engine.PreviewRule(r.Context(), rule, cfg.Transformers, resolvePreviewLimit(req.LimitLines))
+	res, err := s.Engine.PreviewRule(r.Context(), rule, cfg.Transformers, cfg.BuiltinParams, resolvePreviewLimit(req.LimitLines))
 	if err != nil {
 		s.Error(w, http.StatusInternalServerError, err.Error())
 		return
@@ -90,5 +94,6 @@ func (s *Server) handlePreviewRule(w http.ResponseWriter, r *http.Request) {
 	s.JSON(w, http.StatusOK, map[string]any{
 		"contents":    res.Contents,
 		"diagnostics": res.Diagnostics,
+		"reports":     res.Reports,
 	})
 }

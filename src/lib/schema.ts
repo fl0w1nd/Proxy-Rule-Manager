@@ -99,6 +99,10 @@ export const TransformTypeSchema = z.enum(["use", "replace", "remove_lines"]);
 export type TransformType = z.infer<typeof TransformTypeSchema>;
 
 // 后处理操作
+//
+// 内置转换器的参数（如 mihomo→shadowrocket 的映射表）统一放在
+// RulesConfig.builtinParams 里：每个 builtin 整个部署只配一次，
+// rule / client / override 的 Transform 都只引用名字，不重复配置。
 export const TransformSchema = z.object({
   // 操作类型
   type: TransformTypeSchema,
@@ -182,10 +186,17 @@ export type ScriptTransformer = z.infer<typeof ScriptTransformerSchema>;
 export const TransformersConfigSchema = z.record(z.string(), ScriptTransformerSchema);
 export type TransformersConfig = z.infer<typeof TransformersConfigSchema>;
 
+// 内置转换器的参数表：键为内置转换器名（如 "builtin:mihomo-to-shadowrocket"），
+// 值为该转换器自定义解码的 JSON 对象（前端不做强 schema，
+// 由后端 validateBuiltinParams 校验）。
+export const BuiltinParamsConfigSchema = z.record(z.string(), z.unknown());
+export type BuiltinParamsConfig = z.infer<typeof BuiltinParamsConfigSchema>;
+
 // 完整的编排配置文件
 export const RulesConfigSchema = z.object({
   version: z.number().default(1),
   transformers: TransformersConfigSchema.optional().default({}),
+  builtinParams: BuiltinParamsConfigSchema.optional().default({}),
   rules: z.array(RuleConfigSchema),
 });
 export type RulesConfig = z.infer<typeof RulesConfigSchema>;
@@ -342,6 +353,7 @@ export const DEFAULT_SYSTEM_SETTINGS: SystemSettings = {
 export const DEFAULT_CONFIG: RulesConfig = {
   version: 1,
   transformers: {},
+  builtinParams: {},
   rules: [],
 };
 
@@ -354,3 +366,140 @@ export function validateConfig(config: unknown): RulesConfig {
 export function validateRule(rule: unknown): RuleConfig {
   return RuleConfigSchema.parse(rule);
 }
+
+// ----- Built-in transformer registry (mirrors backend/transformer/builtin.go) -----
+
+// 内置转换器统一前缀，前端用于识别只读项 + 渲染锁图标
+export const BUILTIN_TRANSFORMER_PREFIX = "builtin:";
+
+export function isBuiltinTransformerName(name: string): boolean {
+  return name.startsWith(BUILTIN_TRANSFORMER_PREFIX);
+}
+
+// 内置转换器元数据（GET /api/config 透传过来的列表）
+export const BuiltinTransformerSchema = z.object({
+  name: z.string(),
+  description: z.string().optional().default(""),
+});
+export type BuiltinTransformer = z.infer<typeof BuiltinTransformerSchema>;
+
+// ----- mihomo → shadowrocket 映射表（params 形态，对应 backend builtin.go） -----
+
+export const SHADOWROCKET_ACTIONS = ["keep", "rename", "drop"] as const;
+export type ShadowrocketAction = (typeof SHADOWROCKET_ACTIONS)[number];
+
+export const ShadowrocketMappingSchema = z.object({
+  type: z.string(),
+  action: z.enum(SHADOWROCKET_ACTIONS),
+  renameTo: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type ShadowrocketMapping = z.infer<typeof ShadowrocketMappingSchema>;
+
+export const ShadowrocketParamsSchema = z.object({
+  rules: z.array(ShadowrocketMappingSchema).default([]),
+  unknownAction: z.enum(SHADOWROCKET_ACTIONS).optional().default("keep"),
+});
+export type ShadowrocketParams = z.infer<typeof ShadowrocketParamsSchema>;
+
+// Default table mirrors backend DefaultShadowrocketMapping; used to seed
+// the editor on first interaction and as a "restore defaults" target.
+export const DEFAULT_SHADOWROCKET_MAPPING: ShadowrocketMapping[] = [
+  { type: "DOMAIN", action: "keep" },
+  { type: "DOMAIN-SUFFIX", action: "keep" },
+  { type: "DOMAIN-KEYWORD", action: "keep" },
+  { type: "IP-CIDR", action: "keep" },
+  { type: "IP-CIDR6", action: "keep" },
+  { type: "GEOIP", action: "keep" },
+  { type: "SRC-IP-CIDR", action: "keep" },
+  { type: "DST-PORT", action: "keep" },
+  { type: "SRC-PORT", action: "keep" },
+  { type: "IN-PORT", action: "keep" },
+  { type: "PROTOCOL", action: "keep" },
+  { type: "NETWORK", action: "keep" },
+  { type: "USER-AGENT", action: "keep" },
+  { type: "URL-REGEX", action: "keep" },
+  { type: "FINAL", action: "keep" },
+  { type: "MATCH", action: "rename", renameTo: "FINAL", reason: "Shadowrocket 用 FINAL 替代 MATCH" },
+  { type: "PROCESS-NAME", action: "drop", reason: "Shadowrocket 不支持 PROCESS-NAME" },
+  { type: "PROCESS-PATH", action: "drop", reason: "Shadowrocket 不支持 PROCESS-PATH" },
+  { type: "IP-ASN", action: "drop", reason: "Shadowrocket 不支持 IP-ASN" },
+  { type: "DOMAIN-REGEX", action: "drop", reason: "Shadowrocket 无 DOMAIN-REGEX 等价规则（URL-REGEX 语义不同）" },
+  { type: "RULE-SET", action: "drop", reason: "Shadowrocket 不支持内联 RULE-SET 引用" },
+  { type: "SUB-RULE", action: "drop", reason: "Shadowrocket 不支持 SUB-RULE" },
+  { type: "AND", action: "drop", reason: "Shadowrocket 不支持逻辑组合规则 AND" },
+  { type: "OR", action: "drop", reason: "Shadowrocket 不支持逻辑组合规则 OR" },
+  { type: "NOT", action: "drop", reason: "Shadowrocket 不支持逻辑组合规则 NOT" },
+];
+
+// ----- Preview report types (mirrors backend/transformer/report.go) -----
+
+// 单条 transform step 中被丢弃的源行
+export const DroppedLineSchema = z.object({
+  lineNo: z.number().int().nonnegative(),
+  text: z.string(),
+  reason: z.string(),
+  // 后端把单条样本字节截断到 MaxSampleBytes（2KB）时置 true；前端用它打截断标。
+  truncated: z.boolean().optional().default(false),
+});
+export type DroppedLine = z.infer<typeof DroppedLineSchema>;
+
+// 单条 transform step 中被改写的源行（如 MATCH → FINAL）
+export const ModifiedLineSchema = z.object({
+  lineNo: z.number().int().nonnegative(),
+  from: z.string(),
+  to: z.string(),
+  reason: z.string().optional().default(""),
+  truncated: z.boolean().optional().default(false),
+});
+export type ModifiedLine = z.infer<typeof ModifiedLineSchema>;
+
+// 转换流水线中单个 step 的可视化记录
+export const StepReportSchema = z.object({
+  stage: z.string(),
+  index: z.number().int().nonnegative(),
+  sourceIndex: z.number().int().nonnegative().optional().default(0),
+  kind: z.string(),
+  label: z.string(),
+  inputLines: z.number().int().nonnegative(),
+  outputLines: z.number().int().nonnegative(),
+  dropped: z.array(DroppedLineSchema).optional().default([]),
+  modified: z.array(ModifiedLineSchema).optional().default([]),
+  droppedTotal: z.number().int().nonnegative().optional().default(0),
+  modifiedTotal: z.number().int().nonnegative().optional().default(0),
+});
+export type StepReport = z.infer<typeof StepReportSchema>;
+
+// 最终内容的统计快照（顶部统计卡）
+export const FinalStatsSchema = z.object({
+  totalLines: z.number().int().nonnegative(),
+  byType: z.record(z.string(), z.number().int().nonnegative()).default({}),
+  payloadCount: z.number().int().nonnegative().optional(),
+});
+export type FinalStats = z.infer<typeof FinalStatsSchema>;
+
+// 单个 client 的完整转换报告
+export const TransformReportSchema = z.object({
+  steps: z.array(StepReportSchema).default([]),
+  finalStats: FinalStatsSchema,
+});
+export type TransformReport = z.infer<typeof TransformReportSchema>;
+
+// 阶段常量，与后端保持一致，方便 UI 配色
+export const TRANSFORM_STAGE = {
+  rule: "rule",
+  merge: "merge",
+  client: "client",
+  override: "override",
+} as const;
+export type TransformStage = (typeof TRANSFORM_STAGE)[keyof typeof TRANSFORM_STAGE];
+
+// step 类型常量
+export const TRANSFORM_STEP_KIND = {
+  use: "use",
+  useBuiltin: "use_builtin",
+  replace: "replace",
+  removeLines: "remove_lines",
+  merge: "merge",
+} as const;
+export type TransformStepKind = (typeof TRANSFORM_STEP_KIND)[keyof typeof TRANSFORM_STEP_KIND];

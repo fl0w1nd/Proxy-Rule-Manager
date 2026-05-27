@@ -38,6 +38,10 @@ func (s *Server) handleCreateClient(w http.ResponseWriter, r *http.Request) {
 		s.Error(w, http.StatusBadRequest, "id and displayName are required")
 		return
 	}
+	if err := s.validateClientTransformsAgainstConfig(r, payload.Transforms); err != nil {
+		s.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := s.Store.AddClient(r.Context(), payload); err != nil {
 		s.Error(w, http.StatusBadRequest, err.Error())
 		return
@@ -52,11 +56,30 @@ func (s *Server) handleUpdateClient(w http.ResponseWriter, r *http.Request) {
 		s.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if err := s.validateClientTransformsAgainstConfig(r, payload.Transforms); err != nil {
+		s.Error(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if err := s.Store.UpdateClient(r.Context(), id, payload); err != nil {
 		s.Error(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	s.JSON(w, http.StatusOK, map[string]any{"success": true})
+}
+
+// validateClientTransformsAgainstConfig pulls the persisted transformer
+// map so a client save can reject `use` references that point at
+// nonexistent JS transformers. Built-in references are validated against
+// the in-process registry directly inside validateTransform.
+func (s *Server) validateClientTransformsAgainstConfig(r *http.Request, transforms []schema.Transform) error {
+	if len(transforms) == 0 {
+		return nil
+	}
+	cfg, err := s.Store.GetConfig(r.Context())
+	if err != nil {
+		return err
+	}
+	return validateClientTransforms(transforms, cfg.Transformers)
 }
 
 func (s *Server) handleDeleteClient(w http.ResponseWriter, r *http.Request) {

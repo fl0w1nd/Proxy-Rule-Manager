@@ -2,11 +2,13 @@ package geosite
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strings"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
+	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/transformer"
 )
 
 // ImportSelection matches GeositeImportSelection in TS.
@@ -174,7 +176,8 @@ func syncManagedPresentation(rule *schema.RuleConfig, provider, list string, att
 // content at the first N lines and append a sentinel comment.
 func Preview(ctx context.Context, mgr *Manager, provider, list, clientID string, attrs []string, renderProfile string,
 	clients []schema.ClientConfig, transformersConfig map[string]schema.ScriptTransformer,
-	applyTransforms func(contents []string, transforms []schema.Transform, t map[string]schema.ScriptTransformer) ([]string, error),
+	builtinParams map[string]json.RawMessage,
+	applyTransforms func(contents []string, transforms []schema.Transform, ctx transformer.PipelineCtx) ([]string, error),
 	limitLines int,
 ) (PreviewResult, error) {
 	cache, err := mgr.Ensure(ctx, provider)
@@ -191,7 +194,10 @@ func Preview(ctx context.Context, mgr *Manager, provider, list, clientID string,
 	}
 	for _, c := range clients {
 		if c.ID == clientID && len(c.Transforms) > 0 && applyTransforms != nil {
-			out, err := applyTransforms([]string{content}, c.Transforms, transformersConfig)
+			out, err := applyTransforms([]string{content}, c.Transforms, transformer.PipelineCtx{
+				Transformers:  transformersConfig,
+				BuiltinParams: builtinParams,
+			})
 			if err != nil {
 				return PreviewResult{}, err
 			}
