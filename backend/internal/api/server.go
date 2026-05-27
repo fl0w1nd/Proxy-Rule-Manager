@@ -367,6 +367,18 @@ func originAllowed(origin string, allowed []string) bool {
 }
 
 // serveStatic serves files from cfg.OutDir, with SPA fallback to index.html.
+//
+// Asset requests (anything with a file extension, e.g. `/_next/static/.../x.js`
+// or `/logo.svg`) that miss on disk MUST return 404 instead of falling back
+// to `index.html`. Otherwise a stale cached `index.html` referencing
+// already-rotated Next.js chunk hashes will receive `text/html` for those
+// `.js` URLs; browsers then reject the response with a MIME-type error and
+// the whole SPA fails to boot until the user manually reloads.
+//
+// The SPA fallback therefore only fires for extension-less paths (real
+// in-app routes like `/` or `/admin`). `index.html` itself is served with
+// `Cache-Control: no-cache` so CDNs revalidate on every hit and never pin
+// users to a stale entry document.
 func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 	if strings.HasPrefix(r.URL.Path, "/api/") {
 		s.Error(w, http.StatusNotFound, "Not Found")
@@ -382,12 +394,25 @@ func (s *Server) serveStatic(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if info, err := os.Stat(full); err == nil && !info.IsDir() {
+		// Always force revalidation on the entry document so a rotated
+		// chunk graph can never be served via a stale cached HTML.
+		if strings.HasSuffix(clean, "/index.html") || clean == "/index.html" {
+			w.Header().Set("Cache-Control", "no-cache, must-revalidate")
+		}
 		http.ServeFile(w, r, full)
 		return
 	}
-	// SPA fallback.
+	// Asset miss (path has an extension) — return 404 to keep MIME types
+	// honest. Without this the SPA fallback below would happily return
+	// `index.html` (text/html) for a missing `.js` chunk.
+	if ext := filepath.Ext(clean); ext != "" && ext != ".html" {
+		s.Error(w, http.StatusNotFound, "Not Found")
+		return
+	}
+	// SPA fallback for in-app routes (no extension).
 	index := filepath.Join(s.Config.OutDir, "index.html")
 	if _, err := os.Stat(index); err == nil {
+		w.Header().Set("Cache-Control", "no-cache, must-revalidate")
 		http.ServeFile(w, r, index)
 		return
 	}

@@ -313,6 +313,80 @@ func TestServer_SPAFallback(t *testing.T) {
 	}
 }
 
+// TestServer_StaticAssetMissDoesNotFallback guards against the regression
+// where a missing JS chunk URL (e.g. requested by a stale cached
+// `index.html` that pointed at an already-rotated hash) would be answered
+// with `index.html` itself. Browsers then reject the response with
+// "Refused to execute script ... MIME type ('text/html') is not executable"
+// and the SPA fails to boot until the user manually reloads.
+//
+// The fix must return 404 for any extension-bearing path that doesn't
+// exist on disk, even when a real `index.html` is present and SPA
+// fallback would otherwise fire.
+func TestServer_StaticAssetMissDoesNotFallback(t *testing.T) {
+	srv, ts := newTestServer(t, "")
+	if err := os.MkdirAll(srv.Config.OutDir, 0o755); err != nil {
+		t.Fatalf("mkdir out: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(srv.Config.OutDir, "index.html"), []byte("<html>ok</html>"), 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+
+	cases := []string{
+		"/_next/static/chunks/0k3r3sltvv3f-.js",
+		"/_next/static/css/site.css",
+		"/missing.png",
+		"/logo.svg",
+	}
+	for _, p := range cases {
+		resp, err := http.Get(ts.URL + p)
+		if err != nil {
+			t.Fatalf("get %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			t.Errorf("%s: expected 404 for missing asset, got %d body=%q", p, resp.StatusCode, body)
+		}
+		if ct := resp.Header.Get("Content-Type"); strings.HasPrefix(ct, "text/html") {
+			t.Errorf("%s: must not return HTML for missing asset, got Content-Type=%q", p, ct)
+		}
+	}
+}
+
+// TestServer_SPARouteFallsBackToIndex verifies extension-less in-app routes
+// still resolve to `index.html` so client-side routing keeps working.
+// Pairs with TestServer_StaticAssetMissDoesNotFallback to lock in the
+// asset-vs-route distinction.
+func TestServer_SPARouteFallsBackToIndex(t *testing.T) {
+	srv, ts := newTestServer(t, "")
+	if err := os.MkdirAll(srv.Config.OutDir, 0o755); err != nil {
+		t.Fatalf("mkdir out: %v", err)
+	}
+	want := []byte("<html>spa-root</html>")
+	if err := os.WriteFile(filepath.Join(srv.Config.OutDir, "index.html"), want, 0o644); err != nil {
+		t.Fatalf("write index.html: %v", err)
+	}
+
+	for _, p := range []string{"/", "/admin", "/some/deep/route"} {
+		resp, err := http.Get(ts.URL + p)
+		if err != nil {
+			t.Fatalf("get %s: %v", p, err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		_ = resp.Body.Close()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("%s: expected 200 SPA fallback, got %d", p, resp.StatusCode)
+		}
+		if !bytes.Equal(body, want) {
+			t.Errorf("%s: expected index.html body, got %q", p, body)
+		}
+		if cc := resp.Header.Get("Cache-Control"); !strings.Contains(cc, "no-cache") {
+			t.Errorf("%s: expected no-cache on index.html, got Cache-Control=%q", p, cc)
+		}
+	}
+}
+
 func TestServer_RuleFilePathSafety(t *testing.T) {
 	_, ts := newTestServer(t, "")
 	for _, p := range []string{"/Rules/../etc/passwd", "/Rules/clash_meta/..%2fpasswd"} {
