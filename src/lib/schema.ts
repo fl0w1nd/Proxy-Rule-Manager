@@ -432,6 +432,133 @@ export const DEFAULT_SHADOWROCKET_MAPPING: ShadowrocketMapping[] = [
   { type: "NOT", action: "drop", reason: "Shadowrocket 不支持逻辑组合规则 NOT" },
 ];
 
+// ----- mihomo classical → sing-box rule-set source (params, mirrors backend builtin_singbox.go) -----
+
+export const SINGBOX_SOURCE_ACTIONS = ["map", "drop"] as const;
+export type SingboxSourceAction = (typeof SINGBOX_SOURCE_ACTIONS)[number];
+
+// SINGBOX_SOURCE_FIELDS enumerates the sing-box headless-rule fields the
+// backend runner knows how to emit. Kept in lockstep with
+// SingboxSourceFields() in backend/internal/transformer/builtin_singbox.go;
+// adding a new field here without a matching backend entry would silently
+// produce invalid JSON, so any change needs to land in both places.
+export const SINGBOX_SOURCE_FIELDS = [
+  "domain",
+  "domain_suffix",
+  "domain_keyword",
+  "domain_regex",
+  "source_ip_cidr",
+  "ip_cidr",
+  "source_port",
+  "source_port_range",
+  "port",
+  "port_range",
+  "process_name",
+  "process_path",
+  "process_path_regex",
+  "package_name",
+  "package_name_regex",
+  "network",
+  "network_type",
+  "wifi_ssid",
+  "wifi_bssid",
+] as const;
+export type SingboxSourceField = (typeof SINGBOX_SOURCE_FIELDS)[number];
+
+// SINGBOX_SOURCE_FIELD_MIN_VERSION mirrors singboxFieldMinVersion in
+// backend/internal/transformer/builtin_singbox.go: each entry is the
+// minimum rule-set source-format version that introduces the field.
+// Fields absent from this table are available since version 1 (the
+// floor), so the UI doesn't need to special-case them.
+//
+// Keep this in lockstep with the backend table. Adding a new field
+// without an entry here would silently let the dropdown offer it on
+// version 1, which the backend validator will then reject — a poor UX.
+export const SINGBOX_SOURCE_FIELD_MIN_VERSION: Partial<Record<SingboxSourceField, number>> = {
+  process_path_regex: 2,
+  network_type: 3,
+  wifi_ssid: 3,
+  wifi_bssid: 3,
+  package_name_regex: 5,
+};
+
+export function singboxFieldMinVersion(field: string): number {
+  return SINGBOX_SOURCE_FIELD_MIN_VERSION[field as SingboxSourceField] ?? 1;
+}
+
+// sing-box rule-set schema versions accepted by the runner. The ceiling
+// matches the latest version documented in source-format.md; raising it
+// requires bumping MaxSingboxSourceVersion in the backend as well.
+export const SINGBOX_SOURCE_VERSIONS = [1, 2, 3, 4, 5] as const;
+export type SingboxSourceVersion = (typeof SINGBOX_SOURCE_VERSIONS)[number];
+export const DEFAULT_SINGBOX_SOURCE_VERSION: SingboxSourceVersion = 3;
+
+export const SingboxSourceMappingSchema = z.object({
+  type: z.string(),
+  action: z.enum(SINGBOX_SOURCE_ACTIONS),
+  // mapTo is unconstrained here so the editor can re-render a stale row
+  // pointing at a removed field; the dropdown still limits new picks to
+  // SINGBOX_SOURCE_FIELDS and the backend rejects unknown values at
+  // save time.
+  mapTo: z.string().optional(),
+  reason: z.string().optional(),
+});
+export type SingboxSourceMapping = z.infer<typeof SingboxSourceMappingSchema>;
+
+export const SingboxSourceParamsSchema = z.object({
+  version: z.number().int().optional(),
+  rules: z.array(SingboxSourceMappingSchema).default([]),
+});
+export type SingboxSourceParams = z.infer<typeof SingboxSourceParamsSchema>;
+
+// Default mapping mirrors backend DefaultSingboxSourceMapping. The UI
+// seeds the editor with this on first interaction; clearing the params
+// blob server-side falls back to the same list at runtime.
+export const DEFAULT_SINGBOX_SOURCE_MAPPING: SingboxSourceMapping[] = [
+  // maps: mihomo token → sing-box headless rule field
+  { type: "DOMAIN", action: "map", mapTo: "domain" },
+  { type: "DOMAIN-SUFFIX", action: "map", mapTo: "domain_suffix" },
+  { type: "DOMAIN-KEYWORD", action: "map", mapTo: "domain_keyword" },
+  { type: "DOMAIN-REGEX", action: "map", mapTo: "domain_regex" },
+  { type: "IP-CIDR", action: "map", mapTo: "ip_cidr" },
+  { type: "IP-CIDR6", action: "map", mapTo: "ip_cidr" },
+  { type: "IP-SUFFIX", action: "map", mapTo: "ip_cidr" },
+  { type: "SRC-IP-CIDR", action: "map", mapTo: "source_ip_cidr" },
+  { type: "SRC-IP-SUFFIX", action: "map", mapTo: "source_ip_cidr" },
+  { type: "DST-PORT", action: "map", mapTo: "port" },
+  { type: "SRC-PORT", action: "map", mapTo: "source_port" },
+  { type: "PROCESS-NAME", action: "map", mapTo: "process_name" },
+  { type: "PROCESS-PATH", action: "map", mapTo: "process_path" },
+  { type: "PROCESS-PATH-REGEX", action: "map", mapTo: "process_path_regex" },
+  { type: "NETWORK", action: "map", mapTo: "network" },
+  // drops with explanatory reasons
+  { type: "GEOIP", action: "drop", reason: "sing-box rule-set 不内联 GEOIP，请改用独立 rule-set 引用 geoip-cn 之类" },
+  { type: "GEOSITE", action: "drop", reason: "sing-box rule-set 不内联 GEOSITE，请改用独立 rule-set" },
+  { type: "SRC-GEOIP", action: "drop", reason: "sing-box rule-set 不支持 SRC-GEOIP" },
+  { type: "IP-ASN", action: "drop", reason: "sing-box rule-set 不支持 IP-ASN" },
+  { type: "SRC-IP-ASN", action: "drop", reason: "sing-box rule-set 不支持 SRC-IP-ASN" },
+  { type: "DOMAIN-WILDCARD", action: "drop", reason: "sing-box rule-set 无 domain_wildcard 字段；如必须迁移请改写为 domain_regex" },
+  { type: "PROCESS-NAME-REGEX", action: "drop", reason: "sing-box rule-set 无 process_name_regex 字段" },
+  { type: "PROCESS-NAME-WILDCARD", action: "drop", reason: "sing-box rule-set 无 process_name_wildcard 字段" },
+  { type: "PROCESS-PATH-WILDCARD", action: "drop", reason: "sing-box rule-set 无 process_path_wildcard 字段" },
+  { type: "IN-PORT", action: "drop", reason: "sing-box rule-set 不携带入站匹配（应在 route rule 上配置 inbound）" },
+  { type: "IN-TYPE", action: "drop", reason: "sing-box rule-set 不携带入站类型" },
+  { type: "IN-USER", action: "drop", reason: "sing-box rule-set 不携带入站用户" },
+  { type: "IN-NAME", action: "drop", reason: "sing-box rule-set 不携带入站名" },
+  { type: "UID", action: "drop", reason: "sing-box rule-set 无 UID 等价字段（如需匹配请改用 user/user_id）" },
+  { type: "DSCP", action: "drop", reason: "sing-box rule-set 无 DSCP 字段" },
+  { type: "PROTOCOL", action: "drop", reason: "sing-box rule-set 无 PROTOCOL 字段" },
+  { type: "USER-AGENT", action: "drop", reason: "sing-box rule-set 无 USER-AGENT 字段" },
+  { type: "URL-REGEX", action: "drop", reason: "sing-box rule-set 无 URL-REGEX 字段" },
+  { type: "RULE-SET", action: "drop", reason: "sing-box rule-set 不支持嵌套引用其它规则集" },
+  { type: "SUB-RULE", action: "drop", reason: "sing-box rule-set 不支持 SUB-RULE" },
+  { type: "AND", action: "drop", reason: "sing-box rule-set 单条 rule 内字段已是 AND；不接受嵌套 AND 表达式" },
+  { type: "OR", action: "drop", reason: "sing-box rule-set 顶层 rules 已是 OR；不接受嵌套 OR 表达式" },
+  { type: "NOT", action: "drop", reason: "sing-box headless rule 用 invert:true 实现取反，且整条规则只能整体取反" },
+  { type: "MATCH", action: "drop", reason: "sing-box rule-set 无 MATCH/FINAL 概念，最终归属在 route rule 配置" },
+  { type: "FINAL", action: "drop", reason: "sing-box rule-set 无 MATCH/FINAL 概念" },
+];
+
 // ----- Preview report types (mirrors backend/transformer/report.go) -----
 
 // 单条 transform step 中被丢弃的源行

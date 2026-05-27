@@ -17,8 +17,9 @@ const BuiltinPrefix = "builtin:"
 // Names of the built-in transformers. Kept as constants so callers can
 // reference them without fearing typos.
 const (
-	BuiltinMihomoClassicalToYAML = "builtin:mihomo-classical-to-yaml"
-	BuiltinMihomoToShadowrocket  = "builtin:mihomo-to-shadowrocket"
+	BuiltinMihomoClassicalToYAML          = "builtin:mihomo-classical-to-yaml"
+	BuiltinMihomoToShadowrocket           = "builtin:mihomo-to-shadowrocket"
+	BuiltinMihomoClassicalToSingboxSource = "builtin:mihomo-classical-to-singbox-source"
 )
 
 // BuiltinTransformerMeta carries the human-readable metadata that the UI
@@ -42,6 +43,10 @@ var builtinMetas = []BuiltinTransformerMeta{
 	{
 		Name:        BuiltinMihomoToShadowrocket,
 		Description: "按映射表把 mihomo classical 规则改写为 Shadowrocket 子集；未配置的类型默认保留",
+	},
+	{
+		Name:        BuiltinMihomoClassicalToSingboxSource,
+		Description: "将 mihomo classical 规则按映射表聚合输出为 sing-box rule-set source（headless rule JSON）",
 	},
 }
 
@@ -97,7 +102,9 @@ func BuiltinMetas() []BuiltinTransformerMeta {
 // share a single source of truth.
 func IsBuiltinName(name string) bool {
 	switch name {
-	case BuiltinMihomoClassicalToYAML, BuiltinMihomoToShadowrocket:
+	case BuiltinMihomoClassicalToYAML,
+		BuiltinMihomoToShadowrocket,
+		BuiltinMihomoClassicalToSingboxSource:
 		return true
 	}
 	return false
@@ -136,6 +143,8 @@ func RunBuiltin(name string, params json.RawMessage, content string) (BuiltinRes
 		return runMihomoClassicalToYAML(content), true
 	case BuiltinMihomoToShadowrocket:
 		return runMihomoToShadowrocket(params, content), true
+	case BuiltinMihomoClassicalToSingboxSource:
+		return runMihomoClassicalToSingboxSource(params, content), true
 	}
 	return BuiltinResult{Output: content}, false
 }

@@ -7,9 +7,14 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
 )
 
-func TestBuiltinTransformers_RegistryHasBoth(t *testing.T) {
+func TestBuiltinTransformers_RegistryHasAll(t *testing.T) {
 	reg := BuiltinTransformers()
-	for _, name := range []string{BuiltinMihomoClassicalToYAML, BuiltinMihomoToShadowrocket} {
+	want := []string{
+		BuiltinMihomoClassicalToYAML,
+		BuiltinMihomoToShadowrocket,
+		BuiltinMihomoClassicalToSingboxSource,
+	}
+	for _, name := range want {
 		if _, ok := reg[name]; !ok {
 			t.Fatalf("expected %q in registry, got keys %v", name, keysOf(reg))
 		}
