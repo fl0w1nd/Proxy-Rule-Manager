@@ -30,10 +30,20 @@ const indexSep = "==============================================================
 // CreateLineDiff produces a unified diff with the given context size.
 // Output mirrors jsdiff's createTwoFilesPatch including the "Index:" header
 // so the frontend diff-viewer receives the same format from both backends.
+//
+// Both `before` and `after` are normalised to end with a trailing "\n" before
+// diffing to work around a long-standing pmezard/go-difflib quirk: when the
+// final line has no LF terminator, the library emits the next diff line
+// directly after it without a separator, producing visually broken output
+// such as "-foo+bar\n+\n". A semantically equal "missing-vs-present trailing
+// newline" pair therefore renders as a no-op, which matches how every other
+// rule consumer (cat, gh diff, jsdiff) treats trailing-LF normalisation.
 func CreateLineDiff(before, after string, contextLines int) string {
 	if contextLines <= 0 {
 		contextLines = 3
 	}
+	before = ensureTrailingNewline(before)
+	after = ensureTrailingNewline(after)
 	udiff := difflib.UnifiedDiff{
 		A:        strings.SplitAfter(before, "\n"),
 		B:        strings.SplitAfter(after, "\n"),
@@ -49,6 +59,16 @@ func CreateLineDiff(before, after string, contextLines int) string {
 		return out
 	}
 	return "Index: before\n" + indexSep + "\n" + out
+}
+
+// ensureTrailingNewline appends "\n" when content is non-empty and lacks a
+// terminal LF. Empty strings are returned untouched so the "created" /
+// "deleted" diff shapes (one side empty) keep their natural form.
+func ensureTrailingNewline(s string) string {
+	if s == "" || strings.HasSuffix(s, "\n") {
+		return s
+	}
+	return s + "\n"
 }
 
 // CreateActivityDiff prefers compact representations for huge created/deleted payloads.

@@ -83,6 +83,36 @@ func TestCreateLineDiff_IndexHeader(t *testing.T) {
 	}
 }
 
+// TestCreateLineDiff_MissingTrailingNewline guards against a pmezard/go-difflib
+// bug where, when the last line of either side has no LF terminator, the
+// library concatenates the next diff line directly after it. The activity
+// "变更详情" panel previously rendered "DOMAIN-SUFFIX,amazonaws.com+DOMAIN-SUFFIX,
+// amazonaws.com" on a single line because both sides happened to lack a
+// trailing newline. The normalisation in CreateLineDiff prevents that.
+func TestCreateLineDiff_MissingTrailingNewline(t *testing.T) {
+	// Identical content (both missing \n) should produce an empty diff.
+	out := CreateLineDiff("a\nb\nc", "a\nb\nc", 3)
+	if out != "" {
+		t.Errorf("identical content without trailing LF should produce empty diff, got:\n%s", out)
+	}
+
+	// Content differs on the last line; the diff must contain a clean
+	// -foo / +bar pair rather than the concatenated "-foo+bar" garbage.
+	out = CreateLineDiff("a\nb\nfoo", "a\nb\nbar", 3)
+	if strings.Contains(out, "-foo+bar") {
+		t.Errorf("diff contains concatenated -foo+bar artifact:\n%s", out)
+	}
+	if !strings.Contains(out, "-foo") || !strings.Contains(out, "+bar") {
+		t.Errorf("expected clean -foo / +bar lines, got:\n%s", out)
+	}
+
+	// Sole change is a trailing-LF presence: treat as no-op.
+	out = CreateLineDiff("a\nb\nc", "a\nb\nc\n", 3)
+	if out != "" {
+		t.Errorf("trailing-LF-only difference should produce empty diff, got:\n%s", out)
+	}
+}
+
 // TestShouldSummarize_ASCIIByteTrigger verifies that 50 001 ASCII bytes (where
 // byte count == rune count) triggers the summary path.
 func TestShouldSummarize_ASCIIByteTrigger(t *testing.T) {
