@@ -418,7 +418,11 @@ function StepCard({ step, transformers }: StepCardProps) {
   const delta = step.outputLines - step.inputLines;
   const droppedTotal = step.droppedTotal ?? step.dropped?.length ?? 0;
   const modifiedTotal = step.modifiedTotal ?? step.modified?.length ?? 0;
-  const hasDetails = (step.dropped?.length ?? 0) > 0 || (step.modified?.length ?? 0) > 0;
+  const addedTotal = step.addedTotal ?? step.added?.length ?? 0;
+  const hasDetails =
+    (step.dropped?.length ?? 0) > 0 ||
+    (step.modified?.length ?? 0) > 0 ||
+    (step.added?.length ?? 0) > 0;
 
   const isBuiltin = step.kind === TRANSFORM_STEP_KIND.useBuiltin;
 
@@ -477,6 +481,11 @@ function StepCard({ step, transformers }: StepCardProps) {
               改写 {modifiedTotal}
             </Badge>
           )}
+          {addedTotal > 0 && (
+            <Badge variant="outline" className="border-success/25 bg-success-soft text-success text-[10px]">
+              新增 {addedTotal}
+            </Badge>
+          )}
         </span>
       </button>
 
@@ -487,6 +496,9 @@ function StepCard({ step, transformers }: StepCardProps) {
           )}
           {step.modified && step.modified.length > 0 && (
             <ModifiedSection modified={step.modified} total={modifiedTotal} transformers={transformers} />
+          )}
+          {step.added && step.added.length > 0 && (
+            <AddedSection added={step.added} total={addedTotal} transformers={transformers} />
           )}
         </div>
       )}
@@ -601,6 +613,46 @@ function ModifiedSection({ modified, total, transformers }: { modified: StepRepo
             <div className="mt-1 ml-8 flex items-center gap-2 text-muted-foreground italic">
               {m.reason && <TransformerReasonTooltip reason={m.reason} transformers={transformers} />}
               {m.truncated && (
+                <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
+                  样本截断
+                </Badge>
+              )}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function AddedSection({ added, total, transformers }: { added: StepReport["added"]; total: number; transformers?: Record<string, ScriptTransformer> }) {
+  return (
+    <div className="space-y-2">
+      <div className="flex items-baseline gap-2">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-success">
+          已新增 ({total})
+        </h4>
+        {total > (added?.length ?? 0) && (
+          <span className="text-[10px] text-muted-foreground">
+            仅显示前 {added?.length}，共 {total} 条
+          </span>
+        )}
+      </div>
+      <ul className="space-y-1.5">
+        {added?.map((a, i) => (
+          <li
+            key={i}
+            className="rounded-md border border-success/20 bg-success-soft/50 px-3 py-2 text-xs"
+          >
+            <div className="flex items-baseline gap-2">
+              {a.lineNo > 0 && (
+                <span className="font-mono tabular-nums text-muted-foreground shrink-0">L{a.lineNo}</span>
+              )}
+              <code className="flex-1 font-mono text-foreground/90 break-all whitespace-pre-wrap">{a.text}{a.truncated ? "…" : ""}</code>
+            </div>
+            <div className="mt-0.5 ml-8 flex items-center gap-2 text-muted-foreground italic">
+              <TransformerReasonTooltip reason={a.reason} transformers={transformers} />
+              {a.truncated && (
                 <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
                   样本截断
                 </Badge>

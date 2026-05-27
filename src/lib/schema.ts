@@ -454,6 +454,16 @@ export const ModifiedLineSchema = z.object({
 });
 export type ModifiedLine = z.infer<typeof ModifiedLineSchema>;
 
+// 单条 transform step 中被新增的输出行
+// （没有任何源行与之对应，例如 JS 脚本合成的规则）。
+export const AddedLineSchema = z.object({
+  lineNo: z.number().int().nonnegative(),
+  text: z.string(),
+  reason: z.string(),
+  truncated: z.boolean().optional().default(false),
+});
+export type AddedLine = z.infer<typeof AddedLineSchema>;
+
 // 转换流水线中单个 step 的可视化记录
 export const StepReportSchema = z.object({
   stage: z.string(),
@@ -465,8 +475,10 @@ export const StepReportSchema = z.object({
   outputLines: z.number().int().nonnegative(),
   dropped: z.array(DroppedLineSchema).optional().default([]),
   modified: z.array(ModifiedLineSchema).optional().default([]),
+  added: z.array(AddedLineSchema).optional().default([]),
   droppedTotal: z.number().int().nonnegative().optional().default(0),
   modifiedTotal: z.number().int().nonnegative().optional().default(0),
+  addedTotal: z.number().int().nonnegative().optional().default(0),
 });
 export type StepReport = z.infer<typeof StepReportSchema>;
 
