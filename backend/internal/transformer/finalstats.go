@@ -75,7 +75,7 @@ func computeYAMLPayloadStats(content string) (FinalStats, bool) {
 func computeClassicalStats(content string) FinalStats {
 	byType := make(map[string]int)
 	total := 0
-	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	for _, line := range strings.Split(normalizeLineEndings(content), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue
@@ -113,7 +113,7 @@ func CountSignificantLines(content string) int {
 		return 0
 	}
 	n := 0
-	for _, line := range strings.Split(strings.ReplaceAll(content, "\r\n", "\n"), "\n") {
+	for _, line := range strings.Split(normalizeLineEndings(content), "\n") {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			continue

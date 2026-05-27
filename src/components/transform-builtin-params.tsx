@@ -27,21 +27,38 @@ import {
 const SHADOWROCKET_BUILTIN = "builtin:mihomo-to-shadowrocket";
 
 // shadowrocketParamsFromUnknown is a tolerant decoder: we accept the
-// already-typed object, undefined, or a raw blob from the API. Anything we
-// don't recognise becomes the curated defaults so the editor never refuses
-// to render.
+// already-typed object, undefined, or a raw blob from the API. We normalise
+// every row defensively so a malformed entry (missing `type`, unknown
+// action enum, etc.) can never reach the render path and crash the editor
+// with a TypeError on `.trim()` or `.includes()` against `undefined`.
 function shadowrocketParamsFromUnknown(input: unknown): ShadowrocketParams {
   if (!input || typeof input !== "object") {
     return { rules: DEFAULT_SHADOWROCKET_MAPPING, unknownAction: "keep" };
   }
-  const obj = input as Partial<ShadowrocketParams> & Record<string, unknown>;
+  const obj = input as Record<string, unknown>;
   const rules: ShadowrocketMapping[] = Array.isArray(obj.rules)
-    ? (obj.rules as ShadowrocketMapping[])
+    ? (obj.rules as unknown[]).map(sanitizeRule)
     : DEFAULT_SHADOWROCKET_MAPPING;
   const unknownAction = SHADOWROCKET_ACTIONS.includes(obj.unknownAction as ShadowrocketAction)
     ? (obj.unknownAction as ShadowrocketAction)
     : "keep";
   return { rules, unknownAction };
+}
+
+// sanitizeRule is intentionally permissive: an unknown shape becomes a
+// "keep" row with empty type, which still renders cleanly in the editor
+// (the operator can fill in the type or delete the row).
+function sanitizeRule(raw: unknown): ShadowrocketMapping {
+  const r = (raw && typeof raw === "object" ? raw : {}) as Record<string, unknown>;
+  const action: ShadowrocketAction = SHADOWROCKET_ACTIONS.includes(r.action as ShadowrocketAction)
+    ? (r.action as ShadowrocketAction)
+    : "keep";
+  return {
+    type: typeof r.type === "string" ? r.type : "",
+    action,
+    renameTo: typeof r.renameTo === "string" ? r.renameTo : undefined,
+    reason: typeof r.reason === "string" ? r.reason : undefined,
+  };
 }
 
 const ACTION_LABEL: Record<ShadowrocketAction, string> = {
@@ -84,12 +101,15 @@ function ShadowrocketMappingEditor({
   const update = (next: ShadowrocketParams) => {
     // Empty rule type rows would silently fall through to UnknownAction on
     // the backend; we keep them so the operator can finish typing mid-edit,
-    // but trim them on serialisation so saved configs stay tidy.
+    // but trim them on serialisation so saved configs stay tidy. `r.type`
+    // is coerced through `?? ""` because a legacy / hand-edited blob could
+    // arrive with `undefined`, and a missed defensive check here is
+    // exactly the kind of regression that crashes the dashboard.
     const cleaned: ShadowrocketParams = {
       ...next,
       rules: next.rules.map((r) => ({
         ...r,
-        type: r.type.trim(),
+        type: (r.type ?? "").trim(),
         renameTo: r.renameTo?.trim() || undefined,
         reason: r.reason?.trim() || undefined,
       })),
