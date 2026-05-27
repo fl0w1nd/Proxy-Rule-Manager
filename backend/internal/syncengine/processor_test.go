@@ -252,6 +252,80 @@ func TestProcessor_RefMissingErrors(t *testing.T) {
 	}
 }
 
+// TestProcessor_RefSkipsDestructiveClientTransform reproduces the
+// regression where a pure-ref rule fed every line of an already-
+// transformed sing-box JSON document back into the
+// builtin:mihomo-classical-to-singbox-source converter and lost
+// everything as "未在映射表中配置".
+//
+// The contract being asserted is: refs consume the upstream rule's
+// PreClientContents (post-merge, pre-client-transform), so a downstream
+// rule that targets the same destructive client only runs the
+// classical→JSON conversion once — on the merged classical content —
+// instead of attempting to re-parse the JSON output as classical lines.
+func TestProcessor_RefSkipsDestructiveClientTransform(t *testing.T) {
+	p, _ := newTempProcessor(t)
+	clients := []schema.ClientConfig{{
+		ID:          "singbox",
+		DisplayName: "Sing Box",
+		Transforms: []schema.Transform{{
+			Type:   "use",
+			Target: mustTarget(t, `"all"`),
+			Use:    "builtin:mihomo-classical-to-singbox-source",
+		}},
+	}}
+	output := schema.OutputConfig{Clients: []string{"singbox"}}
+
+	netflix := schema.RuleConfig{
+		Name:    "Netflix",
+		Sources: []schema.SourceConfig{{Type: "local", Content: strPtr("DOMAIN-SUFFIX,netflix.com\nIP-CIDR,8.41.4.0/24,no-resolve")}},
+		Output:  output,
+	}
+	youtube := schema.RuleConfig{
+		Name:    "YouTube",
+		Sources: []schema.SourceConfig{{Type: "local", Content: strPtr("DOMAIN-SUFFIX,youtube.com")}},
+		Output:  output,
+	}
+
+	cache := NewRuleContentsCache()
+
+	// Upstream rules run first; their results get cached. The cache MUST
+	// hold the pre-client-transform classical content for refs to work.
+	for _, rule := range []schema.RuleConfig{netflix, youtube} {
+		r := rule
+		res := p.ProcessRule(context.Background(), &r, nil, nil, cache, clients)
+		if len(res.Errors) > 0 {
+			t.Fatalf("%s: unexpected errors %v", r.Name, res.Errors)
+		}
+		if !strings.Contains(res.Contents["singbox"], `"version"`) {
+			t.Fatalf("%s: expected sing-box JSON output, got %q", r.Name, res.Contents["singbox"])
+		}
+		cache.Set(r.Name, res.PreClientContents, res.ClientOrder)
+	}
+
+	proxyMedia := schema.RuleConfig{
+		Name: "ProxyMedia",
+		Sources: []schema.SourceConfig{
+			{Type: "ref", Ref: "Netflix"},
+			{Type: "ref", Ref: "YouTube"},
+		},
+		Output: output,
+	}
+	res := p.ProcessRule(context.Background(), &proxyMedia, nil, nil, cache, clients)
+	if len(res.Errors) > 0 {
+		t.Fatalf("ProxyMedia: unexpected errors %v", res.Errors)
+	}
+	got := res.Contents["singbox"]
+	if !strings.Contains(got, `"domain_suffix"`) {
+		t.Fatalf("ProxyMedia: domain_suffix bucket missing — refs likely fed JSON back into the singbox converter.\ngot:\n%s", got)
+	}
+	for _, want := range []string{"netflix.com", "youtube.com", "8.41.4.0/24"} {
+		if !strings.Contains(got, want) {
+			t.Fatalf("ProxyMedia: missing %q in merged sing-box output:\n%s", want, got)
+		}
+	}
+}
+
 func TestProcessor_ClientGlobalTransformsApplied(t *testing.T) {
 	p, _ := newTempProcessor(t)
 	clients := []schema.ClientConfig{{

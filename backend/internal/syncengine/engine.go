@@ -293,7 +293,7 @@ func (e *Engine) ExecuteFullSyncReport(ctx context.Context, reporter Reporter) (
 			reporter.FinishRule(rule.Name, false)
 			continue
 		}
-		cache.Set(rule.Name, res.Contents, res.ClientOrder)
+		cache.Set(rule.Name, res.PreClientContents, res.ClientOrder)
 		ruleOk := true
 		for client, content := range res.Contents {
 			art, err := e.flushArtifact(ctx, rule, client, lookupExt(extLookup, client), content, trackActivity)
@@ -703,8 +703,8 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 				JobID:       job.JobID,
 			}, nil
 		}
-		if len(result.Contents) > 0 {
-			cache.Set(sortedDeps[i].Name, result.Contents, result.ClientOrder)
+		if len(result.PreClientContents) > 0 {
+			cache.Set(sortedDeps[i].Name, result.PreClientContents, result.ClientOrder)
 		}
 		reporter.FinishRule(sortedDeps[i].Name, true)
 	}
@@ -750,7 +750,7 @@ func (e *Engine) executeSelective(ctx context.Context, seedNames []string, mode 
 			reporter.FinishRule(rule.Name, false)
 			continue
 		}
-		cache.Set(rule.Name, res.Contents, res.ClientOrder)
+		cache.Set(rule.Name, res.PreClientContents, res.ClientOrder)
 		ruleOk := true
 		for client, content := range res.Contents {
 			art, err := e.flushArtifact(ctx, rule, client, lookupExt(extLookup, client), content, trackActivity)
@@ -1042,8 +1042,8 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 			if len(res.Errors) > 0 {
 				return PreviewResult{}, errors.New(joinErrors(res.Errors))
 			}
-			if len(res.Contents) > 0 {
-				cache.Set(sortedDeps[i].Name, res.Contents, res.ClientOrder)
+			if len(res.PreClientContents) > 0 {
+				cache.Set(sortedDeps[i].Name, res.PreClientContents, res.ClientOrder)
 			}
 		}
 	}

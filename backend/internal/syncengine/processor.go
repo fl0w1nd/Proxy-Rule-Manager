@@ -24,10 +24,19 @@ type Processor struct {
 
 // ProcessResult contains the per-client outputs and any errors collected.
 type ProcessResult struct {
-	RuleName    string
-	Contents    map[string]string
-	ClientOrder []string
-	Errors      []string
+	RuleName string
+	Contents map[string]string
+	// PreClientContents is the post-merge, pre-client/override-transform
+	// content per client — i.e. the state of `baseContent` right after
+	// stage 2 (merge) in processRule. Downstream rules that reference this
+	// rule via `ref` sources consume PreClientContents, NOT Contents, so a
+	// destructive client-level transform (e.g. the sing-box rule-set
+	// converter which rewrites mihomo classical lines into a JSON document)
+	// does not re-run on already-converted content and erase every line in
+	// the consumer's pipeline.
+	PreClientContents map[string]string
+	ClientOrder       []string
+	Errors            []string
 	// MissingGeositeLists records (provider, list) tuples whose source could
 	// not be resolved because the upstream catalog no longer contains them.
 	// The engine aggregates these across all rules to produce a single
@@ -143,7 +152,11 @@ func (p *Processor) processRule(
 	// builtins by name, so this merge is defence-in-depth.
 	transformersConfig = transformer.MergeBuiltinTransformers(transformersConfig)
 	pipelineCtx := transformer.PipelineCtx{Transformers: transformersConfig, BuiltinParams: builtinParams}
-	result := ProcessResult{RuleName: rule.Name, Contents: map[string]string{}}
+	result := ProcessResult{
+		RuleName:          rule.Name,
+		Contents:          map[string]string{},
+		PreClientContents: map[string]string{},
+	}
 	var reports map[string]transformer.TransformReport
 	if withReport {
 		reports = make(map[string]transformer.TransformReport)
@@ -318,6 +331,13 @@ func (p *Processor) processRule(
 			}
 			clientReport.Steps = append(clientReport.Steps, mergeStep)
 		}
+
+		// Snapshot the rule-level (pre-client/override-transform) content
+		// for any downstream rule that references us. Refs always consume
+		// PreClientContents, never Contents, so a destructive client
+		// transform (e.g. mihomo classical → sing-box JSON) does not
+		// re-run on already-converted content in the consumer's pipeline.
+		result.PreClientContents[client] = baseContent
 
 		override, hasOverride := rule.Output.ClientOverrides[client]
 		if hasOverride && !override.IsEnabled() {
