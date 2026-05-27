@@ -142,7 +142,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 					InputLines:  CountSignificantLines(content),
 					OutputLines: CountSignificantLines(res),
 				}
-				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, res, "user script removed line", "user script rewrote line")
+				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, res, transform.Use, transform.Use)
 				reports = append(reports, step)
 			}
 		case "replace":
