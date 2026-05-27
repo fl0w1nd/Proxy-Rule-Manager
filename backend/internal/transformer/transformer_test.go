@@ -2,7 +2,6 @@ package transformer
 
 import (
 	"encoding/json"
-	"regexp"
 	"strings"
 	"testing"
 
@@ -182,28 +181,14 @@ func TestApplyNewTransforms_InvalidRegex(t *testing.T) {
 	}
 }
 
-func TestAddRuleHeader(t *testing.T) {
-	content := "# existing header\nDOMAIN,test.com\nDOMAIN-SUFFIX,example.com\nDOMAIN,test2.com\n"
-	got := AddRuleHeader(content, "TestRule", "Test desc", "2026-04-15T10:30:45.000Z")
-	if !strings.Contains(got, "# 规则数量：3 条") {
-		t.Fatalf("count missing: %s", got)
-	}
-	if !regexp.MustCompile(`# 更新时间：2026-04-15 \d{2}:30:45`).MatchString(got) {
-		t.Fatalf("timestamp missing: %s", got)
-	}
-	if !strings.Contains(got, "# DOMAIN: 2 条") {
-		t.Fatalf("DOMAIN count: %s", got)
-	}
-	if !strings.Contains(got, "# DOMAIN-SUFFIX: 1 条") {
-		t.Fatalf("DOMAIN-SUFFIX count: %s", got)
-	}
-}
-
 func TestStripManagedRuleHeader(t *testing.T) {
-	original := "# upstream\nDOMAIN,test.com\n"
-	combined := AddRuleHeader(original, "TestRule", "", "2026-04-15T10:30:45.000Z")
-	if got := StripManagedRuleHeader(combined); got != original {
-		t.Fatalf("strip lost upstream: %q vs %q", got, original)
+	// Simulate a header produced by an older release. Production no longer
+	// emits the managed header; this test only verifies that resyncs after
+	// upgrade still strip it before content comparison.
+	legacy := "# 规则数量：1 条\n# 更新时间：2026-04-15 10:30:45\n# 规则类型：\n# DOMAIN: 1 条\n\n# upstream\nDOMAIN,test.com\n"
+	want := "# upstream\nDOMAIN,test.com\n"
+	if got := StripManagedRuleHeader(legacy); got != want {
+		t.Fatalf("strip lost upstream: %q vs %q", got, want)
 	}
 }
 

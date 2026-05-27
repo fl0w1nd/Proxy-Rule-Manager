@@ -166,6 +166,10 @@ func (s SourceConfig) SourceType() string {
 
 // Transform represents a single post-processing operation.
 // Target always serialises (no omitempty) to match the TS default of "all".
+// Params carries optional, transform-specific configuration. Today it is
+// consumed only by the built-in transformers (e.g. builtin:mihomo-to-shadowrocket
+// reads a `{ rules: [...] }` mapping table from here). Stored as raw JSON
+// so each transform implementation can decode its own shape.
 type Transform struct {
 	Type        string          `json:"type"`
 	Target      json.RawMessage `json:"target"`
@@ -173,6 +177,7 @@ type Transform struct {
 	Pattern     string          `json:"pattern,omitempty"`
 	Replacement string          `json:"replacement,omitempty"`
 	Flags       string          `json:"flags,omitempty"`
+	Params      json.RawMessage `json:"params,omitempty"`
 }
 
 // TargetIndices resolves the target field, returning the list of indices the

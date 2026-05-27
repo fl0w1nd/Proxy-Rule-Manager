@@ -761,15 +761,21 @@ type artifactFlush struct {
 //
 // `ext` is the client-resolved output extension. Empty falls back to
 // schema.DefaultOutputExt via resolveExt in ruledisk.go.
+//
+// As of the "zero header" rewrite, the on-disk artifact contains the exact
+// post-transform content with no managed header injected. The hash and diff
+// inputs are therefore the raw content directly. For backward compatibility
+// with artifacts written by older versions (which prepended a "# 规则数量：…"
+// block), we still pass `previousContent` through StripManagedRuleHeader
+// before comparison/diff so the first re-sync after upgrade produces a clean
+// change record and rewrites the file to its header-less form.
 func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, client, ext, content string, trackActivity bool) (artifactFlush, error) {
 	existing, err := e.Store.GetArtifactMeta(ctx, rule.Name, client)
 	if err != nil {
 		return artifactFlush{}, err
 	}
-	normalizedContent := transformer.NormalizeEffectiveRuleContent(content)
-	hash := util.SHA256Hex(normalizedContent)
+	hash := util.SHA256Hex(content)
 	syncedAt := util.NowISO()
-	outputContent := transformer.AddRuleHeader(content, rule.Name, rule.Description, syncedAt)
 
 	var previousContent string
 	previousFetched := false
@@ -779,24 +785,30 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 			previousContent = prev
 			previousFetched = true
 			if prev != "" {
+				// Strip any legacy managed header so we can fairly compare
+				// the on-disk semantic payload against the freshly produced
+				// content. After a single resync the on-disk file no longer
+				// has a header and Strip becomes a no-op.
 				previousSource := transformer.StripManagedRuleHeader(prev)
-				previousNormalizedHash := util.SHA256Hex(transformer.NormalizeEffectiveRuleContent(previousSource))
-				if previousNormalizedHash == hash {
-					if previousSource == content {
-						// Content unchanged: still bump LastUpdatedAt so the
+				if previousSource == content {
+					if prev == content {
+						// Bytes identical — just bump LastUpdatedAt so the
 						// "stale" badge reflects "last confirmed up-to-date"
 						// rather than "last time bytes actually changed".
-						copy := *existing
-						copy.LastHash = hash
-						copy.LastUpdatedAt = syncedAt
-						copy.ConsecutiveFailures = 0
-						return artifactFlush{Meta: &copy}, nil
+						copyMeta := *existing
+						copyMeta.LastHash = hash
+						copyMeta.LastUpdatedAt = syncedAt
+						copyMeta.ConsecutiveFailures = 0
+						return artifactFlush{Meta: &copyMeta}, nil
 					}
-					upload, uerr := UploadForRule(e.RulesDir, rule, client, ext, outputContent)
+					// Same semantic content but disk still carries a legacy
+					// header. Rewrite to the clean form, but do NOT record an
+					// activity change — semantically nothing changed.
+					upload, uerr := UploadForRule(e.RulesDir, rule, client, ext, content)
 					if uerr != nil {
 						return artifactFlush{}, uerr
 					}
-					size := int64(len(outputContent))
+					size := int64(len(content))
 					meta := *existing
 					meta.LastHash = hash
 					meta.LastUpdatedAt = syncedAt
@@ -813,11 +825,11 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 		previousContent = prev
 	}
 
-	upload, err := UploadForRule(e.RulesDir, rule, client, ext, outputContent)
+	upload, err := UploadForRule(e.RulesDir, rule, client, ext, content)
 	if err != nil {
 		return artifactFlush{}, err
 	}
-	size := int64(len(outputContent))
+	size := int64(len(content))
 	meta := schema.ArtifactMeta{
 		RuleName:      rule.Name,
 		Client:        client,
@@ -834,11 +846,14 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 		if existing != nil {
 			changeType = diff.Updated
 		}
+		// Strip any legacy header so the diff against the new (clean)
+		// content does not surface the soon-to-vanish "# 规则数量：…" block
+		// as a meaningful change.
 		previousSource := transformer.StripManagedRuleHeader(previousContent)
 		body := diff.CreateActivityDiff(
 			changeType,
-			transformer.NormalizeEffectiveRuleContent(previousSource),
-			normalizedContent,
+			previousSource,
+			content,
 			3,
 		)
 		change = &store.ChangeRecordInput{
@@ -854,10 +869,14 @@ func (e *Engine) flushArtifact(ctx context.Context, rule *schema.RuleConfig, cli
 	return artifactFlush{Meta: &meta, Wrote: true, Change: change}, nil
 }
 
-// PreviewResult is returned from PreviewRule.
+// PreviewResult is returned from PreviewRule. Reports carries the per-step
+// transform diagnostics surfaced exclusively in the admin preview panel —
+// the field is always nil for any code path that comes from the sync
+// pipeline.
 type PreviewResult struct {
-	Contents    map[string]string `json:"contents"`
-	Diagnostics PreviewDiag       `json:"diagnostics"`
+	Contents    map[string]string                      `json:"contents"`
+	Diagnostics PreviewDiag                            `json:"diagnostics"`
+	Reports     map[string]transformer.TransformReport `json:"reports,omitempty"`
 }
 
 // PreviewDiag mirrors the TS diagnostics shape.
@@ -1022,7 +1041,7 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 		}
 	}
 
-	res := e.Processor.ProcessRule(ctx, rule, transformers, cache, clients)
+	res := e.Processor.ProcessRuleReported(ctx, rule, transformers, cache, clients)
 	if len(res.Errors) > 0 {
 		return PreviewResult{}, errors.New(joinErrors(res.Errors))
 	}
@@ -1039,7 +1058,11 @@ func (e *Engine) PreviewRule(ctx context.Context, rule *schema.RuleConfig, trans
 		}
 	}
 	diagnostics.TotalLines = totalLines
-	return PreviewResult{Contents: contents, Diagnostics: diagnostics}, nil
+	return PreviewResult{
+		Contents:    contents,
+		Diagnostics: diagnostics,
+		Reports:     res.Reports,
+	}, nil
 }
 
 // ---- helpers ----

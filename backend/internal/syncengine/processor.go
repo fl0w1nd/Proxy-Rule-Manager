@@ -32,6 +32,10 @@ type ProcessResult struct {
 	// The engine aggregates these across all rules to produce a single
 	// high-signal "geosite-stale:{provider}" failure record per provider.
 	MissingGeositeLists []MissingGeositeList
+	// Reports carries one TransformReport per client when the rule was run
+	// through ProcessRuleReported. The sync pipeline leaves this nil; only
+	// admin-side preview populates it.
+	Reports map[string]transformer.TransformReport
 }
 
 // MissingGeositeList is a (provider, list) tuple that disappeared from the
@@ -87,6 +91,8 @@ func (c *RuleContentsCache) Get(ruleName string) (map[string]string, []string, b
 }
 
 // ProcessRule mirrors processRule(rule, transformers, cache, clients) in TS.
+// Used by the sync pipeline; per-step diagnostics are not collected. Call
+// ProcessRuleReported when you need a TransformReport.
 func (p *Processor) ProcessRule(
 	ctx context.Context,
 	rule *schema.RuleConfig,
@@ -94,7 +100,44 @@ func (p *Processor) ProcessRule(
 	cache *RuleContentsCache,
 	clients []schema.ClientConfig,
 ) ProcessResult {
+	res, _ := p.processRule(ctx, rule, transformersConfig, cache, clients, false)
+	return res
+}
+
+// ProcessRuleReported is the preview-only counterpart that records every
+// step's input/output line counts and any dropped/modified samples emitted
+// by the built-in transformers. Calling pattern is identical to
+// ProcessRule; the second return value maps client id → TransformReport.
+func (p *Processor) ProcessRuleReported(
+	ctx context.Context,
+	rule *schema.RuleConfig,
+	transformersConfig map[string]schema.ScriptTransformer,
+	cache *RuleContentsCache,
+	clients []schema.ClientConfig,
+) ProcessResult {
+	res, reports := p.processRule(ctx, rule, transformersConfig, cache, clients, true)
+	res.Reports = reports
+	return res
+}
+
+func (p *Processor) processRule(
+	ctx context.Context,
+	rule *schema.RuleConfig,
+	transformersConfig map[string]schema.ScriptTransformer,
+	cache *RuleContentsCache,
+	clients []schema.ClientConfig,
+	withReport bool,
+) (ProcessResult, map[string]transformer.TransformReport) {
+	// Merge the built-in registry before running transforms so any user
+	// config that still references "builtin:…" via a stale dropdown
+	// resolves correctly. The dispatcher in pipeline.go also short-circuits
+	// builtins by name, so this merge is defence-in-depth.
+	transformersConfig = transformer.MergeBuiltinTransformers(transformersConfig)
 	result := ProcessResult{RuleName: rule.Name, Contents: map[string]string{}}
+	var reports map[string]transformer.TransformReport
+	if withReport {
+		reports = make(map[string]transformer.TransformReport)
+	}
 	staticContents := make(map[int]string)
 
 	for i, src := range rule.Sources {
@@ -164,7 +207,7 @@ func (p *Processor) ProcessRule(
 	for _, client := range rule.Output.Clients {
 		if len(rule.Sources) == 0 {
 			result.Errors = append(result.Errors, "Rule has no sources")
-			return result
+			return result, reports
 		}
 		sourceContents := make([]string, 0, len(rule.Sources))
 		for i, src := range rule.Sources {
@@ -212,23 +255,57 @@ func (p *Processor) ProcessRule(
 			continue
 		}
 
+		clientReport := transformer.TransformReport{}
+
+		// --- Stage 1: rule.transforms (per-source) ---
 		processed := sourceContents
 		if len(rule.Transforms) > 0 {
-			var err error
-			processed, err = p.Transformer.ApplyNewTransforms(sourceContents, rule.Transforms, transformersConfig)
+			var (
+				err   error
+				steps []transformer.StepReport
+			)
+			if withReport {
+				processed, steps, err = p.Transformer.ApplyNewTransformsReported(sourceContents, rule.Transforms, transformersConfig, transformer.StageRule)
+				clientReport.Steps = append(clientReport.Steps, steps...)
+			} else {
+				processed, err = p.Transformer.ApplyNewTransforms(sourceContents, rule.Transforms, transformersConfig)
+			}
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))
 				continue
 			}
 		}
 
+		// --- Stage 2: merge (always 1 logical step, multi-input → single) ---
 		strategy := rule.Merge.EffectiveStrategy()
 		dedupe := rule.Merge.EffectiveDedupe()
 		baseContent := transformer.MergeContents(processed, strategy, dedupe)
+		if withReport {
+			inputLines := 0
+			for _, c := range processed {
+				inputLines += transformer.CountSignificantLines(c)
+			}
+			label := "merge " + strategy
+			if dedupe {
+				label += " +dedupe"
+			}
+			clientReport.Steps = append(clientReport.Steps, transformer.StepReport{
+				Stage:       transformer.StageMerge,
+				Index:       0,
+				Kind:        transformer.KindMerge,
+				Label:       label,
+				InputLines:  inputLines,
+				OutputLines: transformer.CountSignificantLines(baseContent),
+			})
+		}
 
 		override, hasOverride := rule.Output.ClientOverrides[client]
 		if hasOverride && !override.IsEnabled() {
 			result.Contents[client] = baseContent
+			if withReport {
+				clientReport.FinalStats = transformer.ComputeFinalStats(baseContent)
+				reports[client] = clientReport
+			}
 			continue
 		}
 
@@ -237,10 +314,22 @@ func (p *Processor) ProcessRule(
 			useGlobal = override.ShouldUseGlobalTransforms()
 		}
 		clientTransformFailed := false
+
+		// --- Stage 3: client.transforms (single content track) ---
 		if useGlobal {
 			for _, cConfig := range clients {
 				if cConfig.ID == client && len(cConfig.Transforms) > 0 {
-					transformed, err := p.Transformer.ApplyNewTransforms([]string{baseContent}, cConfig.Transforms, transformersConfig)
+					var (
+						transformed []string
+						err         error
+						steps       []transformer.StepReport
+					)
+					if withReport {
+						transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, cConfig.Transforms, transformersConfig, transformer.StageClient)
+						clientReport.Steps = append(clientReport.Steps, steps...)
+					} else {
+						transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, cConfig.Transforms, transformersConfig)
+					}
 					if err != nil {
 						result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))
 						clientTransformFailed = true
@@ -256,8 +345,20 @@ func (p *Processor) ProcessRule(
 		if clientTransformFailed {
 			continue
 		}
+
+		// --- Stage 4: override.transforms ---
 		if hasOverride && len(override.Transforms) > 0 {
-			transformed, err := p.Transformer.ApplyNewTransforms([]string{baseContent}, override.Transforms, transformersConfig)
+			var (
+				transformed []string
+				err         error
+				steps       []transformer.StepReport
+			)
+			if withReport {
+				transformed, steps, err = p.Transformer.ApplyNewTransformsReported([]string{baseContent}, override.Transforms, transformersConfig, transformer.StageOverride)
+				clientReport.Steps = append(clientReport.Steps, steps...)
+			} else {
+				transformed, err = p.Transformer.ApplyNewTransforms([]string{baseContent}, override.Transforms, transformersConfig)
+			}
 			if err != nil {
 				result.Errors = append(result.Errors, fmt.Sprintf("Rule %s client %s: %s", rule.Name, client, err.Error()))
 				continue
@@ -266,8 +367,13 @@ func (p *Processor) ProcessRule(
 				baseContent = transformed[0]
 			}
 		}
+
 		result.Contents[client] = baseContent
 		result.ClientOrder = append(result.ClientOrder, client)
+		if withReport {
+			clientReport.FinalStats = transformer.ComputeFinalStats(baseContent)
+			reports[client] = clientReport
+		}
 	}
-	return result
+	return result, reports
 }

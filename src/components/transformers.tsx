@@ -29,10 +29,11 @@ import {
   Play,
   AlertTriangle,
   BookOpen,
+  Lock,
 } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { getConfig, saveConfig } from "@/lib/api-client";
-import { RulesConfig, ScriptTransformer } from "@/lib/schema";
+import { RulesConfig, ScriptTransformer, BuiltinTransformer } from "@/lib/schema";
 import { toast } from "sonner";
 
 interface TransformersManagerProps {
@@ -138,6 +139,7 @@ function transform(content) {
 
 export function TransformersManager({ onRefresh }: TransformersManagerProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
+  const [builtins, setBuiltins] = useState<BuiltinTransformer[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [editingTransformer, setEditingTransformer] = useState<{
     name: string;
@@ -154,8 +156,9 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
   const fetchConfig = async () => {
     try {
-      const { config } = await getConfig();
+      const { config, builtinTransformers } = await getConfig();
       setConfig(config);
+      setBuiltins(builtinTransformers ?? []);
     } catch (error) {
       console.error("Failed to fetch config:", error);
       toast.error("获取配置失败");
@@ -207,6 +210,11 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
 
     if (!data.name.trim()) {
       toast.error("转换器名称不能为空");
+      return;
+    }
+
+    if (data.name.trim().startsWith("builtin:")) {
+      toast.error("名称不能以 \"builtin:\" 开头，该前缀保留给内置转换器");
       return;
     }
 
@@ -344,6 +352,42 @@ export function TransformersManager({ onRefresh }: TransformersManagerProps) {
           </Button>
         </div>
       </div>
+
+      {/* 内置转换器（只读） */}
+      {builtins.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-baseline justify-between">
+            <h3 className="text-sm font-semibold text-foreground/80 flex items-center gap-1.5">
+              <Lock className="w-3.5 h-3.5 text-muted-foreground" />
+              内置转换器
+            </h3>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {builtins.map((b) => (
+              <div
+                key={b.name}
+                className="group relative overflow-hidden rounded-2xl border border-dashed border-border bg-surface-subtle/40 shadow-[var(--shadow-xs)]"
+              >
+                <div className="px-5 py-5 z-10 relative">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-muted/40 bg-muted/30 text-muted-foreground">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <h3 className="text-[15px] font-semibold text-foreground font-mono truncate" title={b.name}>
+                        {b.name}
+                      </h3>
+                      <p className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-3" title={b.description}>
+                        {b.description || "无描述"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* 转换器列表 */}
       {transformerList.length === 0 ? (

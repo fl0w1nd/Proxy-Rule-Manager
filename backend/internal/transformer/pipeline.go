@@ -3,13 +3,9 @@
 package transformer
 
 import (
-	"fmt"
-	"sort"
 	"strings"
-	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
-	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/util"
 )
 
 // Engine encapsulates a shared JS runner used by all transforms.
@@ -23,23 +19,47 @@ func NewEngine() *Engine {
 }
 
 // ApplyNewTransforms runs each transform in order, returning the resulting
-// contents (one entry per input source).
+// contents (one entry per input source). Used by the sync pipeline where
+// the per-step diagnostics are not needed; preview callers should use
+// ApplyNewTransformsReported instead.
 func (e *Engine) ApplyNewTransforms(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer) ([]string, error) {
-	result := append([]string(nil), contents...)
-	for _, t := range transforms {
-		var err error
-		result, err = e.executeNewTransform(result, t, transformers)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return result, nil
+	result, _, err := e.applyNewTransforms(contents, transforms, transformers, false, StageRule)
+	return result, err
 }
 
-func (e *Engine) executeNewTransform(contents []string, transform schema.Transform, transformers map[string]schema.ScriptTransformer) ([]string, error) {
+// ApplyNewTransformsReported is the preview-only counterpart to
+// ApplyNewTransforms: it returns one StepReport per (transform × targeted
+// source) pair so the UI can render the step-by-step pipeline. `stage`
+// identifies which slot of the engine pipeline (rule/client/override) this
+// invocation belongs to and is propagated verbatim into each StepReport so
+// downstream callers don't have to post-stamp the field.
+func (e *Engine) ApplyNewTransformsReported(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer, stage string) ([]string, []StepReport, error) {
+	if stage == "" {
+		stage = StageRule
+	}
+	return e.applyNewTransforms(contents, transforms, transformers, true, stage)
+}
+
+func (e *Engine) applyNewTransforms(contents []string, transforms []schema.Transform, transformers map[string]schema.ScriptTransformer, withReport bool, stage string) ([]string, []StepReport, error) {
+	result := append([]string(nil), contents...)
+	var reports []StepReport
+	for idx, t := range transforms {
+		next, stepReports, err := e.executeNewTransform(result, t, transformers, withReport, stage, idx)
+		if err != nil {
+			return nil, nil, err
+		}
+		result = next
+		if withReport {
+			reports = append(reports, stepReports...)
+		}
+	}
+	return result, reports, nil
+}
+
+func (e *Engine) executeNewTransform(contents []string, transform schema.Transform, transformers map[string]schema.ScriptTransformer, withReport bool, stage string, stepIdx int) ([]string, []StepReport, error) {
 	indices, all, err := transform.TargetIndices()
 	if err != nil {
-		return contents, nil
+		return contents, nil, nil
 	}
 	targets := make(map[int]struct{})
 	if all {
@@ -53,6 +73,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 	}
 
 	out := make([]string, len(contents))
+	var reports []StepReport
 	for i, content := range contents {
 		if _, ok := targets[i]; !ok {
 			out[i] = content
@@ -60,42 +81,147 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 		}
 		switch transform.Type {
 		case "use":
+			// Dispatch to the built-in registry before consulting the
+			// user-script map so a "builtin:" name always means the
+			// native Go implementation, never a JS shadow.
+			if HasBuiltinPrefix(transform.Use) {
+				res, ok := RunBuiltin(transform.Use, transform.Params, content)
+				if ok {
+					out[i] = res.Output
+					if withReport {
+						reports = append(reports, StepReport{
+							Stage:         stage,
+							Index:         stepIdx,
+							SourceIndex:   i,
+							Kind:          KindUseBuiltin,
+							Label:         "use " + transform.Use,
+							InputLines:    countContentLines(content),
+							OutputLines:   countContentLines(res.Output),
+							Dropped:       res.Dropped,
+							Modified:      res.Modified,
+							DroppedTotal:  res.DroppedTotal,
+							ModifiedTotal: res.ModifiedTotal,
+						})
+					}
+					continue
+				}
+				// Unknown builtin: fall through with content untouched.
+				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindUseBuiltin, "use "+transform.Use+" (unknown)", content))
+				}
+				continue
+			}
 			t, ok := transformers[transform.Use]
 			if !ok || strings.TrimSpace(t.Script) == "" {
 				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindUse, "use "+transform.Use, content))
+				}
 				continue
 			}
 			res, _ := e.JS.Execute(t.Script, content)
 			out[i] = res
+			if withReport {
+				reports = append(reports, StepReport{
+					Stage:       stage,
+					Index:       stepIdx,
+					SourceIndex: i,
+					Kind:        KindUse,
+					Label:       "use " + transform.Use,
+					InputLines:  countContentLines(content),
+					OutputLines: countContentLines(res),
+				})
+			}
 		case "replace":
 			if transform.Pattern == "" {
 				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindReplace, "replace (empty pattern)", content))
+				}
 				continue
 			}
 			replaced, err := e.JS.RunRegexReplace(content, transform.Pattern, transform.Replacement, transform.Flags)
 			if err != nil {
 				// TS silently returns original content on regex error.
 				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindReplace, "replace /"+transform.Pattern+"/", content))
+				}
 				continue
 			}
 			out[i] = replaced
+			if withReport {
+				reports = append(reports, StepReport{
+					Stage:       stage,
+					Index:       stepIdx,
+					SourceIndex: i,
+					Kind:        KindReplace,
+					Label:       "replace /" + transform.Pattern + "/",
+					InputLines:  countContentLines(content),
+					OutputLines: countContentLines(replaced),
+				})
+			}
 		case "remove_lines":
 			if transform.Pattern == "" {
 				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindRemoveLines, "remove_lines (empty pattern)", content))
+				}
 				continue
 			}
 			filtered, err := e.JS.RunRegexRemoveLines(content, transform.Pattern)
 			if err != nil {
-				// TS silently returns original content on regex error.
 				out[i] = content
+				if withReport {
+					reports = append(reports, noopStepReport(stage, stepIdx, i, KindRemoveLines, "remove_lines /"+transform.Pattern+"/", content))
+				}
 				continue
 			}
 			out[i] = filtered
+			if withReport {
+				reports = append(reports, StepReport{
+					Stage:       stage,
+					Index:       stepIdx,
+					SourceIndex: i,
+					Kind:        KindRemoveLines,
+					Label:       "remove_lines /" + transform.Pattern + "/",
+					InputLines:  countContentLines(content),
+					OutputLines: countContentLines(filtered),
+				})
+			}
 		default:
 			out[i] = content
 		}
 	}
-	return out, nil
+	return out, reports, nil
+}
+
+func noopStepReport(stage string, stepIdx, sourceIdx int, kind, label, content string) StepReport {
+	lines := countContentLines(content)
+	return StepReport{
+		Stage:       stage,
+		Index:       stepIdx,
+		SourceIndex: sourceIdx,
+		Kind:        kind,
+		Label:       label,
+		InputLines:  lines,
+		OutputLines: lines,
+	}
+}
+
+// countContentLines counts effective lines in a chunk of content, treating
+// a single trailing newline as ending the last line (so "a\nb\n" and
+// "a\nb" both report 2). Empty strings return 0.
+func countContentLines(content string) int {
+	if content == "" {
+		return 0
+	}
+	n := strings.Count(content, "\n")
+	if !strings.HasSuffix(content, "\n") {
+		n++
+	}
+	return n
 }
 
 // MergeContents mirrors mergeContents in transformer.ts.
@@ -185,26 +311,10 @@ func MergeContents(contents []string, strategy string, dedupe bool) string {
 	}
 }
 
-// AddRuleHeader prepends the managed comment header.
-func AddRuleHeader(content, _ruleName, _description, updatedAt string) string {
-	normalized := normalizeLineEndings(content)
-	lines := effectiveRuleLines(normalized)
-	counts := ruleTypeCounts(lines)
-	timestamp := formatHeaderTimestamp(updatedAt)
-
-	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("# 规则数量：%d 条\n", len(lines)))
-	sb.WriteString(fmt.Sprintf("# 更新时间：%s\n", timestamp))
-	sb.WriteString("# 规则类型：\n")
-	for _, c := range counts {
-		sb.WriteString(fmt.Sprintf("# %s: %d 条\n", c.Type, c.Count))
-	}
-	sb.WriteString("\n")
-	sb.WriteString(normalized)
-	return sb.String()
-}
-
-// StripManagedRuleHeader removes our header so that diff/comparison is fair.
+// StripManagedRuleHeader removes the legacy managed header so a freshly
+// produced (header-less) artifact compares fairly against an on-disk file
+// written by a pre-"zero header" release. Production no longer emits this
+// header; the function only matters during the first resync after upgrade.
 func StripManagedRuleHeader(content string) string {
 	if content == "" {
 		return ""
@@ -252,48 +362,4 @@ func effectiveRuleLines(content string) []string {
 		out = append(out, trimmed)
 	}
 	return out
-}
-
-type typeCount struct {
-	Type  string
-	Count int
-}
-
-func ruleTypeCounts(lines []string) []typeCount {
-	counts := make(map[string]int)
-	for _, line := range lines {
-		// Split on first comma only.
-		typ := line
-		if idx := strings.Index(line, ","); idx >= 0 {
-			typ = line[:idx]
-		}
-		typ = strings.TrimSpace(typ)
-		if typ == "" {
-			typ = "UNKNOWN"
-		}
-		counts[typ]++
-	}
-	out := make([]typeCount, 0, len(counts))
-	for k, v := range counts {
-		out = append(out, typeCount{Type: k, Count: v})
-	}
-	sort.Slice(out, func(i, j int) bool { return out[i].Type < out[j].Type })
-	return out
-}
-
-func formatHeaderTimestamp(timestamp string) string {
-	if timestamp == "" {
-		timestamp = util.NowISO()
-	}
-	t, err := time.Parse(time.RFC3339Nano, timestamp)
-	if err != nil {
-		// Try fallback formats.
-		t, err = time.Parse(time.RFC3339, timestamp)
-	}
-	if err != nil {
-		return timestamp
-	}
-	loc := t.Local()
-	return fmt.Sprintf("%04d-%02d-%02d %02d:%02d:%02d",
-		loc.Year(), loc.Month(), loc.Day(), loc.Hour(), loc.Minute(), loc.Second())
 }

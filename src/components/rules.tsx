@@ -51,7 +51,7 @@ import {
   HelpCircle,
 } from "lucide-react";
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
-import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt } from "@/lib/schema";
+import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt, BuiltinTransformer } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
@@ -63,6 +63,7 @@ interface RulesManagerProps {
 
 export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [config, setConfig] = useState<RulesConfig | null>(null);
+  const [builtinTransformers, setBuiltinTransformers] = useState<BuiltinTransformer[]>([]);
   const [clients, setClients] = useState<ClientConfig[]>([]);
   const [ruleStatusMap, setRuleStatusMap] = useState<Record<string, { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number }>>({});
   const [failureThreshold, setFailureThreshold] = useState<number>(DEFAULT_SYSTEM_SETTINGS.sync.failureThreshold);
@@ -118,12 +119,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
   const fetchConfig = async () => {
     try {
-      const [{ config }, { clients: clientList }, statusResult] = await Promise.all([
+      const [configResp, { clients: clientList }, statusResult] = await Promise.all([
         getConfig(),
         getClients(),
         getStatus().catch(() => null),
       ]);
+      const { config } = configResp;
       setConfig(config);
+      setBuiltinTransformers(configResp.builtinTransformers ?? []);
       setClients(clientList);
       if (statusResult && Array.isArray(statusResult.rules)) {
         const map: Record<string, { hasError: boolean; lastFailureAt: string | null; consecutiveFailures: number }> = {};
@@ -1068,6 +1071,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
           <RuleEditor
             rule={editingRule}
             config={config}
+            builtinTransformers={builtinTransformers}
             onSavingChange={setIsEditorSaving}
             onDirtyChange={setIsEditorDirty}
             onSave={async () => {

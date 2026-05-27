@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
+	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/transformer"
 )
 
 func validateRulesConfigPayload(cfg *schema.RulesConfig) error {
@@ -12,6 +13,13 @@ func validateRulesConfigPayload(cfg *schema.RulesConfig) error {
 	}
 	if cfg.Rules == nil {
 		return fmt.Errorf("rules is required")
+	}
+	// Reserved namespace: built-in transformers are shipped by the binary
+	// and must not be shadowed by user-defined entries with the same key.
+	for name := range cfg.Transformers {
+		if transformer.HasBuiltinPrefix(name) {
+			return fmt.Errorf("transformer name %q uses the reserved \"builtin:\" prefix", name)
+		}
 	}
 	for i := range cfg.Rules {
 		if err := validateRulePayload(&cfg.Rules[i]); err != nil {
