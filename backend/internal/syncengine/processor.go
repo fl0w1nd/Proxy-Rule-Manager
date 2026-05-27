@@ -289,7 +289,14 @@ func (p *Processor) processRule(
 		// --- Stage 2: merge (always 1 logical step, multi-input → single) ---
 		strategy := rule.Merge.EffectiveStrategy()
 		dedupe := rule.Merge.EffectiveDedupe()
-		baseContent := transformer.MergeContents(processed, strategy, dedupe)
+		var mergeDropped []transformer.DroppedLine
+		var mergeDroppedTotal int
+		var baseContent string
+		if withReport {
+			baseContent, mergeDropped, mergeDroppedTotal = transformer.MergeContentsReported(processed, strategy, dedupe)
+		} else {
+			baseContent = transformer.MergeContents(processed, strategy, dedupe)
+		}
 		if withReport {
 			inputLines := 0
 			for _, c := range processed {
@@ -299,14 +306,17 @@ func (p *Processor) processRule(
 			if dedupe {
 				label += " +dedupe"
 			}
-			clientReport.Steps = append(clientReport.Steps, transformer.StepReport{
-				Stage:       transformer.StageMerge,
-				Index:       0,
-				Kind:        transformer.KindMerge,
-				Label:       label,
-				InputLines:  inputLines,
-				OutputLines: transformer.CountSignificantLines(baseContent),
-			})
+			mergeStep := transformer.StepReport{
+				Stage:        transformer.StageMerge,
+				Index:        0,
+				Kind:         transformer.KindMerge,
+				Label:        label,
+				InputLines:   inputLines,
+				OutputLines:  transformer.CountSignificantLines(baseContent),
+				Dropped:      mergeDropped,
+				DroppedTotal: mergeDroppedTotal,
+			}
+			clientReport.Steps = append(clientReport.Steps, mergeStep)
 		}
 
 		override, hasOverride := rule.Output.ClientOverrides[client]

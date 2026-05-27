@@ -228,55 +228,58 @@ func noopStepReport(stage string, stepIdx, sourceIdx int, kind, label, content s
 
 // MergeContents mirrors mergeContents in transformer.ts.
 func MergeContents(contents []string, strategy string, dedupe bool) string {
+	result, _, _ := MergeContentsReported(contents, strategy, dedupe)
+	return result
+}
+
+// MergeContentsReported is the preview-only counterpart that also returns
+// diagnostics about which lines were deduplicated so the pipeline report
+// can show them in a dropdown. The caller should use MergeContents for
+// the sync path where diagnostics are not needed.
+func MergeContentsReported(contents []string, strategy string, dedupe bool) (string, []DroppedLine, int) {
 	if len(contents) == 0 {
-		return ""
+		return "", nil, 0
 	}
 	switch strategy {
 	case "concat":
 		result := strings.Join(contents, "\n")
 		if !dedupe {
-			return result
+			return result, nil, 0
 		}
-		lines := strings.Split(result, "\n")
-		seen := make(map[string]struct{})
-		out := make([]string, 0, len(lines))
-		for _, line := range lines {
-			trimmed := strings.TrimSpace(line)
-			if trimmed == "" {
-				out = append(out, line)
-				continue
-			}
-			if _, ok := seen[trimmed]; ok {
-				continue
-			}
-			seen[trimmed] = struct{}{}
-			out = append(out, line)
-		}
-		return strings.Join(out, "\n")
+		return dedupeLines(result, "concat 去重")
 	case "union":
 		seen := make(map[string]struct{})
 		order := make([]string, 0)
+		var dropped []DroppedLine
+		droppedTotal := 0
+		lineNo := 0
 		for _, c := range contents {
-			for _, line := range strings.Split(c, "\n") {
+			for _, line := range strings.Split(normalizeLineEndings(c), "\n") {
+				lineNo++
 				trimmed := strings.TrimSpace(line)
 				if trimmed == "" {
 					continue
 				}
 				if _, ok := seen[trimmed]; ok {
+					dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
+						LineNo: lineNo,
+						Text:   trimmed,
+						Reason: "union 去重",
+					})
 					continue
 				}
 				seen[trimmed] = struct{}{}
 				order = append(order, trimmed)
 			}
 		}
-		return strings.Join(order, "\n")
+		return strings.Join(order, "\n"), dropped, droppedTotal
 	case "intersect":
 		if len(contents) == 1 {
-			return contents[0]
+			return contents[0], nil, 0
 		}
 		var firstOrder []string
 		firstSet := make(map[string]struct{})
-		for _, line := range strings.Split(contents[0], "\n") {
+		for _, line := range strings.Split(normalizeLineEndings(contents[0]), "\n") {
 			trimmed := strings.TrimSpace(line)
 			if trimmed == "" {
 				continue
@@ -290,7 +293,7 @@ func MergeContents(contents []string, strategy string, dedupe bool) string {
 		current := firstSet
 		for i := 1; i < len(contents); i++ {
 			next := make(map[string]struct{})
-			for _, line := range strings.Split(contents[i], "\n") {
+			for _, line := range strings.Split(normalizeLineEndings(contents[i]), "\n") {
 				trimmed := strings.TrimSpace(line)
 				if trimmed == "" {
 					continue
@@ -307,10 +310,39 @@ func MergeContents(contents []string, strategy string, dedupe bool) string {
 				out = append(out, line)
 			}
 		}
-		return strings.Join(out, "\n")
+		return strings.Join(out, "\n"), nil, 0
 	default:
-		return strings.Join(contents, "\n")
+		return strings.Join(contents, "\n"), nil, 0
 	}
+}
+
+// dedupeLines removes duplicate trimmed lines from a single-content string,
+// returning the deduped content plus diagnostics about which lines were
+// removed. Blank lines are preserved but never deduplicated.
+func dedupeLines(content, reason string) (string, []DroppedLine, int) {
+	lines := strings.Split(normalizeLineEndings(content), "\n")
+	seen := make(map[string]struct{})
+	out := make([]string, 0, len(lines))
+	var dropped []DroppedLine
+	droppedTotal := 0
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			out = append(out, line)
+			continue
+		}
+		if _, ok := seen[trimmed]; ok {
+			dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
+				LineNo: i + 1,
+				Text:   trimmed,
+				Reason: reason,
+			})
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		out = append(out, line)
+	}
+	return strings.Join(out, "\n"), dropped, droppedTotal
 }
 
 // StripManagedRuleHeader removes the legacy managed header so a freshly
