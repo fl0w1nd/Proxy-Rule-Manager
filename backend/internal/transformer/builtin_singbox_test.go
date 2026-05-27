@@ -348,6 +348,166 @@ func TestRunMihomoClassicalToSingboxSource_VersionGatesField(t *testing.T) {
 	}
 }
 
+// TestExtractClassicalValue_RegexCommaPreserved is the regression test
+// for the reviewer's "naive first-comma truncation corrupts regex
+// values" finding. The previous implementation split at the first
+// comma unconditionally, which turned `^a{1,3}\.com$` into the
+// nonsense `^a{1`. The fixed extractor branches on rule type: regex
+// types pop trailing modifiers and at most one policy from the
+// right, leaving commas inside the regex intact.
+func TestExtractClassicalValue_RegexCommaPreserved(t *testing.T) {
+	cases := []struct {
+		name string
+		typ  string
+		rest string
+		want string
+	}{
+		// --- regex types: commas inside the value must survive ---
+		{
+			name: "DOMAIN-REGEX with quantifier and no policy",
+			typ:  "DOMAIN-REGEX",
+			rest: `^a{1,3}\.com$`,
+			want: `^a{1,3}\.com$`,
+		},
+		{
+			name: "DOMAIN-REGEX with quantifier and trailing policy",
+			typ:  "DOMAIN-REGEX",
+			rest: `^a{1,3}\.com$,PROXY`,
+			want: `^a{1,3}\.com$`,
+		},
+		{
+			name: "DOMAIN-REGEX with quantifier, policy, and no-resolve",
+			typ:  "DOMAIN-REGEX",
+			rest: `^a{1,3}\.com$,PROXY,no-resolve`,
+			want: `^a{1,3}\.com$`,
+		},
+		{
+			name: "DOMAIN-REGEX with multi-segment quantifier",
+			typ:  "DOMAIN-REGEX",
+			rest: `^(foo|bar){2,5}\.example\.com$`,
+			want: `^(foo|bar){2,5}\.example\.com$`,
+		},
+		{
+			name: "DOMAIN-REGEX with multi-segment quantifier and policy",
+			typ:  "DOMAIN-REGEX",
+			rest: `^(foo|bar){2,5}\.example\.com$,DIRECT`,
+			want: `^(foo|bar){2,5}\.example\.com$`,
+		},
+		{
+			name: "PROCESS-PATH-REGEX with quantifier and no policy",
+			typ:  "PROCESS-PATH-REGEX",
+			rest: `^/usr/bin/.{1,8}/curl$`,
+			want: `^/usr/bin/.{1,8}/curl$`,
+		},
+		{
+			name: "PROCESS-PATH-REGEX with quantifier and policy",
+			typ:  "PROCESS-PATH-REGEX",
+			rest: `^/usr/bin/.{1,8}/curl$,DIRECT`,
+			want: `^/usr/bin/.{1,8}/curl$`,
+		},
+		{
+			name: "PROCESS-NAME-REGEX with quantifier",
+			typ:  "PROCESS-NAME-REGEX",
+			rest: `^chrome.{1,4}$`,
+			want: `^chrome.{1,4}$`,
+		},
+		{
+			name: "PROCESS-NAME-REGEX with quantifier and policy",
+			typ:  "PROCESS-NAME-REGEX",
+			rest: `^chrome.{1,4}$,PROXY`,
+			want: `^chrome.{1,4}$`,
+		},
+		// --- regex types: simple values without commas still work ---
+		{
+			name: "DOMAIN-REGEX simple value no policy",
+			typ:  "DOMAIN-REGEX",
+			rest: `^example\.com$`,
+			want: `^example\.com$`,
+		},
+		{
+			name: "DOMAIN-REGEX simple value with policy",
+			typ:  "DOMAIN-REGEX",
+			rest: `^example\.com$,PROXY`,
+			want: `^example\.com$`,
+		},
+		// --- non-regex types still use first-comma semantics ---
+		{
+			name: "IP-CIDR with policy and modifier",
+			typ:  "IP-CIDR",
+			rest: `1.1.1.1/32,DIRECT,no-resolve`,
+			want: `1.1.1.1/32`,
+		},
+		{
+			name: "DOMAIN-SUFFIX with policy",
+			typ:  "DOMAIN-SUFFIX",
+			rest: `google.com,PROXY`,
+			want: `google.com`,
+		},
+		{
+			name: "DOMAIN no policy",
+			typ:  "DOMAIN",
+			rest: `example.com`,
+			want: `example.com`,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := extractClassicalValue(c.typ, c.rest)
+			if got != c.want {
+				t.Errorf("extractClassicalValue(%q, %q) = %q, want %q", c.typ, c.rest, got, c.want)
+			}
+		})
+	}
+}
+
+// TestRunMihomoClassicalToSingboxSource_RegexValuePreservesCommas is
+// the end-to-end counterpart to TestExtractClassicalValue_RegexComma:
+// it feeds regex rules with embedded commas through the full
+// transformer and asserts the resulting JSON carries the original
+// regex verbatim (modulo the JSON-level `\` → `\\` escape). Both
+// with-policy and without-policy variants are covered so a future
+// refactor can't quietly regress only one side.
+func TestRunMihomoClassicalToSingboxSource_RegexValuePreservesCommas(t *testing.T) {
+	input := strings.Join([]string{
+		`DOMAIN-REGEX,^a{1,3}\.com$`,                // no policy
+		`DOMAIN-REGEX,^b{2,5}\.com$,PROXY`,          // policy
+		`DOMAIN-REGEX,^c\.com$,PROXY,no-resolve`,    // policy + modifier
+		`DOMAIN-REGEX,^(foo|bar){2,5}\.com$,DIRECT`, // alternation + quantifier
+	}, "\n")
+	res, _ := RunBuiltin(BuiltinMihomoClassicalToSingboxSource, nil, input)
+
+	// Parse the output so we don't have to fight JSON-escape rules in
+	// the assertion strings.
+	var doc struct {
+		Rules []map[string]interface{} `json:"rules"`
+	}
+	if err := json.Unmarshal([]byte(res.Output), &doc); err != nil {
+		t.Fatalf("output is not valid JSON: %v\n%s", err, res.Output)
+	}
+	var got []string
+	for _, r := range doc.Rules {
+		if v, ok := r["domain_regex"]; ok {
+			for _, item := range v.([]interface{}) {
+				got = append(got, item.(string))
+			}
+		}
+	}
+	want := []string{
+		`^a{1,3}\.com$`,
+		`^b{2,5}\.com$`,
+		`^c\.com$`,
+		`^(foo|bar){2,5}\.com$`,
+	}
+	if len(got) != len(want) {
+		t.Fatalf("expected %d domain_regex values, got %d (%v)", len(want), len(got), got)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("domain_regex[%d] = %q, want %q", i, got[i], want[i])
+		}
+	}
+}
+
 // TestSingboxFieldMinVersion_KnownEntries documents the version floors
 // the runner enforces. If a future sing-box release backports a field
 // to an earlier rule-set version, this test fails loudly so we

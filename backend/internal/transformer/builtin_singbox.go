@@ -323,17 +323,103 @@ func (b *singboxBucket) appendInt(v int) bool {
 	return true
 }
 
-// extractClassicalValue isolates the value cell from the residue left by
-// classifyClassicalLine. A mihomo classical rule may carry a trailing
-// policy / modifier (`,DIRECT,no-resolve`); the sing-box headless rule
-// has no policy slot and the rule-set's hosting `route.rules[]` entry
-// drives the equivalent of `no-resolve`, so we discard everything past
-// the first comma.
-func extractClassicalValue(rest string) string {
-	if idx := strings.IndexByte(rest, ','); idx >= 0 {
-		return strings.TrimSpace(rest[:idx])
+// extractClassicalValue isolates the value cell from the residue left
+// by classifyClassicalLine. A mihomo classical rule may carry a
+// trailing policy / modifier (`,DIRECT,no-resolve`); the sing-box
+// headless rule has no policy slot and the rule-set's hosting
+// `route.rules[]` entry drives the equivalent of `no-resolve`, so we
+// discard everything past the value column. How we *find* that column
+// is type-dependent:
+//
+//   - Non-regex types reserve the comma as the column separator, so
+//     the value cannot contain one. We take everything up to the
+//     first comma and call it done.
+//
+//   - Regex types (DOMAIN-REGEX, PROCESS-NAME-REGEX, PROCESS-PATH-REGEX,
+//     etc.) carry a regex literal whose value column may legitimately
+//     contain commas — `{1,3}` repetition quantifiers and bare
+//     alternations being the obvious examples. Naively splitting on
+//     the first comma would corrupt the regex (turning `^a{1,3}\.com$`
+//     into the meaningless `^a{1`). Instead we split on every comma,
+//     pop trailing known modifiers (e.g. `no-resolve`) from the right,
+//     then pop one trailing policy column iff the segment looks
+//     policy-shaped (no regex metacharacters). Anything left is the
+//     value, rejoined with the commas the regex originally used.
+//     The heuristic is intentionally conservative: when we're unsure
+//     whether a comma-segment is part of the regex or a stray policy,
+//     we keep it as part of the regex — corrupting a regex is far
+//     worse than emitting a slightly-too-long value that sing-box's
+//     regex engine will then reject explicitly.
+func extractClassicalValue(typ, rest string) string {
+	rest = strings.TrimSpace(rest)
+	if !isRegexRuleType(typ) {
+		if idx := strings.IndexByte(rest, ','); idx >= 0 {
+			return strings.TrimSpace(rest[:idx])
+		}
+		return rest
 	}
-	return strings.TrimSpace(rest)
+	parts := strings.Split(rest, ",")
+	// Pop trailing known modifiers (zero or more — mihomo only allows
+	// one in practice but we don't lose anything by looping).
+	for len(parts) > 1 && isKnownClassicalModifier(strings.TrimSpace(parts[len(parts)-1])) {
+		parts = parts[:len(parts)-1]
+	}
+	// Pop one trailing policy iff the last segment is plausibly a
+	// policy name. A segment containing regex metacharacters can't be
+	// a policy (those characters never appear in outbound / group
+	// names), so we treat it as part of the regex value.
+	if len(parts) > 1 {
+		last := strings.TrimSpace(parts[len(parts)-1])
+		if looksLikePolicy(last) {
+			parts = parts[:len(parts)-1]
+		}
+	}
+	return strings.TrimSpace(strings.Join(parts, ","))
+}
+
+// isRegexRuleType reports whether the mihomo token names a regex-style
+// matcher whose value column may legitimately contain commas. Today
+// the convention is a trailing `-REGEX` suffix (DOMAIN-REGEX,
+// PROCESS-NAME-REGEX, PROCESS-PATH-REGEX); any future *-REGEX token
+// will be covered automatically.
+func isRegexRuleType(typ string) bool {
+	return strings.HasSuffix(typ, "-REGEX")
+}
+
+// isKnownClassicalModifier names the closed set of suffix tokens
+// mihomo allows after a classical rule's value/policy columns. The
+// list is intentionally short and explicit so a typoed policy name
+// (e.g. "direct" with the wrong case) doesn't get silently swallowed
+// as a modifier — the explicit allow-list means anything we don't
+// recognise stays in the row and is then handled by the policy-shape
+// heuristic.
+func isKnownClassicalModifier(s string) bool {
+	switch s {
+	case "no-resolve", "src":
+		return true
+	}
+	return false
+}
+
+// looksLikePolicy returns true when s could plausibly be a policy
+// name (a mihomo outbound or group identifier). Policies are
+// conventional identifiers: they don't contain regex metacharacters
+// or backslashes, so the presence of any such character is a strong
+// signal that the segment is part of a regex value that happened to
+// contain a comma. The check is byte-wise rather than rune-wise
+// because every blocklist character is ASCII; CJK policy names (which
+// mihomo allows) survive unchanged.
+func looksLikePolicy(s string) bool {
+	if s == "" {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case '{', '}', '(', ')', '[', ']', '?', '+', '*', '|', '\\', '^', '$':
+			return false
+		}
+	}
+	return true
 }
 
 // runMihomoClassicalToSingboxSource rewrites a mihomo classical rule
@@ -432,7 +518,7 @@ func runMihomoClassicalToSingboxSource(rawParams json.RawMessage, content string
 				})
 				continue
 			}
-			value := extractClassicalValue(rest)
+			value := extractClassicalValue(typ, rest)
 			if value == "" {
 				dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
 					LineNo: line.lineNo,
