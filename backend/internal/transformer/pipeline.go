@@ -4,6 +4,7 @@ package transformer
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	"github.com/fl0w1nd/proxy-rule-manager/backend/internal/schema"
@@ -68,7 +69,7 @@ func (e *Engine) applyNewTransforms(contents []string, transforms []schema.Trans
 func (e *Engine) executeNewTransform(contents []string, transform schema.Transform, ctx PipelineCtx, withReport bool, stage string, stepIdx int) ([]string, []StepReport, error) {
 	indices, all, err := transform.TargetIndices()
 	if err != nil {
-		return contents, nil, nil
+		return contents, nil, fmt.Errorf("invalid target: %w", err)
 	}
 	targets := make(map[int]struct{})
 	if all {
