@@ -45,7 +45,7 @@ import {
   ChevronDown,
   HelpCircle,
 } from "lucide-react";
-import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
+import { getConfig, refreshRule, refreshRules, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt, BuiltinTransformer } from "@/lib/schema";
 import { RuleEditor } from "./editor";
 import { PreviewDialog } from "./editor-preview";
@@ -391,10 +391,19 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         rules: updatedRules,
       }, rev);
 
+      // Use the batch partial-sync endpoint so all selected rules run inside
+      // one job under a single global sync lock. Firing N parallel
+      // /rules/{name}/refresh calls would have N-1 of them skipped with
+      // "Another sync is already running" (HTTP 200, Success:false), making
+      // most updates silently no-op while the toast still reports success.
       let refreshFailed = 0;
       if (shouldUpdateClients) {
-        const results = await Promise.allSettled(selectedRuleNames.map((name) => refreshRule(name)));
-        refreshFailed = results.filter((result) => result.status === "rejected").length;
+        try {
+          const syncResult = await refreshRules(selectedRuleNames);
+          refreshFailed = syncResult.failedRules.length;
+        } catch {
+          refreshFailed = selectedRuleNames.length;
+        }
       }
 
       setIsBatchDialogOpen(false);
