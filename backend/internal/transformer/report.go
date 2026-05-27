@@ -65,6 +65,19 @@ type ModifiedLine struct {
 	Truncated bool   `json:"truncated,omitempty"`
 }
 
+// AddedLine describes a line that the step inserted into the output without
+// any corresponding source line. Surfacing inserts separately from drops is
+// what lets the pipeline panel keep semantic accuracy: a transformer that
+// emits brand-new lines (e.g. a JS script that synthesises catch-all rules)
+// no longer mis-pairs them with unrelated deleted lines as if they were
+// rewrites. LineNo is 1-indexed relative to the step's output content.
+type AddedLine struct {
+	LineNo    int    `json:"lineNo"`
+	Text      string `json:"text"`
+	Reason    string `json:"reason"`
+	Truncated bool   `json:"truncated,omitempty"`
+}
+
 // StepReport summarises the effect of one transform stage on one source.
 // SourceIndex is only meaningful for the StageRule phase (where multiple
 // sources flow side-by-side); merge collapses them into a single track and
@@ -79,11 +92,13 @@ type StepReport struct {
 	OutputLines int            `json:"outputLines"`
 	Dropped     []DroppedLine  `json:"dropped,omitempty"`
 	Modified    []ModifiedLine `json:"modified,omitempty"`
-	// DroppedTotal / ModifiedTotal record the full pre-cap counts so the UI
-	// can show "showing 50 of 287 dropped" when the samples slice is
-	// truncated by MaxReportSamples.
+	Added       []AddedLine    `json:"added,omitempty"`
+	// DroppedTotal / ModifiedTotal / AddedTotal record the full pre-cap
+	// counts so the UI can show "showing 50 of 287 dropped" when the
+	// samples slice is truncated by MaxReportSamples.
 	DroppedTotal  int `json:"droppedTotal,omitempty"`
 	ModifiedTotal int `json:"modifiedTotal,omitempty"`
+	AddedTotal    int `json:"addedTotal,omitempty"`
 }
 
 // FinalStats summarises the post-pipeline content for one client. ByType
@@ -131,6 +146,17 @@ func AppendModified(samples []ModifiedLine, total *int, item ModifiedLine) []Mod
 	item.From = from
 	item.To = to
 	item.Truncated = fTrunc || tTrunc
+	return append(samples, item)
+}
+
+// AppendAdded mirrors AppendDropped for the added-lines bucket so synthetic
+// lines emitted by a transformer get the same cap + truncation handling.
+func AppendAdded(samples []AddedLine, total *int, item AddedLine) []AddedLine {
+	*total++
+	if len(samples) >= MaxReportSamples {
+		return samples
+	}
+	item.Text, item.Truncated = capSample(item.Text)
 	return append(samples, item)
 }
 

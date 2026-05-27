@@ -1,110 +1,126 @@
 package transformer
 
-import "strings"
+import (
+	"strings"
 
-// SampleLineDiff produces dropped + modified samples for a step whose
-// before/after content is known. It is used by transforms that don't
-// natively emit per-line diagnostics (the regex replace / remove_lines
-// pair, and user JS scripts) so the preview panel can still show
-// "what changed".
+	"github.com/pmezard/go-difflib/difflib"
+)
+
+// SampleLineDiff produces dropped + modified + added samples for a step
+// whose before/after content is known. It is used by transforms that
+// don't natively emit per-line diagnostics (the regex replace /
+// remove_lines pair and user JS scripts) so the preview panel can still
+// show "what changed".
 //
-// Algorithm: walk both sides line-by-line, classifying each input line.
+// Algorithm: compute the LCS-based opcodes of beforeLines vs afterLines
+// via difflib.SequenceMatcher and classify each opcode:
 //
-//   - If the line is present (verbatim) in the output's bag of lines, it
-//     passed through unchanged.
-//   - If the line vanished entirely, it's a Dropped sample.
-//   - Otherwise we try to pair it with the *next* unmatched output line;
-//     if such a pairing exists we record it as a Modified sample.
+//   - 'e' (equal):    no-op, the lines passed through unchanged.
+//   - 'd' (delete):   every line in the slice is a Dropped sample.
+//   - 'i' (insert):   every line in the slice is an Added sample (only
+//     when addReason != ""; an empty reason disables the
+//     added track, e.g. for `remove_lines` which can only
+//     ever drop).
+//   - 'r' (replace):  when both sides have the same length and
+//     modifyReason != "", lines are paired 1:1 as
+//     Modified samples. Otherwise the slice is split
+//     into Dropped + Added so we never invent a fake
+//     pairing between two semantically unrelated lines.
 //
-// This is a heuristic (not a Myers diff) — it's tuned for the common case
-// of "regex rewrites a substring on the same line", not for cross-line
-// reordering. The cap (MaxReportSamples + MaxSampleBytes per sample) keeps
-// the cost bounded even on multi-MB rule lists.
+// Earlier revisions paired any vanished line with the *next* unmatched
+// output line as a Modified sample. That heuristic produced visually
+// nonsensical pairs ("DOMAIN,aws-na.intlgame.com → DOMAIN,www.jupiter-
+// launcher.com" — the right side is just whatever happened to be next)
+// for transformers that only ever drop lines, which is the common case.
 //
-// dropReason / modifyReason are surfaced verbatim on each sample. Pass an
-// empty modifyReason to skip the modified track entirely (use cases like
-// `remove_lines` that can only drop).
-func SampleLineDiff(before, after, dropReason, modifyReason string) (dropped []DroppedLine, droppedTotal int, modified []ModifiedLine, modifiedTotal int) {
+// dropReason / modifyReason / addReason are surfaced verbatim on each
+// sample. Pass an empty modifyReason / addReason to disable the
+// corresponding track entirely. dropReason is always honoured because
+// every transform we care about can produce drops.
+func SampleLineDiff(before, after, dropReason, modifyReason, addReason string) (
+	dropped []DroppedLine,
+	droppedTotal int,
+	modified []ModifiedLine,
+	modifiedTotal int,
+	added []AddedLine,
+	addedTotal int,
+) {
 	if before == after {
-		return nil, 0, nil, 0
+		return nil, 0, nil, 0, nil, 0
 	}
 	beforeLines := splitForDiff(before)
 	afterLines := splitForDiff(after)
 
-	// Output multiset for "did this line survive?" lookups. We use a
-	// counter map because identical rule lines can repeat (e.g. multiple
-	// "DOMAIN-SUFFIX,…" entries with the same suffix from different
-	// sources). Removing one occurrence per match keeps subsequent lookups
-	// honest.
-	afterCounts := make(map[string]int, len(afterLines))
-	for _, l := range afterLines {
-		afterCounts[l]++
-	}
-
-	// `unmatchedAfter` walks the output in order. Whenever we find an
-	// input line that's gone, we try to pair it with the first as-yet
-	// unmatched output line — that pairing becomes a Modified sample.
-	unmatchedAfter := make([]int, 0, len(afterLines))
-	consumed := make([]bool, len(afterLines))
-	for ai := range afterLines {
-		unmatchedAfter = append(unmatchedAfter, ai)
-	}
-
-	for _, line := range beforeLines {
-		if afterCounts[line] > 0 {
-			afterCounts[line]--
-			// Advance unmatchedAfter past matching outputs so later
-			// modify-pairs only see truly unmatched candidates.
-			for len(unmatchedAfter) > 0 {
-				idx := unmatchedAfter[0]
-				if consumed[idx] {
-					unmatchedAfter = unmatchedAfter[1:]
-					continue
-				}
-				if afterLines[idx] == line {
-					consumed[idx] = true
-					unmatchedAfter = unmatchedAfter[1:]
-					break
-				}
-				// Output head is not this matched line: leave it for a
-				// future modify-pair attempt.
-				break
-			}
-			continue
-		}
-		// Line disappeared. Try to pair it with the next unmatched
-		// output line for a modify sample; otherwise it's a drop.
-		paired := false
-		if modifyReason != "" {
-			for len(unmatchedAfter) > 0 {
-				idx := unmatchedAfter[0]
-				if consumed[idx] {
-					unmatchedAfter = unmatchedAfter[1:]
-					continue
-				}
-				modified = AppendModified(modified, &modifiedTotal, ModifiedLine{
-					From:   line,
-					To:     afterLines[idx],
-					Reason: modifyReason,
+	sm := difflib.NewMatcher(beforeLines, afterLines)
+	for _, op := range sm.GetOpCodes() {
+		switch op.Tag {
+		case 'e':
+			// Equal blocks are skipped — they contributed no diagnostics.
+		case 'd':
+			for k := op.I1; k < op.I2; k++ {
+				dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
+					LineNo: k + 1,
+					Text:   beforeLines[k],
+					Reason: dropReason,
 				})
-				consumed[idx] = true
-				unmatchedAfter = unmatchedAfter[1:]
-				paired = true
-				break
+			}
+		case 'i':
+			if addReason == "" {
+				continue
+			}
+			for k := op.J1; k < op.J2; k++ {
+				added = AppendAdded(added, &addedTotal, AddedLine{
+					LineNo: k + 1,
+					Text:   afterLines[k],
+					Reason: addReason,
+				})
+			}
+		case 'r':
+			bLen := op.I2 - op.I1
+			aLen := op.J2 - op.J1
+			// Pair as Modified only when the block is a clean 1:1 swap
+			// AND the caller opted into modify tracking. This keeps the
+			// pairing positionally honest: a regex rewrite that turns
+			// one line into one line at the same index is exactly what
+			// "modified" should mean. Anything else (different lengths,
+			// or modifyReason="") falls back to split drop + add so the
+			// UI never invents a misleading rewrite arrow.
+			if modifyReason != "" && bLen == aLen {
+				for k := 0; k < bLen; k++ {
+					modified = AppendModified(modified, &modifiedTotal, ModifiedLine{
+						LineNo: op.I1 + k + 1,
+						From:   beforeLines[op.I1+k],
+						To:     afterLines[op.J1+k],
+						Reason: modifyReason,
+					})
+				}
+				continue
+			}
+			for k := op.I1; k < op.I2; k++ {
+				dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
+					LineNo: k + 1,
+					Text:   beforeLines[k],
+					Reason: dropReason,
+				})
+			}
+			if addReason != "" {
+				for k := op.J1; k < op.J2; k++ {
+					added = AppendAdded(added, &addedTotal, AddedLine{
+						LineNo: k + 1,
+						Text:   afterLines[k],
+						Reason: addReason,
+					})
+				}
 			}
 		}
-		if !paired {
-			dropped = AppendDropped(dropped, &droppedTotal, DroppedLine{
-				Text:   line,
-				Reason: dropReason,
-			})
-		}
 	}
-	return dropped, droppedTotal, modified, modifiedTotal
+	return dropped, droppedTotal, modified, modifiedTotal, added, addedTotal
 }
 
 // splitForDiff returns the line list with terminal-LF tolerance: "a\nb\n"
-// and "a\nb" both yield ["a", "b"].
+// and "a\nb" both yield ["a", "b"]. We deliberately do NOT trim
+// leading/trailing whitespace on each line so the sample displayed in
+// the UI matches what the operator sees in the source content.
 func splitForDiff(content string) []string {
 	if content == "" {
 		return nil

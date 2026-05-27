@@ -142,7 +142,13 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 					InputLines:  CountSignificantLines(content),
 					OutputLines: CountSignificantLines(res),
 				}
-				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, res, transform.Use, transform.Use)
+				// User scripts can drop, rewrite or insert lines, so all
+				// three tracks are wired up and tagged with the script
+				// name. The transformer-reason tooltip in the UI then
+				// resolves that name to the user-authored description.
+				step.Dropped, step.DroppedTotal,
+					step.Modified, step.ModifiedTotal,
+					step.Added, step.AddedTotal = SampleLineDiff(content, res, transform.Use, transform.Use, transform.Use)
 				reports = append(reports, step)
 			}
 		case "replace":
@@ -173,7 +179,12 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 					InputLines:  CountSignificantLines(content),
 					OutputLines: CountSignificantLines(replaced),
 				}
-				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, replaced, "regex removed line", "regex rewrote line")
+				// Regex replace can produce all three: line dropped, line
+				// rewritten in place, or a brand-new line appended via
+				// pattern with multi-line replacement.
+				step.Dropped, step.DroppedTotal,
+					step.Modified, step.ModifiedTotal,
+					step.Added, step.AddedTotal = SampleLineDiff(content, replaced, "regex removed line", "regex rewrote line", "regex inserted line")
 				reports = append(reports, step)
 			}
 		case "remove_lines":
@@ -203,7 +214,10 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 					InputLines:  CountSignificantLines(content),
 					OutputLines: CountSignificantLines(filtered),
 				}
-				step.Dropped, step.DroppedTotal, _, _ = SampleLineDiff(content, filtered, "matched remove_lines pattern", "")
+				// remove_lines can only ever drop, never modify or insert,
+				// so the modify/add reasons stay empty to keep those
+				// tracks off.
+				step.Dropped, step.DroppedTotal, _, _, _, _ = SampleLineDiff(content, filtered, "matched remove_lines pattern", "", "")
 				reports = append(reports, step)
 			}
 		default:
