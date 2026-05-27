@@ -323,6 +323,74 @@ func TestFlushArtifact_LegacyHeaderRecognisedAsUnchanged(t *testing.T) {
 	}
 }
 
+// TestFlushArtifact_CRLFArtifactIdempotent guards a regression where
+// StripManagedRuleHeader would normalise CR/LF unconditionally and the
+// resulting LF-normalised "previous source" never matched freshly
+// produced CRLF content, so every resync produced a spurious write +
+// change record. After the fix, two consecutive full syncs of a CRLF
+// rule must not produce any new change records on the second run.
+func TestFlushArtifact_CRLFArtifactIdempotent(t *testing.T) {
+	st, dir := openTestStore(t)
+	ctx := context.Background()
+	rulesDir := filepath.Join(dir, "rules")
+
+	// Embed CRLF in the local source to mimic an upstream feed that ships
+	// Windows-style line endings.
+	contentStr := "DOMAIN,a.com\r\nDOMAIN,b.com\r\nDOMAIN,c.com\r\n"
+	cfg := schema.RulesConfig{
+		Version:      1,
+		Transformers: map[string]schema.ScriptTransformer{},
+		Rules: []schema.RuleConfig{
+			{
+				Name:    "crlf-rule",
+				Sources: []schema.SourceConfig{{Type: "local", Content: &contentStr}},
+				Output:  schema.OutputConfig{Clients: []string{"clash_meta"}},
+				Tags:    []string{},
+			},
+		},
+	}
+	if _, err := st.SaveConfig(ctx, cfg); err != nil {
+		t.Fatalf("SaveConfig: %v", err)
+	}
+
+	engine := NewEngine(st, nil, rulesDir)
+	if _, err := engine.ExecuteFullSync(ctx); err != nil {
+		t.Fatalf("ExecuteFullSync #1: %v", err)
+	}
+
+	// Snapshot the activity table after the first sync so the second
+	// sync's delta can be measured exactly.
+	preRecords, err := st.ListChangeRecords(ctx, "", 1, 1000, "", 0)
+	if err != nil {
+		t.Fatalf("ListChangeRecords #1: %v", err)
+	}
+
+	if _, err := engine.ExecuteFullSync(ctx); err != nil {
+		t.Fatalf("ExecuteFullSync #2: %v", err)
+	}
+
+	postRecords, err := st.ListChangeRecords(ctx, "", 1, 1000, "", 0)
+	if err != nil {
+		t.Fatalf("ListChangeRecords #2: %v", err)
+	}
+	added := 0
+	for _, rec := range postRecords.Items {
+		seen := false
+		for _, prior := range preRecords.Items {
+			if prior.ID == rec.ID {
+				seen = true
+				break
+			}
+		}
+		if !seen && rec.RuleName == "crlf-rule" {
+			added++
+		}
+	}
+	if added != 0 {
+		t.Errorf("expected zero new change records on second sync, got %d", added)
+	}
+}
+
 // TestPreviewRule_ReportsBuiltinPipeline checks that PreviewRule populates
 // the per-client TransformReport with at least one step describing the
 // built-in mihomo→shadowrocket transformer.

@@ -95,8 +95,8 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 							SourceIndex:   i,
 							Kind:          KindUseBuiltin,
 							Label:         "use " + transform.Use,
-							InputLines:    countContentLines(content),
-							OutputLines:   countContentLines(res.Output),
+							InputLines:    CountSignificantLines(content),
+							OutputLines:   CountSignificantLines(res.Output),
 							Dropped:       res.Dropped,
 							Modified:      res.Modified,
 							DroppedTotal:  res.DroppedTotal,
@@ -123,15 +123,17 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 			res, _ := e.JS.Execute(t.Script, content)
 			out[i] = res
 			if withReport {
-				reports = append(reports, StepReport{
+				step := StepReport{
 					Stage:       stage,
 					Index:       stepIdx,
 					SourceIndex: i,
 					Kind:        KindUse,
 					Label:       "use " + transform.Use,
-					InputLines:  countContentLines(content),
-					OutputLines: countContentLines(res),
-				})
+					InputLines:  CountSignificantLines(content),
+					OutputLines: CountSignificantLines(res),
+				}
+				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, res, "user script removed line", "user script rewrote line")
+				reports = append(reports, step)
 			}
 		case "replace":
 			if transform.Pattern == "" {
@@ -152,15 +154,17 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 			}
 			out[i] = replaced
 			if withReport {
-				reports = append(reports, StepReport{
+				step := StepReport{
 					Stage:       stage,
 					Index:       stepIdx,
 					SourceIndex: i,
 					Kind:        KindReplace,
 					Label:       "replace /" + transform.Pattern + "/",
-					InputLines:  countContentLines(content),
-					OutputLines: countContentLines(replaced),
-				})
+					InputLines:  CountSignificantLines(content),
+					OutputLines: CountSignificantLines(replaced),
+				}
+				step.Dropped, step.DroppedTotal, step.Modified, step.ModifiedTotal = SampleLineDiff(content, replaced, "regex removed line", "regex rewrote line")
+				reports = append(reports, step)
 			}
 		case "remove_lines":
 			if transform.Pattern == "" {
@@ -180,15 +184,17 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 			}
 			out[i] = filtered
 			if withReport {
-				reports = append(reports, StepReport{
+				step := StepReport{
 					Stage:       stage,
 					Index:       stepIdx,
 					SourceIndex: i,
 					Kind:        KindRemoveLines,
 					Label:       "remove_lines /" + transform.Pattern + "/",
-					InputLines:  countContentLines(content),
-					OutputLines: countContentLines(filtered),
-				})
+					InputLines:  CountSignificantLines(content),
+					OutputLines: CountSignificantLines(filtered),
+				}
+				step.Dropped, step.DroppedTotal, _, _ = SampleLineDiff(content, filtered, "matched remove_lines pattern", "")
+				reports = append(reports, step)
 			}
 		default:
 			out[i] = content
@@ -198,7 +204,7 @@ func (e *Engine) executeNewTransform(contents []string, transform schema.Transfo
 }
 
 func noopStepReport(stage string, stepIdx, sourceIdx int, kind, label, content string) StepReport {
-	lines := countContentLines(content)
+	lines := CountSignificantLines(content)
 	return StepReport{
 		Stage:       stage,
 		Index:       stepIdx,
@@ -208,20 +214,6 @@ func noopStepReport(stage string, stepIdx, sourceIdx int, kind, label, content s
 		InputLines:  lines,
 		OutputLines: lines,
 	}
-}
-
-// countContentLines counts effective lines in a chunk of content, treating
-// a single trailing newline as ending the last line (so "a\nb\n" and
-// "a\nb" both report 2). Empty strings return 0.
-func countContentLines(content string) int {
-	if content == "" {
-		return 0
-	}
-	n := strings.Count(content, "\n")
-	if !strings.HasSuffix(content, "\n") {
-		n++
-	}
-	return n
 }
 
 // MergeContents mirrors mergeContents in transformer.ts.
@@ -315,26 +307,69 @@ func MergeContents(contents []string, strategy string, dedupe bool) string {
 // produced (header-less) artifact compares fairly against an on-disk file
 // written by a pre-"zero header" release. Production no longer emits this
 // header; the function only matters during the first resync after upgrade.
+//
+// Critically, when no legacy header is found the function returns content
+// VERBATIM (no line-ending normalisation). Earlier revisions normalised
+// CR/LF unconditionally, which caused freshly produced CRLF content to
+// disagree with the LF-normalised "previous source" on every resync,
+// triggering a write + change record on every sync for CRLF artifacts.
 func StripManagedRuleHeader(content string) string {
 	if content == "" {
 		return ""
 	}
-	normalized := normalizeLineEndings(content)
-	lines := strings.Split(normalized, "\n")
-	if len(lines) < 3 ||
-		!strings.HasPrefix(lines[0], "# 规则数量：") ||
-		!strings.HasPrefix(lines[1], "# 更新时间：") ||
-		lines[2] != "# 规则类型：" {
-		return normalized
+	headerEnd, ok := legacyHeaderEnd(content)
+	if !ok {
+		return content
 	}
-	index := 3
-	for index < len(lines) && strings.HasPrefix(lines[index], "# ") {
-		index++
+	return content[headerEnd:]
+}
+
+// legacyHeaderEnd returns the byte offset of the first body byte after a
+// legacy managed header, or ok=false when no header is present. The
+// returned offset is safe to slice the original string with because the
+// header was always emitted using LF terminators.
+func legacyHeaderEnd(content string) (int, bool) {
+	// consumeLine returns the next \n-terminated line (with any trailing
+	// \r trimmed for resilience) and the byte offset of the byte after
+	// the LF.
+	consumeLine := func(start int) (line string, next int) {
+		rest := content[start:]
+		n := strings.IndexByte(rest, '\n')
+		if n < 0 {
+			return strings.TrimRight(rest, "\r"), len(content)
+		}
+		return strings.TrimRight(rest[:n], "\r"), start + n + 1
 	}
-	for index < len(lines) && strings.TrimSpace(lines[index]) == "" {
-		index++
+	pos := 0
+	l0, next := consumeLine(pos)
+	if !strings.HasPrefix(l0, "# 规则数量：") {
+		return 0, false
 	}
-	return strings.Join(lines[index:], "\n")
+	pos = next
+	l1, next := consumeLine(pos)
+	if !strings.HasPrefix(l1, "# 更新时间：") {
+		return 0, false
+	}
+	pos = next
+	l2, next := consumeLine(pos)
+	if l2 != "# 规则类型：" {
+		return 0, false
+	}
+	pos = next
+	for pos < len(content) {
+		line, np := consumeLine(pos)
+		if !strings.HasPrefix(line, "# ") {
+			break
+		}
+		pos = np
+	}
+	if pos < len(content) {
+		line, np := consumeLine(pos)
+		if strings.TrimSpace(line) == "" {
+			pos = np
+		}
+	}
+	return pos, true
 }
 
 // NormalizeEffectiveRuleContent returns the effective rule lines joined by \n.

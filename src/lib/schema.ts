@@ -430,6 +430,8 @@ export const DroppedLineSchema = z.object({
   lineNo: z.number().int().nonnegative(),
   text: z.string(),
   reason: z.string(),
+  // 后端把单条样本字节截断到 MaxSampleBytes（2KB）时置 true；前端用它打截断标。
+  truncated: z.boolean().optional().default(false),
 });
 export type DroppedLine = z.infer<typeof DroppedLineSchema>;
 
@@ -439,6 +441,7 @@ export const ModifiedLineSchema = z.object({
   from: z.string(),
   to: z.string(),
   reason: z.string().optional().default(""),
+  truncated: z.boolean().optional().default(false),
 });
 export type ModifiedLine = z.infer<typeof ModifiedLineSchema>;
 

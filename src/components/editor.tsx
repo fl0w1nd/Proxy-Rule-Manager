@@ -259,6 +259,7 @@ export function RuleEditor({
 
   // 预览相关状态
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [isPreviewReloadingFull, setIsPreviewReloadingFull] = useState(false);
   const [isPreviewLoading, setIsPreviewLoading] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
 
@@ -487,13 +488,32 @@ export function RuleEditor({
     setPreviewData(null);
 
     try {
-      const result = await previewRule(undefined, formData, 10000);
+      const result = await previewRule(undefined, formData, PREVIEW_DEFAULT_LIMIT);
       setPreviewData(result);
     } catch (error) {
       toast.error("预览失败: " + String(error));
       setIsPreviewOpen(false);
     } finally {
       setIsPreviewLoading(false);
+    }
+  };
+
+  // PREVIEW_DEFAULT_LIMIT mirrors rules.tsx so first-open stays snappy; the
+  // truncation badge offers a "load full" button that bumps the limit to
+  // PREVIEW_MAX_LIMIT (= backend max).
+  const PREVIEW_DEFAULT_LIMIT = 10_000;
+  const PREVIEW_MAX_LIMIT = 500_000;
+
+  const handleLoadFullPreview = async () => {
+    if (!isPreviewOpen) return;
+    setIsPreviewReloadingFull(true);
+    try {
+      const result = await previewRule(undefined, formData, PREVIEW_MAX_LIMIT);
+      setPreviewData(result);
+    } catch (error) {
+      toast.error("加载完整内容失败: " + String(error));
+    } finally {
+      setIsPreviewReloadingFull(false);
     }
   };
 
@@ -1360,6 +1380,8 @@ export function RuleEditor({
         isLoading={isPreviewLoading}
         previewData={previewData}
         clientsList={clientsList}
+        onLoadFull={previewData?.diagnostics.truncated ? handleLoadFullPreview : undefined}
+        isReloadingFull={isPreviewReloadingFull}
       />
     </div>
   );

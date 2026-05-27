@@ -23,6 +23,8 @@ import {
   Workflow,
   GitBranch,
   Lock,
+  AlertTriangle,
+  Maximize2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { CodeViewer } from "./code-viewer";
@@ -42,6 +44,12 @@ interface PreviewDialogProps {
   isLoading: boolean;
   previewData: PreviewResponse | null;
   clientsList: ClientConfig[];
+  // Optional handler invoked when the user wants the full (untruncated)
+  // content. The parent re-fetches the preview with a larger limit and
+  // hands back a fresh `previewData`. When omitted, the truncation badge
+  // becomes informational only.
+  onLoadFull?: () => void;
+  isReloadingFull?: boolean;
 }
 
 export function PreviewDialog({
@@ -51,12 +59,27 @@ export function PreviewDialog({
   isLoading,
   previewData,
   clientsList,
+  onLoadFull,
+  isReloadingFull,
 }: PreviewDialogProps) {
   const [activeClient, setActiveClient] = useState<ClientType | "">("");
   const [activeView, setActiveView] = useState<"content" | "report">("content");
 
-  const resolvedClient =
-    activeClient || (previewData ? (Object.keys(previewData.contents)[0] as ClientType) : "");
+  const availableClients = useMemo(
+    () => (previewData ? (Object.keys(previewData.contents) as ClientType[]) : []),
+    [previewData],
+  );
+
+  // resolvedClient derives the Tabs `value` from the user's last explicit
+  // selection (kept in activeClient) AND the currently available client
+  // set. When the previous selection is no longer present — e.g. the user
+  // re-previewed a rule with a different output.clients list — we fall
+  // back to the first available client during render instead of writing
+  // setActiveClient from an effect (which triggers a render cycle and is
+  // flagged by react-hooks/set-state-in-effect).
+  const resolvedClient = activeClient && availableClients.includes(activeClient)
+    ? activeClient
+    : availableClients[0] || "";
 
   const getDisplayName = (clientId: string) =>
     clientsList.find((c) => c.id === clientId)?.displayName || clientId;
@@ -66,20 +89,63 @@ export function PreviewDialog({
     return previewData.reports[resolvedClient as ClientType];
   }, [previewData, resolvedClient]);
 
+  // Active content for the resolved client. Used by both the content view
+  // and the header line counter so the two never disagree.
+  const activeContent = useMemo(() => {
+    if (!previewData || !resolvedClient) return "";
+    return previewData.contents[resolvedClient as ClientType] || "";
+  }, [previewData, resolvedClient]);
+
+  // Header line counter: prefer the report's "rule count" (significant
+  // lines, the same number that drives FinalStats and the step counters).
+  // Falls back to raw line count only when the backend didn't return a
+  // report — i.e. for callers that consume the preview API without admin
+  // privileges (today nobody, kept for forward-compat).
+  const headerCount = useMemo(() => {
+    if (activeReport) {
+      return { value: activeReport.finalStats.totalLines, label: "条规则" };
+    }
+    const raw = activeContent ? activeContent.split("\n").length : 0;
+    return { value: raw, label: "行" };
+  }, [activeReport, activeContent]);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl w-[92vw] h-[80vh] bg-background border-border flex flex-col p-0">
         <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
-          <DialogTitle className="text-foreground flex items-center gap-2">
+          <DialogTitle className="text-foreground flex items-center gap-2 flex-wrap">
             <Eye className="w-5 h-5 text-primary" />
             预览: {ruleName || "未命名规则"}
             {previewData?.diagnostics.truncated && (
-              <Badge
-                variant="outline"
-                className="border-warning/25 bg-warning-soft text-warning"
-              >
-                内容已截断（共 {previewData.diagnostics.totalLines} 行）
-              </Badge>
+              <span className="inline-flex items-center gap-2">
+                <Badge
+                  variant="outline"
+                  className="border-warning/25 bg-warning-soft text-warning"
+                >
+                  <AlertTriangle className="w-3 h-3 mr-1" />
+                  已截断 — 显示前 {previewData.contents[resolvedClient as ClientType]?.split("\n").length.toLocaleString() ?? 0} 行 / 共 {previewData.diagnostics.totalLines.toLocaleString()} 行
+                </Badge>
+                {onLoadFull && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={onLoadFull}
+                    disabled={!!isReloadingFull}
+                    className="h-7 text-xs"
+                  >
+                    {isReloadingFull ? (
+                      <>
+                        <Loader2 className="w-3 h-3 mr-1 animate-spin" /> 加载中
+                      </>
+                    ) : (
+                      <>
+                        <Maximize2 className="w-3 h-3 mr-1" /> 加载完整内容
+                      </>
+                    )}
+                  </Button>
+                )}
+              </span>
             )}
           </DialogTitle>
         </DialogHeader>
@@ -164,10 +230,8 @@ export function PreviewDialog({
                       </span>
                     </button>
                   </div>
-                  <span className="text-sm text-muted-foreground">
-                    {previewData.diagnostics.truncated
-                      ? `${previewData.diagnostics.totalLines} 行`
-                      : `${previewData.contents[resolvedClient as ClientType]?.split("\n").length || 0} 行`}
+                  <span className="text-sm text-muted-foreground tabular-nums">
+                    {headerCount.value.toLocaleString()} {headerCount.label}
                   </span>
                 </div>
               </div>
@@ -263,13 +327,13 @@ function FinalStatsCard({ stats }: FinalStatsCardProps) {
           最终内容统计
         </h3>
         <div className="flex items-center gap-3">
-          <span className="text-xs text-muted-foreground">总行数</span>
+          <span className="text-xs text-muted-foreground">规则数</span>
           <span className="text-2xl font-bold text-foreground tabular-nums">
             {stats.totalLines.toLocaleString()}
           </span>
           {typeof stats.payloadCount === "number" && (
             <Badge variant="outline" className="border-primary/25 bg-primary-soft text-primary text-xs">
-              payload {stats.payloadCount.toLocaleString()}
+              YAML payload {stats.payloadCount.toLocaleString()}
             </Badge>
           )}
         </div>
@@ -369,10 +433,11 @@ function StepCard({ step }: StepCardProps) {
           {isBuiltin && <Lock className="w-3 h-3 text-muted-foreground shrink-0" />}
           <span className="truncate" title={step.label}>{step.label}</span>
         </span>
-        <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground shrink-0">
+        <span className="ml-auto flex items-center gap-2 text-xs text-muted-foreground shrink-0" title="规则数（不含空行/注释）">
           <span className="tabular-nums">{step.inputLines.toLocaleString()}</span>
           <ArrowRight className="w-3 h-3" />
           <span className="tabular-nums">{step.outputLines.toLocaleString()}</span>
+          <span className="text-[10px]">条</span>
           {delta !== 0 && (
             <span
               className={`px-1.5 py-0.5 rounded-md text-[10px] tabular-nums font-medium ${
@@ -448,10 +513,19 @@ function DroppedSection({ dropped, total }: { dropped: StepReport["dropped"]; to
             className="rounded-md border border-destructive/20 bg-destructive/4 px-3 py-2 text-xs"
           >
             <div className="flex items-baseline gap-2">
-              <span className="font-mono tabular-nums text-muted-foreground shrink-0">L{d.lineNo}</span>
-              <code className="flex-1 font-mono text-foreground/90 break-all">{d.text}</code>
+              {d.lineNo > 0 && (
+                <span className="font-mono tabular-nums text-muted-foreground shrink-0">L{d.lineNo}</span>
+              )}
+              <code className="flex-1 font-mono text-foreground/90 break-all whitespace-pre-wrap">{d.text}{d.truncated ? "…" : ""}</code>
             </div>
-            <p className="mt-0.5 ml-8 text-muted-foreground italic">{d.reason}</p>
+            <div className="mt-0.5 ml-8 flex items-center gap-2 text-muted-foreground italic">
+              <span>{d.reason}</span>
+              {d.truncated && (
+                <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
+                  样本截断
+                </Badge>
+              )}
+            </div>
           </li>
         ))}
       </ul>
@@ -479,15 +553,22 @@ function ModifiedSection({ modified, total }: { modified: StepReport["modified"]
             className="rounded-md border border-warning/20 bg-warning-soft/50 px-3 py-2 text-xs"
           >
             <div className="flex items-baseline gap-2">
-              <span className="font-mono tabular-nums text-muted-foreground shrink-0">L{m.lineNo}</span>
-              <div className="flex-1 space-y-1">
-                <code className="block font-mono text-foreground/70 line-through break-all">{m.from}</code>
-                <code className="block font-mono text-foreground break-all">{m.to}</code>
+              {m.lineNo > 0 && (
+                <span className="font-mono tabular-nums text-muted-foreground shrink-0">L{m.lineNo}</span>
+              )}
+              <div className="flex-1 space-y-1 min-w-0">
+                <code className="block font-mono text-foreground/70 line-through break-all whitespace-pre-wrap">{m.from}{m.truncated ? "…" : ""}</code>
+                <code className="block font-mono text-foreground break-all whitespace-pre-wrap">{m.to}{m.truncated ? "…" : ""}</code>
               </div>
             </div>
-            {m.reason && (
-              <p className="mt-1 ml-8 text-muted-foreground italic">{m.reason}</p>
-            )}
+            <div className="mt-1 ml-8 flex items-center gap-2 text-muted-foreground italic">
+              {m.reason && <span>{m.reason}</span>}
+              {m.truncated && (
+                <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
+                  样本截断
+                </Badge>
+              )}
+            </div>
           </li>
         ))}
       </ul>

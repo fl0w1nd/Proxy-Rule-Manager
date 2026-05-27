@@ -34,22 +34,35 @@ const (
 // transformers so a runaway transform cannot OOM the preview response.
 const MaxReportSamples = 50
 
+// MaxSampleBytes caps the byte length of a single sampled rule line
+// (DroppedLine.Text, ModifiedLine.From/.To). A pathological upstream that
+// ships multi-MB single-line entries would otherwise blow up the preview
+// response and stall the browser when expanding the panel. The truncated
+// suffix is exposed via DroppedLine.Truncated / ModifiedLine.Truncated so
+// the UI can flag it explicitly.
+const MaxSampleBytes = 2048
+
 // DroppedLine describes a single line that a step removed. LineNo is
-// 1-indexed relative to the step's input.
+// 1-indexed relative to the step's input. Text is capped at
+// MaxSampleBytes; Truncated reports whether the cap kicked in.
 type DroppedLine struct {
-	LineNo int    `json:"lineNo"`
-	Text   string `json:"text"`
-	Reason string `json:"reason"`
+	LineNo    int    `json:"lineNo"`
+	Text      string `json:"text"`
+	Reason    string `json:"reason"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 // ModifiedLine describes a line that the step rewrote without dropping.
 // Used today only by the mihomo→shadowrocket built-in for the MATCH→FINAL
-// rename. LineNo is 1-indexed relative to the step's input.
+// rename. LineNo is 1-indexed relative to the step's input. From/To are
+// capped at MaxSampleBytes; Truncated reports whether either side hit the
+// cap so the UI can flag the comparison as partial.
 type ModifiedLine struct {
-	LineNo int    `json:"lineNo"`
-	From   string `json:"from"`
-	To     string `json:"to"`
-	Reason string `json:"reason,omitempty"`
+	LineNo    int    `json:"lineNo"`
+	From      string `json:"from"`
+	To        string `json:"to"`
+	Reason    string `json:"reason,omitempty"`
+	Truncated bool   `json:"truncated,omitempty"`
 }
 
 // StepReport summarises the effect of one transform stage on one source.
@@ -94,20 +107,49 @@ type TransformReport struct {
 // AppendDropped is a small helper that respects MaxReportSamples while
 // still bumping the running total. Keeping the cap centralised here so
 // every emitter (built-ins, replace/remove_lines reporters) behaves
-// identically.
+// identically. The sample's Text is byte-capped at MaxSampleBytes before
+// it lands in the slice.
 func AppendDropped(samples []DroppedLine, total *int, item DroppedLine) []DroppedLine {
 	*total++
 	if len(samples) >= MaxReportSamples {
 		return samples
 	}
+	item.Text, item.Truncated = capSample(item.Text)
 	return append(samples, item)
 }
 
-// AppendModified mirrors AppendDropped for the modified-lines bucket.
+// AppendModified mirrors AppendDropped for the modified-lines bucket. Both
+// From and To are byte-capped independently; if either hits the cap, the
+// whole entry is flagged as Truncated.
 func AppendModified(samples []ModifiedLine, total *int, item ModifiedLine) []ModifiedLine {
 	*total++
 	if len(samples) >= MaxReportSamples {
 		return samples
 	}
+	from, fTrunc := capSample(item.From)
+	to, tTrunc := capSample(item.To)
+	item.From = from
+	item.To = to
+	item.Truncated = fTrunc || tTrunc
 	return append(samples, item)
+}
+
+// capSample returns text trimmed to MaxSampleBytes plus an "…(truncated N
+// bytes)" sentinel when the cap kicked in, and a bool indicating whether
+// the cap kicked in. We slice at byte boundaries; for the rule-content
+// domain this is safe because rule lines are ASCII-only in practice
+// (DOMAIN tokens, IP literals, etc.) and even if a multi-byte sequence
+// were split, it would only affect the truncated tail which is
+// human-readable text downstream.
+func capSample(text string) (string, bool) {
+	if len(text) <= MaxSampleBytes {
+		return text, false
+	}
+	cut := MaxSampleBytes
+	// Step back so we don't slice inside a multi-byte UTF-8 sequence:
+	// the trailing-byte test is `(b & 0xC0) == 0x80`. At most 3 step-backs.
+	for cut > 0 && (text[cut]&0xC0) == 0x80 {
+		cut--
+	}
+	return text[:cut], true
 }

@@ -76,7 +76,7 @@ func (s *Server) handlePreviewRule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else if req.Rule != nil {
-		if err := validateRulePayload(req.Rule); err != nil {
+		if err := validateRulePayload(req.Rule, cfg.Transformers); err != nil {
 			s.ErrorWithCode(w, http.StatusBadRequest, "VALIDATION_ERROR", err.Error())
 			return
 		}

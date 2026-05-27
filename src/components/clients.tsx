@@ -55,6 +55,7 @@ import {
 } from "@/lib/schema";
 import { createTransformByType, getTransformTypeUpdates } from "@/lib/transform-utils";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
+import { BuiltinTransformParams } from "./transform-builtin-params";
 
 interface ClientsManagerProps {
     onRefresh?: () => void;
@@ -896,29 +897,38 @@ export function ClientsManager({ onRefresh }: ClientsManagerProps) {
                                         </Select>
 
                                         {transform.type === "use" && (
-                                            <Select
-                                                value={transform.use || ""}
-                                                onValueChange={(value) => updateTransform(index, { use: value })}
-                                            >
-                                                <SelectTrigger className="h-8">
-                                                    <SelectValue placeholder="选择转换器" />
-                                                </SelectTrigger>
-                                                <SelectContent>
-                                                    {builtins.map((b) => (
-                                                        <SelectItem key={b.name} value={b.name}>
-                                                            <span className="flex items-center gap-1.5">
-                                                                <Lock className="w-3 h-3 text-muted-foreground" />
-                                                                <span className="font-mono">{b.name}</span>
-                                                            </span>
-                                                        </SelectItem>
-                                                    ))}
-                                                    {Object.entries(transformers).map(([name]) => (
-                                                        <SelectItem key={name} value={name}>
-                                                            {name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
+                                            <>
+                                                <Select
+                                                    value={transform.use || ""}
+                                                    onValueChange={(value) => updateTransform(index, { use: value })}
+                                                >
+                                                    <SelectTrigger className="h-8">
+                                                        <SelectValue placeholder="选择转换器" />
+                                                    </SelectTrigger>
+                                                    <SelectContent>
+                                                        {builtins.map((b) => (
+                                                            <SelectItem key={b.name} value={b.name}>
+                                                                <span className="flex items-center gap-1.5">
+                                                                    <Lock className="w-3 h-3 text-muted-foreground" />
+                                                                    <span className="font-mono">{b.name}</span>
+                                                                </span>
+                                                            </SelectItem>
+                                                        ))}
+                                                        {Object.entries(transformers).map(([name]) => (
+                                                            <SelectItem key={name} value={name}>
+                                                                {name}
+                                                            </SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                {transform.use && (
+                                                    <BuiltinTransformParams
+                                                        use={transform.use}
+                                                        params={transform.params}
+                                                        onChange={(next) => updateTransform(index, { params: next })}
+                                                    />
+                                                )}
+                                            </>
                                         )}
 
                                         {transform.type === "replace" && (

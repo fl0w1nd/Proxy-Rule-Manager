@@ -192,6 +192,39 @@ func TestStripManagedRuleHeader(t *testing.T) {
 	}
 }
 
+// TestStripManagedRuleHeader_PreservesCRLFBody guards the byte-precise
+// strip behaviour: when the legacy header is found, only the header is
+// dropped and the body's CRLF line endings are returned verbatim. This
+// matters for the legacy-migration sync — the first resync rewrites the
+// file with whatever line endings the freshly produced content has, and
+// from that point on byte-equal comparisons must hold.
+func TestStripManagedRuleHeader_PreservesCRLFBody(t *testing.T) {
+	legacy := "# 规则数量：1 条\n# 更新时间：2026-04-15 10:30:45\n# 规则类型：\n# DOMAIN: 1 条\n\nDOMAIN,a.com\r\nDOMAIN,b.com\r\n"
+	want := "DOMAIN,a.com\r\nDOMAIN,b.com\r\n"
+	if got := StripManagedRuleHeader(legacy); got != want {
+		t.Fatalf("expected CRLF body to round-trip verbatim, got %q want %q", got, want)
+	}
+}
+
+// TestStripManagedRuleHeader_NoHeaderReturnsVerbatim is the regression
+// guard for the CRLF idempotency bug: when no legacy header is present,
+// the function must return content unchanged (no LF normalisation) so
+// the byte-equality comparison in flushArtifact stays honest for CRLF
+// artifacts.
+func TestStripManagedRuleHeader_NoHeaderReturnsVerbatim(t *testing.T) {
+	cases := []string{
+		"DOMAIN,a.com\r\nDOMAIN,b.com\r\n",       // pure CRLF body, no header
+		"# upstream comment\r\nDOMAIN,a.com\r\n", // body that happens to start with `#`
+		"DOMAIN,a.com\nDOMAIN,b.com\n",           // pure LF, idempotent
+		"# 规则数量：not a header\nDOMAIN,a.com\n",    // shape mismatch (line 2 prefix wrong)
+	}
+	for _, in := range cases {
+		if got := StripManagedRuleHeader(in); got != in {
+			t.Errorf("StripManagedRuleHeader(%q) should be verbatim, got %q", in, got)
+		}
+	}
+}
+
 func TestNormalizeEffectiveRuleContent(t *testing.T) {
 	content := "# header\n\nDOMAIN,test.com\n   \n# footer\nIP-CIDR,1.1.1.1/32\n"
 	if got := NormalizeEffectiveRuleContent(content); got != "DOMAIN,test.com\nIP-CIDR,1.1.1.1/32" {

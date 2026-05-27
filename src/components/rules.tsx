@@ -9,8 +9,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SearchInput } from "@/components/ui/search-input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { CodeViewer } from "./code-viewer";
 import {
   Dialog,
   DialogContent,
@@ -38,9 +36,6 @@ import {
   Copy,
   Loader2,
   FileText,
-  CheckCircle,
-  XCircle,
-  Maximize2,
   X,
   Trash2,
   AlertTriangle,
@@ -53,6 +48,7 @@ import {
 import { getConfig, refreshRule, previewRule, deleteRule, getClients, saveConfig, getStatus, PreviewResponse, ClientConfig } from "@/lib/api-client";
 import { RulesConfig, RuleConfig, ClientType, DEFAULT_SYSTEM_SETTINGS, resolveOutputExt, BuiltinTransformer } from "@/lib/schema";
 import { RuleEditor } from "./editor";
+import { PreviewDialog } from "./editor-preview";
 import { toast } from "sonner";
 import { RuleIcon } from "./icon-picker";
 import { isGeositeRule } from "@/lib/rule-classification";
@@ -72,14 +68,14 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
   const [refreshingRules, setRefreshingRules] = useState<Set<string>>(new Set());
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
   const [previewingRule, setPreviewingRule] = useState<string | null>(null);
-  const [previewClient, setPreviewClient] = useState<ClientType>("clash_meta");
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false);
+  const [isPreviewReloadingFull, setIsPreviewReloadingFull] = useState(false);
   const [editingRule, setEditingRule] = useState<RuleConfig | null>(null);
   const [isEditorOpen, setIsEditorOpen] = useState(false);
   // Track the editor's saving/dirty state so we can prevent unintended
   // dialog closes that would silently drop in-flight saves or unsaved edits.
   const [isEditorSaving, setIsEditorSaving] = useState(false);
   const [isEditorDirty, setIsEditorDirty] = useState(false);
-  const [isPreviewFullscreen, setIsPreviewFullscreen] = useState(false);
   const [deletingRule, setDeletingRule] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
@@ -163,16 +159,6 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     startTransition(() => { setSelectedRuleNames((current) => current.filter((name) => config?.rules.some((rule) => rule.name === name))); });
   }, [config?.rules]);
 
-  // ESC 键退出全屏
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isPreviewFullscreen) {
-        setIsPreviewFullscreen(false);
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isPreviewFullscreen]);
 
   const handleRefreshRule = async (ruleName: string) => {
     setRefreshingRules((prev) => new Set(prev).add(ruleName));
@@ -195,27 +181,54 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     }
   };
 
-  const handlePreviewRule = async (ruleName: string, clients: ClientType[]) => {
+  // PREVIEW_DEFAULT_LIMIT keeps the dashboard responsive on huge rule sets
+  // (10k lines is enough for >99% of real-world rules). When the response
+  // is flagged truncated the dialog exposes a button that re-fetches with
+  // the backend max (500_000 lines) so power users can still read the
+  // full body without paging through it.
+  const PREVIEW_DEFAULT_LIMIT = 10_000;
+  const PREVIEW_MAX_LIMIT = 500_000;
+
+  const handlePreviewRule = async (ruleName: string) => {
     const requestId = previewRequestRef.current + 1;
     previewRequestRef.current = requestId;
     setPreviewingRule(ruleName);
-    setPreviewClient(clients[0] || "clash_meta");
     setPreviewData(null);
+    setIsPreviewLoading(true);
     try {
-      const result = await previewRule(ruleName, undefined, 10000);
+      const result = await previewRule(ruleName, undefined, PREVIEW_DEFAULT_LIMIT);
       if (previewRequestRef.current !== requestId) return;
       setPreviewData(result);
-      // Ensure previewClient matches an actual key in the result.
-      // The pre-set value (from rule.output.clients) may not appear in contents
-      // if that client failed or wasn't included in this preview run.
-      const availableClients = Object.keys(result.contents);
-      if (availableClients.length > 0 && !availableClients.includes(clients[0])) {
-        setPreviewClient(availableClients[0] as ClientType);
-      }
     } catch (error) {
       if (previewRequestRef.current !== requestId) return;
       toast.error("预览失败: " + String(error));
       setPreviewingRule(null);
+    } finally {
+      if (previewRequestRef.current === requestId) {
+        setIsPreviewLoading(false);
+      }
+    }
+  };
+
+  // handleLoadFullPreview re-runs the active rule's preview at the max
+  // backend limit. Used by the "加载完整内容" button on the truncation
+  // badge. We do NOT bump the request counter so a slow re-fetch can't
+  // race-overwrite a freshly opened preview for a different rule.
+  const handleLoadFullPreview = async () => {
+    if (!previewingRule) return;
+    const requestId = previewRequestRef.current;
+    setIsPreviewReloadingFull(true);
+    try {
+      const result = await previewRule(previewingRule, undefined, PREVIEW_MAX_LIMIT);
+      if (previewRequestRef.current !== requestId) return;
+      setPreviewData(result);
+    } catch (error) {
+      if (previewRequestRef.current !== requestId) return;
+      toast.error("加载完整内容失败: " + String(error));
+    } finally {
+      if (previewRequestRef.current === requestId) {
+        setIsPreviewReloadingFull(false);
+      }
     }
   };
 
@@ -247,7 +260,9 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
 
   const closePreview = () => {
     setPreviewingRule(null);
-    setIsPreviewFullscreen(false);
+    setPreviewData(null);
+    setIsPreviewLoading(false);
+    setIsPreviewReloadingFull(false);
   };
 
   const toggleRuleSelection = (ruleName: string) => {
@@ -442,114 +457,6 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
     );
   }
 
-  // 全屏预览模式
-  if (isPreviewFullscreen && previewingRule && previewData) {
-    return (
-      <div className="fixed inset-0 z-50 bg-background flex flex-col">
-        {/* 顶部工具栏 */}
-        <div className="flex items-center justify-between border-b border-border bg-background px-4 py-3">
-          <div className="flex items-center gap-3">
-            {(() => {
-              const rule = config?.rules.find(r => r.name === previewingRule);
-              return rule?.icon ? (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <RuleIcon icon={rule.icon} className="w-5 h-5 text-primary" />
-                </div>
-              ) : (
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-soft">
-                  <FileText className="w-5 h-5 text-primary" />
-                </div>
-              );
-            })()}
-            <span className="font-semibold text-foreground">预览: {previewingRule}</span>
-            {previewData.diagnostics.truncated && (
-              <Badge variant="outline" className="border-warning/25 bg-warning-soft text-warning">
-                内容已截断（共 {previewData.diagnostics.totalLines} 行）
-              </Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={async () => {
-                const content = previewData.contents[previewClient];
-                if (content) {
-                  try {
-                    await navigator.clipboard.writeText(content);
-                    toast.success("已复制内容");
-                  } catch {
-                    toast.error("复制失败");
-                  }
-                }
-              }}
-            >
-              <Copy className="w-4 h-4 mr-1" />
-              复制
-            </Button>
-            <Button
-              variant="secondary"
-              size="icon"
-              className="rounded-full"
-              onClick={() => setIsPreviewFullscreen(false)}
-            >
-              <X className="w-5 h-5" />
-            </Button>
-          </div>
-        </div>
-
-        {/* 数据源状态 */}
-        {previewData.diagnostics.sourceResults.length > 0 && (
-          <div className="border-b border-border bg-surface-subtle px-4 py-2">
-            <div className="flex flex-wrap gap-4">
-              {previewData.diagnostics.sourceResults.map((source, i) => (
-                <div key={i} className="flex items-center gap-2 text-sm">
-                  {source.success ? (
-                    <CheckCircle className="w-4 h-4 text-success" />
-                  ) : (
-                    <XCircle className="w-4 h-4 text-destructive" />
-                  )}
-                  <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
-                  <span className="text-foreground/80 truncate max-w-md">{source.url}</span>
-                  {source.size !== undefined && source.size > 0 && (
-                    <span className="text-muted-foreground">({(source.size / 1024).toFixed(1)} KB)</span>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 客户端标签 */}
-        <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0 overflow-hidden">
-          <div className="flex items-center justify-between border-b border-border px-4 py-2.5 shrink-0">
-            <TabsList>
-              {Object.keys(previewData.contents).map((client) => (
-                <TabsTrigger key={client} value={client}>
-                  {getClientDisplayName(client)}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-            <span className="text-xs font-mono text-muted-foreground">
-              {previewData.contents[previewClient]?.split("\n").length || 0} 行
-            </span>
-          </div>
-          {Object.entries(previewData.contents).map(([client, content]) => (
-            <TabsContent key={client} value={client} className="flex-1 m-0 min-h-0 overflow-hidden">
-              <CodeViewer
-                content={content}
-                emptyText="暂无内容"
-                showLineNumbers={false}
-                className="h-full rounded-none border-none"
-                height="100%"
-              />
-            </TabsContent>
-          ))}
-        </Tabs>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Search and Actions */}
@@ -701,7 +608,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                       aria-label={`预览 ${rule.displayName || rule.name}`}
                       style={{ "--fab-i": 1 } as React.CSSProperties}
                       onClick={() => {
-                        handlePreviewRule(rule.name, rule.output.clients);
+                        handlePreviewRule(rule.name);
                         setExpandedCard(null);
                       }}
                     >
@@ -879,7 +786,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
                   variant="secondary"
                   size="sm"
                   className="flex-1"
-                  onClick={() => handlePreviewRule(rule.name, rule.output.clients)}
+                  onClick={() => handlePreviewRule(rule.name)}
                 >
                   <Eye className="w-3.5 h-3.5" />
                   预览
@@ -915,118 +822,17 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         />
       )}
 
-      {/* Preview Dialog */}
-      <Dialog open={!!previewingRule && !isPreviewFullscreen} onOpenChange={(open) => !open && closePreview()}>
-        <DialogContent className="max-w-5xl w-[95vw] sm:w-[90vw] h-[80vh] flex flex-col p-0">
-          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border">
-            <DialogTitle className="flex items-center gap-3">
-              {(() => {
-                const rule = config?.rules.find(r => r.name === previewingRule);
-                return rule?.icon ? (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
-                    <RuleIcon icon={rule.icon} className="w-4 h-4 text-primary" />
-                  </div>
-                ) : (
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary-soft">
-                    <FileText className="w-4 h-4 text-primary" />
-                  </div>
-                );
-              })()}
-              预览: {previewingRule}
-            </DialogTitle>
-            {previewData?.diagnostics.truncated && (
-              <DialogDescription className="text-warning">
-                内容已截断（共 {previewData.diagnostics.totalLines} 行）
-              </DialogDescription>
-            )}
-          </DialogHeader>
-
-          {previewData ? (
-            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-              {/* Source Results */}
-              {previewData.diagnostics.sourceResults.length > 0 && (
-                <div className="border-b border-border bg-surface-subtle px-6 py-3">
-                  <p className="text-sm text-muted-foreground mb-2">数据源状态:</p>
-                  <div className="flex flex-wrap gap-4">
-                    {previewData.diagnostics.sourceResults.map((source, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        {source.success ? (
-                          <CheckCircle className="w-4 h-4 text-success" />
-                        ) : (
-                          <XCircle className="w-4 h-4 text-destructive" />
-                        )}
-                        <span className="text-xs font-medium text-muted-foreground">#{i + 1}</span>
-                        <span className="text-foreground/80 truncate max-w-xs">{source.url}</span>
-                        {source.size !== undefined && source.size > 0 && (
-                          <span className="text-muted-foreground">({(source.size / 1024).toFixed(1)} KB)</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Content Tabs */}
-              <Tabs value={previewClient} onValueChange={(v) => setPreviewClient(v as ClientType)} className="flex-1 flex flex-col min-h-0">
-                <div className="flex items-center justify-between border-b border-border px-6 py-3">
-                  <TabsList>
-                    {Object.keys(previewData.contents).map((client) => (
-                      <TabsTrigger key={client} value={client}>
-                        {getClientDisplayName(client)}
-                      </TabsTrigger>
-                    ))}
-                  </TabsList>
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm text-muted-foreground">
-                      {previewData.contents[previewClient]?.split('\n').length || 0} 行
-                    </span>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={async () => {
-                        try {
-                          await navigator.clipboard.writeText(previewData.contents[previewClient] || "");
-                          toast.success("已复制内容");
-                        } catch {
-                          toast.error("复制失败");
-                        }
-                      }}
-                      className="border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
-                      title="复制内容"
-                    >
-                      <Copy className="w-4 h-4" />
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setIsPreviewFullscreen(true)}
-                      className="border border-border/50 bg-background/90 shadow-[var(--shadow-xs)] hover:bg-background"
-                      title="全屏预览 (ESC 退出)"
-                    >
-                      <Maximize2 className="w-4 h-4" />
-                    </Button>
-                  </div>
-                </div>
-                {Object.entries(previewData.contents).map(([client, content]) => (
-                  <TabsContent key={client} value={client} className="flex-1 m-0 relative min-h-0 overflow-hidden">
-                    <CodeViewer
-                      content={content}
-                      emptyText="暂无内容"
-                      showLineNumbers={false}
-                      className="h-full rounded-none border-none"
-                      height="100%"
-                    />
-                  </TabsContent>
-                ))}
-              </Tabs>
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          )}
-        </DialogContent>
-      </Dialog>
+      {/* Preview Dialog — unified with the rule editor's preview. */}
+      <PreviewDialog
+        open={!!previewingRule}
+        onOpenChange={(open) => !open && closePreview()}
+        ruleName={previewingRule || ""}
+        isLoading={isPreviewLoading}
+        previewData={previewData}
+        clientsList={clients}
+        onLoadFull={previewData?.diagnostics.truncated ? handleLoadFullPreview : undefined}
+        isReloadingFull={isPreviewReloadingFull}
+      />
 
       {/* Rule Editor Dialog */}
       <Dialog
