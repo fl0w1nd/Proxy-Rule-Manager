@@ -11,6 +11,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   Copy,
   Eye,
   Loader2,
@@ -30,6 +36,7 @@ import { toast } from "sonner";
 import { CodeViewer } from "./code-viewer";
 import {
   ClientType,
+  type ScriptTransformer,
   type StepReport,
   type TransformReport,
   TRANSFORM_STAGE,
@@ -44,6 +51,9 @@ interface PreviewDialogProps {
   isLoading: boolean;
   previewData: PreviewResponse | null;
   clientsList: ClientConfig[];
+  // Transformer descriptions for tooltip display on user-script step
+  // reasons. When omitted, the reason text is shown without a tooltip.
+  transformers?: Record<string, ScriptTransformer>;
   // Optional handler invoked when the user wants the full (untruncated)
   // content. The parent re-fetches the preview with a larger limit and
   // hands back a fresh `previewData`. When omitted, the truncation badge
@@ -59,6 +69,7 @@ export function PreviewDialog({
   isLoading,
   previewData,
   clientsList,
+  transformers,
   onLoadFull,
   isReloadingFull,
 }: PreviewDialogProps) {
@@ -272,6 +283,7 @@ export function PreviewDialog({
                   ) : (
                     <TransformReportPanel
                       report={previewData.reports?.[client as ClientType]}
+                      transformers={transformers}
                     />
                   )}
                 </TabsContent>
@@ -292,9 +304,10 @@ export function PreviewDialog({
 
 interface TransformReportPanelProps {
   report: TransformReport | undefined;
+  transformers?: Record<string, ScriptTransformer>;
 }
 
-function TransformReportPanel({ report }: TransformReportPanelProps) {
+function TransformReportPanel({ report, transformers }: TransformReportPanelProps) {
   if (!report) {
     return (
       <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
@@ -306,7 +319,7 @@ function TransformReportPanel({ report }: TransformReportPanelProps) {
   return (
     <div className="h-full overflow-y-auto p-6 space-y-6">
       <FinalStatsCard stats={report.finalStats} />
-      <PipelineTimeline steps={report.steps} />
+      <PipelineTimeline steps={report.steps} transformers={transformers} />
     </div>
   );
 }
@@ -368,9 +381,10 @@ function FinalStatsCard({ stats }: FinalStatsCardProps) {
 
 interface PipelineTimelineProps {
   steps: StepReport[];
+  transformers?: Record<string, ScriptTransformer>;
 }
 
-function PipelineTimeline({ steps }: PipelineTimelineProps) {
+function PipelineTimeline({ steps, transformers }: PipelineTimelineProps) {
   if (steps.length === 0) {
     return (
       <div className="rounded-2xl border border-dashed border-border bg-surface-subtle/40 p-6 text-center text-sm text-muted-foreground">
@@ -387,7 +401,7 @@ function PipelineTimeline({ steps }: PipelineTimelineProps) {
       </h3>
       <ol className="space-y-2">
         {steps.map((step, idx) => (
-          <StepCard key={`${step.stage}-${step.index}-${step.sourceIndex ?? 0}-${idx}`} step={step} />
+          <StepCard key={`${step.stage}-${step.index}-${step.sourceIndex ?? 0}-${idx}`} step={step} transformers={transformers} />
         ))}
       </ol>
     </div>
@@ -396,9 +410,10 @@ function PipelineTimeline({ steps }: PipelineTimelineProps) {
 
 interface StepCardProps {
   step: StepReport;
+  transformers?: Record<string, ScriptTransformer>;
 }
 
-function StepCard({ step }: StepCardProps) {
+function StepCard({ step, transformers }: StepCardProps) {
   const [expanded, setExpanded] = useState(false);
   const delta = step.outputLines - step.inputLines;
   const droppedTotal = step.droppedTotal ?? step.dropped?.length ?? 0;
@@ -468,10 +483,10 @@ function StepCard({ step }: StepCardProps) {
       {expanded && hasDetails && (
         <div className="border-t border-border/50 bg-surface-subtle/40 p-4 space-y-4">
           {step.dropped && step.dropped.length > 0 && (
-            <DroppedSection dropped={step.dropped} total={droppedTotal} />
+            <DroppedSection dropped={step.dropped} total={droppedTotal} transformers={transformers} />
           )}
           {step.modified && step.modified.length > 0 && (
-            <ModifiedSection modified={step.modified} total={modifiedTotal} />
+            <ModifiedSection modified={step.modified} total={modifiedTotal} transformers={transformers} />
           )}
         </div>
       )}
@@ -493,7 +508,29 @@ function StageBadge({ stage }: { stage: string }) {
   );
 }
 
-function DroppedSection({ dropped, total }: { dropped: StepReport["dropped"]; total: number }) {
+// TransformerReasonTooltip wraps a reason string with a tooltip showing
+// the transformer's description when the reason is a user-script
+// transformer name. Builtin and regex reasons are shown as-is.
+function TransformerReasonTooltip({ reason, transformers }: { reason: string; transformers?: Record<string, ScriptTransformer> }) {
+  const desc = transformers?.[reason]?.description;
+  if (!desc) return <>{reason}</>;
+  return (
+    <TooltipProvider delayDuration={300}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className="underline decoration-dotted decoration-muted-foreground/50 underline-offset-2 cursor-help">
+            {reason}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top" className="max-w-xs text-xs">
+          {desc}
+        </TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
+function DroppedSection({ dropped, total, transformers }: { dropped: StepReport["dropped"]; total: number; transformers?: Record<string, ScriptTransformer> }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2">
@@ -519,7 +556,7 @@ function DroppedSection({ dropped, total }: { dropped: StepReport["dropped"]; to
               <code className="flex-1 font-mono text-foreground/90 break-all whitespace-pre-wrap">{d.text}{d.truncated ? "…" : ""}</code>
             </div>
             <div className="mt-0.5 ml-8 flex items-center gap-2 text-muted-foreground italic">
-              <span>{d.reason}</span>
+              <TransformerReasonTooltip reason={d.reason} transformers={transformers} />
               {d.truncated && (
                 <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
                   样本截断
@@ -533,7 +570,7 @@ function DroppedSection({ dropped, total }: { dropped: StepReport["dropped"]; to
   );
 }
 
-function ModifiedSection({ modified, total }: { modified: StepReport["modified"]; total: number }) {
+function ModifiedSection({ modified, total, transformers }: { modified: StepReport["modified"]; total: number; transformers?: Record<string, ScriptTransformer> }) {
   return (
     <div className="space-y-2">
       <div className="flex items-baseline gap-2">
@@ -562,7 +599,7 @@ function ModifiedSection({ modified, total }: { modified: StepReport["modified"]
               </div>
             </div>
             <div className="mt-1 ml-8 flex items-center gap-2 text-muted-foreground italic">
-              {m.reason && <span>{m.reason}</span>}
+              {m.reason && <TransformerReasonTooltip reason={m.reason} transformers={transformers} />}
               {m.truncated && (
                 <Badge variant="outline" className="border-warning/40 bg-warning-soft text-warning text-[9px] uppercase">
                   样本截断

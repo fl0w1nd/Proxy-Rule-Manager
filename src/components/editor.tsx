@@ -1381,6 +1381,7 @@ export function RuleEditor({
         isLoading={isPreviewLoading}
         previewData={previewData}
         clientsList={clientsList}
+        transformers={config?.transformers}
         onLoadFull={previewData?.diagnostics.truncated ? handleLoadFullPreview : undefined}
         isReloadingFull={isPreviewReloadingFull}
       />

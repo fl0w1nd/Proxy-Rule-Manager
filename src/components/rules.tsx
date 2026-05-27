@@ -830,6 +830,7 @@ export function RulesManager({ onRefresh }: RulesManagerProps) {
         isLoading={isPreviewLoading}
         previewData={previewData}
         clientsList={clients}
+        transformers={config?.transformers}
         onLoadFull={previewData?.diagnostics.truncated ? handleLoadFullPreview : undefined}
         isReloadingFull={isPreviewReloadingFull}
       />
