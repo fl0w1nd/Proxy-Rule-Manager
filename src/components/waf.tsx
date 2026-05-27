@@ -54,6 +54,7 @@ import {
     type CdnSettings,
 } from "@/lib/api-client";
 import { toast } from "sonner";
+import { EmptyState } from "@/components/ui/empty-state";
 import { createListItemKey, createListItemKeys } from "@/lib/utils";
 
 export function WafManager() {
@@ -254,34 +255,34 @@ export function WafManager() {
     return (
         <div className="space-y-6">
             {/* 统计卡片 */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">持久化封禁</p>
-                    <div className="text-2xl font-bold flex items-center gap-2">
-                        <Ban className="w-5 h-5 text-destructive" />
-                        {stats?.bans.total || 0}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <Ban className="w-4 h-4 text-destructive" />
+                        <p className="text-xs text-muted-foreground font-medium">持久化封禁</p>
                     </div>
+                    <p className="text-2xl font-bold tracking-tight">{stats?.bans.total || 0}</p>
                 </Card>
-                <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">永久封禁</p>
-                    <div className="text-2xl font-bold flex items-center gap-2">
-                        <ShieldAlert className="w-5 h-5 text-warning" />
-                        {stats?.bans.permanent || 0}
+                <Card className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <ShieldAlert className="w-4 h-4 text-warning" />
+                        <p className="text-xs text-muted-foreground font-medium">永久封禁</p>
                     </div>
+                    <p className="text-2xl font-bold tracking-tight">{stats?.bans.permanent || 0}</p>
                 </Card>
-                <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">临时追踪</p>
-                    <div className="text-2xl font-bold flex items-center gap-2">
-                        <Clock className="w-5 h-5 text-primary" />
-                        {stats?.temporary.totalTracked || 0}
+                <Card className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-muted-foreground" />
+                        <p className="text-xs text-muted-foreground font-medium">临时追踪</p>
                     </div>
+                    <p className="text-2xl font-bold tracking-tight">{stats?.temporary.totalTracked || 0}</p>
                 </Card>
-                <Card className="p-5 flex flex-col justify-center gap-1">
-                    <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">当前阻塞</p>
-                    <div className="text-2xl font-bold flex items-center gap-2">
-                        <Shield className="w-5 h-5 text-warning" />
-                        {stats?.temporary.currentlyBlocked || 0}
+                <Card className="p-4 flex flex-col gap-2">
+                    <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-warning" />
+                        <p className="text-xs text-muted-foreground font-medium">当前阻塞</p>
                     </div>
+                    <p className="text-2xl font-bold tracking-tight">{stats?.temporary.currentlyBlocked || 0}</p>
                 </Card>
             </div>
 
@@ -340,14 +341,24 @@ export function WafManager() {
                         </div>
                         {!isPermanent && (
                             <div className="flex items-center gap-2">
-                                <Label htmlFor="duration">封禁时长（秒）</Label>
-                                <Input
-                                    id="duration"
-                                    type="number"
-                                    className="w-32"
+                                <Label htmlFor="duration">封禁时长</Label>
+                                <Select
                                     value={duration}
-                                    onChange={(e) => setDuration(e.target.value)}
-                                />
+                                    onValueChange={setDuration}
+                                >
+                                    <SelectTrigger className="w-36">
+                                        <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="300">5 分钟</SelectItem>
+                                        <SelectItem value="1800">30 分钟</SelectItem>
+                                        <SelectItem value="3600">1 小时</SelectItem>
+                                        <SelectItem value="21600">6 小时</SelectItem>
+                                        <SelectItem value="86400">1 天</SelectItem>
+                                        <SelectItem value="604800">7 天</SelectItem>
+                                        <SelectItem value="2592000">30 天</SelectItem>
+                                    </SelectContent>
+                                </Select>
                             </div>
                         )}
                     </div>
@@ -384,10 +395,10 @@ export function WafManager() {
                 </div>
                 <div className="px-5 pb-5">
                     {bans.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            <ShieldCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                            <p>暂无封禁记录</p>
-                        </div>
+                        <EmptyState
+                            icon={ShieldCheck}
+                            title="暂无封禁记录"
+                        />
                     ) : (
                         <ScrollArea className="h-[300px]">
                             <div className="space-y-2">
@@ -396,8 +407,8 @@ export function WafManager() {
                                         key={ban.ip}
                                         className="flex items-center justify-between p-3 rounded-xl border bg-card hover:bg-accent/50 transition-colors"
                                     >
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2">
+                                        <div className="flex-1 min-w-0">
+                                            <div className="flex items-center gap-2 flex-wrap">
                                                 <code className="font-mono text-sm font-semibold">{ban.ip}</code>
                                                 {ban.expiresAt === null ? (
                                                     <Badge variant="destructive">永久</Badge>
@@ -411,13 +422,18 @@ export function WafManager() {
                                                     </Badge>
                                                 )}
                                             </div>
-                                            <div className="text-sm text-muted-foreground mt-1">
-                                                {ban.reason} • 失败次数: {ban.failCount} • 封禁于: {formatTime(ban.bannedAt)}
+                                            <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                                <span>失败 {ban.failCount} 次</span>
+                                                <span className="text-border">|</span>
+                                                <span>{ban.reason}</span>
+                                                <span className="text-border">|</span>
+                                                <span>{formatTime(ban.bannedAt)}</span>
                                             </div>
                                         </div>
                                         <Button
                                             variant="ghost"
                                             size="sm"
+                                            className="text-muted-foreground hover:text-destructive shrink-0"
                                             aria-label={`解除封禁 ${ban.ip}`}
                                             onClick={() => handleRemoveBan(ban.ip)}
                                         >
@@ -444,31 +460,36 @@ export function WafManager() {
                 </div>
                 <div className="px-5 pb-5">
                     {failures.length === 0 ? (
-                        <div className="text-center py-8 text-muted-foreground">
-                            <ShieldCheck className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                            <p>暂无活跃失败记录</p>
-                        </div>
+                        <EmptyState
+                            icon={ShieldCheck}
+                            title="暂无活跃失败记录"
+                        />
                     ) : (
                         <ScrollArea className="h-[200px]">
                             <div className="space-y-2">
                                 {failures.map((failure) => (
                                     <div
                                         key={failure.ip}
-                                        className="flex items-center justify-between p-3 rounded-xl border bg-card"
+                                        className="p-3 rounded-xl border bg-card"
                                     >
-                                        <div>
-                                            <div className="flex items-center gap-2">
-                                                <code className="font-mono text-sm font-semibold">{failure.ip}</code>
-                                                {failure.isBlocked ? (
-                                                    <Badge variant="destructive">阻塞中</Badge>
-                                                ) : (
-                                                    <Badge variant="outline">追踪中</Badge>
-                                                )}
-                                            </div>
-                                            <div className="text-sm text-muted-foreground mt-1">
-                                                失败次数: {failure.failCount} • 阻塞时长: {failure.blockDuration}秒
-                                                {failure.blockedUntil && ` • 解除时间: ${formatTime(failure.blockedUntil)}`}
-                                            </div>
+                                        <div className="flex items-center gap-2">
+                                            <code className="font-mono text-sm font-semibold">{failure.ip}</code>
+                                            {failure.isBlocked ? (
+                                                <Badge variant="destructive">阻塞中</Badge>
+                                            ) : (
+                                                <Badge variant="outline">追踪中</Badge>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
+                                            <span>失败 {failure.failCount} 次</span>
+                                            <span className="text-border">|</span>
+                                            <span>阻塞 {failure.blockDuration}秒</span>
+                                            {failure.blockedUntil && (
+                                                <>
+                                                    <span className="text-border">|</span>
+                                                    <span>解除 {formatTime(failure.blockedUntil)}</span>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                 ))}

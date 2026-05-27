@@ -252,14 +252,14 @@ export function IconSetManager() {
                                         </button>
                                     )}
 
-                                    <p className="text-[10px] text-muted-foreground mt-1">
+                                    <p className="text-[11px] text-muted-foreground mt-1">
                                         {formatFileSize(icon.size)}
                                     </p>
 
                                     <div className="flex items-center gap-1 mt-2">
                                         <div className="flex-1 min-w-0">
                                             <p
-                                                className="text-[10px] text-muted-foreground truncate"
+                                                className="text-[11px] text-muted-foreground truncate"
                                                 title={icon.url}
                                             >
                                                 {icon.url}
