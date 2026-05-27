@@ -155,8 +155,8 @@ jobs:
       - name: go build
         run: go build -trimpath -ldflags="-s -w" -o /tmp/proxy-rule-manager ./cmd/server
 
-  publish:
-    name: Publish / Image and Release
+  release-meta:
+    name: Publish / Resolve metadata
     if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' }}
     needs:
       - frontend-lint
@@ -167,13 +167,17 @@ jobs:
       - backend-build
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      packages: write
+      contents: read
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      tag: ${{ steps.meta.outputs.tag }}
+      image: ${{ steps.meta.outputs.image }}
+      channel_tag: ${{ steps.meta.outputs.channel_tag }}
+      prerelease: ${{ steps.meta.outputs.prerelease }}
+      target_sha: ${{ steps.meta.outputs.target_sha }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v5
-        with:
-          fetch-depth: 0
 
       - name: Resolve release metadata
         id: meta
@@ -209,15 +213,33 @@ jobs:
             echo "target_sha=${TARGET_SHA}"
           } >> "$GITHUB_OUTPUT"
 
+  build-image:
+    name: Publish / Build ${{ matrix.platform }}
+    needs: release-meta
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - platform: linux/amd64
+            runner: ubuntu-latest
+            arch: amd64
+          - platform: linux/arm64
+            runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+
       - name: Stamp package.json version for image build
         env:
-          VERSION: ${{ steps.meta.outputs.version }}
+          VERSION: ${{ needs.release-meta.outputs.version }}
         run: |
           node -e "const fs=require('fs');const p=JSON.parse(fs.readFileSync('package.json','utf8'));p.version=process.env.VERSION;fs.writeFileSync('package.json',JSON.stringify(p,null,2)+'\n');"
           echo "Stamped package.json version: $(jq -r '.version' package.json)"
-
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -229,29 +251,90 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push Docker image
+      - name: Build and push image by digest
+        id: build
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          platforms: linux/amd64,linux/arm64
-          push: true
+          platforms: ${{ matrix.platform }}
           build-args: |
-            VERSION=${{ steps.meta.outputs.version }}
-          tags: |
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.tag }}
-            ${{ steps.meta.outputs.image }}:${{ steps.meta.outputs.channel_tag }}
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+            VERSION=${{ needs.release-meta.outputs.version }}
+          outputs: type=image,name=${{ needs.release-meta.outputs.image }},push-by-digest=true,name-canonical=true,push=true
+          cache-from: type=gha,scope=${{ matrix.arch }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.arch }}
           provenance: false
           sbom: false
+
+      # Matrix jobs cannot reliably share `outputs:` (the last instance wins),
+      # so persist each per-arch digest as an artifact and merge them in the
+      # downstream publish job via `buildx imagetools create`.
+      - name: Export digest to file
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p /tmp/digests
+          echo -n "$DIGEST" > "/tmp/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: image-digest-${{ matrix.arch }}
+          path: /tmp/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    name: Publish / Image manifest and Release
+    needs:
+      - release-meta
+      - build-image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Download digest artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: /tmp/digests
+          pattern: image-digest-*
+          merge-multiple: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create and push multi-arch manifest
+        working-directory: /tmp/digests
+        env:
+          IMAGE: ${{ needs.release-meta.outputs.image }}
+          TAG: ${{ needs.release-meta.outputs.tag }}
+          CHANNEL_TAG: ${{ needs.release-meta.outputs.channel_tag }}
+        run: |
+          docker buildx imagetools create \
+            -t "${IMAGE}:${TAG}" \
+            -t "${IMAGE}:${CHANNEL_TAG}" \
+            $(printf "${IMAGE}@sha256:%s " *)
+          docker buildx imagetools inspect "${IMAGE}:${TAG}"
 
       # Drop the local tag (if fetched via tag-push) so git-cliff treats HEAD
       # as unreleased and groups commits under the upcoming TAG uniformly for
       # both tag-push and workflow_dispatch events.
       - name: Prepare git-cliff range
         env:
-          TAG: ${{ steps.meta.outputs.tag }}
+          TAG: ${{ needs.release-meta.outputs.tag }}
         run: git tag -d "$TAG" 2>/dev/null || true
 
       - name: Generate release notes
@@ -259,7 +342,7 @@ jobs:
         uses: orhun/git-cliff-action@v4
         with:
           config: .git-cliff.toml
-          args: --tag ${{ steps.meta.outputs.tag }} --unreleased --strip header
+          args: --tag ${{ needs.release-meta.outputs.tag }} --unreleased --strip header
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -271,9 +354,9 @@ jobs:
       - name: Publish GitHub release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.meta.outputs.tag }}
-          target_commitish: ${{ steps.meta.outputs.target_sha }}
-          name: ${{ steps.meta.outputs.tag }}
+          tag_name: ${{ needs.release-meta.outputs.tag }}
+          target_commitish: ${{ needs.release-meta.outputs.target_sha }}
+          name: ${{ needs.release-meta.outputs.tag }}
           body: ${{ steps.notes.outputs.content }}
           draft: true
-          prerelease: ${{ steps.meta.outputs.prerelease == 'true' }}
+          prerelease: ${{ needs.release-meta.outputs.prerelease == 'true' }}
