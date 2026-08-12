@@ -1,0 +1,1405 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
+<script>
+(function () {
+  try {
+    var stored = localStorage.getItem('prm-theme');
+    if (stored === 'light' || stored === 'dark') {
+      document.documentElement.setAttribute('data-theme', stored);
+    }
+  } catch (e) {}
+})();
+</script>
+<title>PRM · 规则索引</title>
+<link rel="icon" href="static/icons/prm.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Doto:wght@400;700&family=Space+Grotesk:wght@300;400;500;700&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+:root, [data-theme="dark"] {
+  --bg: #000000;
+  --surface: #0E0E0E;
+  --surface-2: #161616;
+  --border: #1F1F1F;
+  --border-vis: #333333;
+  --text: #E8E8E8;
+  --display: #FFFFFF;
+  --sec: #999999;
+  --dim: #666666;
+  --red: #F04438;
+  --orange: #FF6B1A;
+  --blue: #4A8DFF;
+  --green: #55B06C;
+  --dot-op: 0.35;
+  --backdrop: rgba(0, 0, 0, 0.72);
+}
+[data-theme="light"] {
+  --bg: #F7F5F0;
+  --surface: #FFFFFF;
+  --surface-2: #F0EEE8;
+  --border: #E8E5DE;
+  --border-vis: #CFCCC3;
+  --text: #1A1A1A;
+  --display: #000000;
+  --sec: #666666;
+  --dim: #9B988F;
+  --red: #D71921;
+  --orange: #FA5D0F;
+  --blue: #2E6BE6;
+  --green: #3E8E4F;
+  --dot-op: 0.5;
+  --backdrop: rgba(30, 28, 24, 0.45);
+}
+* { margin: 0; padding: 0; box-sizing: border-box; }
+.theme-switching *, .theme-switching *::before, .theme-switching *::after {
+  transition: none !important;
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Space Grotesk", "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  font-size: 15px;
+  line-height: 1.55;
+  transition: background 200ms cubic-bezier(0.25,0.1,0.25,1), color 200ms cubic-bezier(0.25,0.1,0.25,1);
+}
+.label {
+  font-family: "Space Mono", monospace;
+  font-size: 11px;
+  letter-spacing: 0.09em;
+  color: var(--sec);
+}
+.wrap { max-width: 1160px; margin: 0 auto; padding: 0 28px; }
+svg.px { display: block; image-rendering: pixelated; }
+::selection { background: var(--orange); color: #000; }
+button { font-family: inherit; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+.topbar {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 0 18px;
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 14px; }
+.brand-name {
+  font-family: "Space Mono", monospace;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.14em;
+  color: var(--display);
+}
+.brand-sub {
+  font-size: 11px; color: var(--dim); margin-top: 3px; letter-spacing: 0.04em;
+}
+.top-meta { display: flex; align-items: center; gap: 18px; }
+.btn-bracket {
+  background: none; border: none; cursor: pointer;
+  font-family: "Space Mono", monospace;
+  font-size: 12px; letter-spacing: 0.05em;
+  color: var(--sec); padding: 6px 2px;
+  text-decoration: none;
+  transition: color 150ms;
+}
+.btn-bracket:hover { color: var(--display); }
+
+section.block { padding: 32px 0 8px; }
+.block-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.block-title {
+  font-size: 20px; font-weight: 500; color: var(--display); letter-spacing: 0.01em;
+}
+.block-title .count { color: var(--dim); font-family: "Space Mono", monospace; font-size: 13px; margin-left: 8px; }
+
+/* view switch */
+.seg {
+  display: inline-flex;
+  border: 1px solid var(--border-vis);
+  border-radius: 999px;
+  padding: 3px; gap: 2px;
+  background: var(--surface);
+}
+.seg button {
+  border: none; border-radius: 999px;
+  background: transparent; color: var(--sec);
+  font-family: "Space Mono", monospace;
+  font-size: 12px; letter-spacing: 0.04em;
+  padding: 6px 20px; cursor: pointer;
+  transition: all 150ms;
+}
+.seg button:hover { color: var(--display); }
+.seg button.on { background: var(--display); color: var(--bg); }
+
+/* client picker */
+.client-picker {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+}
+.client-card {
+  display: flex; align-items: center; gap: 12px;
+  padding: 13px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border-vis);
+  border-radius: 12px;
+  cursor: pointer; text-align: left;
+  color: var(--text);
+  transition: border-color 150ms, background 150ms, opacity 150ms;
+}
+.client-card:hover { border-color: var(--display); }
+.client-card.on { border-color: var(--orange); background: var(--surface-2); }
+.client-card.off { opacity: 0.3; cursor: not-allowed; }
+.client-card.off:hover { border-color: var(--border-vis); }
+.client-card .ctext { min-width: 0; }
+.client-card .cname {
+  font-size: 13px; font-weight: 500; color: var(--display);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.client-card .cext {
+  font-family: "Space Mono", monospace; font-size: 10px; color: var(--dim); margin-top: 2px;
+}
+.client-card .cind {
+  width: 6px; height: 6px; border-radius: 1px;
+  background: transparent; margin-left: auto; flex-shrink: 0;
+}
+.client-card.on .cind { background: var(--orange); }
+
+.filters { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.filter-input {
+  background: transparent; border: none;
+  border-bottom: 1px solid var(--border-vis);
+  color: var(--display);
+  font-family: "Space Mono", monospace;
+  font-size: 12px;
+  padding: 7px 2px; width: 220px; outline: none;
+  transition: border-color 150ms;
+}
+.filter-input::placeholder { color: var(--dim); }
+.filter-input:focus { border-bottom-color: var(--display); }
+.chips { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 18px; }
+.chip {
+  background: transparent;
+  border: 1px solid var(--border-vis);
+  border-radius: 999px;
+  color: var(--sec);
+  font-family: "Space Mono", monospace;
+  font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 5px 13px; cursor: pointer;
+  transition: all 150ms;
+}
+.chip:hover { color: var(--display); border-color: var(--display); }
+.chip.on { background: var(--display); color: var(--bg); border-color: var(--display); }
+
+/* rules table */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  scrollbar-color: var(--border-vis) var(--bg);
+  scrollbar-width: thin;
+}
+.table-scroll:focus-visible { outline: 2px solid var(--orange); outline-offset: 2px; }
+.data-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+.rule-table { min-width: 640px; }
+.rule-table .col-name { width: 40%; }
+.rule-table .col-tags { width: 35%; }
+.rule-table .col-entries { width: 15%; }
+.rule-table .col-action { width: 10%; }
+.rule-table th, .rule-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+.rule-table thead th {
+  position: sticky; top: 0; z-index: 5;
+  background: var(--bg);
+  padding-top: 10px; padding-bottom: 10px;
+  border-bottom-color: var(--border-vis);
+  font-size: 11px; color: var(--dim); letter-spacing: 0.05em;
+  font-weight: 400;
+}
+.rule-table .num {
+  text-align: right;
+  font-family: "Space Mono", monospace;
+  font-variant-numeric: tabular-nums;
+}
+.rule-table .action { text-align: right; }
+.rule-row { cursor: pointer; }
+.rule-row > * { transition: background 120ms; }
+.rule-row:hover > * { background: var(--surface); }
+.rule-row:hover > :first-child { box-shadow: inset 3px 0 0 var(--orange); }
+.rname {
+  display: inline-block; border: 0; background: transparent; cursor: pointer;
+  font-family: inherit; text-align: left;
+  font-size: 15px; font-weight: 500; color: var(--display);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  max-width: 100%;
+}
+.rtags { display: flex; gap: 6px; flex-wrap: wrap; overflow: hidden; }
+.rtags em {
+  font-style: normal;
+  font-family: "Space Mono", monospace;
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 7px; white-space: nowrap;
+}
+.rentries { font-size: 13px; color: var(--display); }
+.caret { font-family: "Space Mono", monospace; color: var(--dim); font-size: 14px; }
+.rule-row:hover .caret { color: var(--orange); }
+
+.empty {
+  padding: 48px 0; text-align: center;
+  color: var(--dim); font-size: 13px;
+}
+
+/* modal */
+.modal-bk {
+  position: fixed; inset: 0; z-index: 50;
+  background: var(--backdrop);
+  display: none; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-bk.show { display: flex; }
+.modal {
+  width: min(780px, 100%);
+  max-height: 86vh; overflow-y: auto;
+  background: var(--bg);
+  border: 1px solid var(--border-vis);
+  border-radius: 16px;
+  padding: 24px 26px 26px;
+}
+.modal-head { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 6px; }
+.modal-title {
+  font-family: "Space Mono", monospace; font-size: 17px; font-weight: 700;
+  color: var(--display); line-height: 1.3;
+  word-break: break-all;
+}
+.modal-close {
+  margin-left: auto; flex-shrink: 0;
+  background: none; border: 1px solid var(--border-vis); border-radius: 6px;
+  color: var(--sec); font-family: "Space Mono", monospace; font-size: 13px;
+  width: 30px; height: 30px; cursor: pointer;
+  transition: all 150ms;
+}
+.modal-close:hover { color: var(--display); border-color: var(--display); }
+.modal-tags { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.modal-tags em {
+  font-style: normal;
+  font-family: "Space Mono", monospace;
+  font-size: 9px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--dim);
+  border: 1px solid var(--border);
+  border-radius: 3px; padding: 2px 7px;
+}
+.modal-desc { color: var(--sec); font-size: 13px; margin-bottom: 16px; }
+.modal-meta {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 12px 16px; margin-bottom: 16px;
+  background: var(--surface);
+}
+.modal-meta .micon { display: flex; color: var(--display); }
+.modal-meta .mclient { font-size: 13px; font-weight: 500; color: var(--display); }
+.modal-meta .msize { font-family: "Space Mono", monospace; font-size: 11px; color: var(--dim); }
+.modal-meta .mentries { font-family: "Space Mono", monospace; font-size: 11px; color: var(--sec); }
+.modal-actions { display: flex; gap: 8px; margin-left: auto; }
+.pill-btn {
+  background: transparent; border: 1px solid var(--border-vis); border-radius: 999px;
+  color: var(--text); font-family: "Space Mono", monospace; font-size: 11px;
+  letter-spacing: 0.05em;
+  padding: 7px 16px; cursor: pointer; text-decoration: none;
+  transition: all 150ms;
+  white-space: nowrap;
+}
+.pill-btn:hover { color: var(--display); border-color: var(--display); }
+.pill-btn.copied { color: var(--green); border-color: var(--green); }
+.pill-btn.disabled { opacity: 0.4; pointer-events: none; }
+pre.preview {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  font-family: "Space Mono", monospace;
+  font-size: 11px; line-height: 1.6;
+  color: var(--sec);
+  overflow: auto;
+  max-height: 380px;
+  white-space: pre;
+  min-height: 80px;
+}
+
+/* geosite */
+.geo-provider { margin-bottom: 28px; }
+.geo-provider-head {
+  display: flex; align-items: center; gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
+}
+.geo-provider-head .pname {
+  font-family: "Space Mono", monospace; font-size: 14px; color: var(--display);
+  display: flex; align-items: center; gap: 10px;
+}
+.geo-provider-head .pname svg { color: var(--orange); }
+.geo-format { font-size: 11px; color: var(--dim); }
+.geo-format b { color: var(--sec); font-weight: 400; }
+.glist { border-top: 1px solid var(--border-vis); }
+.gitem { border-bottom: 1px solid var(--border); }
+.grow {
+  display: grid;
+  grid-template-columns: minmax(180px, 1.5fr) 90px minmax(120px, 1fr) auto;
+  gap: 12px; align-items: center;
+  padding: 10px 16px;
+  cursor: pointer;
+  transition: background 120ms;
+}
+.grow:hover { background: var(--surface); }
+.gname { font-family: "Space Mono", monospace; font-size: 12px; color: var(--display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gentries { font-family: "Space Mono", monospace; font-size: 11px; color: var(--sec); text-align: right; }
+.gvars { display: flex; gap: 5px; flex-wrap: wrap; overflow: hidden; }
+.gvars em {
+  font-style: normal; font-family: "Space Mono", monospace; font-size: 9px;
+  color: var(--dim); border: 1px solid var(--border); border-radius: 3px; padding: 1px 6px;
+}
+.gactions { display: flex; gap: 6px; justify-content: flex-end; }
+.gdetail { padding: 6px 16px 18px; display: none; }
+.gitem.open .gdetail { display: block; }
+.gfile-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--border);
+  font-family: "Space Mono", monospace; font-size: 11px;
+}
+.gfile-row:last-of-type { border-bottom: none; }
+.gfile-row .gtag { color: var(--blue); min-width: 90px; }
+.gfile-row .gtag.full { color: var(--green); }
+.gfile-row .gn { color: var(--sec); flex: 1; }
+.more-btn {
+  display: block; margin: 14px auto 4px;
+  background: transparent; border: 1px solid var(--border-vis); border-radius: 999px;
+  color: var(--sec);
+  font-family: "Space Mono", monospace; font-size: 11px;
+  padding: 8px 22px; cursor: pointer;
+  transition: all 150ms;
+}
+.more-btn:hover { color: var(--display); border-color: var(--display); }
+
+/* icon gallery */
+.icon-sets {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+}
+.icon-set-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border-vis);
+  border-radius: 12px;
+  cursor: pointer;
+  transition: border-color 150ms, background 150ms;
+}
+.icon-set-card:hover { border-color: var(--display); }
+.icon-set-card .is-icon {
+  font-size: 28px; line-height: 1;
+  width: 40px; height: 40px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--surface-2);
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+.icon-set-card .is-name {
+  font-size: 14px; font-weight: 500; color: var(--display);
+}
+.icon-set-card .is-count {
+  font-family: "Space Mono", monospace;
+  font-size: 11px; color: var(--dim); margin-top: 3px;
+}
+.icon-back {
+  display: inline-flex; align-items: center; gap: 6px;
+  background: none; border: 1px solid var(--border-vis); border-radius: 999px;
+  color: var(--sec);
+  font-family: "Space Mono", monospace; font-size: 12px;
+  padding: 7px 16px; cursor: pointer; margin-bottom: 18px;
+  transition: all 150ms;
+}
+.icon-back:hover { color: var(--display); border-color: var(--display); }
+.icon-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+.icon-card {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 14px 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  transition: border-color 150ms;
+}
+.icon-card:hover { border-color: var(--border-vis); }
+.icon-card img {
+  width: 64px; height: 64px; object-fit: contain;
+  border-radius: 6px;
+  margin-bottom: 8px;
+}
+.icon-card .ic-name {
+  font-family: "Space Mono", monospace;
+  font-size: 9px; color: var(--sec);
+  text-align: center;
+  word-break: break-all;
+  line-height: 1.3;
+  max-height: 2.6em; overflow: hidden;
+  margin-bottom: 6px;
+}
+.icon-card .ic-acts {
+  display: flex; gap: 4px;
+}
+.ic-btn {
+  background: transparent; border: 1px solid var(--border-vis); border-radius: 6px;
+  color: var(--sec);
+  font-family: "Space Mono", monospace; font-size: 9px;
+  padding: 3px 8px; cursor: pointer;
+  transition: all 150ms;
+  text-decoration: none;
+}
+.ic-btn:hover { color: var(--display); border-color: var(--display); }
+.ic-btn.copied { color: var(--green); border-color: var(--green); }
+
+@media (max-width: 900px) {
+  .rule-table thead th:first-child { left: 0; z-index: 7; }
+  .rule-table tbody th[scope="row"] {
+    position: sticky; left: 0; z-index: 2;
+    background: var(--bg);
+    box-shadow: 1px 0 0 var(--border);
+  }
+  .rule-row:hover > th[scope="row"] { background: var(--surface); box-shadow: inset 3px 0 0 var(--orange), 1px 0 0 var(--border); }
+  .grow { grid-template-columns: minmax(140px, 1fr) 70px auto; }
+  .gvars { display: none; }
+  .brand-sub { display: none; }
+}
+
+/* pixel interface */
+:root, [data-theme="dark"] {
+  --bg: #11100d;
+  --surface: #181713;
+  --surface-2: #22201a;
+  --border: #302e28;
+  --border-vis: #777168;
+  --text: #d8d3c9;
+  --display: #fffaf0;
+  --sec: #a49d91;
+  --dim: #6f6a62;
+  --orange: #ff6418;
+  --shadow: #000000;
+  --grain: rgba(255, 250, 240, 0.045);
+  --preview-bg: #090a08;
+  --preview-line: rgba(255, 255, 255, 0.025);
+  --preview-code: #cbd2bf;
+  --pixel-cut: polygon(4px 0, calc(100% - 4px) 0, 100% 4px, 100% calc(100% - 4px), calc(100% - 4px) 100%, 4px 100%, 0 calc(100% - 4px), 0 4px);
+}
+[data-theme="light"] {
+  --bg: #f3efe6;
+  --surface: #fffdf6;
+  --surface-2: #e9e3d8;
+  --border: #d7d0c4;
+  --border-vis: #978f83;
+  --text: #2d2a27;
+  --display: #151412;
+  --sec: #686159;
+  --dim: #999186;
+  --orange: #f45b16;
+  --shadow: #b8b0a4;
+  --grain: rgba(66, 56, 45, 0.065);
+  --preview-bg: #191812;
+  --preview-line: rgba(255, 255, 255, 0.025);
+  --preview-code: #dce2d0;
+}
+html { scrollbar-color: var(--border-vis) var(--bg); }
+body {
+  min-height: 100vh;
+  background-color: var(--bg);
+  background-image:
+    radial-gradient(circle at 1px 1px, var(--grain) 0.7px, transparent 0.8px),
+    linear-gradient(transparent 95%, var(--grain) 100%);
+  background-size: 5px 5px, 100% 4px;
+  font-family: "Space Mono", "PingFang SC", "Microsoft YaHei", monospace;
+  letter-spacing: 0.01em;
+  transition-timing-function: steps(3, end);
+}
+.wrap { max-width: 1480px; padding: 0 36px 44px; }
+.topbar { padding: 22px 8px 18px; border-bottom: 1px dashed var(--border-vis); }
+.brand { gap: 16px; }
+.brand-name {
+  font-family: "Doto", "Space Mono", monospace;
+  font-size: 17px;
+  letter-spacing: 0.12em;
+  text-shadow: 1px 0 0 currentColor;
+}
+.brand-sub { font-family: "Space Mono", monospace; font-size: 12px; }
+.btn-bracket { color: var(--text); transition: color 80ms steps(2, end), transform 80ms steps(2, end); }
+.btn-bracket:hover { color: var(--orange); transform: translateY(-1px); }
+.btn-bracket:active { transform: translate(1px, 1px); }
+section.block { padding-top: 30px; }
+.block-title {
+  font-family: "Doto", "Space Mono", "PingFang SC", monospace;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-shadow: 1px 0 0 currentColor;
+}
+.seg, .client-card, .modal, .modal-meta, .preview-shell, .icon-set-card, .icon-card {
+  border-radius: 0;
+  clip-path: var(--pixel-cut);
+}
+.seg, .client-card, .preview-shell, .icon-set-card {
+  filter: drop-shadow(3px 3px 0 var(--shadow));
+}
+.seg {
+  padding: 4px;
+  gap: 0;
+  background: var(--surface);
+}
+.seg button {
+  border-radius: 0;
+  padding: 8px 22px;
+  transition: color 80ms steps(2, end), background 80ms steps(2, end), transform 80ms steps(2, end);
+}
+.seg button.on { box-shadow: inset 0 0 0 1px var(--bg); }
+.seg button:active { transform: translate(1px, 1px); }
+.client-picker { grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; }
+.client-card {
+  min-height: 82px;
+  padding: 17px 20px;
+  border-width: 2px;
+  transition: border-color 80ms steps(2, end), background 80ms steps(2, end), transform 80ms steps(2, end), filter 80ms steps(2, end);
+}
+.client-card:hover { transform: translate(-1px, -1px); filter: drop-shadow(4px 4px 0 var(--shadow)); }
+.client-card:active { transform: translate(2px, 2px); filter: drop-shadow(1px 1px 0 var(--shadow)); }
+.client-card .cname { font-family: "Space Mono", monospace; font-size: 14px; font-weight: 700; }
+.client-card .cext { font-size: 11px; }
+.client-card .cind { width: 8px; height: 8px; border-radius: 0; }
+.client-card.on .cind { animation: pixel-signal 1.4s steps(2, end) infinite; }
+.filter-input { border-bottom: 1px dashed var(--border-vis); }
+.filter-input:focus { border-bottom-style: solid; border-bottom-color: var(--orange); }
+.chips { gap: 10px; }
+.chip, .pill-btn, .more-btn, .icon-back, .ic-btn, .modal-close {
+  border-radius: 0;
+  box-shadow: 2px 2px 0 var(--shadow);
+  transition: color 80ms steps(2, end), border-color 80ms steps(2, end), background 80ms steps(2, end), transform 80ms steps(2, end), box-shadow 80ms steps(2, end);
+}
+.chip { padding: 5px 12px; background: var(--surface); }
+.chip:hover, .pill-btn:hover, .more-btn:hover, .icon-back:hover, .ic-btn:hover, .modal-close:hover {
+  color: var(--display);
+  border-color: var(--orange);
+  transform: translate(-1px, -1px);
+  box-shadow: 3px 3px 0 var(--shadow);
+}
+.chip:active, .pill-btn:active, .more-btn:active, .icon-back:active, .ic-btn:active, .modal-close:active {
+  transform: translate(2px, 2px);
+  box-shadow: 0 0 0 var(--shadow);
+}
+.chip.on { background: var(--display); color: var(--bg); border-color: var(--display); box-shadow: 2px 2px 0 var(--orange); }
+.rule-table thead th { background: var(--bg); border-bottom-style: dashed; border-bottom-color: var(--border-vis); }
+.rule-table tbody th, .rule-table tbody td { border-bottom-style: dashed; }
+.rule-row > * { transition: background 80ms steps(2, end), box-shadow 80ms steps(2, end); }
+.rname:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+.rname, .gname { font-family: "Space Mono", monospace; font-weight: 700; }
+.rtags em, .modal-tags em, .gvars em { border-radius: 0; border-color: var(--border-vis); background: var(--surface); }
+.caret { color: var(--sec); font-weight: 700; }
+.rule-row:hover .caret { animation: pixel-nudge 500ms steps(2, end) infinite; }
+.modal-bk {
+  background-color: var(--backdrop);
+  background-image: radial-gradient(circle at 1px 1px, rgba(255,255,255,0.11) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+.modal-bk.show .modal { animation: pixel-pop 160ms steps(4, end) both; }
+.modal {
+  width: min(900px, 100%);
+  border: 2px solid var(--border-vis);
+  padding: 22px 24px 24px;
+  filter: drop-shadow(7px 7px 0 var(--shadow));
+}
+.modal-head { border-bottom: 1px dashed var(--border-vis); padding-bottom: 12px; margin-bottom: 12px; }
+.modal-title { font-family: "Doto", "Space Mono", monospace; font-size: 19px; letter-spacing: 0.04em; text-shadow: 1px 0 currentColor; }
+.modal-close { width: 32px; height: 32px; background: var(--surface); }
+.modal-meta { border-color: var(--border-vis); background: var(--surface); }
+.pill-btn { background: var(--surface); }
+.preview-shell {
+  border: 2px solid var(--border-vis);
+  background: var(--preview-bg);
+  overflow: hidden;
+}
+.preview-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 35px;
+  padding: 7px 12px;
+  border-bottom: 2px solid var(--border-vis);
+  background: var(--surface-2);
+  color: var(--sec);
+  font-family: "Space Mono", monospace;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.preview-label { color: var(--display); white-space: nowrap; }
+.preview-led { display: inline-block; width: 7px; height: 7px; margin-right: 7px; background: var(--orange); box-shadow: 1px 1px 0 var(--shadow); }
+.preview-path { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: center; color: var(--dim); }
+.preview-stat { white-space: nowrap; }
+.preview-shell[data-state="loading"] .preview-led { animation: pixel-signal 600ms steps(2, end) infinite; }
+.preview-shell[data-state="ready"] .preview-led { background: var(--green); }
+.preview-shell[data-state="error"] .preview-led { background: var(--red); }
+pre.preview {
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  padding: 10px 0 14px;
+  background-color: var(--preview-bg);
+  background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 19px, var(--preview-line) 19px, var(--preview-line) 20px);
+  color: var(--preview-code);
+  line-height: 20px;
+  min-height: 130px;
+}
+.preview-line { display: block; min-width: max-content; padding: 0 16px 0 0; }
+.preview-line::before {
+  content: attr(data-line);
+  display: inline-block;
+  width: 52px;
+  margin-right: 14px;
+  padding-right: 10px;
+  border-right: 1px solid #37372f;
+  color: #69685e;
+  text-align: right;
+  user-select: none;
+}
+.glist, .gitem, .gfile-row { border-color: var(--border); }
+.grow { transition: background 80ms steps(2, end), box-shadow 80ms steps(2, end); }
+.grow:hover { box-shadow: inset 3px 0 0 var(--orange); }
+.gdetail { background: color-mix(in srgb, var(--surface) 72%, transparent); border-left: 3px solid var(--orange); }
+.icon-set-card, .icon-card { border-color: var(--border-vis); }
+.icon-set-card:hover, .icon-card:hover { border-color: var(--orange); transform: translate(-1px, -1px); }
+.icon-card img { border-radius: 0; image-rendering: pixelated; }
+button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid var(--orange); outline-offset: 3px; }
+
+@keyframes pixel-pop {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes pixel-signal { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0.35; } }
+@keyframes pixel-nudge { 0%, 49% { transform: translateX(0); } 50%, 100% { transform: translateX(3px); } }
+
+@media (max-width: 700px) {
+  .wrap { padding: 0 16px 32px; }
+  .topbar { align-items: flex-start; }
+  .top-meta { gap: 8px; }
+  .brand-name { font-size: 13px; }
+  .client-picker { grid-template-columns: 1fr; }
+  .modal-bk { padding: 10px; }
+  .modal { padding: 16px; max-height: 94vh; }
+  .modal-meta { align-items: flex-start; }
+  .modal-actions { width: 100%; margin-left: 0; }
+  .preview-head { grid-template-columns: auto 1fr; }
+  .preview-path { display: none; }
+  .preview-stat { text-align: right; }
+}
+@media (max-width: 900px) {
+  .rule-row:hover > th[scope="row"] { box-shadow: inset 3px 0 0 var(--orange), 1px 0 0 var(--border); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="topbar">
+    <div class="brand">
+      {{icon "prm" 40}}
+      <div>
+        <div class="brand-name">PROXY RULE MANAGER</div>
+        <div class="brand-sub">规则索引 · 更新于 {{tfmt .UpdatedAt}}</div>
+      </div>
+    </div>
+    <div class="top-meta">
+      <a class="btn-bracket" href="/admin">[ 管理 ]</a>
+      <button id="themeBtn" class="btn-bracket" type="button">[ 亮色 ]</button>
+    </div>
+  </header>
+
+  <!-- ============ 视图切换（先选内容类型） ============ -->
+  <section class="block">
+    <div class="seg" id="viewSeg">
+      <button type="button" data-view="rules" class="on">规则 · {{len .Rules}}</button>
+      <button type="button" data-view="geosite">Geosite</button>
+      <button type="button" data-view="icons">图标</button>
+    </div>
+  </section>
+
+  <!-- ============ 客户端（按视图动态过滤） ============ -->
+  <section class="block" style="padding-top:20px">
+    <div class="block-head">
+      <span class="block-title" style="font-size:15px">客户端</span>
+    </div>
+    <div class="client-picker" id="clientPicker">
+      {{range $i, $c := .Clients}}
+      <button class="client-card" type="button" data-client="{{$i}}" data-rules="{{$c.Rules}}" data-geo="{{$c.Geosite}}">
+        {{icon $c.Icon 28}}
+        <span class="ctext">
+          <span class="cname">{{$c.Name}}</span>
+          <div class="cext">{{$c.Ext}} 格式</div>
+        </span>
+        <span class="cind"></span>
+      </button>
+      {{end}}
+    </div>
+  </section>
+
+  <!-- ============ 规则 ============ -->
+  <section class="block" id="viewRules" style="padding-top:20px">
+    <div class="block-head">
+      <span class="block-title" id="rulesHeading">规则<span class="count"><span id="visibleCount">{{len .Rules}}</span> / {{len .Rules}}</span></span>
+      <div class="filters">
+        <input id="q" class="filter-input" type="text" placeholder="搜索规则…" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div class="chips">
+      {{range .Tags}}<button class="chip" type="button" data-tag="{{lower .}}">{{.}}</button>{{end}}
+    </div>
+
+    <div class="table-scroll" role="region" aria-labelledby="rulesHeading" tabindex="0">
+    <table class="data-table rule-table">
+      <caption class="sr-only">规则列表</caption>
+      <colgroup>
+        <col class="col-name"><col class="col-tags"><col class="col-entries"><col class="col-action">
+      </colgroup>
+      <thead>
+        <tr><th scope="col">名称</th><th scope="col">标签</th><th scope="col" class="num">条目</th><th scope="col" class="action">查看</th></tr>
+      </thead>
+      <tbody id="ruleList">
+      {{range $i, $r := .Rules}}
+      <tr class="rule-row" data-idx="{{$i}}" data-id="{{$r.ID}}" data-name="{{lower $r.Name}}" data-tags="{{$r.TagsJoined}}">
+        <th scope="row"><button class="rname" type="button">{{$r.Name}}</button></th>
+        <td><span class="rtags">{{range $r.Tags}}<em>{{.}}</em>{{end}}</span></td>
+        <td class="num rentries">{{commas $r.Entries}}</td>
+        <td class="action caret" aria-hidden="true">&gt;</td>
+      </tr>
+      {{else}}
+      <tr><td colspan="4" class="empty">还没有规则，先运行 prm update。</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+    </div>
+    <div id="noMatch" class="empty" style="display:none">没有匹配的规则。</div>
+  </section>
+
+  <!-- ============ Geosite ============ -->
+  <section class="block" id="viewGeosite" style="padding-top:20px; display:none">
+    <div class="block-head">
+      <span class="block-title">Geosite 列表</span>
+      <div class="filters">
+        <input id="gq" class="filter-input" type="text" placeholder="搜索列表…" autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+    <div id="geoRoot"></div>
+  </section>
+
+  <!-- ============ 图标 ============ -->
+  <section class="block" id="viewIcons" style="padding-top:20px; display:none">
+    <div id="iconRoot"></div>
+  </section>
+
+</div>
+
+<!-- ============ 详情模态窗（规则与 geosite 共用） ============ -->
+<div class="modal-bk" id="modalBk">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <div class="modal-title" id="mTitle"></div>
+      <button class="modal-close" id="mClose" type="button" title="关闭">×</button>
+    </div>
+    <div class="modal-tags" id="mTags"></div>
+    <div class="modal-desc" id="mDesc"></div>
+    <div class="modal-meta">
+      <span class="micon" id="mIcon"></span>
+      <span class="mclient" id="mClient"></span>
+      <span class="msize" id="mSize"></span>
+      <span class="mentries" id="mEntries"></span>
+      <span class="modal-actions">
+        <button class="pill-btn" id="mCopy" type="button">复制链接</button>
+        <a class="pill-btn" id="mOpen" target="_blank" rel="noopener">打开文件</a>
+      </span>
+    </div>
+    <div class="preview-shell" id="previewShell" data-state="loading">
+      <div class="preview-head">
+        <span class="preview-label"><i class="preview-led"></i>FILE PREVIEW</span>
+        <span class="preview-path" id="mPreviewPath"></span>
+        <span class="preview-stat" id="mPreviewStat">WAIT</span>
+      </div>
+      <pre class="preview" id="mPreview"><span class="preview-line" data-line="1">加载中…</span></pre>
+    </div>
+  </div>
+</div>
+
+<script>
+var CLIENTS = {{clients .Clients}};
+var RULE_META = {{rulemeta .Rules}};
+var GEO_CATALOG = {{catalog .Geosite}};
+var ICON_SETS = {{iconsets .IconSets}};
+
+var state = { client: 0, view: 'rules' };
+try {
+  var saved = parseInt(localStorage.getItem('prm-client'), 10);
+  if (!isNaN(saved) && saved >= 0 && saved < CLIENTS.length) { state.client = saved; }
+} catch (e) {}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function fmt(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+function humanSize(b) {
+  if (b < 1024) { return b + ' B'; }
+  if (b < 1024 * 1024) { return (b / 1024).toFixed(1) + ' KB'; }
+  return (b / 1024 / 1024).toFixed(2) + ' MB';
+}
+function enc(s) { return encodeURIComponent(s); }
+
+function copyURL(path, btn, label) {
+  var url = new URL(path, location.href).href;
+  var done = function () {
+    btn.textContent = '已复制';
+    btn.classList.add('copied');
+    setTimeout(function () { btn.textContent = label; btn.classList.remove('copied'); }, 1500);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(url).then(done, function () {});
+  } else {
+    var ta = document.createElement('textarea');
+    ta.value = url; document.body.appendChild(ta); ta.select();
+    try { document.execCommand('copy'); done(); } catch (e) {}
+    document.body.removeChild(ta);
+  }
+}
+
+function geoPath(provider, list, attr) {
+  var c = CLIENTS[state.client];
+  var name = attr ? list + '@' + attr : list;
+  return 'rules/' + enc(c.id) + '/geosite/' + enc(provider) + '/' + enc(name) + c.ext;
+}
+
+(function () {
+  /* ---------- theme ---------- */
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  var themeSwitchID = 0;
+  function updateBtn() {
+    btn.textContent = root.getAttribute('data-theme') === 'dark' ? '[ 亮色 ]' : '[ 暗色 ]';
+  }
+  function switchTheme(next) {
+    var switchID = ++themeSwitchID;
+    root.classList.add('theme-switching');
+    root.setAttribute('data-theme', next);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (switchID === themeSwitchID) { root.classList.remove('theme-switching'); }
+      });
+    });
+  }
+  btn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    switchTheme(next);
+    try { localStorage.setItem('prm-theme', next); } catch (e) {}
+    updateBtn();
+  });
+  updateBtn();
+
+  /* ---------- client availability per view ---------- */
+  var cards = Array.prototype.slice.call(document.querySelectorAll('.client-card'));
+  function clientUsable(i) {
+    var c = CLIENTS[i];
+    return state.view === 'geosite' ? c.geosite : c.rules;
+  }
+  function firstUsable() {
+    for (var i = 0; i < CLIENTS.length; i++) { if (clientUsable(i)) { return i; } }
+    return -1;
+  }
+  function updatePicker() {
+    if (!clientUsable(state.client)) {
+      var f = firstUsable();
+      if (f >= 0) { state.client = f; }
+    }
+    cards.forEach(function (c, i) {
+      c.classList.toggle('off', !clientUsable(i));
+      c.classList.toggle('on', i === state.client && clientUsable(i));
+    });
+    try { localStorage.setItem('prm-client', String(state.client)); } catch (e) {}
+  }
+  cards.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var i = +c.getAttribute('data-client');
+      if (!clientUsable(i)) { return; }
+      state.client = i;
+      updatePicker();
+      renderGeo();
+      refreshModal();
+    });
+  });
+
+  /* ---------- view switch ---------- */
+  var segBtns = Array.prototype.slice.call(document.querySelectorAll('#viewSeg button'));
+  var viewRules = document.getElementById('viewRules');
+  var viewGeosite = document.getElementById('viewGeosite');
+  var viewIcons = document.getElementById('viewIcons');
+  var clientSection = document.getElementById('clientPicker').parentElement;
+  segBtns.forEach(function (b) {
+    b.addEventListener('click', function () {
+      state.view = b.getAttribute('data-view');
+      segBtns.forEach(function (x) { x.classList.toggle('on', x === b); });
+      viewRules.style.display = state.view === 'rules' ? '' : 'none';
+      viewGeosite.style.display = state.view === 'geosite' ? '' : 'none';
+      viewIcons.style.display = state.view === 'icons' ? '' : 'none';
+      clientSection.style.display = state.view === 'icons' ? 'none' : '';
+      updatePicker();
+      renderGeo();
+    });
+  });
+  updatePicker();
+
+  /* ---------- rule filter ---------- */
+  var q = document.getElementById('q');
+  var chips = Array.prototype.slice.call(document.querySelectorAll('.chip'));
+  var rows = Array.prototype.slice.call(document.querySelectorAll('.rule-row'));
+  var countEl = document.getElementById('visibleCount');
+  var noMatch = document.getElementById('noMatch');
+  var active = {};
+
+  function applyFilter() {
+    var term = q.value.trim().toLowerCase();
+    var tags = Object.keys(active);
+    var visible = 0;
+    rows.forEach(function (r) {
+      var okName = !term || r.getAttribute('data-name').indexOf(term) !== -1;
+      var okTag = tags.length === 0;
+      if (!okTag) {
+        var rt = (r.getAttribute('data-tags') || '').split(',');
+        for (var i = 0; i < rt.length; i++) {
+          if (active[rt[i]]) { okTag = true; break; }
+        }
+      }
+      var show = okName && okTag;
+      r.style.display = show ? '' : 'none';
+      if (show) { visible++; }
+    });
+    countEl.textContent = visible;
+    noMatch.style.display = visible === 0 ? '' : 'none';
+  }
+  q.addEventListener('input', applyFilter);
+  chips.forEach(function (c) {
+    c.addEventListener('click', function () {
+      var t = c.getAttribute('data-tag');
+      if (active[t]) { delete active[t]; c.classList.remove('on'); }
+      else { active[t] = true; c.classList.add('on'); }
+      applyFilter();
+    });
+  });
+
+  /* ---------- shared modal ---------- */
+  var modalBk = document.getElementById('modalBk');
+  var modalRule = -1;    // index into RULE_META when showing a rule
+  var modalGeo = null;   // {provider,name,attr,entries} when showing a geosite file
+  var previewCache = new Map();
+  var previewRequest = 0;
+  var PREVIEW_LINES = 500;
+  var PREVIEW_CACHE_LIMIT = 6;
+
+  var mTitle = document.getElementById('mTitle');
+  var mTags = document.getElementById('mTags');
+  var mDesc = document.getElementById('mDesc');
+  var mIcon = document.getElementById('mIcon');
+  var mClient = document.getElementById('mClient');
+  var mSize = document.getElementById('mSize');
+  var mEntries = document.getElementById('mEntries');
+  var mCopy = document.getElementById('mCopy');
+  var mOpen = document.getElementById('mOpen');
+  var previewShell = document.getElementById('previewShell');
+  var mPreviewPath = document.getElementById('mPreviewPath');
+  var mPreviewStat = document.getElementById('mPreviewStat');
+  var mPreview = document.getElementById('mPreview');
+
+  function setPreview(text, stateName, stat) {
+    var lines = String(text).split('\n');
+    previewShell.setAttribute('data-state', stateName);
+    mPreviewStat.textContent = stat || (lines.length + ' LINES');
+    mPreview.innerHTML = lines.map(function (line, i) {
+      return '<span class="preview-line" data-line="' + (i + 1) + '">' + (line ? esc(line) : ' ') + '</span>';
+    }).join('');
+    mPreview.scrollTop = 0;
+  }
+
+  function preparePreview() {
+    mIcon.replaceChildren();
+    mClient.textContent = '';
+    mSize.textContent = '';
+    mEntries.textContent = '';
+    mPreviewPath.textContent = '';
+    mOpen.classList.add('disabled');
+    mOpen.removeAttribute('href');
+    mCopy.classList.add('disabled');
+    mCopy.onclick = null;
+    setPreview('加载中…', 'loading', 'READING');
+  }
+
+  function rememberPreview(path, value) {
+    if (previewCache.has(path)) { previewCache.delete(path); }
+    previewCache.set(path, value);
+    if (previewCache.size > PREVIEW_CACHE_LIMIT) {
+      previewCache.delete(previewCache.keys().next().value);
+    }
+  }
+
+  function fillMeta(path, sizeText, entriesText) {
+    var client = CLIENTS[state.client];
+    mIcon.innerHTML = '<img class="px" width="22" height="22" src="static/icons/' + client.icon + '.svg" style="image-rendering:pixelated" alt="" aria-hidden="true">';
+    mClient.textContent = client.name;
+    mSize.textContent = sizeText || '';
+    mEntries.textContent = entriesText || '';
+    if (!path) {
+      mPreviewPath.textContent = 'NO FILE';
+      mOpen.classList.add('disabled');
+      mOpen.removeAttribute('href');
+      mCopy.classList.add('disabled');
+      setPreview('没有可预览的内容。', 'empty', 'EMPTY');
+      return;
+    }
+    mPreviewPath.textContent = decodeURIComponent(path.split('/').pop());
+    mOpen.classList.remove('disabled');
+    mOpen.setAttribute('href', path);
+    mCopy.classList.remove('disabled');
+    mCopy.onclick = function () { copyURL(path, mCopy, '复制链接'); };
+    loadPreview(path);
+  }
+
+  function fillRuleModal() {
+    var meta = RULE_META[modalRule];
+    var file = meta.f[CLIENTS[state.client].id];
+    if (!file) {
+      fillMeta(null, '该规则没有此客户端的文件', fmt(meta.e) + ' 条');
+      return;
+    }
+    fillMeta(file[0], humanSize(file[1]), fmt(meta.e) + ' 条');
+  }
+
+  function fillGeoModal() {
+    var g = modalGeo;
+    fillMeta(geoPath(g.provider, g.name, g.attr), '', fmt(g.entries) + ' 条');
+  }
+
+  function refreshModal() {
+    if (modalRule >= 0) { fillRuleModal(); }
+    else if (modalGeo) { fillGeoModal(); }
+  }
+
+  function loadPreview(path) {
+    var requestID = ++previewRequest;
+    if (previewCache.has(path)) {
+      var cached = previewCache.get(path);
+      rememberPreview(path, cached);
+      setPreview(cached.text, 'ready', cached.stat);
+      return;
+    }
+    setPreview('加载中…', 'loading', 'READING');
+    fetch(path).then(function (r) {
+      if (!r.ok) { throw new Error('http ' + r.status); }
+      return r.text();
+    }).then(function (t) {
+      var lines = t.split('\n');
+      var total = lines.length;
+      var truncated = total > PREVIEW_LINES;
+      if (lines.length > PREVIEW_LINES) {
+        t = lines.slice(0, PREVIEW_LINES).join('\n') + '\n… 仅显示前 ' + PREVIEW_LINES + ' 行，完整内容请打开文件';
+      }
+      var stat = (truncated ? PREVIEW_LINES + ' / ' + total : total) + ' LINES';
+      rememberPreview(path, { text: t, stat: stat });
+      if (requestID !== previewRequest) { return; }
+      setPreview(t, 'ready', stat);
+    }).catch(function () {
+      if (requestID !== previewRequest) { return; }
+      setPreview('无法加载预览。请通过 prm serve 访问，或点「打开文件」查看。', 'error', 'LOAD ERROR');
+    });
+  }
+
+  function showModal() {
+    modalBk.classList.add('show');
+    document.body.style.overflow = 'hidden';
+  }
+  function closeModal() {
+    modalRule = -1;
+    modalGeo = null;
+    modalBk.classList.remove('show');
+    document.body.style.overflow = '';
+    previewRequest++;
+    preparePreview();
+  }
+
+  function openRuleModal(idx) {
+    modalRule = idx;
+    modalGeo = null;
+    var meta = RULE_META[idx];
+    mTitle.textContent = meta.n;
+    mTags.innerHTML = (meta.t || []).map(function (t) { return '<em>' + esc(t) + '</em>'; }).join('');
+    mTags.style.display = (meta.t && meta.t.length) ? '' : 'none';
+    mDesc.textContent = meta.d || '';
+    mDesc.style.display = meta.d ? '' : 'none';
+    preparePreview();
+    showModal();
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (modalRule === idx) { fillRuleModal(); }
+      });
+    });
+  }
+
+  function openGeoModal(provider, name, attr, entries) {
+    modalRule = -1;
+    modalGeo = { provider: provider, name: name, attr: attr, entries: entries };
+    mTitle.textContent = name + (attr ? ' @' + attr : '');
+    mTags.innerHTML = '<em>geosite</em><em>' + esc(provider) + '</em>';
+    mTags.style.display = '';
+    mDesc.style.display = 'none';
+    preparePreview();
+    showModal();
+    var selectedGeo = modalGeo;
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (modalGeo === selectedGeo) { fillGeoModal(); }
+      });
+    });
+  }
+
+  document.getElementById('ruleList').addEventListener('click', function (ev) {
+    var row = ev.target.closest('.rule-row');
+    if (row) { openRuleModal(+row.getAttribute('data-idx')); }
+  });
+  document.getElementById('mClose').addEventListener('click', closeModal);
+  modalBk.addEventListener('click', function (ev) { if (ev.target === modalBk) { closeModal(); } });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape' && (modalRule >= 0 || modalGeo)) { closeModal(); }
+  });
+
+  /* ---------- geosite catalog ---------- */
+  var rootEl = document.getElementById('geoRoot');
+  var gq = document.getElementById('gq');
+  var geoState = { term: '', expanded: {} };
+  var PAGE = 100;
+
+  function geoRowActions(provider, name, attr, entries) {
+    var path = geoPath(provider, name, attr);
+    return '<button class="pill-btn gprev" type="button" data-gp="' + esc(provider) + '" data-gl="' + esc(name) +
+      '" data-ga="' + esc(attr || '') + '" data-ge="' + entries + '">预览</button>' +
+      '<button class="pill-btn gcopy" type="button" data-path="' + esc(path) + '">复制链接</button>' +
+      '<a class="pill-btn" href="' + esc(path) + '" target="_blank" rel="noopener">打开</a>';
+  }
+
+  function renderProvider(pc) {
+    var provider = pc[0], lists = pc[1];
+    var term = geoState.term;
+    var matched = [];
+    for (var i = 0; i < lists.length; i++) {
+      if (!term || lists[i][0].indexOf(term) !== -1) { matched.push(lists[i]); }
+    }
+    var totalVariants = 0;
+    lists.forEach(function (l) { totalVariants += l[2].length; });
+
+    var html = '<div class="geo-provider">' +
+      '<div class="geo-provider-head">' +
+      '<span class="pname">{{icon "globe" 22}} ' + esc(provider) + '</span>' +
+      '<span class="label">' + fmt(lists.length) + ' 个列表 · ' + fmt(totalVariants) + ' 个属性变体</span>' +
+      '<span class="geo-format">格式：<b>' + esc(CLIENTS[state.client].name) + '</b></span>' +
+      '</div>';
+
+    if (matched.length === 0) {
+      html += '<div class="empty">没有匹配的列表。</div></div>';
+      return html;
+    }
+
+    var showAll = geoState.expanded['__all__' + provider];
+    var shown = showAll ? matched : matched.slice(0, PAGE);
+    html += '<div class="glist">';
+    shown.forEach(function (l) {
+      var name = l[0], entries = l[1], variants = l[2];
+      var key = provider + '/' + name;
+      var open = !!geoState.expanded[key];
+      html += '<div class="gitem' + (open ? ' open' : '') + '" data-gkey="' + esc(key) + '">' +
+        '<div class="grow">' +
+        '<span class="gname">' + esc(name) + '</span>' +
+        '<span class="gentries">' + fmt(entries) + ' 条</span>' +
+        '<span class="gvars">';
+      variants.slice(0, 6).forEach(function (v) { html += '<em>@' + esc(v[0]) + '</em>'; });
+      if (variants.length > 6) { html += '<em>+' + (variants.length - 6) + '</em>'; }
+      html += '</span>' +
+        '<span class="gactions">' + geoRowActions(provider, name, '', entries) + '</span>' +
+        '</div>' +
+        '<div class="gdetail">' +
+        '<div class="gfile-row"><span class="gtag full">完整列表</span><span class="gn">' + fmt(entries) + ' 条</span>' +
+        geoRowActions(provider, name, '', entries) + '</div>';
+      variants.forEach(function (v) {
+        html += '<div class="gfile-row"><span class="gtag">@' + esc(v[0]) + '</span><span class="gn">' + fmt(v[1]) + ' 条</span>' +
+          geoRowActions(provider, name, v[0], v[1]) + '</div>';
+      });
+      html += '</div></div>';
+    });
+    html += '</div>';
+    if (!showAll && matched.length > PAGE) {
+      html += '<button class="more-btn" data-gall="' + esc(provider) + '" type="button">显示全部 ' + fmt(matched.length) + ' 个</button>';
+    }
+    html += '</div>';
+    return html;
+  }
+
+  function renderGeo() {
+    if (!rootEl) { return; }
+    var html = '';
+    GEO_CATALOG.forEach(function (pc) { html += renderProvider(pc); });
+    rootEl.innerHTML = html || '<div class="empty">还没有 geosite 数据，先运行 prm update。</div>';
+  }
+
+  if (rootEl) {
+    rootEl.addEventListener('click', function (ev) {
+      var prev = ev.target.closest('.gprev');
+      if (prev) {
+        openGeoModal(prev.getAttribute('data-gp'), prev.getAttribute('data-gl'),
+          prev.getAttribute('data-ga'), +prev.getAttribute('data-ge'));
+        return;
+      }
+      var copy = ev.target.closest('.gcopy');
+      if (copy) { copyURL(copy.getAttribute('data-path'), copy, '复制链接'); return; }
+      var all = ev.target.closest('[data-gall]');
+      if (all) { geoState.expanded['__all__' + all.getAttribute('data-gall')] = true; renderGeo(); return; }
+      var row = ev.target.closest('.grow');
+      if (row && !ev.target.closest('a,button')) {
+        var key = row.parentElement.getAttribute('data-gkey');
+        geoState.expanded[key] = !geoState.expanded[key];
+        row.parentElement.classList.toggle('open');
+      }
+    });
+    gq.addEventListener('input', function () {
+      geoState.term = gq.value.trim().toLowerCase();
+      renderGeo();
+    });
+    renderGeo();
+  }
+
+  /* ---------- icon gallery ---------- */
+  var iconRoot = document.getElementById('iconRoot');
+  var iconState = { set: null, shown: 0 };
+  var ICONS_PER_PAGE = 60;
+
+  function iconPath(setName, fileName) {
+    return 'static/icons/' + enc(setName) + '/' + enc(fileName);
+  }
+
+  function renderIconSets() {
+    iconState.set = null;
+    var html = '<div class="block-head"><span class="block-title">图标集<span class="count">' + ICON_SETS.length + '</span></span></div>';
+    if (ICON_SETS.length === 0) {
+      html += '<div class="empty">还没有图标集。</div>';
+      iconRoot.innerHTML = html;
+      return;
+    }
+    html += '<div class="icon-sets">';
+    ICON_SETS.forEach(function (s) {
+      html += '<div class="icon-set-card" data-set="' + esc(s.name) + '">' +
+        '<span class="is-icon">📦</span>' +
+        '<div><div class="is-name">' + esc(s.name) + '</div>' +
+        '<div class="is-count">' + fmt(s.count) + ' 个图标</div></div></div>';
+    });
+    html += '</div>';
+    iconRoot.innerHTML = html;
+  }
+
+  function renderIconGrid(setName) {
+    var set = null;
+    for (var i = 0; i < ICON_SETS.length; i++) {
+      if (ICON_SETS[i].name === setName) { set = ICON_SETS[i]; break; }
+    }
+    if (!set) { renderIconSets(); return; }
+    iconState.set = setName;
+    iconState.shown = Math.min(ICONS_PER_PAGE, set.icons.length);
+
+    var html = '<button class="icon-back" type="button" id="iconBack">← 返回图标集</button>';
+    html += '<div class="block-head"><span class="block-title">' + esc(set.name) +
+      '<span class="count">' + fmt(set.count) + '</span></span></div>';
+    html += '<div class="icon-grid" id="iconGrid">';
+    for (var j = 0; j < iconState.shown; j++) {
+      html += iconCardHTML(set.name, set.icons[j]);
+    }
+    html += '</div>';
+    if (iconState.shown < set.count) {
+      html += '<button class="more-btn" id="iconMore" type="button">加载更多（' +
+        fmt(iconState.shown) + ' / ' + fmt(set.count) + '）</button>';
+    }
+    iconRoot.innerHTML = html;
+  }
+
+  function iconCardHTML(setName, fileName) {
+    var path = iconPath(setName, fileName);
+    var nameNoExt = fileName.replace(/\.[^.]+$/, '');
+    return '<div class="icon-card">' +
+      '<img loading="lazy" src="' + esc(path) + '" alt="' + esc(nameNoExt) + '">' +
+      '<div class="ic-name" title="' + esc(fileName) + '">' + esc(nameNoExt) + '</div>' +
+      '<div class="ic-acts">' +
+      '<button class="ic-btn ic-copy" type="button" data-path="' + esc(path) + '">复制</button>' +
+      '<a class="ic-btn" href="' + esc(path) + '" download="' + esc(fileName) + '">下载</a>' +
+      '</div></div>';
+  }
+
+  function loadMoreIcons() {
+    if (!iconState.set) return;
+    var set = null;
+    for (var i = 0; i < ICON_SETS.length; i++) {
+      if (ICON_SETS[i].name === iconState.set) { set = ICON_SETS[i]; break; }
+    }
+    if (!set) return;
+    var grid = document.getElementById('iconGrid');
+    var prev = iconState.shown;
+    iconState.shown = Math.min(prev + ICONS_PER_PAGE, set.icons.length);
+    var frag = '';
+    for (var j = prev; j < iconState.shown; j++) {
+      frag += iconCardHTML(set.name, set.icons[j]);
+    }
+    grid.insertAdjacentHTML('beforeend', frag);
+    var moreBtn = document.getElementById('iconMore');
+    if (iconState.shown >= set.count) {
+      if (moreBtn) moreBtn.style.display = 'none';
+    } else if (moreBtn) {
+      moreBtn.textContent = '加载更多（' + fmt(iconState.shown) + ' / ' + fmt(set.count) + '）';
+    }
+  }
+
+  if (iconRoot) {
+    renderIconSets();
+    iconRoot.addEventListener('click', function (ev) {
+      var card = ev.target.closest('.icon-set-card');
+      if (card) { renderIconGrid(card.getAttribute('data-set')); return; }
+      var back = ev.target.closest('#iconBack');
+      if (back) { renderIconSets(); return; }
+      var more = ev.target.closest('#iconMore');
+      if (more) { loadMoreIcons(); return; }
+      var copy = ev.target.closest('.ic-copy');
+      if (copy) { copyURL(copy.getAttribute('data-path'), copy, '复制'); return; }
+    });
+  }
+})();
+</script>
+</body>
+</html>

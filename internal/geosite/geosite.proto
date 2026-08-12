@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package geosite;
+
+option go_package = "github.com/fl0w1nd/proxy-rule-manager/internal/geosite;geosite";
+
+// DomainAttribute carries the attribute key attached to a domain entry.
+// The original v2ray proto also has a oneof value (bool/int); we only need
+// the key for attr-based filtering, so extra fields are silently ignored by
+// proto.Unmarshal.
+message DomainAttribute {
+  string key = 1;
+}
+
+// Domain mirrors the v2ray Domain message. Type enum values match the
+// upstream definition: 0=Plain(keyword), 1=Regex, 2=Domain(suffix), 3=Full.
+message Domain {
+  enum Type {
+    Plain = 0;
+    Regex = 1;
+    Domain = 2;
+    Full = 3;
+  }
+  Type type = 1;
+  string value = 2;
+  repeated DomainAttribute attribute = 3;
+}
+
+// GeoSite is one list keyed by country/category code.
+message GeoSite {
+  string country_code = 1;
+  repeated Domain domains = 2;
+}
+
+// GeoSiteList is the top-level container of the geosite.dat file.
+message GeoSiteList {
+  repeated GeoSite entry = 1;
+}

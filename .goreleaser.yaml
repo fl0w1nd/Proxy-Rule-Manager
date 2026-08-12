@@ -1,0 +1,83 @@
+version: 2
+
+project_name: prm
+
+builds:
+  - id: prm
+    main: ./cmd/prm
+    binary: prm
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - darwin
+      - windows
+    goarch:
+      - amd64
+      - arm64
+    flags:
+      - -trimpath
+    ldflags:
+      - >-
+        -s -w
+        -X github.com/fl0w1nd/proxy-rule-manager/version.Version={{ .Version }}
+        -X github.com/fl0w1nd/proxy-rule-manager/version.Commit={{ .FullCommit }}
+        -X github.com/fl0w1nd/proxy-rule-manager/version.Date={{ .CommitDate }}
+    mod_timestamp: "{{ .CommitTimestamp }}"
+
+archives:
+  - ids:
+      - prm
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - none*
+
+checksum:
+  name_template: checksums.txt
+  algorithm: sha256
+
+changelog:
+  use: git
+  sort: asc
+  abbrev: -1
+  groups:
+    - title: "🚀 Features"
+      regexp: '^.*?feat(\([[:word:]-]+\))??!?:.+$'
+      order: 0
+    - title: "🐛 Fixes"
+      regexp: '^.*?fix(\([[:word:]-]+\))??!?:.+$'
+      order: 1
+    - title: "⚡ Performance"
+      regexp: '^.*?perf(\([[:word:]-]+\))??!?:.+$'
+      order: 2
+    - title: "♻️ Refactoring"
+      regexp: '^.*?refactor(\([[:word:]-]+\))??!?:.+$'
+      order: 3
+    - title: "🧰 Maintenance"
+      regexp: '^.*?(build|ci|chore|docs|test)(\([[:word:]-]+\))??!?:.+$'
+      order: 4
+    - title: "📦 Other changes"
+      order: 999
+  filters:
+    exclude:
+      - '^Merge pull request'
+      - '^Merge branch'
+
+release:
+  make_latest: "{{ .Env.IS_LATEST }}"
+  name_template: "Proxy Rule Manager {{ .Tag }}"
+  header: |
+    Docker images for `linux/amd64` and `linux/arm64`:
+
+    ```bash
+    docker pull ghcr.io/fl0w1nd/prm:{{ .Version }}
+    docker pull ghcr.io/fl0w1nd/prm:latest
+    ```
+  footer: |
+    Every archive is covered by `checksums.txt` using SHA-256.

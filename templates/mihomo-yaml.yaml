@@ -1,0 +1,66 @@
+id: mihomo-yaml
+name: Mihomo YAML Payload
+codec: yaml_payload
+extension: .yaml
+description: Mihomo (Clash Meta) YAML rule provider format with payload wrapper
+
+kind_map:
+  domain:
+    type_name: DOMAIN
+  domain_suffix:
+    type_name: DOMAIN-SUFFIX
+  domain_keyword:
+    type_name: DOMAIN-KEYWORD
+  domain_regex:
+    type_name: DOMAIN-REGEX
+  geosite:
+    type_name: GEOSITE
+  ip_cidr:
+    type_name: IP-CIDR
+  ip_asn:
+    type_name: IP-ASN
+  geoip:
+    type_name: GEOIP
+  src_ip_cidr:
+    type_name: SRC-IP-CIDR
+  src_ip_asn:
+    type_name: SRC-IP-ASN
+  src_geoip:
+    type_name: SRC-GEOIP
+  dst_port:
+    type_name: DST-PORT
+  src_port:
+    type_name: SRC-PORT
+  in_port:
+    type_name: IN-PORT
+  in_type:
+    type_name: IN-TYPE
+  in_user:
+    type_name: IN-USER
+  in_name:
+    type_name: IN-NAME
+  process_name:
+    type_name: PROCESS-NAME
+  process_name_regex:
+    type_name: PROCESS-NAME-REGEX
+  process_path:
+    type_name: PROCESS-PATH
+  process_path_regex:
+    type_name: PROCESS-PATH-REGEX
+  uid:
+    type_name: UID
+  network:
+    type_name: NETWORK
+  dscp:
+    type_name: DSCP
+
+flag_kinds:
+  - ip_cidr
+  - geoip
+  - ip_asn
+
+hints:
+  ip_cidr:
+    ipv6_type_name: IP-CIDR6
+  src_ip_cidr:
+    ipv6_type_name: SRC-IP-CIDR6

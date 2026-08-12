@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.vscode
+.cursor
+.agents
+bin
+data
+dist
+coverage.out
+*.prof
+config.yaml
+AGENTS.md

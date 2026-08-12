@@ -1,0 +1,58 @@
+id: surge
+name: Surge
+codec: linelist
+extension: .list
+description: Surge rule set format
+
+kind_map:
+  domain:
+    type_name: DOMAIN
+  domain_suffix:
+    type_name: DOMAIN-SUFFIX
+  domain_keyword:
+    type_name: DOMAIN-KEYWORD
+  domain_wildcard:
+    type_name: DOMAIN-WILDCARD
+  ip_cidr:
+    type_name: IP-CIDR
+  ip_asn:
+    type_name: IP-ASN
+  geoip:
+    type_name: GEOIP
+  src_ip_cidr:
+    type_name: SRC-IP
+  dst_port:
+    type_name: DEST-PORT
+  src_port:
+    type_name: SRC-PORT
+  in_port:
+    type_name: IN-PORT
+  process_name:
+    type_name: PROCESS-NAME
+  protocol:
+    type_name: PROTOCOL
+  network:
+    type_name: NETWORK
+  user_agent:
+    type_name: USER-AGENT
+  url_regex:
+    type_name: URL-REGEX
+  subnet:
+    type_name: SUBNET
+  hostname_type:
+    type_name: HOSTNAME-TYPE
+  device_name:
+    type_name: DEVICE-NAME
+
+flag_kinds:
+  - ip_cidr
+  - geoip
+  - ip_asn
+
+hints:
+  ip_cidr:
+    ipv6_type_name: IP-CIDR6
+  dst_port:
+    split_port_range: true
+  src_port:
+    split_port_range: true

@@ -1,0 +1,50 @@
+id: singbox
+name: sing-box
+codec: singbox
+extension: .json
+description: sing-box JSON rule-set format (version 3)
+
+kind_map:
+  domain:
+    field_name: domain
+  domain_suffix:
+    field_name: domain_suffix
+  domain_keyword:
+    field_name: domain_keyword
+  domain_regex:
+    field_name: domain_regex
+  ip_cidr:
+    field_name: ip_cidr
+  src_ip_cidr:
+    field_name: source_ip_cidr
+  dst_port:
+    field_name: port
+  src_port:
+    field_name: source_port
+  dst_port_range:
+    field_name: port_range
+  src_port_range:
+    field_name: source_port_range
+  network:
+    field_name: network
+  process_name:
+    field_name: process_name
+  process_path:
+    field_name: process_path
+  process_path_regex:
+    field_name: process_path_regex
+
+field_groups:
+  - name: domain
+    fields:
+      - domain
+      - domain_suffix
+      - domain_keyword
+      - domain_regex
+      - ip_cidr
+
+hints:
+  dst_port:
+    port_range_sep: ":"
+  src_port:
+    port_range_sep: ":"

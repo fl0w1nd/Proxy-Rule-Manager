@@ -1,0 +1,246 @@
+// Package serve provides public file serving and the authenticated management API.
+package serve
+
+import (
+	"crypto/subtle"
+	"encoding/json"
+	"net/http"
+	"net/url"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/go-chi/chi/v5/middleware"
+
+	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/site"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
+)
+
+// Server is the HTTP server.
+type Server struct {
+	Config *config.Config
+	State  *state.Store
+	Engine *engine.UpdateEngine
+
+	updates  *updates.Manager
+	apiToken string
+}
+
+// NewServer creates a new HTTP server.
+func NewServer(
+	cfg *config.Config,
+	st *state.Store,
+	eng *engine.UpdateEngine,
+	updateManager *updates.Manager,
+	apiToken string,
+) *Server {
+	return &Server{
+		Config: cfg, State: st, Engine: eng,
+		updates: updateManager, apiToken: apiToken,
+	}
+}
+
+// Handler returns the chi router with all routes configured.
+func (s *Server) Handler() http.Handler {
+	r := chi.NewRouter()
+
+	r.Use(middleware.RealIP)
+	r.Use(middleware.Recoverer)
+	r.Use(middleware.RequestID)
+
+	// Public: static rule artifacts
+	rulesDir := filepath.Join(s.Config.DataDir, "rules")
+	r.Handle("/rules/*", http.StripPrefix("/rules/", http.FileServer(http.Dir(rulesDir))))
+
+	// Public: generated pages and static assets (icons, etc.)
+	iconsDir := filepath.Join(s.Config.DataDir, "static", "icons")
+	r.Handle("/static/icons/*", http.StripPrefix("/static/icons/", http.FileServer(http.Dir(iconsDir))))
+	r.Get("/", s.handleSitePage("static/index.html"))
+	r.Get("/index.html", s.handleSitePage("static/index.html"))
+
+	// Admin board (Bearer or login query token; unauthorized browsers get a token gate)
+	r.Get("/admin", s.handleAdminPage)
+	r.Get("/admin.html", s.handleAdminPage)
+
+	// API routes
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Use(s.bearerGuard)
+		r.Use(noStore)
+		r.Get("/status", s.handleStatus)
+		r.Get("/rules", s.handleRules)
+		r.Get("/geosite/providers", s.handleGeositeProviders)
+		r.Get("/changes", s.handleChanges)
+		r.Get("/updates", s.handleUpdates)
+		r.Post("/updates", s.sameOriginMutation(s.handleCreateUpdate))
+		r.Get("/updates/current", s.handleCurrentUpdate)
+		r.Get("/updates/{updateID}", s.handleUpdateDetail)
+		r.Get("/updates/{updateID}/events", s.handleUpdateEvents)
+		r.Post("/updates/{updateID}/cancel", s.sameOriginMutation(s.handleCancelUpdate))
+	})
+
+	return r
+}
+
+// tokenCookieName persists the admin token across browser sessions. Set when
+// a valid ?token= reaches /admin; honoured by every protected route.
+const tokenCookieName = "prm_token"
+
+// requestToken extracts API authentication from a Bearer header or cookie.
+func requestToken(r *http.Request) string {
+	const prefix = "Bearer "
+	if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, prefix) {
+		return strings.TrimPrefix(auth, prefix)
+	}
+	if c, err := r.Cookie(tokenCookieName); err == nil {
+		return c.Value
+	}
+	return ""
+}
+
+func (s *Server) validToken(token string) bool {
+	return s.apiToken != "" &&
+		subtle.ConstantTimeCompare([]byte(token), []byte(s.apiToken)) == 1
+}
+
+func (s *Server) tokenValid(r *http.Request) bool {
+	return s.validToken(requestToken(r))
+}
+
+// setTokenCookie persists the token for 30 days.
+func setTokenCookie(w http.ResponseWriter, r *http.Request, token string) {
+	http.SetCookie(w, &http.Cookie{
+		Name:     tokenCookieName,
+		Value:    token,
+		Path:     "/",
+		MaxAge:   30 * 24 * 3600,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Secure:   r.TLS != nil,
+	})
+}
+
+// handleAdminPage serves the admin board. A valid ?token= is persisted as a
+// cookie and the URL is cleaned via redirect; without a valid token a minimal
+// gate page prompts for it.
+func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
+	if q := r.URL.Query().Get("token"); q != "" {
+		if s.validToken(q) {
+			setTokenCookie(w, r, q)
+			http.Redirect(w, r, "/admin", http.StatusFound)
+			return
+		}
+		s.serveAdminGate(w, true)
+		return
+	}
+	if !s.tokenValid(r) {
+		s.serveAdminGate(w, false)
+		return
+	}
+	page, err := site.AdminPage()
+	if err != nil {
+		http.Error(w, "admin page unavailable", http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Cache-Control", "no-store")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	_, _ = w.Write(page)
+}
+
+func (s *Server) serveAdminGate(w http.ResponseWriter, invalid bool) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-store")
+	w.WriteHeader(http.StatusUnauthorized)
+	page := adminGatePage
+	if invalid {
+		page = strings.Replace(page, `display:none`, `display:block`, 1)
+	}
+	_, _ = w.Write([]byte(page))
+}
+
+// handleSitePage serves one generated page from the data directory.
+func (s *Server) handleSitePage(name string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		p := filepath.Join(s.Config.DataDir, name)
+		if st, err := os.Stat(p); err != nil || st.IsDir() {
+			http.Error(w, name+" not found (site generation failed; check serve logs or run prm update)", http.StatusNotFound)
+			return
+		}
+		http.ServeFile(w, r, p)
+	}
+}
+
+// bearerGuard requires a valid API token on every request.
+func (s *Server) bearerGuard(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		if s.tokenValid(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		w.Header().Set("WWW-Authenticate", "Bearer")
+		writeAPIError(w, http.StatusUnauthorized, "unauthorized", "需要有效的管理令牌", map[string]any{})
+	})
+}
+
+func noStore(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func (s *Server) sameOriginMutation(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		const prefix = "Bearer "
+		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, prefix) && s.validToken(strings.TrimPrefix(auth, prefix)) {
+			next(w, r)
+			return
+		}
+		origin, err := url.Parse(r.Header.Get("Origin"))
+		expectedScheme := "http"
+		if r.TLS != nil {
+			expectedScheme = "https"
+		}
+		if err != nil || origin.Scheme != expectedScheme || origin.Host != r.Host {
+			writeAPIError(w, http.StatusForbidden, "invalid_origin", "写操作需要同源请求", map[string]any{})
+			return
+		}
+		next(w, r)
+	}
+}
+
+// adminGatePage is the token prompt shown to unauthorized browsers hitting
+// /admin. Intentionally standalone (no external assets).
+const adminGatePage = `<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PRM · 管理</title>
+<style>
+*{box-sizing:border-box}
+body{background-color:#11100d;background-image:radial-gradient(circle at 1px 1px,rgba(255,250,240,.05) .7px,transparent .8px);background-size:5px 5px;color:#d8d3c9;font-family:"Space Mono","SF Mono",monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+.card{background:#181713;border:2px solid #777168;clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);filter:drop-shadow(7px 7px 0 #000);padding:32px;width:340px}
+.k{font-size:11px;letter-spacing:.1em;color:#fffaf0;margin-bottom:18px;padding-bottom:12px;border-bottom:1px dashed #777168}
+input{width:100%;background:#0b0c09;border:1px solid #777168;border-radius:0;color:#fff;font:inherit;font-size:13px;padding:11px 12px;outline:none;box-shadow:2px 2px 0 #000}
+input:focus{border-color:#ff6418;outline:2px solid #ff6418;outline-offset:2px}
+button{margin-top:16px;width:100%;background:#fffaf0;color:#11100d;border:1px solid #fffaf0;border-radius:0;box-shadow:3px 3px 0 #ff6418;font:inherit;font-size:12px;font-weight:700;letter-spacing:.08em;padding:10px 0;cursor:pointer;transition:transform 80ms steps(2,end),box-shadow 80ms steps(2,end)}
+button:hover{background:#ff6418;border-color:#ff6418}button:active{transform:translate(3px,3px);box-shadow:0 0 0 #000}
+.err{color:#f04438;font-size:11px;margin-top:10px;display:none}
+</style></head>
+<body><div class="card">
+<div class="k">PRM 管理看板 · 输入令牌</div>
+<form method="get" action="/admin">
+<input type="password" name="token" autofocus autocomplete="off" placeholder="ADMIN_TOKEN">
+<button type="submit">进 入</button>
+</form>
+<div class="err" id="e">令牌无效</div>
+</div>
+</body></html>`
+
+func writeJSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(v)
+}

@@ -1,0 +1,380 @@
+<body>
+<div class="wrap">
+  <header class="topbar">
+    <div class="brand">
+      <img src="/static/icons/prm.svg" width="40" height="40" alt="">
+      <div><div class="brand-name">PROXY RULE MANAGER</div><div class="brand-sub">管理看板</div></div>
+    </div>
+    <div class="top-meta">
+      <a class="btn-bracket" href="/">[ 返回首页 ]</a>
+      <button id="themeBtn" class="btn-bracket" type="button">[ 亮色 ]</button>
+    </div>
+  </header>
+
+  <div class="facts">
+    <div class="fact"><div class="k">最近检查</div><div class="v" id="lastCheck">加载中</div></div>
+    <div class="fact"><div class="k">当前发布文件</div><div class="v" id="artifactCount">加载中</div></div>
+    <div class="fact"><div class="k">程序版本</div><div class="v" id="runtimeVersion">加载中</div></div>
+  </div>
+
+  <div class="update-actions"><button id="updateAll" class="pill-btn primary" type="button">全部更新</button></div>
+
+  <div class="tabs" role="tablist">
+    <button class="tab-btn on" type="button" role="tab" data-tab="rules">规则<span class="n" id="rulesCount" hidden></span></button>
+    <button class="tab-btn" type="button" role="tab" data-tab="changed">变更<span class="n" id="changesCount" hidden></span></button>
+    <button class="tab-btn" type="button" role="tab" data-tab="updates">更新日志<span class="n" id="updatesCount" hidden></span></button>
+    <button class="tab-btn" type="button" role="tab" data-tab="geosite">Geosite<span class="n" id="geositeCount" hidden></span></button>
+  </div>
+
+  <section class="tab-panel on" id="tab-rules" role="tabpanel">
+    <div class="table-scroll" tabindex="0">
+      <table class="data-table admin-rule-table">
+        <caption class="sr-only">规则更新状态</caption>
+        <colgroup><col class="col-name"><col class="col-entries"><col class="col-version"><col class="col-check"><col class="col-action"></colgroup>
+        <thead><tr><th scope="col">名称</th><th scope="col" class="num">条目</th><th scope="col">内容版本</th><th scope="col">上次检查</th><th scope="col" class="aop">操作</th></tr></thead>
+        <tbody id="rulesBody"><tr><td colspan="5" class="empty">正在加载规则…</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+  <section class="tab-panel" id="tab-changed" role="tabpanel"><div id="changesBody" class="empty">进入标签后加载</div></section>
+  <section class="tab-panel" id="tab-updates" role="tabpanel"><div class="table-scroll update-scroll" tabindex="0"><div id="updatesBody" class="empty">进入标签后加载</div></div></section>
+  <section class="tab-panel" id="tab-geosite" role="tabpanel">
+    <div class="table-scroll" tabindex="0">
+      <table class="data-table geosite-table">
+        <caption class="sr-only">Geosite Provider 更新状态</caption>
+        <colgroup><col class="col-provider"><col class="col-status"><col class="col-version"><col class="col-lists"><col class="col-variants"><col class="col-entries"><col class="col-files"></colgroup>
+        <thead><tr><th scope="col">Provider</th><th scope="col">上次检查</th><th scope="col">数据版本</th><th scope="col" class="gnum">列表</th><th scope="col" class="gnum">变体</th><th scope="col" class="gnum">条目</th><th scope="col" class="gnum">文件</th></tr></thead>
+        <tbody id="geositeBody"><tr><td colspan="7" class="empty">进入标签后加载</td></tr></tbody>
+      </table>
+    </div>
+  </section>
+</div>
+
+<div class="update-modal-bk" id="updateModalBk" aria-hidden="true">
+  <div class="update-modal" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
+    <div class="update-modal-head">
+      <div><div class="update-modal-title" id="updateModalTitle" tabindex="-1">更新进度</div><div class="update-modal-sub" id="updateModalSub">正在连接任务…</div></div>
+      <button class="pill-btn update-close" id="updateClose" type="button" aria-label="关闭更新进度">×</button>
+    </div>
+    <div class="update-overview">
+      <div class="update-current" id="updateCurrent">正在准备更新</div>
+      <div class="update-progress" aria-hidden="true"><span id="updateProgressBar"></span></div>
+      <div class="update-counts" id="updateCounts">等待进度数据</div>
+    </div>
+    <div class="update-events" id="updateEvents" role="log" aria-live="polite" aria-relevant="additions"></div>
+    <div class="update-modal-foot">
+      <div class="update-final" id="updateFinal">任务运行期间可以收起窗口</div>
+      <div class="update-foot-actions"><button class="pill-btn danger" id="updateCancel" type="button">取消更新</button><button class="pill-btn" id="updateDone" type="button">收起</button></div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+  var API = '/api/v1';
+  var terminal = new Set(['cancelled', 'completed', 'completed_with_warnings', 'completed_with_errors', 'interrupted']);
+  var loaded = {changed:false, updates:false, geosite:false};
+  var expandedUpdates = new Set();
+  var activeJob = null;
+  var activeScope = '';
+  var eventSource = null;
+  var finished = false;
+  var lastFocused = null;
+
+  function byID(id) { return document.getElementById(id); }
+  function node(tag, className, value) {
+    var item = document.createElement(tag);
+    if (className) { item.className = className; }
+    if (value !== undefined) { item.textContent = value; }
+    return item;
+  }
+  function count(value) { return Number(value || 0).toLocaleString('zh-CN'); }
+  function dateTime(value) { return value ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '—'; }
+  function statusText(value) {
+    return ({running:'运行中', cancelling:'取消中', cancelled:'已取消', completed:'完成', completed_with_warnings:'完成，有警告', completed_with_errors:'完成，有问题', interrupted:'已中断', updated:'已更新', unchanged:'无内容变化', failed:'失败'})[value] || '尚未检查';
+  }
+  function originText(value) { return ({web:'管理页', scheduled:'定时任务', cli:'命令行'})[value] || value || '—'; }
+  function scopeText(item) {
+    if (item.scope === 'all') { return '全部规则'; }
+    return '指定规则：' + (item.requested_rule_ids || []).join(', ');
+  }
+  function scopeSummary(item) {
+    if (item.scope === 'all') { return '全部规则'; }
+    return count((item.requested_rule_ids || []).length) + ' 条指定规则';
+  }
+  function errorMessage(payload, fallback) {
+    return payload && payload.error && payload.error.message ? payload.error.message : fallback;
+  }
+  function gate() { location.assign('/admin'); }
+  function request(path, options) {
+    return fetch(API + path, options).then(function (response) {
+      if (response.status === 401) { gate(); throw new Error('登录状态已失效'); }
+      if (response.status === 204) { return null; }
+      return response.json().catch(function () { return {}; }).then(function (payload) {
+        if (!response.ok) {
+          var failure = new Error(errorMessage(payload, '请求失败（' + response.status + '）'));
+          failure.status = response.status;
+          failure.payload = payload;
+          throw failure;
+        }
+        return payload;
+      });
+    });
+  }
+  function empty(target, message) { target.replaceChildren(node('div', 'empty', message)); }
+  function showCount(id, value) { var badge = byID(id); badge.textContent = count(value); badge.hidden = false; }
+
+  var root = document.documentElement;
+  var themeBtn = byID('themeBtn');
+  var themeSwitchID = 0;
+  function syncTheme() { themeBtn.textContent = root.getAttribute('data-theme') === 'dark' ? '[ 亮色 ]' : '[ 暗色 ]'; }
+  function switchTheme(next) {
+    var switchID = ++themeSwitchID;
+    root.classList.add('theme-switching');
+    root.setAttribute('data-theme', next);
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        if (switchID === themeSwitchID) { root.classList.remove('theme-switching'); }
+      });
+    });
+  }
+  themeBtn.addEventListener('click', function () {
+    var next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+    switchTheme(next);
+    try { localStorage.setItem('prm-theme', next); } catch (ignore) {}
+    syncTheme();
+  });
+  syncTheme();
+
+  function loadStatus() {
+    return request('/status').then(function (data) {
+      byID('lastCheck').textContent = dateTime(data.last_check);
+      byID('artifactCount').textContent = count(data.published_artifacts);
+      byID('runtimeVersion').textContent = data.version + ' · ' + data.go_version;
+    });
+  }
+  function renderRules(items) {
+    var body = byID('rulesBody');
+    var focusedRule = document.activeElement && document.activeElement.dataset ? document.activeElement.dataset.rule : '';
+    body.replaceChildren();
+    items.forEach(function (rule) {
+      var row = node('tr', 'arow');
+      var name = node('th', 'aname', rule.name); name.scope = 'row';
+      var entries = node('td', 'num', count(rule.entries));
+      var version = node('td', 'aversion', dateTime(rule.version_at));
+      var check = node('td', 'astatus ' + ((rule.last_check && rule.last_check.result) || 'none'), rule.last_check ? statusText(rule.last_check.result) + ' · ' + dateTime(rule.last_check.checked_at) : '尚未检查');
+      check.dataset.ruleStatus = rule.id;
+      var action = node('td', 'aop');
+      var button = node('button', 'pill-btn mini update-one', '更新');
+      button.type = 'button'; button.dataset.rule = rule.id; button.disabled = Boolean(activeJob);
+      button.addEventListener('click', function () { startUpdate({scope:'rules', rule_ids:[rule.id]}); });
+      action.appendChild(button); row.append(name, entries, version, check, action); body.appendChild(row);
+    });
+    if (!items.length) { body.appendChild(tableEmpty(5, '没有规则')); }
+    showCount('rulesCount', items.length);
+    if (focusedRule) { var restored = document.querySelector('[data-rule="' + CSS.escape(focusedRule) + '"]'); if (restored) { restored.focus(); } }
+  }
+  function tableEmpty(columns, message) { var row = node('tr'); var cell = node('td', 'empty', message); cell.colSpan = columns; row.appendChild(cell); return row; }
+  function loadRules() { return request('/rules').then(function (data) { renderRules(data.items || []); }); }
+
+  function renderGeosite(items) {
+    var body = byID('geositeBody'); body.replaceChildren();
+    items.forEach(function (provider) {
+      var row = node('tr', 'grow');
+      var name = node('th', 'gname', provider.name); name.scope = 'row';
+      row.append(name, node('td', 'astatus ' + (provider.result || 'none'), statusText(provider.result) + ' · ' + dateTime(provider.checked_at)), node('td', 'gver', provider.version || '—'), node('td', 'gnum', count(provider.lists)), node('td', 'gnum', count(provider.variants)), node('td', 'gnum', count(provider.entries)), node('td', 'gnum', count(provider.files)));
+      body.appendChild(row);
+    });
+    if (!items.length) { body.appendChild(tableEmpty(7, '没有 Geosite Provider')); }
+    showCount('geositeCount', items.length);
+  }
+  function loadGeosite(force) {
+    if (loaded.geosite && !force) { return Promise.resolve(); }
+    return request('/geosite/providers').then(function (data) { loaded.geosite = true; renderGeosite(data.items || []); });
+  }
+
+  function fileLabel(file) { return file.client_id + ' · ' + file.change + ' · ' + file.path; }
+  function renderChanges(items) {
+    var target = byID('changesBody'); target.replaceChildren();
+    items.forEach(function (change) {
+      var details = node('details', 'crow');
+      var summary = node('summary');
+      summary.append(node('span', 'cname', dateTime(change.finished_at) + ' · ' + change.rule_name), node('span', 'cdiff', '+' + count(change.added) + ' / -' + count(change.removed)));
+      var content = node('div', 'csamples');
+      var files = node('div', 'grp'); files.appendChild(node('div', 'gk', '变动文件'));
+      var fileText = node('pre'); (change.files || []).forEach(function (file) { fileText.appendChild(node('div', '', fileLabel(file))); }); files.appendChild(fileText); content.appendChild(files);
+      [['新增样例', change.added_samples, 'add'], ['移除样例', change.removed_samples, 'del']].forEach(function (group) {
+        if (!group[1] || !group[1].length) { return; }
+        var box = node('div', 'grp'); box.appendChild(node('div', 'gk', group[0]));
+        var samples = node('pre'); group[1].forEach(function (sample) { samples.appendChild(node('div', group[2], sample)); }); box.appendChild(samples); content.appendChild(box);
+      });
+      details.append(summary, content); target.appendChild(details);
+    });
+    if (!items.length) { empty(target, '期限内没有实际文件变动'); }
+    showCount('changesCount', items.length);
+  }
+  function loadChanges(force) {
+    if (loaded.changed && !force) { return Promise.resolve(); }
+    return request('/changes?limit=100').then(function (data) { loaded.changed = true; renderChanges(data.items || []); });
+  }
+
+  function updateMessage(kind, label, value) {
+    var message = node('div', 'update-message ' + kind);
+    message.append(node('span', 'update-message-label', label), node('span', 'update-message-value', value));
+    return message;
+  }
+  function fillUpdateDetails(container, detail) {
+    container.replaceChildren();
+    var ruleIDs = detail.effective_rule_ids || [];
+    if (ruleIDs.length) {
+      var rules = node('div', 'update-rules');
+      rules.appendChild(node('div', 'update-rules-title', '规则更新明细 · ' + count(ruleIDs.length)));
+      var ruleList = node('div', 'update-rule-list');
+      ruleIDs.forEach(function (ruleID) { ruleList.appendChild(node('span', 'update-rule-id', ruleID)); });
+      rules.appendChild(ruleList); container.appendChild(rules);
+    }
+    var messages = node('div', 'update-messages');
+    (detail.warnings || []).forEach(function (warning) { messages.appendChild(updateMessage('warning', '警告', warning)); });
+    (detail.issues || []).forEach(function (issue) { messages.appendChild(updateMessage('issue', [issue.stage, issue.subject].filter(Boolean).join(' · ') || '问题', issue.message)); });
+    if (messages.childElementCount) { container.appendChild(messages); }
+  }
+  function renderUpdates(items) {
+    var target = byID('updatesBody'); target.replaceChildren();
+    if (items.length) {
+      var header = node('div', 'update-list-head');
+      ['', '更新时间', '状态', '请求范围', '实际更新', '规则结果', '产物'].forEach(function (label) { header.appendChild(node('span', '', label)); });
+      target.appendChild(header);
+    }
+    items.forEach(function (item) {
+      var details = node('details', 'update-run'); details.dataset.updateId = item.id;
+      if (expandedUpdates.has(item.id)) { details.open = true; }
+      var summary = node('summary');
+      var title = node('span', 'update-run-title');
+      title.append(node('span', 'update-run-time', dateTime(item.started_at)), node('span', 'update-run-origin', originText(item.origin)));
+      var status = node('span', 'update-status ' + item.status, statusText(item.status));
+      if (item.warning_count || item.issue_count) { status.title = '警告 ' + count(item.warning_count) + ' · 问题 ' + count(item.issue_count); }
+      summary.append(
+        node('span', 'update-toggle', '›'), title, status,
+        node('span', 'update-cell', scopeSummary(item)),
+        node('span', 'update-cell update-number', count(item.rules_total) + ' 条'),
+        node('span', 'update-cell update-number', count(item.rules_succeeded) + ' / ' + count(item.rules_total)),
+        node('span', 'update-cell update-number', count(item.artifacts_processed))
+      );
+      var content = node('div', 'update-detail'); content.appendChild(updateMessage('', '加载', '正在读取完整任务结果'));
+      details.addEventListener('toggle', function () {
+        if (details.open) {
+          expandedUpdates.add(item.id);
+          if (content.dataset.loaded) { return; }
+          request('/updates/' + encodeURIComponent(item.id)).then(function (detail) { content.dataset.loaded = '1'; fillUpdateDetails(content, detail); }).catch(function (error) { content.replaceChildren(updateMessage('failure', '读取失败', error.message)); });
+        } else { expandedUpdates.delete(item.id); }
+      });
+      details.append(summary, content); target.appendChild(details);
+      if (details.open) { details.dispatchEvent(new Event('toggle')); }
+    });
+    if (!items.length) { empty(target, '没有更新记录'); }
+    showCount('updatesCount', items.length);
+  }
+  function loadUpdates(force) {
+    if (loaded.updates && !force) { return Promise.resolve(); }
+    return request('/updates?limit=100').then(function (data) { loaded.updates = true; renderUpdates(data.items || []); });
+  }
+
+  var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab-btn'));
+  function selectTab(name) {
+    tabs.forEach(function (tab) { var on = tab.dataset.tab === name; tab.classList.toggle('on', on); tab.setAttribute('aria-selected', String(on)); });
+    document.querySelectorAll('.tab-panel').forEach(function (panel) { panel.classList.toggle('on', panel.id === 'tab-' + name); });
+    try { sessionStorage.setItem('prm-admin-tab', name); } catch (ignore) {}
+    if (name === 'changed') { loadChanges(false).catch(showPanelError.bind(null, 'changesBody')); }
+    if (name === 'updates') { loadUpdates(false).catch(showPanelError.bind(null, 'updatesBody')); }
+    if (name === 'geosite') { loadGeosite(false).catch(function (error) { byID('geositeBody').replaceChildren(tableEmpty(7, error.message)); }); }
+  }
+  function showPanelError(id, error) { empty(byID(id), error.message); }
+  tabs.forEach(function (tab) { tab.addEventListener('click', function () { selectTab(tab.dataset.tab); }); });
+
+  var modal = byID('updateModalBk');
+  function openModal() { if (!modal.classList.contains('show')) { lastFocused = document.activeElement; } modal.classList.add('show'); modal.setAttribute('aria-hidden', 'false'); byID('updateModalTitle').focus(); }
+  function closeModal() { modal.classList.remove('show'); modal.setAttribute('aria-hidden', 'true'); if (lastFocused && lastFocused.focus) { lastFocused.focus(); } }
+  function setLocked(locked) {
+    byID('updateAll').disabled = locked && !activeJob;
+    byID('updateAll').textContent = activeJob ? '查看进度' : '全部更新';
+    document.querySelectorAll('.update-one').forEach(function (button) { button.disabled = locked; });
+  }
+  function resetProgress() {
+    finished = false; byID('updateModalTitle').textContent = '更新进度'; byID('updateModalSub').textContent = '正在连接任务…'; byID('updateCurrent').textContent = '正在准备更新'; byID('updateProgressBar').style.width = '0%'; byID('updateCounts').textContent = '等待进度数据'; byID('updateEvents').replaceChildren(); byID('updateFinal').textContent = '任务运行期间可以收起窗口'; byID('updateCancel').hidden = false; byID('updateCancel').disabled = false; byID('updateCancel').textContent = '取消更新';
+  }
+  function appendEvent(event) {
+    var row = node('div', 'update-event ' + (event.kind || 'info'));
+    row.append(node('span', 'et', new Date(event.time).toLocaleTimeString('zh-CN', {hour12:false})), node('span', 'ed', event.kind === 'error' ? '×' : event.kind === 'warning' ? '!' : event.kind === 'success' ? '✓' : '›'), node('span', 'em', event.message));
+    byID('updateEvents').appendChild(row); byID('updateEvents').scrollTop = byID('updateEvents').scrollHeight; byID('updateCurrent').textContent = event.message;
+    if (event.total > 0) { byID('updateProgressBar').style.width = Math.min(100, Math.round(event.current * 100 / event.total)) + '%'; byID('updateCounts').textContent = event.current + ' / ' + event.total; }
+    if (event.rule_id) { var status = document.querySelector('[data-rule-status="' + CSS.escape(event.rule_id) + '"]'); if (status) { status.textContent = '更新中 · ' + event.message; status.className = 'astatus updating'; } }
+  }
+  function pollUntilFinished(id) {
+    request('/updates/' + encodeURIComponent(id)).then(function (detail) {
+      if (terminal.has(detail.status)) { finishUpdate(detail); return; }
+      setTimeout(function () { pollUntilFinished(id); }, 1000);
+    }).catch(function (error) { byID('updateModalSub').textContent = error.message; setTimeout(function () { pollUntilFinished(id); }, 2000); });
+  }
+  function attachEvents(id) {
+    if (eventSource) { eventSource.close(); }
+    eventSource = new EventSource(API + '/updates/' + encodeURIComponent(id) + '/events');
+    eventSource.addEventListener('progress', function (event) { try { appendEvent(JSON.parse(event.data)); } catch (ignore) {} });
+    eventSource.addEventListener('complete', function (event) { try { finishUpdate(JSON.parse(event.data)); } catch (ignore) { pollUntilFinished(id); } });
+    eventSource.onerror = function () {
+      byID('updateModalSub').textContent = '实时连接中断，正在读取任务状态';
+      if (eventSource && eventSource.readyState === EventSource.CLOSED) { eventSource.close(); eventSource = null; pollUntilFinished(id); }
+    };
+  }
+  function watchUpdate(summary, show) {
+    activeJob = summary.id; activeScope = summary.scope; setLocked(true); resetProgress();
+    byID('updateModalSub').textContent = scopeText(summary);
+    if (show) { openModal(); }
+    attachEvents(summary.id);
+  }
+  function refreshAfterUpdate(scope) {
+    var tasks = [loadStatus(), loadRules()];
+    if (loaded.changed) { tasks.push(loadChanges(true)); }
+    if (loaded.updates) { tasks.push(loadUpdates(true)); }
+    if (scope === 'all' && loaded.geosite) { tasks.push(loadGeosite(true)); }
+    return Promise.allSettled(tasks);
+  }
+  function finishUpdate(detail) {
+    if (finished) { return; }
+    finished = true;
+    if (eventSource) { eventSource.close(); eventSource = null; }
+    byID('updateModalTitle').textContent = statusText(detail.status); byID('updateModalSub').textContent = scopeText(detail); byID('updateCurrent').textContent = '更新任务已经结束'; byID('updateProgressBar').style.width = '100%'; byID('updateCounts').textContent = '成功 ' + detail.rules_succeeded + ' · 失败 ' + detail.rules_failed; byID('updateFinal').textContent = '管理数据正在局部同步'; byID('updateCancel').hidden = true;
+    var scope = activeScope || detail.scope; activeJob = null; activeScope = ''; setLocked(false);
+    refreshAfterUpdate(scope).then(function () { byID('updateFinal').textContent = '管理数据已同步'; });
+  }
+  function startUpdate(payload) {
+    if (activeJob) { openModal(); return; }
+    resetProgress(); openModal(); setLocked(true);
+    request('/updates', {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(payload)}).then(function (summary) { watchUpdate(summary, true); }).catch(function (error) {
+      setLocked(false);
+      var currentID = error.payload && error.payload.error && error.payload.error.details && error.payload.error.details.current_update_id;
+      if (error.status === 409 && currentID) { request('/updates/current').then(function (summary) { watchUpdate(summary, true); }); return; }
+      byID('updateModalTitle').textContent = '启动失败'; byID('updateCurrent').textContent = error.message; byID('updateFinal').textContent = '请求内容或服务状态需要处理'; byID('updateCancel').hidden = true;
+    });
+  }
+  byID('updateAll').addEventListener('click', function () { if (activeJob) { openModal(); return; } startUpdate({scope:'all'}); });
+  byID('updateCancel').addEventListener('click', function () {
+    if (!activeJob) { return; }
+    byID('updateCancel').disabled = true; byID('updateCancel').textContent = '取消中';
+    request('/updates/' + encodeURIComponent(activeJob) + '/cancel', {method:'POST'}).catch(function (error) { byID('updateCancel').textContent = error.message; });
+  });
+  byID('updateClose').addEventListener('click', closeModal); byID('updateDone').addEventListener('click', closeModal);
+  modal.addEventListener('click', function (event) { if (event.target === modal) { closeModal(); } });
+  document.addEventListener('keydown', function (event) { if (event.key === 'Escape' && modal.classList.contains('show')) { closeModal(); } });
+
+  var savedTab = 'rules';
+  try { savedTab = sessionStorage.getItem('prm-admin-tab') || 'rules'; } catch (ignore) {}
+  selectTab(savedTab);
+  Promise.allSettled([loadStatus(), loadRules(), request('/updates/current').then(function (summary) { if (summary) { watchUpdate(summary, false); } })]).then(function (results) {
+    if (results[0].status === 'rejected') { byID('lastCheck').textContent = results[0].reason.message; byID('artifactCount').textContent = '—'; byID('runtimeVersion').textContent = '—'; }
+    if (results[1].status === 'rejected') { byID('rulesBody').replaceChildren(tableEmpty(5, results[1].reason.message)); }
+  });
+})();
+</script>
+</body>
+</html>

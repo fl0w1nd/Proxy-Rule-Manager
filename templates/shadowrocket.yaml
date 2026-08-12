@@ -1,0 +1,38 @@
+id: shadowrocket
+name: Shadowrocket
+codec: linelist
+extension: .list
+description: Shadowrocket rule set format
+
+kind_map:
+  domain:
+    type_name: DOMAIN
+  domain_suffix:
+    type_name: DOMAIN-SUFFIX
+  domain_keyword:
+    type_name: DOMAIN-KEYWORD
+  ip_cidr:
+    type_name: IP-CIDR
+  ip_asn:
+    type_name: IP-ASN
+  geoip:
+    type_name: GEOIP
+  dst_port:
+    type_name: DST-PORT
+  src_port:
+    type_name: SRC-PORT
+  process_name:
+    type_name: PROCESS-NAME
+  user_agent:
+    type_name: USER-AGENT
+  url_regex:
+    type_name: URL-REGEX
+
+flag_kinds:
+  - ip_cidr
+  - geoip
+  - ip_asn
+
+hints:
+  ip_cidr:
+    ipv6_type_name: IP-CIDR6
