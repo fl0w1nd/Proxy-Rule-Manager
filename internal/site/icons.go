@@ -18,6 +18,7 @@ var fileIconSet = map[string]string{
 	"mihomo":       "mihomo.svg",
 	"singbox":      "singbox.svg",
 	"shadowrocket": "shadowrocket.svg",
+	"surge":        "surge.svg",
 }
 
 // DefaultIconForClient returns a sensible icon name when the config omits
@@ -27,6 +28,8 @@ func DefaultIconForClient(id string) string {
 	switch {
 	case strings.Contains(s, "shadowrocket"):
 		return "shadowrocket"
+	case strings.Contains(s, "surge"):
+		return "surge"
 	case strings.Contains(s, "sing-box"), strings.Contains(s, "singbox"):
 		return "singbox"
 	case strings.Contains(s, "clash"), strings.Contains(s, "mihomo"), strings.Contains(s, "meta"):
