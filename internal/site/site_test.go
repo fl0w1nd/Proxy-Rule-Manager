@@ -132,10 +132,18 @@ func TestAdminPageIsFixedAPIApplication(t *testing.T) {
 			t.Errorf("admin missing %q", want)
 		}
 	}
+	for _, status := range []string{"completed_with_warnings:'警告'", "completed_with_errors:'异常'"} {
+		if !strings.Contains(html, status) {
+			t.Errorf("admin missing status copy %q", status)
+		}
+	}
 	for _, removed := range []string{"{{", "location.reload", "location.href = '/admin", "/api/update", "ErrorHistory", "index === 0 && expandedUpdates.size === 0", "error-items", "update-facts"} {
 		if strings.Contains(html, removed) {
 			t.Errorf("admin contains removed pattern %q", removed)
 		}
+	}
+	if strings.Contains(html, "updateFinal") || strings.Contains(html, "update-final") {
+		t.Error("admin contains redundant update footer status")
 	}
 	for _, countID := range []string{"rulesCount", "changesCount", "updatesCount", "geositeCount"} {
 		if !strings.Contains(html, `id="`+countID+`" hidden`) {

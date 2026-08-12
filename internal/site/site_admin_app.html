@@ -32,19 +32,19 @@
         <caption class="sr-only">规则更新状态</caption>
         <colgroup><col class="col-name"><col class="col-entries"><col class="col-version"><col class="col-check"><col class="col-action"></colgroup>
         <thead><tr><th scope="col">名称</th><th scope="col" class="num">条目</th><th scope="col">内容版本</th><th scope="col">上次检查</th><th scope="col" class="aop">操作</th></tr></thead>
-        <tbody id="rulesBody"><tr><td colspan="5" class="empty">正在加载规则…</td></tr></tbody>
+        <tbody id="rulesBody"><tr><td colspan="5" class="empty">加载中…</td></tr></tbody>
       </table>
     </div>
   </section>
-  <section class="tab-panel" id="tab-changed" role="tabpanel"><div id="changesBody" class="empty">进入标签后加载</div></section>
-  <section class="tab-panel" id="tab-updates" role="tabpanel"><div class="table-scroll update-scroll" tabindex="0"><div id="updatesBody" class="empty">进入标签后加载</div></div></section>
+  <section class="tab-panel" id="tab-changed" role="tabpanel"><div id="changesBody" class="empty">加载中…</div></section>
+  <section class="tab-panel" id="tab-updates" role="tabpanel"><div class="table-scroll update-scroll" tabindex="0"><div id="updatesBody" class="empty">加载中…</div></div></section>
   <section class="tab-panel" id="tab-geosite" role="tabpanel">
     <div class="table-scroll" tabindex="0">
       <table class="data-table geosite-table">
         <caption class="sr-only">Geosite Provider 更新状态</caption>
         <colgroup><col class="col-provider"><col class="col-status"><col class="col-version"><col class="col-lists"><col class="col-variants"><col class="col-entries"><col class="col-files"></colgroup>
         <thead><tr><th scope="col">Provider</th><th scope="col">上次检查</th><th scope="col">数据版本</th><th scope="col" class="gnum">列表</th><th scope="col" class="gnum">变体</th><th scope="col" class="gnum">条目</th><th scope="col" class="gnum">文件</th></tr></thead>
-        <tbody id="geositeBody"><tr><td colspan="7" class="empty">进入标签后加载</td></tr></tbody>
+        <tbody id="geositeBody"><tr><td colspan="7" class="empty">加载中…</td></tr></tbody>
       </table>
     </div>
   </section>
@@ -53,17 +53,16 @@
 <div class="update-modal-bk" id="updateModalBk" aria-hidden="true">
   <div class="update-modal" role="dialog" aria-modal="true" aria-labelledby="updateModalTitle">
     <div class="update-modal-head">
-      <div><div class="update-modal-title" id="updateModalTitle" tabindex="-1">更新进度</div><div class="update-modal-sub" id="updateModalSub">正在连接任务…</div></div>
+      <div><div class="update-modal-title" id="updateModalTitle" tabindex="-1">更新进度</div><div class="update-modal-sub" id="updateModalSub"></div></div>
       <button class="pill-btn update-close" id="updateClose" type="button" aria-label="关闭更新进度">×</button>
     </div>
     <div class="update-overview">
-      <div class="update-current" id="updateCurrent">正在准备更新</div>
+      <div class="update-current" id="updateCurrent">连接中…</div>
       <div class="update-progress" aria-hidden="true"><span id="updateProgressBar"></span></div>
-      <div class="update-counts" id="updateCounts">等待进度数据</div>
+      <div class="update-counts" id="updateCounts"></div>
     </div>
     <div class="update-events" id="updateEvents" role="log" aria-live="polite" aria-relevant="additions"></div>
     <div class="update-modal-foot">
-      <div class="update-final" id="updateFinal">任务运行期间可以收起窗口</div>
       <div class="update-foot-actions"><button class="pill-btn danger" id="updateCancel" type="button">取消更新</button><button class="pill-btn" id="updateDone" type="button">收起</button></div>
     </div>
   </div>
@@ -92,7 +91,7 @@
   function count(value) { return Number(value || 0).toLocaleString('zh-CN'); }
   function dateTime(value) { return value ? new Date(value).toLocaleString('zh-CN', {hour12:false}) : '—'; }
   function statusText(value) {
-    return ({running:'运行中', cancelling:'取消中', cancelled:'已取消', completed:'完成', completed_with_warnings:'完成，有警告', completed_with_errors:'完成，有问题', interrupted:'已中断', updated:'已更新', unchanged:'无内容变化', failed:'失败'})[value] || '尚未检查';
+    return ({running:'运行中', cancelling:'取消中', cancelled:'已取消', completed:'完成', completed_with_warnings:'警告', completed_with_errors:'异常', interrupted:'已中断', updated:'已更新', unchanged:'无内容变化', failed:'失败'})[value] || '尚未检查';
   }
   function originText(value) { return ({web:'管理页', scheduled:'定时任务', cli:'命令行'})[value] || value || '—'; }
   function scopeText(item) {
@@ -236,7 +235,7 @@
     }
     var messages = node('div', 'update-messages');
     (detail.warnings || []).forEach(function (warning) { messages.appendChild(updateMessage('warning', '警告', warning)); });
-    (detail.issues || []).forEach(function (issue) { messages.appendChild(updateMessage('issue', [issue.stage, issue.subject].filter(Boolean).join(' · ') || '问题', issue.message)); });
+    (detail.issues || []).forEach(function (issue) { messages.appendChild(updateMessage('issue', [issue.stage, issue.subject].filter(Boolean).join(' · ') || '异常', issue.message)); });
     if (messages.childElementCount) { container.appendChild(messages); }
   }
   function renderUpdates(items) {
@@ -253,7 +252,7 @@
       var title = node('span', 'update-run-title');
       title.append(node('span', 'update-run-time', dateTime(item.started_at)), node('span', 'update-run-origin', originText(item.origin)));
       var status = node('span', 'update-status ' + item.status, statusText(item.status));
-      if (item.warning_count || item.issue_count) { status.title = '警告 ' + count(item.warning_count) + ' · 问题 ' + count(item.issue_count); }
+      if (item.warning_count || item.issue_count) { status.title = '警告 ' + count(item.warning_count) + ' · 异常 ' + count(item.issue_count); }
       summary.append(
         node('span', 'update-toggle', '›'), title, status,
         node('span', 'update-cell', scopeSummary(item)),
@@ -261,7 +260,7 @@
         node('span', 'update-cell update-number', count(item.rules_succeeded) + ' / ' + count(item.rules_total)),
         node('span', 'update-cell update-number', count(item.artifacts_processed))
       );
-      var content = node('div', 'update-detail'); content.appendChild(updateMessage('', '加载', '正在读取完整任务结果'));
+      var content = node('div', 'update-detail', '加载中…');
       details.addEventListener('toggle', function () {
         if (details.open) {
           expandedUpdates.add(item.id);
@@ -301,7 +300,7 @@
     document.querySelectorAll('.update-one').forEach(function (button) { button.disabled = locked; });
   }
   function resetProgress() {
-    finished = false; byID('updateModalTitle').textContent = '更新进度'; byID('updateModalSub').textContent = '正在连接任务…'; byID('updateCurrent').textContent = '正在准备更新'; byID('updateProgressBar').style.width = '0%'; byID('updateCounts').textContent = '等待进度数据'; byID('updateEvents').replaceChildren(); byID('updateFinal').textContent = '任务运行期间可以收起窗口'; byID('updateCancel').hidden = false; byID('updateCancel').disabled = false; byID('updateCancel').textContent = '取消更新';
+    finished = false; byID('updateModalTitle').textContent = '更新进度'; byID('updateModalSub').textContent = ''; byID('updateCurrent').textContent = '连接中…'; byID('updateProgressBar').style.width = '0%'; byID('updateCounts').textContent = ''; byID('updateEvents').replaceChildren(); byID('updateCancel').hidden = false; byID('updateCancel').disabled = false; byID('updateCancel').textContent = '取消更新';
   }
   function appendEvent(event) {
     var row = node('div', 'update-event ' + (event.kind || 'info'));
@@ -343,9 +342,9 @@
     if (finished) { return; }
     finished = true;
     if (eventSource) { eventSource.close(); eventSource = null; }
-    byID('updateModalTitle').textContent = statusText(detail.status); byID('updateModalSub').textContent = scopeText(detail); byID('updateCurrent').textContent = '更新任务已经结束'; byID('updateProgressBar').style.width = '100%'; byID('updateCounts').textContent = '成功 ' + detail.rules_succeeded + ' · 失败 ' + detail.rules_failed; byID('updateFinal').textContent = '管理数据正在局部同步'; byID('updateCancel').hidden = true;
+    byID('updateModalTitle').textContent = statusText(detail.status); byID('updateModalSub').textContent = scopeText(detail); byID('updateCurrent').textContent = '完成'; byID('updateProgressBar').style.width = '100%'; byID('updateCounts').textContent = '成功 ' + detail.rules_succeeded + ' · 失败 ' + detail.rules_failed; byID('updateCancel').hidden = true;
     var scope = activeScope || detail.scope; activeJob = null; activeScope = ''; setLocked(false);
-    refreshAfterUpdate(scope).then(function () { byID('updateFinal').textContent = '管理数据已同步'; });
+    refreshAfterUpdate(scope);
   }
   function startUpdate(payload) {
     if (activeJob) { openModal(); return; }
@@ -354,7 +353,7 @@
       setLocked(false);
       var currentID = error.payload && error.payload.error && error.payload.error.details && error.payload.error.details.current_update_id;
       if (error.status === 409 && currentID) { request('/updates/current').then(function (summary) { watchUpdate(summary, true); }); return; }
-      byID('updateModalTitle').textContent = '启动失败'; byID('updateCurrent').textContent = error.message; byID('updateFinal').textContent = '请求内容或服务状态需要处理'; byID('updateCancel').hidden = true;
+      byID('updateModalTitle').textContent = '启动失败'; byID('updateCurrent').textContent = error.message; byID('updateCancel').hidden = true;
     });
   }
   byID('updateAll').addEventListener('click', function () { if (activeJob) { openModal(); return; } startUpdate({scope:'all'}); });
