@@ -100,29 +100,41 @@ func CompileRule(
 	result.Merged = merged
 
 	// Phase 4: Render for each output client
-	clientMap := make(map[string]config.ClientConfig, len(clients))
+	clientMap := make(map[string][]config.OutputTarget, len(clients))
 	for _, c := range clients {
-		clientMap[c.ID] = c
+		clientMap[c.ID] = config.ExpandClientTargets(c)
 	}
 
 	for _, clientID := range rule.Outputs {
-		client, ok := clientMap[clientID]
+		targets, ok := clientMap[clientID]
 		if !ok {
 			result.RenderErrors[clientID] = fmt.Sprintf("unknown client %q", clientID)
 			continue
 		}
-		tmpl, ok := registry.Get(client.Template)
-		if !ok {
-			result.RenderErrors[clientID] = fmt.Sprintf("unknown template %q", client.Template)
-			continue
+		for _, target := range targets {
+			targetEntries := merged
+			if len(target.Ops) > 0 {
+				targetEntries = cloneEntries(merged)
+				var targetErr error
+				targetEntries, targetErr = applyOps(targetEntries, target.Ops)
+				if targetErr != nil {
+					result.RenderErrors[target.ID] = fmt.Sprintf("variant ops: %v", targetErr)
+					continue
+				}
+			}
+			tmpl, ok := registry.Get(target.Template)
+			if !ok {
+				result.RenderErrors[target.ID] = fmt.Sprintf("unknown template %q", target.Template)
+				continue
+			}
+			rendered, rerr := render.Render(tmpl, targetEntries)
+			if rerr != nil {
+				result.RenderErrors[target.ID] = rerr.Error()
+				log.Error("render failed", "client", clientID, "target", target.ID, "error", rerr)
+				continue
+			}
+			result.Rendered[target.ID] = rendered
 		}
-		rendered, rerr := render.Render(tmpl, merged)
-		if rerr != nil {
-			result.RenderErrors[clientID] = rerr.Error()
-			log.Error("render failed", "client", clientID, "error", rerr)
-			continue
-		}
-		result.Rendered[clientID] = rendered
 	}
 
 	return result

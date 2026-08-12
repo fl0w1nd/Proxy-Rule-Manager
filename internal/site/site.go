@@ -35,14 +35,23 @@ const IndexFile = "index.html"
 // IndexFileTemplate names the embedded public page template.
 const IndexFileTemplate = "site_index.html"
 
-// Client describes one output client/format for link building.
+// Client describes one configured client family shown on the public page.
 type Client struct {
 	ID      string
 	Name    string
 	Icon    string
-	Ext     string // template extension, e.g. ".list"
-	Rules   bool   // at least one rule outputs this client
-	Geosite bool   // at least one geosite provider publishes to this client
+	Options []ClientOption
+	Rules   bool // at least one option has rule output
+	Geosite bool // at least one option has geosite output
+}
+
+// ClientOption is one concrete official format or IR-derived variant.
+type ClientOption struct {
+	ID      string
+	Name    string
+	Ext     string
+	Rules   bool
+	Geosite bool
 }
 
 // RuleFile is one client-specific artifact of a rule.
@@ -209,20 +218,30 @@ func catalogJSON(cats []GeositeCatalog) template.JS {
 	return template.JS(data) //nolint:gosec // names are validated safe segments
 }
 
-// clientsJSON serialises the client list for the page scripts:
-// [{"id":"...","name":"...","icon":"cat","ext":".list"},...]
+// clientsJSON serialises client families and their concrete output options.
 func clientsJSON(clients []Client) template.JS {
-	type clientJSON struct {
+	type optionJSON struct {
 		ID      string `json:"id"`
 		Name    string `json:"name"`
-		Icon    string `json:"icon"`
 		Ext     string `json:"ext"`
 		Rules   bool   `json:"rules"`
 		Geosite bool   `json:"geosite"`
 	}
+	type clientJSON struct {
+		ID      string       `json:"id"`
+		Name    string       `json:"name"`
+		Icon    string       `json:"icon"`
+		Options []optionJSON `json:"options"`
+		Rules   bool         `json:"rules"`
+		Geosite bool         `json:"geosite"`
+	}
 	out := make([]clientJSON, 0, len(clients))
 	for _, c := range clients {
-		out = append(out, clientJSON(c))
+		item := clientJSON{ID: c.ID, Name: c.Name, Icon: c.Icon, Rules: c.Rules, Geosite: c.Geosite}
+		for _, option := range c.Options {
+			item.Options = append(item.Options, optionJSON(option))
+		}
+		out = append(out, item)
 	}
 	data, err := json.Marshal(out)
 	if err != nil {

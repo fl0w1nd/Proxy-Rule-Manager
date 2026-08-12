@@ -21,8 +21,8 @@ type PreviewReport struct {
 	Merged   []ir.Entry
 	OpsError string
 
-	// Per-client rendered output (only populated if a client filter is specified)
-	RenderedClient string
+	// Rendered output for an explicit format or variant target.
+	RenderedTarget string
 	RenderedOutput []byte
 	RenderError    string
 }
@@ -33,7 +33,7 @@ func Preview(
 	ctx context.Context,
 	cfg *config.Config,
 	ruleID string,
-	clientFilter string,
+	targetID string,
 	registry *render.Registry,
 	fetcher *Fetcher,
 	preprocessor *PreprocessRunner,
@@ -98,20 +98,26 @@ func Preview(
 		OpsError: cr.OpsError,
 	}
 
-	if clientFilter != "" {
-		client := findClient(cfg.Clients, clientFilter)
-		if client == nil {
-			report.RenderError = "unknown client: " + clientFilter
+	if targetID != "" {
+		target, ok := config.FindOutputTarget(cfg.Clients, targetID)
+		if !ok {
+			report.RenderError = "unknown output target: " + targetID
 		} else {
-			tmpl, ok := registry.Get(client.Template)
+			tmpl, ok := registry.Get(target.Template)
 			if !ok {
-				report.RenderError = "unknown template: " + client.Template
+				report.RenderError = "unknown template: " + target.Template
 			} else {
-				output, err := render.Render(tmpl, cr.Merged)
+				entries := cloneEntries(cr.Merged)
+				entries, err = applyOps(entries, target.Ops)
+				if err != nil {
+					report.RenderError = err.Error()
+					return report, nil
+				}
+				output, err := render.Render(tmpl, entries)
 				if err != nil {
 					report.RenderError = err.Error()
 				} else {
-					report.RenderedClient = clientFilter
+					report.RenderedTarget = targetID
 					report.RenderedOutput = output
 				}
 			}

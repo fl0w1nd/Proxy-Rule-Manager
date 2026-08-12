@@ -142,8 +142,10 @@ section.block { padding: 32px 0 8px; }
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   gap: 10px;
 }
+.client-slot { position: relative; min-width: 0; }
 .client-card {
   display: flex; align-items: center; gap: 12px;
+  width: 100%;
   padding: 13px 16px;
   background: var(--surface);
   border: 1px solid var(--border-vis);
@@ -156,7 +158,7 @@ section.block { padding: 32px 0 8px; }
 .client-card.on { border-color: var(--orange); background: var(--surface-2); }
 .client-card.off { opacity: 0.3; cursor: not-allowed; }
 .client-card.off:hover { border-color: var(--border-vis); }
-.client-card .ctext { min-width: 0; }
+.client-card .ctext { min-width: 0; flex: 1; }
 .client-card .cname {
   font-size: 13px; font-weight: 500; color: var(--display);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -169,6 +171,49 @@ section.block { padding: 32px 0 8px; }
   background: transparent; margin-left: auto; flex-shrink: 0;
 }
 .client-card.on .cind { background: var(--orange); }
+.client-state { display: flex; align-items: center; gap: 12px; margin-left: auto; }
+.client-chevron {
+  width: 8px; height: 8px; flex-shrink: 0;
+  border-right: 2px solid var(--sec); border-bottom: 2px solid var(--sec);
+  transform: rotate(45deg) translate(-2px, 2px);
+  transition: transform 120ms, border-color 120ms;
+}
+.client-slot.open .client-chevron {
+  border-color: var(--orange);
+  transform: rotate(225deg) translate(-1px, 0);
+}
+.client-menu {
+  position: absolute; z-index: 40;
+  top: calc(100% + 9px); left: 0; right: 0;
+  padding: 6px;
+  background: var(--surface-2);
+  border: 2px solid var(--border-vis);
+  opacity: 0; visibility: hidden; pointer-events: none;
+  transform: translateY(-5px);
+  transition: opacity 100ms, transform 100ms, visibility 100ms;
+}
+.client-slot.open .client-menu {
+  opacity: 1; visibility: visible; pointer-events: auto;
+  transform: translateY(0);
+}
+.client-option {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center; gap: 12px;
+  width: 100%; padding: 11px 12px;
+  border: 1px solid transparent; background: transparent;
+  color: var(--text); cursor: pointer; text-align: left;
+}
+.client-option + .client-option { border-top-color: var(--border); }
+.client-option:hover { background: var(--surface); color: var(--display); }
+.client-option.on { border-color: var(--orange); background: var(--surface); }
+.client-option.off { opacity: 0.35; cursor: not-allowed; }
+.client-option-name {
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: "Space Mono", monospace; font-size: 12px; font-weight: 700;
+}
+.client-option-ext { color: var(--dim); font-family: "Space Mono", monospace; font-size: 10px; }
+.client-option-mark { width: 7px; height: 7px; background: transparent; }
+.client-option.on .client-option-mark { background: var(--orange); }
 
 .filters { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
 .filter-input {
@@ -556,7 +601,7 @@ section.block { padding-top: 30px; }
   letter-spacing: 0.04em;
   text-shadow: 1px 0 0 currentColor;
 }
-.seg, .client-card, .modal, .modal-meta, .preview-shell, .icon-set-card, .icon-card {
+.seg, .client-card, .client-menu, .modal, .modal-meta, .preview-shell, .icon-set-card, .icon-card {
   border-radius: 0;
   clip-path: var(--pixel-cut);
 }
@@ -588,6 +633,8 @@ section.block { padding-top: 30px; }
 .client-card .cext { font-size: 11px; }
 .client-card .cind { width: 8px; height: 8px; border-radius: 0; }
 .client-card.on .cind { animation: pixel-signal 1.4s steps(2, end) infinite; }
+.client-menu { filter: drop-shadow(4px 4px 0 var(--shadow)); }
+.client-option { font-family: inherit; }
 .filter-input { border-bottom: 1px dashed var(--border-vis); }
 .filter-input:focus { border-bottom-style: solid; border-bottom-color: var(--orange); }
 .chips { gap: 10px; }
@@ -704,6 +751,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   .top-meta { gap: 8px; }
   .brand-name { font-size: 13px; }
   .client-picker { grid-template-columns: 1fr; }
+  .client-slot.open { z-index: 45; }
   .modal-bk { padding: 10px; }
   .modal { padding: 16px; max-height: 94vh; }
   .modal-meta { align-items: flex-start; }
@@ -753,14 +801,33 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
     </div>
     <div class="client-picker" id="clientPicker">
       {{range $i, $c := .Clients}}
-      <button class="client-card" type="button" data-client="{{$i}}" data-rules="{{$c.Rules}}" data-geo="{{$c.Geosite}}">
-        {{icon $c.Icon 28}}
-        <span class="ctext">
-          <span class="cname">{{$c.Name}}</span>
-          <div class="cext">{{$c.Ext}} 格式</div>
-        </span>
-        <span class="cind"></span>
-      </button>
+      {{$first := index $c.Options 0}}
+      <div class="client-slot" data-client="{{$i}}">
+        <button class="client-card" type="button" data-client="{{$i}}" data-rules="{{$c.Rules}}" data-geo="{{$c.Geosite}}"
+          {{if gt (len $c.Options) 1}}aria-haspopup="menu" aria-expanded="false" aria-controls="clientMenu{{$i}}"{{end}}>
+          {{icon $c.Icon 28}}
+          <span class="ctext">
+            <span class="cname">{{$c.Name}}</span>
+            <span class="cext" data-client-summary>{{if gt (len $c.Options) 1}}{{$first.Name}} · {{$first.Ext}}{{else}}{{$first.Ext}} 格式{{end}}</span>
+          </span>
+          <span class="client-state">
+            {{if gt (len $c.Options) 1}}<span class="client-chevron" aria-hidden="true"></span>{{end}}
+            <span class="cind"></span>
+          </span>
+        </button>
+        {{if gt (len $c.Options) 1}}
+        <div class="client-menu" id="clientMenu{{$i}}" role="menu" aria-label="{{$c.Name}} 输出格式">
+          {{range $c.Options}}
+          <button class="client-option" type="button" role="menuitemradio" aria-checked="false"
+            data-target="{{.ID}}" data-rules="{{.Rules}}" data-geo="{{.Geosite}}">
+            <span class="client-option-name">{{.Name}}</span>
+            <span class="client-option-ext">{{.Ext}}</span>
+            <span class="client-option-mark" aria-hidden="true"></span>
+          </button>
+          {{end}}
+        </div>
+        {{end}}
+      </div>
       {{end}}
     </div>
   </section>
@@ -857,7 +924,7 @@ var RULE_META = {{rulemeta .Rules}};
 var GEO_CATALOG = {{catalog .Geosite}};
 var ICON_SETS = {{iconsets .IconSets}};
 
-var state = { client: 0, view: 'rules' };
+var state = { client: 0, targets: {}, view: 'rules' };
 try {
   var saved = parseInt(localStorage.getItem('prm-client'), 10);
   if (!isNaN(saved) && saved >= 0 && saved < CLIENTS.length) { state.client = saved; }
@@ -873,6 +940,21 @@ function humanSize(b) {
   return (b / 1024 / 1024).toFixed(2) + ' MB';
 }
 function enc(s) { return encodeURIComponent(s); }
+
+function activeTarget() {
+  var client = CLIENTS[state.client];
+  var selectedID = state.targets[client.id];
+  for (var i = 0; i < client.options.length; i++) {
+    var option = client.options[i];
+    var usable = state.view === 'geosite' ? option.geosite : option.rules;
+    if (option.id === selectedID && usable) { return option; }
+  }
+  for (var j = 0; j < client.options.length; j++) {
+    var fallback = client.options[j];
+    if (state.view === 'geosite' ? fallback.geosite : fallback.rules) { return fallback; }
+  }
+  return client.options[0];
+}
 
 function copyURL(path, btn, label) {
   var url = new URL(path, location.href).href;
@@ -892,7 +974,7 @@ function copyURL(path, btn, label) {
 }
 
 function geoPath(provider, list, attr) {
-  var c = CLIENTS[state.client];
+  var c = activeTarget();
   var name = attr ? list + '@' + attr : list;
   return 'rules/' + enc(c.id) + '/geosite/' + enc(provider) + '/' + enc(name) + c.ext;
 }
@@ -924,7 +1006,27 @@ function geoPath(provider, list, attr) {
   updateBtn();
 
   /* ---------- client availability per view ---------- */
+  var clientPicker = document.getElementById('clientPicker');
+  var slots = Array.prototype.slice.call(document.querySelectorAll('.client-slot'));
   var cards = Array.prototype.slice.call(document.querySelectorAll('.client-card'));
+  var optionButtons = Array.prototype.slice.call(document.querySelectorAll('.client-option'));
+  function targetUsable(target) {
+    return state.view === 'geosite' ? target.geosite : target.rules;
+  }
+  function selectedTarget(i) {
+    var client = CLIENTS[i];
+    var selectedID = state.targets[client.id];
+    for (var j = 0; j < client.options.length; j++) {
+      if (client.options[j].id === selectedID && targetUsable(client.options[j])) { return client.options[j]; }
+    }
+    for (var k = 0; k < client.options.length; k++) {
+      if (targetUsable(client.options[k])) {
+        state.targets[client.id] = client.options[k].id;
+        return client.options[k];
+      }
+    }
+    return client.options[0];
+  }
   function clientUsable(i) {
     var c = CLIENTS[i];
     return state.view === 'geosite' ? c.geosite : c.rules;
@@ -932,6 +1034,18 @@ function geoPath(provider, list, attr) {
   function firstUsable() {
     for (var i = 0; i < CLIENTS.length; i++) { if (clientUsable(i)) { return i; } }
     return -1;
+  }
+  function closeClientMenus(except) {
+    slots.forEach(function (slot, i) {
+      if (i === except) { return; }
+      slot.classList.remove('open');
+      cards[i].setAttribute('aria-expanded', 'false');
+    });
+  }
+  function setClientMenu(i, open) {
+    closeClientMenus(open ? i : -1);
+    slots[i].classList.toggle('open', open);
+    cards[i].setAttribute('aria-expanded', open ? 'true' : 'false');
   }
   function updatePicker() {
     if (!clientUsable(state.client)) {
@@ -941,18 +1055,63 @@ function geoPath(provider, list, attr) {
     cards.forEach(function (c, i) {
       c.classList.toggle('off', !clientUsable(i));
       c.classList.toggle('on', i === state.client && clientUsable(i));
+      var client = CLIENTS[i];
+      var selected = selectedTarget(i);
+      var summary = c.querySelector('[data-client-summary]');
+      summary.textContent = client.options.length > 1 ? selected.name + ' · ' + selected.ext : selected.ext + ' 格式';
+      Array.prototype.forEach.call(slots[i].querySelectorAll('.client-option'), function (option, j) {
+        var usable = targetUsable(client.options[j]);
+        var active = client.options[j].id === selected.id;
+        option.disabled = !usable;
+        option.classList.toggle('off', !usable);
+        option.classList.toggle('on', active);
+        option.setAttribute('aria-checked', active ? 'true' : 'false');
+      });
+      try { localStorage.setItem('prm-target-' + client.id, selected.id); } catch (e) {}
     });
     try { localStorage.setItem('prm-client', String(state.client)); } catch (e) {}
   }
-  cards.forEach(function (c) {
-    c.addEventListener('click', function () {
-      var i = +c.getAttribute('data-client');
+  CLIENTS.forEach(function (client) {
+    try {
+      var savedTarget = localStorage.getItem('prm-target-' + client.id);
+      if (savedTarget) { state.targets[client.id] = savedTarget; }
+    } catch (e) {}
+  });
+  cards.forEach(function (card, i) {
+    card.addEventListener('click', function () {
       if (!clientUsable(i)) { return; }
+      var wasOpen = slots[i].classList.contains('open');
       state.client = i;
       updatePicker();
       renderGeo();
       refreshModal();
+      if (CLIENTS[i].options.length > 1) { setClientMenu(i, !wasOpen); }
+      else { closeClientMenus(); }
     });
+  });
+  optionButtons.forEach(function (option) {
+    option.addEventListener('click', function () {
+      var slot = option.closest('.client-slot');
+      var i = +slot.getAttribute('data-client');
+      var targetID = option.getAttribute('data-target');
+      if (option.disabled) { return; }
+      state.client = i;
+      state.targets[CLIENTS[i].id] = targetID;
+      setClientMenu(i, false);
+      updatePicker();
+      renderGeo();
+      refreshModal();
+      cards[i].focus();
+    });
+  });
+  document.addEventListener('click', function (ev) {
+    if (!clientPicker.contains(ev.target)) { closeClientMenus(); }
+  });
+  document.addEventListener('keydown', function (ev) {
+    if (ev.key === 'Escape') {
+      closeClientMenus();
+      if (cards[state.client]) { cards[state.client].focus(); }
+    }
   });
 
   /* ---------- view switch ---------- */
@@ -969,6 +1128,7 @@ function geoPath(provider, list, attr) {
       viewGeosite.style.display = state.view === 'geosite' ? '' : 'none';
       viewIcons.style.display = state.view === 'icons' ? '' : 'none';
       clientSection.style.display = state.view === 'icons' ? 'none' : '';
+      closeClientMenus();
       updatePicker();
       renderGeo();
     });
@@ -1069,8 +1229,9 @@ function geoPath(provider, list, attr) {
 
   function fillMeta(path, sizeText, entriesText) {
     var client = CLIENTS[state.client];
+    var target = activeTarget();
     mIcon.innerHTML = '<img class="px" width="22" height="22" src="static/icons/' + client.icon + '.svg" style="image-rendering:pixelated" alt="" aria-hidden="true">';
-    mClient.textContent = client.name;
+    mClient.textContent = client.options.length > 1 ? client.name + ' · ' + target.name : client.name;
     mSize.textContent = sizeText || '';
     mEntries.textContent = entriesText || '';
     if (!path) {
@@ -1091,7 +1252,7 @@ function geoPath(provider, list, attr) {
 
   function fillRuleModal() {
     var meta = RULE_META[modalRule];
-    var file = meta.f[CLIENTS[state.client].id];
+    var file = meta.f[activeTarget().id];
     if (!file) {
       fillMeta(null, '该规则没有此客户端的文件', fmt(meta.e) + ' 条');
       return;
@@ -1224,7 +1385,7 @@ function geoPath(provider, list, attr) {
       '<div class="geo-provider-head">' +
       '<span class="pname">{{icon "globe" 22}} ' + esc(provider) + '</span>' +
       '<span class="label">' + fmt(lists.length) + ' 个列表 · ' + fmt(totalVariants) + ' 个属性变体</span>' +
-      '<span class="geo-format">格式：<b>' + esc(CLIENTS[state.client].name) + '</b></span>' +
+      '<span class="geo-format">格式：<b>' + esc(CLIENTS[state.client].name + ' · ' + activeTarget().name) + '</b></span>' +
       '</div>';
 
     if (matched.length === 0) {

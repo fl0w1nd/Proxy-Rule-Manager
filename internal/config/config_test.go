@@ -68,6 +68,35 @@ serve:
 	}
 }
 
+func TestLoadExplicitFormatsWithVariant(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	content := `
+clients:
+  - id: sing-box
+    name: sing-box
+    template: singbox
+    variants:
+      - id: sing-box-non-ip
+        name: Non-IP
+        ops:
+          - type: exclude_kinds
+            kinds: [ip_cidr]
+rules: []
+`
+	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := Load(cfgPath)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	targets := ExpandOutputTargets(cfg.Clients)
+	if len(targets) != 2 || targets[0].ID != "sing-box" || targets[1].ID != "sing-box-non-ip" {
+		t.Fatalf("targets=%+v", targets)
+	}
+}
+
 func TestLoadDefaults(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")

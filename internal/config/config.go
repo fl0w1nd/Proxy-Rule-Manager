@@ -76,10 +76,27 @@ type Config struct {
 
 // ClientConfig defines one output client.
 type ClientConfig struct {
+	ID       string                `yaml:"id"`
+	Name     string                `yaml:"name"`
+	Template string                `yaml:"template,omitempty"`
+	Icon     string                `yaml:"icon,omitempty"`
+	Formats  []ClientFormatConfig  `yaml:"formats,omitempty"`
+	Variants []ClientVariantConfig `yaml:"variants,omitempty"`
+}
+
+// ClientFormatConfig defines one explicit output format of a client family.
+type ClientFormatConfig struct {
 	ID       string `yaml:"id"`
-	Name     string `yaml:"name"`
+	Name     string `yaml:"name,omitempty"`
 	Template string `yaml:"template"`
-	Icon     string `yaml:"icon,omitempty"`
+}
+
+// ClientVariantConfig defines an explicit IR-level derived output.
+type ClientVariantConfig struct {
+	ID       string     `yaml:"id"`
+	Name     string     `yaml:"name,omitempty"`
+	Template string     `yaml:"template,omitempty"`
+	Ops      []OpConfig `yaml:"ops"`
 }
 
 // RuleConfig defines one rule to compile.
@@ -353,13 +370,49 @@ func (c *Config) Validate() []ConfigError {
 		if err := util.EnsureSafeSegment(cl.ID, "client id"); err != nil {
 			addErr(base+".id", err.Error())
 		}
-		if cl.Template == "" {
-			addErr(base+".template", "required")
+		if len(cl.Formats) == 0 && cl.Template == "" {
+			addErr(base, "formats or template is required")
+		}
+		if len(cl.Formats) > 0 && cl.Template != "" {
+			addErr(base, "formats and template are mutually exclusive")
 		}
 		if clientIDs[cl.ID] {
 			addErr(base+".id", fmt.Sprintf("duplicate client id %q", cl.ID))
 		}
 		clientIDs[cl.ID] = true
+
+		outputIDs := map[string]bool{}
+		if len(cl.Formats) == 0 {
+			outputIDs[cl.ID] = true
+		}
+		for j, format := range cl.Formats {
+			formatPath := fmt.Sprintf("%s.formats[%d]", base, j)
+			validateOutputID(formatPath, format.ID, "format", outputIDs, addErr)
+			if format.Template == "" {
+				addErr(formatPath+".template", "required")
+			}
+		}
+		for j, variant := range cl.Variants {
+			variantPath := fmt.Sprintf("%s.variants[%d]", base, j)
+			validateOutputID(variantPath, variant.ID, "variant", outputIDs, addErr)
+			if variant.Template == "" && cl.Template == "" {
+				addErr(variantPath+".template", "required for a multi-format client")
+			}
+			if len(variant.Ops) == 0 {
+				addErr(variantPath+".ops", "at least one operation is required")
+			}
+			validateOps(variantPath+".ops", variant.Ops, addErr)
+		}
+	}
+	targetIDs := map[string]bool{}
+	for _, target := range ExpandOutputTargets(c.Clients) {
+		if targetIDs[target.ID] {
+			addErr("clients", fmt.Sprintf("duplicate expanded output id %q", target.ID))
+		}
+		targetIDs[target.ID] = true
+		if clientIDs[target.ID] && target.ID != target.ClientID {
+			addErr("clients", fmt.Sprintf("output id %q conflicts with client id", target.ID))
+		}
 	}
 
 	ruleIDs := map[string]bool{}
@@ -477,38 +530,7 @@ func (c *Config) Validate() []ConfigError {
 				addErr(fmt.Sprintf("%s.outputs[%d]", base, k), fmt.Sprintf("unknown client %q", out))
 			}
 		}
-		for j, op := range r.Ops {
-			opPath := fmt.Sprintf("%s.ops[%d]", base, j)
-			switch op.Type {
-			case "include_kinds", "exclude_kinds":
-				if len(op.Kinds) == 0 {
-					addErr(opPath+".kinds", fmt.Sprintf("%s requires at least one kind", op.Type))
-				}
-				for k, kind := range op.Kinds {
-					if !ir.IsValidKind(ir.Kind(kind)) {
-						addErr(fmt.Sprintf("%s.kinds[%d]", opPath, k), fmt.Sprintf("unknown rule kind %q", kind))
-					}
-				}
-			case "filter_values":
-				if op.Pattern == "" {
-					addErr(opPath+".pattern", "required for filter_values")
-				}
-				switch op.Mode {
-				case "", "keyword", "suffix", "prefix", "exact", "regex":
-				default:
-					addErr(opPath+".mode", fmt.Sprintf("unknown filter mode %q", op.Mode))
-				}
-				if op.Mode == "regex" {
-					if _, err := regexp.Compile(op.Pattern); err != nil {
-						addErr(opPath+".pattern", fmt.Sprintf("invalid regex: %v", err))
-					}
-				}
-			case "":
-				addErr(opPath+".type", "required")
-			default:
-				addErr(opPath+".type", fmt.Sprintf("unknown op type %q", op.Type))
-			}
-		}
+		validateOps(base+".ops", r.Ops, addErr)
 		if r.Merge != nil {
 			switch r.Merge.Strategy {
 			case "union", "intersect", "difference":
@@ -616,6 +638,55 @@ func (c *Config) Validate() []ConfigError {
 	}
 
 	return errs
+}
+
+func validateOutputID(base, id, kind string, seen map[string]bool, addErr func(string, string)) {
+	if id == "" {
+		addErr(base+".id", "required")
+		return
+	}
+	if err := util.EnsureSafeSegment(id, kind+" id"); err != nil {
+		addErr(base+".id", err.Error())
+	}
+	if seen[id] {
+		addErr(base+".id", fmt.Sprintf("duplicate output id %q", id))
+	}
+	seen[id] = true
+}
+
+func validateOps(base string, ops []OpConfig, addErr func(string, string)) {
+	for j, op := range ops {
+		opPath := fmt.Sprintf("%s[%d]", base, j)
+		switch op.Type {
+		case "include_kinds", "exclude_kinds":
+			if len(op.Kinds) == 0 {
+				addErr(opPath+".kinds", fmt.Sprintf("%s requires at least one kind", op.Type))
+			}
+			for k, kind := range op.Kinds {
+				if !ir.IsValidKind(ir.Kind(kind)) {
+					addErr(fmt.Sprintf("%s.kinds[%d]", opPath, k), fmt.Sprintf("unknown rule kind %q", kind))
+				}
+			}
+		case "filter_values":
+			if op.Pattern == "" {
+				addErr(opPath+".pattern", "required for filter_values")
+			}
+			switch op.Mode {
+			case "", "keyword", "suffix", "prefix", "exact", "regex":
+			default:
+				addErr(opPath+".mode", fmt.Sprintf("unknown filter mode %q", op.Mode))
+			}
+			if op.Mode == "regex" {
+				if _, err := regexp.Compile(op.Pattern); err != nil {
+					addErr(opPath+".pattern", fmt.Sprintf("invalid regex: %v", err))
+				}
+			}
+		case "":
+			addErr(opPath+".type", "required")
+		default:
+			addErr(opPath+".type", fmt.Sprintf("unknown op type %q", op.Type))
+		}
+	}
 }
 
 func isSupportedGeositeProvider(name string) bool {

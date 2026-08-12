@@ -53,8 +53,8 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 	if entries, exists, err := e.State.LoadSnapshotIfExists(rule.ID); err == nil && exists {
 		info.entries = len(entries)
 	}
-	for _, clientID := range rule.Outputs {
-		rel, err := e.ruleFileRelPath(rule.ID, clientID)
+	for _, target := range config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs) {
+		rel, err := e.ruleFileRelPath(rule.ID, target.ID)
 		if err != nil {
 			continue
 		}
@@ -63,13 +63,9 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 		if err != nil {
 			continue
 		}
-		client := findClient(e.Config.Clients, clientID)
-		icon := site.DefaultIconForClient(clientID)
-		if client != nil {
-			icon = site.ResolveClientIcon(client.Icon, clientID)
-		}
+		icon := site.ResolveClientIcon(target.Icon, target.ClientID)
 		info.files = append(info.files, site.RuleFile{
-			Client: clientID,
+			Client: target.ID,
 			Icon:   icon,
 			Path:   rel,
 			Size:   st.Size(),
@@ -81,12 +77,12 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 // ruleFileRelPath builds the site-relative artifact URL path for a rule and
 // client: rules/<client>/<rule-id><ext>.
 func (e *UpdateEngine) ruleFileRelPath(ruleID, clientID string) (string, error) {
-	client := findClient(e.Config.Clients, clientID)
-	if client == nil {
+	target, ok := config.FindOutputTarget(e.Config.Clients, clientID)
+	if !ok {
 		return "", os.ErrNotExist
 	}
 	ext := ".list"
-	if tmpl, ok := e.Registry.Get(client.Template); ok {
+	if tmpl, ok := e.Registry.Get(target.Template); ok {
 		ext = tmpl.Extension
 	}
 	return "rules/" + clientID + "/" + ruleID + ext, nil
@@ -98,32 +94,41 @@ func (e *UpdateEngine) ruleFileRelPath(ruleID, clientID string) (string, error) 
 func (e *UpdateEngine) siteClients() []site.Client {
 	ruleClients := make(map[string]bool)
 	for _, rule := range e.Config.Rules {
-		for _, out := range rule.Outputs {
-			ruleClients[out] = true
+		for _, target := range config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs) {
+			ruleClients[target.ID] = true
 		}
 	}
 	geoClients := make(map[string]bool)
 	if e.Config.Geosite != nil {
 		for _, p := range e.Config.Geosite.Providers {
-			for _, c := range p.Clients {
-				geoClients[c] = true
+			for _, target := range config.ExpandSelectedTargets(e.Config.Clients, p.Clients) {
+				geoClients[target.ID] = true
 			}
 		}
 	}
 	out := make([]site.Client, 0, len(e.Config.Clients))
 	for _, c := range e.Config.Clients {
-		ext := ".list"
-		if tmpl, ok := e.Registry.Get(c.Template); ok {
-			ext = tmpl.Extension
+		name := c.Name
+		if name == "" {
+			name = c.ID
 		}
-		out = append(out, site.Client{
-			ID:      c.ID,
-			Name:    c.Name,
-			Icon:    site.ResolveClientIcon(c.Icon, c.ID),
-			Ext:     ext,
-			Rules:   ruleClients[c.ID],
-			Geosite: geoClients[c.ID],
-		})
+		client := site.Client{
+			ID: c.ID, Name: name, Icon: site.ResolveClientIcon(c.Icon, c.ID),
+		}
+		for _, target := range config.ExpandClientTargets(c) {
+			ext := ".list"
+			if tmpl, ok := e.Registry.Get(target.Template); ok {
+				ext = tmpl.Extension
+			}
+			option := site.ClientOption{
+				ID: target.ID, Name: target.OptionName, Ext: ext,
+				Rules: ruleClients[target.ID], Geosite: geoClients[target.ID],
+			}
+			client.Options = append(client.Options, option)
+			client.Rules = client.Rules || option.Rules
+			client.Geosite = client.Geosite || option.Geosite
+		}
+		out = append(out, client)
 	}
 	return out
 }
@@ -375,7 +380,8 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 				}
 			}
 		}
-		for range countGeositeArtifacts(e.Config.DataDir, prov.Name, prov.Clients) {
+		targets := config.ExpandSelectedTargets(e.Config.Clients, prov.Clients)
+		for range countGeositeArtifacts(e.Config.DataDir, prov.Name, targets) {
 			gstats.recordFile(prov.Name)
 		}
 	}
@@ -384,10 +390,10 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 
 // countGeositeArtifacts counts published geosite artifact files on disk:
 // dataDir/rules/<client>/geosite/<provider>/*.
-func countGeositeArtifacts(dataDir, provider string, clientIDs []string) int {
+func countGeositeArtifacts(dataDir, provider string, targets []config.OutputTarget) int {
 	n := 0
-	for _, clientID := range clientIDs {
-		entries, err := os.ReadDir(filepath.Join(dataDir, "rules", clientID, "geosite", provider))
+	for _, target := range targets {
+		entries, err := os.ReadDir(filepath.Join(dataDir, "rules", target.ID, "geosite", provider))
 		if err != nil {
 			continue
 		}

@@ -7,14 +7,19 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/dop251/goja"
 )
 
 func sampleIndex() *IndexData {
 	return &IndexData{
 		UpdatedAt: time.Date(2026, 8, 11, 12, 0, 0, 0, time.UTC),
 		Clients: []Client{
-			{ID: "Clash Meta", Name: "Clash Meta", Icon: "mihomo", Ext: ".list", Rules: true, Geosite: true},
-			{ID: "sing-box", Name: "sing-box", Icon: "singbox", Ext: ".json", Rules: true},
+			{ID: "Clash Meta", Name: "Clash Meta", Icon: "mihomo", Rules: true, Geosite: true, Options: []ClientOption{{ID: "Clash Meta", Name: "Standard", Ext: ".list", Rules: true, Geosite: true}}},
+			{ID: "sing-box", Name: "sing-box", Icon: "singbox", Rules: true, Options: []ClientOption{
+				{ID: "sing-box", Name: "Standard", Ext: ".json", Rules: true},
+				{ID: "sing-box-non-ip", Name: "Non-IP", Ext: ".json", Rules: true},
+			}},
 		},
 		Rules: []PublicRule{
 			{
@@ -69,6 +74,8 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 		`data-rules="true" data-geo="true"`,  // Clash Meta: rules + geosite
 		`data-rules="true" data-geo="false"`, // sing-box: rules only
 		"gprev",                              // geosite preview button
+		`class="client-menu"`,                // full-card format/variant menu
+		`data-target="sing-box-non-ip"`,      // explicit IR-derived output
 		"图标",                                 // icon tab
 	} {
 		if !strings.Contains(string(index), want) {
@@ -76,15 +83,41 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 		}
 	}
 	// Update internals must not leak into the public page.
-	for _, bad := range []string{"耗时", "管理看板", "变更", "失败", "立即更新"} {
+	for _, bad := range []string{"耗时", "管理看板", "变更", "失败", "立即更新", `<select class="client-format"`} {
 		if strings.Contains(string(index), bad) {
 			t.Errorf("index leaks admin content %q", bad)
 		}
 	}
 	assertThemeInitializedBeforeStyles(t, index)
+	assertInlineScriptsParse(t, index)
 
 	if _, err := os.Stat(filepath.Join(staticDir, "admin.html")); !os.IsNotExist(err) {
 		t.Fatalf("public writer created admin.html: %v", err)
+	}
+}
+
+func assertInlineScriptsParse(t *testing.T, page []byte) {
+	t.Helper()
+	rest := string(page)
+	count := 0
+	for {
+		start := strings.Index(rest, "<script>")
+		if start < 0 {
+			break
+		}
+		rest = rest[start+len("<script>"):]
+		end := strings.Index(rest, "</script>")
+		if end < 0 {
+			t.Fatal("inline script has no closing tag")
+		}
+		if _, err := goja.Compile("index.html", rest[:end], false); err != nil {
+			t.Fatalf("inline script syntax: %v", err)
+		}
+		count++
+		rest = rest[end+len("</script>"):]
+	}
+	if count == 0 {
+		t.Fatal("public page has no inline scripts")
 	}
 }
 

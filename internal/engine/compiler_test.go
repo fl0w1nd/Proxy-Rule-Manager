@@ -104,6 +104,50 @@ func TestCompileRuleFormatsOpsAndRendersCompletePipeline(t *testing.T) {
 	}
 }
 
+func TestCompileRuleExpandsExplicitFormatsAndAppliesVariantOps(t *testing.T) {
+	rule := config.RuleConfig{
+		ID: "derived", Name: "derived",
+		Sources: []config.SourceConfig{{Content: strings.Join([]string{
+			"DOMAIN,keep.example", "DOMAIN,drop.example", "IP-CIDR,192.0.2.0/24",
+		}, "\n")}},
+		Outputs: []string{"mihomo", "singbox"},
+	}
+	clients := []config.ClientConfig{
+		{ID: "mihomo", Formats: []config.ClientFormatConfig{
+			{ID: "mihomo-classical", Name: "Classical", Template: "mihomo-classical"},
+			{ID: "mihomo-yaml", Name: "YAML", Template: "mihomo-yaml"},
+		}},
+		{
+			ID: "singbox", Template: "singbox",
+			Variants: []config.ClientVariantConfig{{
+				ID: "singbox-filtered",
+				Ops: []config.OpConfig{
+					{Type: "exclude_kinds", Kinds: []string{"ip_cidr"}},
+					{Type: "filter_values", Mode: "regex", Pattern: `^drop\.`},
+				},
+			}},
+		},
+	}
+
+	got := CompileRule(context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+	if len(got.RenderErrors) != 0 {
+		t.Fatalf("render errors=%v", got.RenderErrors)
+	}
+	for _, id := range []string{"mihomo-classical", "mihomo-yaml", "singbox", "singbox-filtered"} {
+		if len(got.Rendered[id]) == 0 {
+			t.Fatalf("missing rendered target %q: %v", id, got.Rendered)
+		}
+	}
+	defaultOutput := string(got.Rendered["singbox"])
+	if !strings.Contains(defaultOutput, "192.0.2.0/24") || !strings.Contains(defaultOutput, "drop.example") {
+		t.Fatalf("default output=%s", defaultOutput)
+	}
+	variantOutput := string(got.Rendered["singbox-filtered"])
+	if strings.Contains(variantOutput, "192.0.2.0/24") || strings.Contains(variantOutput, "drop.example") || !strings.Contains(variantOutput, "keep.example") {
+		t.Fatalf("variant output=%s", variantOutput)
+	}
+}
+
 func TestCompileRuleReportsDiagnosticsOpsAndRenderErrors(t *testing.T) {
 	t.Run("parse diagnostic keeps valid entries visible", func(t *testing.T) {
 		rule := config.RuleConfig{

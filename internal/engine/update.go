@@ -178,6 +178,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 		result.EffectiveRuleIDs = append(result.EffectiveRuleIDs, rule.ID)
 	}
 	processed := make(map[string]bool, len(sorted))
+	succeeded := make(map[string]struct{}, len(sorted))
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rules", Status: "running", Total: len(sorted), Message: fmt.Sprintf("正在更新普通规则 · 0 / %d", len(sorted))})
 
 ruleLoop:
@@ -202,6 +203,7 @@ ruleLoop:
 				e.State.SetRuleCheck(rule.ID, state.RuleFailed, time.Now(), false)
 			}
 		} else if outcome.updated {
+			succeeded[rule.ID] = struct{}{}
 			result.RulesSucceeded++
 			updateResult := state.RuleUnchanged
 			if outcome.changed {
@@ -271,6 +273,19 @@ ruleLoop:
 		expectedArtifacts, expectedRules := stateManifest(e.Config)
 		if err := e.State.Reconcile(expectedArtifacts, expectedRules); err != nil {
 			result.addError("cleanup", "state", fmt.Sprintf("reconcile state: %v", err))
+		}
+	}
+	if partial && ctx.Err() == nil && len(succeeded) > 0 {
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在整理规则产物"})
+		if err := ReconcileRuleArtifacts(e.Config.DataDir, succeeded, expectedPaths); err != nil {
+			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile partial artifacts: %v", err))
+		} else {
+			expectedArtifacts, _ := stateManifest(e.Config)
+			selectedArtifacts := make(map[string]map[string]struct{}, len(succeeded))
+			for ruleID := range succeeded {
+				selectedArtifacts[ruleID] = expectedArtifacts[ruleID]
+			}
+			e.State.ReconcileRuleArtifacts(selectedArtifacts)
 		}
 	}
 
@@ -406,11 +421,11 @@ func (e *UpdateEngine) compileAndWriteRule(
 
 	writeFailed := false
 	for clientID, content := range cr.Rendered {
-		client := findClient(e.Config.Clients, clientID)
-		if client == nil {
+		target, ok := config.FindOutputTarget(e.Config.Clients, clientID)
+		if !ok {
 			continue
 		}
-		tmpl, _ := e.Registry.Get(client.Template)
+		tmpl, _ := e.Registry.Get(target.Template)
 		ext := ".list"
 		if tmpl != nil {
 			ext = tmpl.Extension
@@ -442,7 +457,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 
 		file := site.RuleFile{
 			Client: clientID,
-			Icon:   site.ResolveClientIcon(client.Icon, clientID),
+			Icon:   site.ResolveClientIcon(target.Icon, target.ClientID),
 			Path:   "rules/" + clientID + "/" + rule.ID + ext,
 			Size:   int64(len(content)),
 		}
@@ -499,9 +514,10 @@ func (e *UpdateEngine) compileAndWriteRule(
 	}
 
 	// Stable file ordering following rule.Outputs.
-	order := make(map[string]int, len(rule.Outputs))
-	for i, id := range rule.Outputs {
-		order[id] = i
+	orderedTargets := config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs)
+	order := make(map[string]int, len(orderedTargets))
+	for i, target := range orderedTargets {
+		order[target.ID] = i
 	}
 	sort.SliceStable(info.files, func(i, j int) bool {
 		return order[info.files[i].Client] < order[info.files[j].Client]
@@ -775,24 +791,25 @@ func (e *UpdateEngine) publishGeositeVariant(
 
 	artifactName := "geosite/" + ref.ArtifactName()
 
-	for _, clientID := range clientIDs {
-		client := findClient(e.Config.Clients, clientID)
-		if client == nil {
-			result.addError("geosite_publish", clientID, fmt.Sprintf("geosite client %q not found", clientID))
-			continue
-		}
-		tmpl, ok := e.Registry.Get(client.Template)
+	for _, target := range config.ExpandSelectedTargets(e.Config.Clients, clientIDs) {
+		tmpl, ok := e.Registry.Get(target.Template)
 		if !ok {
-			result.addError("geosite_publish", clientID, fmt.Sprintf("geosite template %q not found for client %q", client.Template, clientID))
+			result.addError("geosite_publish", target.ID, fmt.Sprintf("geosite template %q not found for output %q", target.Template, target.ID))
 			continue
 		}
-		rendered, rerr := render.Render(tmpl, irEntries)
+		targetEntries := cloneEntries(irEntries)
+		targetEntries, rerr := applyOps(targetEntries, target.Ops)
 		if rerr != nil {
-			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("geosite render %s for %s: %v", ref.FormatRef(), clientID, rerr))
+			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("geosite variant ops %s for %s: %v", ref.FormatRef(), target.ID, rerr))
+			continue
+		}
+		rendered, rerr := render.Render(tmpl, targetEntries)
+		if rerr != nil {
+			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("geosite render %s for %s: %v", ref.FormatRef(), target.ID, rerr))
 			continue
 		}
 		// data/rules/{client}/geosite/{provider}/{list}{ext} or {list}@{attr}{ext}
-		artifactPath, err := ArtifactPath(e.Config.DataDir, clientID, artifactName+tmpl.Extension)
+		artifactPath, err := ArtifactPath(e.Config.DataDir, target.ID, artifactName+tmpl.Extension)
 		if err != nil {
 			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("resolve geosite artifact path %s: %v", ref.FormatRef(), err))
 			continue
@@ -818,20 +835,12 @@ func stateManifest(cfg *config.Config) (map[string]map[string]struct{}, map[stri
 	rules := make(map[string]struct{}, len(cfg.Rules))
 	for _, rule := range cfg.Rules {
 		rules[rule.ID] = struct{}{}
-		clients := make(map[string]struct{}, len(rule.Outputs))
-		for _, client := range rule.Outputs {
-			clients[client] = struct{}{}
+		targets := config.ExpandSelectedTargets(cfg.Clients, rule.Outputs)
+		clients := make(map[string]struct{}, len(targets))
+		for _, target := range targets {
+			clients[target.ID] = struct{}{}
 		}
 		artifacts[rule.ID] = clients
 	}
 	return artifacts, rules
-}
-
-func findClient(clients []config.ClientConfig, id string) *config.ClientConfig {
-	for i := range clients {
-		if clients[i].ID == id {
-			return &clients[i]
-		}
-	}
-	return nil
 }

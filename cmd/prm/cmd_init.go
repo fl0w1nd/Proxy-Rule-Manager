@@ -16,15 +16,27 @@ const exampleConfig = `# Proxy Rule Manager configuration
 data_dir: ./data
 
 clients:
-  - id: clash_meta
-    name: Clash Meta
-    template: mihomo-classical
+  - id: mihomo
+    name: Mihomo
     icon: mihomo
+    formats:
+      - id: mihomo-classical
+        name: Classical
+        template: mihomo-classical
+      - id: mihomo-yaml
+        name: YAML
+        template: mihomo-yaml
 
-  - id: singbox
+  - id: sing-box
     name: sing-box
-    template: singbox
     icon: singbox
+    template: singbox
+    variants:
+      - id: sing-box-non-ip
+        name: Non-IP
+        ops:
+          - type: exclude_kinds
+            kinds: [ip_cidr]
 
 rules:
   # Local sources support inline content and file paths:
@@ -37,7 +49,7 @@ rules:
     tags: [google, search]
     sources:
       - url: https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Google.list
-    outputs: [clash_meta, singbox]
+    outputs: [mihomo, sing-box]
 
   - id: AdBlock
     name: AdBlock
@@ -46,14 +58,14 @@ rules:
     ops:
       - type: include_kinds
         kinds: [domain, domain_suffix, domain_keyword]
-    outputs: [clash_meta]
+    outputs: [mihomo]
 
   - id: GeoBlock
     name: GeoBlock
     sources:
       # Compact geosite ref: provider/list or provider/list@attr1,attr2
       - geosite: v2fly/geolocation-!cn
-    outputs: [clash_meta, singbox]
+    outputs: [mihomo, sing-box]
 
 # Geosite auto-publish (optional)
 # Declare providers + target clients. All lists and attr variants are
@@ -62,7 +74,7 @@ rules:
 geosite:
   providers:
     - name: v2fly
-      clients: [clash_meta, singbox]
+      clients: [mihomo, sing-box]
 
 update:
   history_retention: 168h

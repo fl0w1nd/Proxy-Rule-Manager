@@ -11,7 +11,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 )
 
-var previewClient string
+var previewTarget string
 
 var previewCmd = &cobra.Command{
 	Use:   "preview <rule-id>",
@@ -27,7 +27,7 @@ var previewCmd = &cobra.Command{
 			context.Background(),
 			app.Config,
 			args[0],
-			previewClient,
+			previewTarget,
 			app.Registry,
 			app.Engine.Fetcher,
 			app.Engine.Preprocessor,
@@ -68,7 +68,7 @@ func printPreviewReport(report *engine.PreviewReport) {
 	}
 
 	if report.RenderedOutput != nil {
-		fmt.Printf("\n=== Rendered (%s) ===\n", report.RenderedClient)
+		fmt.Printf("\n=== Rendered (%s) ===\n", report.RenderedTarget)
 		_, _ = os.Stdout.Write(report.RenderedOutput)
 	}
 	if report.RenderError != "" {
@@ -84,6 +84,6 @@ func printKindSummary(entries []ir.Entry) {
 }
 
 func init() {
-	previewCmd.Flags().StringVar(&previewClient, "client", "", "render output for specific client")
+	previewCmd.Flags().StringVar(&previewTarget, "target", "", "render output for an explicit format or variant target")
 	rootCmd.AddCommand(previewCmd)
 }

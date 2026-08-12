@@ -152,3 +152,58 @@ func ReconcileArtifacts(dataDir string, expected map[string]struct{}) error {
 	}
 	return nil
 }
+
+// ReconcileRuleArtifacts removes unexpected top-level artifacts for selected
+// rules while preserving geosite catalogs and artifacts for every other rule.
+func ReconcileRuleArtifacts(dataDir string, ruleIDs map[string]struct{}, expected map[string]struct{}) error {
+	root := rulesDir(dataDir)
+	var dirs []string
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			if os.IsNotExist(walkErr) {
+				return nil
+			}
+			return walkErr
+		}
+		if entry.IsDir() {
+			if path != root {
+				dirs = append(dirs, path)
+			}
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		parts := strings.Split(filepath.ToSlash(rel), "/")
+		if len(parts) != 2 {
+			return nil
+		}
+		ruleID := strings.TrimSuffix(parts[1], filepath.Ext(parts[1]))
+		if _, selected := ruleIDs[ruleID]; !selected {
+			return nil
+		}
+		if _, keep := expected[filepath.Clean(path)]; keep {
+			return nil
+		}
+		return os.Remove(path)
+	})
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for i := len(dirs) - 1; i >= 0; i-- {
+		entries, err := os.ReadDir(dirs[i])
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
+			}
+			return err
+		}
+		if len(entries) == 0 {
+			if err := os.Remove(dirs[i]); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		}
+	}
+	return nil
+}

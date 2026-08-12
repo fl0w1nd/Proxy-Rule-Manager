@@ -50,10 +50,11 @@ func buildApp() (*App, error) {
 		return nil, fmt.Errorf("load override templates: %w", err)
 	}
 
-	// Validate that all clients reference valid templates
-	for _, client := range cfg.Clients {
-		if _, ok := registry.Get(client.Template); !ok {
-			return nil, fmt.Errorf("client %q references unknown template %q", client.ID, client.Template)
+	// Validate that every expanded output target references a loaded template.
+	targets := config.ExpandOutputTargets(cfg.Clients)
+	for _, target := range targets {
+		if _, ok := registry.Get(target.Template); !ok {
+			return nil, fmt.Errorf("output target %q references unknown template %q", target.ID, target.Template)
 		}
 	}
 
@@ -75,9 +76,9 @@ func buildApp() (*App, error) {
 	}
 
 	// Create artifact directories
-	clientIDs := make([]string, len(cfg.Clients))
-	for i, c := range cfg.Clients {
-		clientIDs[i] = c.ID
+	clientIDs := make([]string, len(targets))
+	for i, target := range targets {
+		clientIDs[i] = target.ID
 	}
 	if err := engine.EnsureArtifactDirs(cfg.DataDir, clientIDs); err != nil {
 		return nil, fmt.Errorf("create artifact dirs: %w", err)

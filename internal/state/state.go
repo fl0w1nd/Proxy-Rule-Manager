@@ -174,6 +174,27 @@ func (s *Store) DeleteArtifactHash(ruleID, clientID string) {
 	}
 }
 
+// ReconcileRuleArtifacts retains only the expected output targets for the
+// supplied rules and leaves all other rule state untouched.
+func (s *Store) ReconcileRuleArtifacts(expected map[string]map[string]struct{}) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for ruleID, expectedTargets := range expected {
+		targets, ok := s.state.Artifacts[ruleID]
+		if !ok {
+			continue
+		}
+		for targetID := range targets {
+			if _, keep := expectedTargets[targetID]; !keep {
+				delete(targets, targetID)
+			}
+		}
+		if len(targets) == 0 {
+			delete(s.state.Artifacts, ruleID)
+		}
+	}
+}
+
 // SetLastCheck records when the latest update check finished.
 func (s *Store) SetLastCheck(t time.Time) {
 	s.mu.Lock()

@@ -581,6 +581,50 @@ func TestRuleChangeRecordsPureRenderingChange(t *testing.T) {
 	}
 }
 
+func TestFullUpdateWritesExplicitFormatsAndVariantDirectories(t *testing.T) {
+	dataDir := t.TempDir()
+	cfg := &config.Config{
+		DataDir: dataDir,
+		Clients: []config.ClientConfig{
+			{
+				ID: "mihomo", Formats: []config.ClientFormatConfig{
+					{ID: "mihomo-classical", Name: "Classical", Template: "mihomo-classical"},
+					{ID: "mihomo-yaml", Name: "YAML", Template: "mihomo-yaml"},
+				},
+			},
+			{
+				ID: "sing-box", Template: "singbox",
+				Variants: []config.ClientVariantConfig{{
+					ID: "sing-box-non-ip", Name: "Non-IP",
+					Ops: []config.OpConfig{{Type: "exclude_kinds", Kinds: []string{"ip_cidr"}}},
+				}},
+			},
+		},
+		Rules: []config.RuleConfig{{
+			ID: "explicit", Name: "Explicit",
+			Sources: []config.SourceConfig{{Content: "DOMAIN,example.com\nIP-CIDR,192.0.2.0/24"}},
+			Outputs: []string{"mihomo", "sing-box"},
+		}},
+	}
+	eng := newTestUpdateEngine(t, cfg)
+	result := eng.FullUpdate(context.Background())
+	if len(result.Errors) != 0 || result.Artifacts != 4 {
+		t.Fatalf("result=%+v", result)
+	}
+	classical := readArtifact(t, dataDir, "mihomo-classical", "explicit.list")
+	if !strings.Contains(classical, "DOMAIN,example.com") {
+		t.Fatalf("classical=%s", classical)
+	}
+	yamlOutput := readArtifact(t, dataDir, "mihomo-yaml", "explicit.yaml")
+	if !strings.Contains(yamlOutput, "payload:") || !strings.Contains(yamlOutput, "DOMAIN,example.com") {
+		t.Fatalf("yaml=%s", yamlOutput)
+	}
+	variant := readArtifact(t, dataDir, "sing-box-non-ip", "explicit.json")
+	if strings.Contains(variant, "192.0.2.0/24") || !strings.Contains(variant, "example.com") {
+		t.Fatalf("variant=%s", variant)
+	}
+}
+
 func TestPartialUpdateRejectsUnknownRuleIDs(t *testing.T) {
 	cfg := &config.Config{
 		DataDir: t.TempDir(),
@@ -593,37 +637,100 @@ func TestPartialUpdateRejectsUnknownRuleIDs(t *testing.T) {
 	}
 }
 
-func TestFullUpdateRemovesArtifactWhenRenderedOutputIsEmpty(t *testing.T) {
+func TestPartialUpdateRemovesObsoleteArtifactsForUpdatedRules(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
 		DataDir: dataDir,
-		Clients: []config.ClientConfig{{ID: "surge", Template: "singbox-non-ip"}},
+		Clients: []config.ClientConfig{{
+			ID: "mihomo",
+			Formats: []config.ClientFormatConfig{
+				{ID: "mihomo-classical", Name: "Classical", Template: "mihomo-classical"},
+				{ID: "mihomo-yaml", Name: "YAML", Template: "mihomo-yaml"},
+			},
+		}},
+		Rules: []config.RuleConfig{{
+			ID: "rule", Name: "rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"mihomo"},
+		}},
+	}
+	eng := newTestUpdateEngine(t, cfg)
+	removedDir := filepath.Join(dataDir, "rules", "removed-target")
+	if err := os.MkdirAll(removedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	obsoletePath := filepath.Join(removedDir, "rule.list")
+	otherRulePath := filepath.Join(removedDir, "other.list")
+	for path, content := range map[string]string{
+		obsoletePath:  "DOMAIN,old.example\n",
+		otherRulePath: "DOMAIN,other.example\n",
+	} {
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	eng.State.SetArtifactHash("rule", "removed-target", "obsolete")
+	eng.State.SetArtifactHash("other", "removed-target", "preserved")
+
+	result := eng.PartialUpdate(context.Background(), []string{"rule"})
+	if len(result.Errors) != 0 || result.Artifacts != 2 {
+		t.Fatalf("result=%+v", result)
+	}
+	if _, err := os.Stat(obsoletePath); !os.IsNotExist(err) {
+		t.Fatalf("obsolete artifact remains: %v", err)
+	}
+	if _, err := os.Stat(otherRulePath); err != nil {
+		t.Fatalf("other rule artifact: %v", err)
+	}
+	if hash := eng.State.GetArtifactHash("rule", "removed-target"); hash != "" {
+		t.Fatalf("obsolete hash remains: %q", hash)
+	}
+	if hash := eng.State.GetArtifactHash("other", "removed-target"); hash != "preserved" {
+		t.Fatalf("other rule hash=%q", hash)
+	}
+}
+
+func TestFullUpdateRemovesVariantArtifactWhenRenderedOutputIsEmpty(t *testing.T) {
+	dataDir := t.TempDir()
+	cfg := &config.Config{
+		DataDir: dataDir,
+		Clients: []config.ClientConfig{{
+			ID: "singbox", Template: "singbox",
+			Variants: []config.ClientVariantConfig{{
+				ID: "singbox-non-ip", Ops: []config.OpConfig{{Type: "exclude_kinds", Kinds: []string{"ip_cidr"}}},
+			}},
+		}},
 		Rules: []config.RuleConfig{{
 			ID:      "empty",
 			Name:    "empty",
 			Sources: []config.SourceConfig{{Content: "IP-CIDR,192.0.2.0/24"}},
-			Outputs: []string{"surge"},
+			Outputs: []string{"singbox"},
 		}},
 	}
 	eng := newTestUpdateEngine(t, cfg)
-	artifactPath := filepath.Join(dataDir, "rules", "surge", "empty.json")
+	artifactPath := filepath.Join(dataDir, "rules", "singbox-non-ip", "empty.json")
 	if err := os.WriteFile(artifactPath, []byte("{\"rules\":null,\"version\":3}\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	eng.State.SetArtifactHash("empty", "surge", "stale")
+	eng.State.SetArtifactHash("empty", "singbox-non-ip", "stale")
 
 	result := eng.FullUpdate(context.Background())
-	if result.RulesSucceeded != 1 || result.RulesFailed != 0 || result.Artifacts != 0 || len(result.Errors) != 0 {
+	if result.RulesSucceeded != 1 || result.RulesFailed != 0 || result.Artifacts != 1 || len(result.Errors) != 0 {
 		t.Fatalf("update result: %+v", result)
 	}
 	if _, err := os.Stat(artifactPath); !os.IsNotExist(err) {
 		t.Fatalf("empty artifact remains: %v", err)
 	}
-	if hash := eng.State.GetArtifactHash("empty", "surge"); hash != "" {
+	if hash := eng.State.GetArtifactHash("empty", "singbox-non-ip"); hash != "" {
 		t.Fatalf("stale hash remains: %q", hash)
 	}
-	if len(result.Changes) != 1 || len(result.Changes[0].Files) != 1 || result.Changes[0].Files[0].Change != "deleted" {
+	if len(result.Changes) != 1 || len(result.Changes[0].Files) != 2 {
 		t.Fatalf("deleted artifact change = %+v", result.Changes)
+	}
+	var deleted bool
+	for _, file := range result.Changes[0].Files {
+		deleted = deleted || file.ClientID == "singbox-non-ip" && file.Change == "deleted"
+	}
+	if !deleted {
+		t.Fatalf("variant deletion missing: %+v", result.Changes[0].Files)
 	}
 	assertRuleResult(t, eng, "empty", state.RuleUpdated)
 }
@@ -723,9 +830,10 @@ func newTestUpdateEngine(t *testing.T, cfg *config.Config) *UpdateEngine {
 	if err != nil {
 		t.Fatalf("open state: %v", err)
 	}
-	clientIDs := make([]string, 0, len(cfg.Clients))
-	for _, client := range cfg.Clients {
-		clientIDs = append(clientIDs, client.ID)
+	targets := config.ExpandOutputTargets(cfg.Clients)
+	clientIDs := make([]string, 0, len(targets))
+	for _, target := range targets {
+		clientIDs = append(clientIDs, target.ID)
 	}
 	if err := EnsureArtifactDirs(cfg.DataDir, clientIDs); err != nil {
 		t.Fatalf("create artifact dirs: %v", err)
