@@ -20,6 +20,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
+	"github.com/fl0w1nd/proxy-rule-manager/version"
 )
 
 func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
@@ -198,8 +199,8 @@ func TestStatusAndRulesHaveFocusedContracts(t *testing.T) {
 	if len(status) != 4 || status["published_artifacts"].(float64) != 1 || status["last_check"] != "2026-08-12T09:30:00.000Z" {
 		t.Fatalf("status=%v", status)
 	}
-	if status["version"] != "0.0.1" {
-		t.Fatalf("status version=%v", status["version"])
+	if status["version"] != version.Current() {
+		t.Fatalf("status version=%v, want %v", status["version"], version.Current())
 	}
 	rec = httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, authorized(http.MethodGet, "/api/v1/rules", nil))

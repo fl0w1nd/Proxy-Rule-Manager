@@ -1,14 +1,18 @@
 package version
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestCurrentUsesSourceAndInjectedVersions(t *testing.T) {
 	original := Version
 	t.Cleanup(func() { Version = original })
 
 	Version = ""
-	if got := Current(); got != "0.0.1" {
-		t.Fatalf("source version = %q, want 0.0.1", got)
+	source := strings.TrimSpace(sourceVersion)
+	if got := Current(); got != source {
+		t.Fatalf("source version = %q, want %q", got, source)
 	}
 
 	Version = "1.2.3"
