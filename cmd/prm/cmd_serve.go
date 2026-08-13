@@ -21,6 +21,12 @@ var serveCmd = &cobra.Command{
 	Use:   "serve",
 	Short: "Start HTTP server for file serving and update API",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		// A fresh container starts with an empty /data volume and no
+		// config.yaml. Seed one so serve can boot without a pre-mounted
+		// config; edit it later through the mounted volume.
+		if err := ensureDefaultConfig(cfgFile); err != nil {
+			return err
+		}
 		apiToken := strings.TrimSpace(os.Getenv("ADMIN_TOKEN"))
 		if apiToken == "" {
 			return fmt.Errorf("ADMIN_TOKEN environment variable is required")
@@ -88,4 +94,60 @@ var serveCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(serveCmd)
+}
+
+// containerExampleConfig is the default config seeded into a fresh container's
+// /data volume when no config.yaml is mounted. It mirrors the `prm init`
+// example but adapts data_dir and host for container use: /data is the mounted
+// volume and 0.0.0.0 lets published ports reach the server.
+const containerExampleConfig = `# Proxy Rule Manager 容器默认配置
+# 容器首次启动且未挂载配置时自动生成。完整字段与讲解见
+# config.template.yaml 或 docs/configuration.md。
+
+# 数据目录：规则产物、缓存、更新历史都写在这里。
+# 容器 WORKDIR 为 /data，挂载卷挂在这里，所以用 /data。
+data_dir: /data
+
+# 输出客户端：规则渲染给哪些代理客户端、用什么格式。
+clients:
+  - id: mihomo
+    name: Mihomo
+    formats:
+      - id: mihomo-classical
+        name: Classical
+        template: mihomo-classical
+
+# 规则：一条规则 = 一次编译单元（读来源 -> 合并 -> 过滤 -> 渲染）。
+rules:
+  - id: Google
+    name: Google
+    sources:
+      - url: https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Google.list
+    outputs: [mihomo]
+
+# HTTP 服务：提供公开站点和管理 API，也让你能跑 prm serve。
+# 管理看板需要 ADMIN_TOKEN 环境变量，否则 serve 拒绝启动。
+serve:
+  host: 0.0.0.0              # 容器内监听所有网卡，外部端口映射可访问
+  port: 3001
+  # 位于反向代理（Nginx、Caddy 等）后面时，serve 需要知道谁可信，
+  # 才会信任其转发协议头，保证管理看板的 HTTPS 判断和 Cookie 设置正确。
+  # 127.0.0.1/32 适用于本机反代；172.16.0.0/12 适用于 Docker 容器间反代。
+  trusted_proxies: ["127.0.0.1/32", "172.16.0.0/12"]
+`
+
+// ensureDefaultConfig writes a container-friendly default config to path when
+// no config file exists yet, so a fresh container with an empty /data volume
+// can boot without a pre-provided config.yaml.
+func ensureDefaultConfig(path string) error {
+	if _, err := os.Stat(path); err == nil {
+		return nil
+	} else if !os.IsNotExist(err) {
+		return fmt.Errorf("stat config: %w", err)
+	}
+	if err := os.WriteFile(path, []byte(containerExampleConfig), 0o644); err != nil {
+		return fmt.Errorf("write default config %s: %w", path, err)
+	}
+	fmt.Printf("No config at %s; wrote a default config. Edit it via the mounted volume and restart to apply changes.\n", path)
+	return nil
 }
