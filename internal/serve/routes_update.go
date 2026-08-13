@@ -64,7 +64,8 @@ type changeInfo struct {
 }
 
 func (s *Server) history() []state.UpdateHistoryRecord {
-	return s.State.ListUpdateHistory(time.Duration(s.Config.Update.HistoryRetention), s.Config.Update.HistoryLimit, time.Now())
+	cfg := s.config()
+	return s.State.ListUpdateHistory(time.Duration(cfg.Update.HistoryRetention), cfg.Update.HistoryLimit, time.Now())
 }
 
 func (s *Server) handleUpdates(w http.ResponseWriter, r *http.Request) {

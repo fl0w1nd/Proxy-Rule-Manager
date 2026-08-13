@@ -10,6 +10,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/robfig/cron/v3"
+
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
@@ -19,6 +21,9 @@ import (
 const liveJobRetention = 10 * time.Minute
 
 var ErrJobNotRunning = errors.New("update job is not running")
+
+// ErrUpdateInProgress is returned by ReloadConfig when an update is active.
+var ErrUpdateInProgress = errors.New("update in progress")
 
 // ConflictError reports the one globally active update.
 type ConflictError struct{ CurrentUpdateID string }
@@ -54,6 +59,8 @@ type Manager struct {
 	cfg     *config.Config
 	state   *state.Store
 	logger  *slog.Logger
+
+	stopScheduler func()
 }
 
 // Job is the live, cancellable representation of one persisted update record.
@@ -334,6 +341,113 @@ func (m *Manager) Stop(ctx context.Context) error {
 		return nil
 	case <-ctx.Done():
 		return ctx.Err()
+	}
+}
+
+// StartScheduler starts the update scheduler based on the current config.
+// Call once at startup after NewManager.
+func (m *Manager) StartScheduler() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.stopScheduler = m.startSchedulerInternal()
+}
+
+// StopScheduler stops the update scheduler if running. Safe to call once at
+// shutdown; idempotent.
+func (m *Manager) StopScheduler() {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.stopScheduler != nil {
+		m.stopScheduler()
+		m.stopScheduler = nil
+	}
+}
+
+// ReloadConfig atomically swaps the manager's config and rebuilds the
+// scheduler. Returns ErrUpdateInProgress if an update is active.
+func (m *Manager) ReloadConfig(newCfg *config.Config) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.current != nil {
+		return ErrUpdateInProgress
+	}
+	if m.stopScheduler != nil {
+		m.stopScheduler()
+	}
+	m.cfg = newCfg
+	m.stopScheduler = m.startSchedulerInternal()
+	return nil
+}
+
+// startSchedulerInternal creates the scheduler for the current config. The
+// returned stop function halts the goroutine; calling it more than once is
+// undefined — callers track lifecycle via stopScheduler.
+func (m *Manager) startSchedulerInternal() func() {
+	switch m.cfg.Update.Schedule.Mode {
+	case "interval":
+		dur := time.Duration(m.cfg.Update.Schedule.Interval)
+		if dur <= 0 {
+			return func() {}
+		}
+		ticker := time.NewTicker(dur)
+		done := make(chan struct{})
+		go func() {
+			for {
+				select {
+				case <-done:
+					return
+				case <-ticker.C:
+					m.startScheduledUpdate()
+				}
+			}
+		}()
+		return func() {
+			close(done)
+			ticker.Stop()
+		}
+
+	case "cron":
+		loc, err := time.LoadLocation(m.cfg.Update.Schedule.Timezone)
+		if err != nil {
+			loc = time.UTC
+		}
+		c := cron.New(cron.WithLocation(loc))
+		_, err = c.AddFunc(m.cfg.Update.Schedule.Cron, func() {
+			m.startScheduledUpdate()
+		})
+		if err != nil {
+			if m.logger != nil {
+				m.logger.Error("invalid cron expression", "cron", m.cfg.Update.Schedule.Cron, "error", err)
+			}
+			return func() {}
+		}
+		c.Start()
+		return func() {
+			c.Stop()
+		}
+
+	default:
+		return func() {}
+	}
+}
+
+func (m *Manager) startScheduledUpdate() {
+	job, err := m.Start(Request{Scope: "all"}, "scheduled")
+	var conflict *ConflictError
+	if errors.As(err, &conflict) {
+		if m.logger != nil {
+			m.logger.Info("scheduled update skipped", "current_update_id", conflict.CurrentUpdateID)
+		}
+		return
+	}
+	if err != nil {
+		if m.logger != nil {
+			m.logger.Error("scheduled update failed to start", "error", err)
+		}
+		return
+	}
+	if m.logger != nil {
+		m.logger.Info("scheduled update started", "job_id", job.ID)
 	}
 }
 

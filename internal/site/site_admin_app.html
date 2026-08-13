@@ -1,4 +1,9 @@
 <body>
+<style>
+.config-reload-banner{display:flex;align-items:center;gap:12px;padding:10px 16px;background:#2a1a0a;border-bottom:1px solid #ff6418;color:#fffaf0;font-size:13px}
+.config-reload-banner[hidden]{display:none!important}
+.config-reload-text{flex:1}
+</style>
 <div class="wrap">
   <header class="topbar">
     <div class="brand">
@@ -10,6 +15,12 @@
       <button id="themeBtn" class="btn-bracket" type="button">[ 亮色 ]</button>
     </div>
   </header>
+
+  <div id="configReloadBanner" class="config-reload-banner" hidden>
+    <span class="config-reload-text">检测到配置文件变动，是否重载？</span>
+    <button id="configReloadBtn" class="pill-btn primary" type="button">重载</button>
+    <button id="configReloadDismiss" class="pill-btn" type="button">稍后</button>
+  </div>
 
   <div class="facts">
     <div class="fact"><div class="k">最近检查</div><div class="v" id="lastCheck">加载中</div></div>
@@ -373,6 +384,24 @@
     if (results[0].status === 'rejected') { byID('lastCheck').textContent = results[0].reason.message; byID('artifactCount').textContent = '—'; byID('runtimeVersion').textContent = '—'; }
     if (results[1].status === 'rejected') { byID('rulesBody').replaceChildren(tableEmpty(5, results[1].reason.message)); }
   });
+
+  // Config change detection: poll /config/dirty, show banner when changed.
+  function pollConfigDirty() {
+    request('/config/dirty').then(function (data) {
+      if (data && data.changed) { byID('configReloadBanner').hidden = false; }
+    }).catch(function () {});
+  }
+  setInterval(pollConfigDirty, 10000);
+  pollConfigDirty();
+  byID('configReloadBtn').addEventListener('click', function () {
+    var btn = byID('configReloadBtn');
+    btn.disabled = true; btn.textContent = '重载中…';
+    request('/config/reload', {method:'POST'}).then(function () { location.replace(location.href); }).catch(function (error) {
+      btn.disabled = false; btn.textContent = '重载';
+      alert(error.message);
+    });
+  });
+  byID('configReloadDismiss').addEventListener('click', function () { byID('configReloadBanner').hidden = true; });
 })();
 </script>
 </body>

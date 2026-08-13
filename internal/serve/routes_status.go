@@ -51,7 +51,7 @@ type geositeProviderInfo struct {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	artifacts, err := engine.CountArtifacts(s.Config.DataDir)
+	artifacts, err := engine.CountArtifacts(s.config().DataDir)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "artifact_count_failed", "统计发布文件失败", map[string]any{})
 		return
@@ -64,8 +64,9 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleRules(w http.ResponseWriter, _ *http.Request) {
-	resp := rulesResponse{Items: make([]ruleInfo, 0, len(s.Config.Rules)), Total: len(s.Config.Rules)}
-	for _, rule := range s.Config.Rules {
+	cfg := s.config()
+	resp := rulesResponse{Items: make([]ruleInfo, 0, len(cfg.Rules)), Total: len(cfg.Rules)}
+	for _, rule := range cfg.Rules {
 		entries, _ := s.State.RuleEntryCount(rule.ID)
 		item := ruleInfo{ID: rule.ID, Name: rule.Name, Entries: entries}
 		if result, checkedAt, versionAt, ok := s.State.RuleUpdate(rule.ID); ok {

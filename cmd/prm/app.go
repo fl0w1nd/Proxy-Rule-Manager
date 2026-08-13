@@ -1,13 +1,10 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"log/slog"
 	"path/filepath"
 	"time"
-
-	"github.com/robfig/cron/v3"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
@@ -136,66 +133,4 @@ func buildApp() (*App, error) {
 		Logger:   logger,
 		Updates:  updateManager,
 	}, nil
-}
-
-func (a *App) startScheduledUpdate() {
-	job, err := a.Updates.Start(updates.Request{Scope: "all"}, "scheduled")
-	var conflict *updates.ConflictError
-	if errors.As(err, &conflict) {
-		a.Logger.Info("scheduled update skipped", "current_update_id", conflict.CurrentUpdateID)
-		return
-	}
-	if err != nil {
-		a.Logger.Error("scheduled update failed to start", "error", err)
-		return
-	}
-	a.Logger.Info("scheduled update started", "job_id", job.ID)
-}
-
-// StartScheduler starts the update scheduler based on config. Returns a stop function.
-func (a *App) StartScheduler() func() {
-	switch a.Config.Update.Schedule.Mode {
-	case "interval":
-		dur := time.Duration(a.Config.Update.Schedule.Interval)
-		if dur <= 0 {
-			return func() {}
-		}
-		ticker := time.NewTicker(dur)
-		done := make(chan struct{})
-		go func() {
-			for {
-				select {
-				case <-done:
-					return
-				case <-ticker.C:
-					a.startScheduledUpdate()
-				}
-			}
-		}()
-		return func() {
-			close(done)
-			ticker.Stop()
-		}
-
-	case "cron":
-		loc, err := time.LoadLocation(a.Config.Update.Schedule.Timezone)
-		if err != nil {
-			loc = time.UTC
-		}
-		c := cron.New(cron.WithLocation(loc))
-		_, err = c.AddFunc(a.Config.Update.Schedule.Cron, func() {
-			a.startScheduledUpdate()
-		})
-		if err != nil {
-			a.Logger.Error("invalid cron expression", "cron", a.Config.Update.Schedule.Cron, "error", err)
-			return func() {}
-		}
-		c.Start()
-		return func() {
-			c.Stop()
-		}
-
-	default:
-		return func() {}
-	}
 }

@@ -46,7 +46,7 @@ func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(cfg, st, eng, manager, "abc"), cfg, st
+	return NewServer(cfg, st, eng, manager, "abc", ""), cfg, st
 }
 
 func authorized(method, target string, body io.Reader) *http.Request {
@@ -516,4 +516,110 @@ func TestSecurityHeadersPresentOnAllRoutes(t *testing.T) {
 	check("/", false)             // public page (404 in test, headers still apply)
 	check("/admin", false)        // admin gate (401)
 	check("/api/v1/status", true) // authenticated API (200)
+}
+
+func TestConfigReload(t *testing.T) {
+	dir := t.TempDir()
+	cfgPath := filepath.Join(dir, "config.yaml")
+	dataDir := filepath.Join(dir, "data")
+	if err := os.MkdirAll(dataDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Helper to build a valid config with variable rules and serve.host.
+	buildConfig := func(rules string, host string) string {
+		return "data_dir: " + dataDir + "\n" +
+			"clients:\n  - id: surge\n    name: Surge\n    template: surge\n" +
+			"rules:\n" + rules +
+			"serve:\n  host: " + host + "\n  port: 3001\n"
+	}
+	oneRule := "  - id: apple\n    name: Apple\n    sources:\n      - content: DOMAIN,apple.example\n    outputs: [surge]\n"
+	twoRules := oneRule + "  - id: banana\n    name: Banana\n    sources:\n      - content: DOMAIN,banana.example\n    outputs: [surge]\n"
+
+	if err := os.WriteFile(cfgPath, []byte(buildConfig(oneRule, "127.0.0.1")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	st, err := state.Open(dataDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := engine.EnsureArtifactDirs(dataDir, []string{"surge"}); err != nil {
+		t.Fatal(err)
+	}
+	eng := &engine.UpdateEngine{
+		Config: cfg, Registry: render.NewRegistry(),
+		Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(),
+		State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+	manager, err := updates.NewManager(cfg, st, eng, eng.Logger)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := NewServer(cfg, st, eng, manager, "abc", cfgPath)
+	handler := s.Handler()
+
+	api := func(method, path string) *httptest.ResponseRecorder {
+		rec := httptest.NewRecorder()
+		handler.ServeHTTP(rec, authorized(method, path, nil))
+		return rec
+	}
+	var dirty struct {
+		Changed bool `json:"changed"`
+	}
+
+	// Initially not dirty.
+	rec := api("GET", "/api/v1/config/dirty")
+	if rec.Code != 200 {
+		t.Fatalf("dirty: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if dirty.Changed {
+		t.Error("expected not dirty initially")
+	}
+
+	// Edit config: add a second rule.
+	time.Sleep(50 * time.Millisecond)
+	if err := os.WriteFile(cfgPath, []byte(buildConfig(twoRules, "127.0.0.1")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Now dirty.
+	rec = api("GET", "/api/v1/config/dirty")
+	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if !dirty.Changed {
+		t.Error("expected dirty after edit")
+	}
+
+	// Reload.
+	rec = api("POST", "/api/v1/config/reload")
+	if rec.Code != 200 {
+		t.Fatalf("reload: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// Not dirty after reload.
+	rec = api("GET", "/api/v1/config/dirty")
+	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if dirty.Changed {
+		t.Error("expected not dirty after reload")
+	}
+
+	// Config updated to 2 rules.
+	if n := len(s.config().Rules); n != 2 {
+		t.Errorf("expected 2 rules after reload, got %d", n)
+	}
+
+	// Non-hot-reloadable field change (host) must be rejected with 422.
+	time.Sleep(50 * time.Millisecond)
+	if err := os.WriteFile(cfgPath, []byte(buildConfig(twoRules, "127.0.0.2")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	rec = api("POST", "/api/v1/config/reload")
+	if rec.Code != 422 {
+		t.Fatalf("expected 422 for host change, got %d body=%s", rec.Code, rec.Body.String())
+	}
 }

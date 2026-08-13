@@ -44,7 +44,7 @@ var serveCmd = &cobra.Command{
 			app.Logger.Warn("site initialization failed", "error", err)
 		}
 
-		srv := serve.NewServer(app.Config, app.State, app.Engine, app.Updates, apiToken)
+		srv := serve.NewServer(app.Config, app.State, app.Engine, app.Updates, apiToken, cfgFile)
 		handler := srv.Handler()
 
 		addr := net.JoinHostPort(app.Config.Serve.Host, strconv.Itoa(app.Config.Serve.Port))
@@ -63,14 +63,14 @@ var serveCmd = &cobra.Command{
 		}()
 
 		// Start scheduler if configured
-		stopScheduler := app.StartScheduler()
+		app.Updates.StartScheduler()
 
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
 		select {
 		case <-ctx.Done():
 		case err := <-serverErr:
-			stopScheduler()
+			app.Updates.StopScheduler()
 			if err != nil && err != http.ErrServerClosed {
 				return fmt.Errorf("serve: %w", err)
 			}
@@ -78,7 +78,7 @@ var serveCmd = &cobra.Command{
 		}
 
 		app.Logger.Info("shutting down")
-		stopScheduler()
+		app.Updates.StopScheduler()
 
 		updateCtx, updateCancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer updateCancel()

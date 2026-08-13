@@ -12,6 +12,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -32,37 +34,63 @@ type Server struct {
 	updates        *updates.Manager
 	apiToken       string
 	trustedProxies []netip.Prefix
+
+	configFile  string
+	configMtime time.Time
+	mu           sync.RWMutex // protects Config, trustedProxies, configMtime
 }
 
 // NewServer creates a new HTTP server. Trusted proxy CIDRs from
 // cfg.Serve.TrustedProxies are parsed once and used to decide which requests
-// may carry forwarded scheme headers.
+// may carry forwarded scheme headers. configFile is the path to config.yaml
+// used for hot-reload; empty disables the feature.
 func NewServer(
 	cfg *config.Config,
 	st *state.Store,
 	eng *engine.UpdateEngine,
 	updateManager *updates.Manager,
-	apiToken string,
+	apiToken, configFile string,
 ) *Server {
 	s := &Server{
 		Config: cfg, State: st, Engine: eng,
 		updates: updateManager, apiToken: apiToken,
+		configFile: configFile,
 	}
-	for _, p := range cfg.Serve.TrustedProxies {
+	if configFile != "" {
+		if fi, err := os.Stat(configFile); err == nil {
+			s.configMtime = fi.ModTime()
+		}
+	}
+	s.trustedProxies = parseTrustedProxies(cfg.Serve.TrustedProxies)
+	return s
+}
+
+// parseTrustedProxies converts the config's trusted proxy strings into
+// netip.Prefix slices, accepting bare IPs as single-host prefixes.
+func parseTrustedProxies(proxies []string) []netip.Prefix {
+	var result []netip.Prefix
+	for _, p := range proxies {
 		p = strings.TrimSpace(p)
 		if p == "" {
 			continue
 		}
 		if prefix, err := netip.ParsePrefix(p); err == nil {
-			s.trustedProxies = append(s.trustedProxies, prefix)
+			result = append(result, prefix)
 			continue
 		}
-		// A bare IP is accepted as a single-host prefix.
 		if addr, err := netip.ParseAddr(p); err == nil {
-			s.trustedProxies = append(s.trustedProxies, netip.PrefixFrom(addr, addr.BitLen()))
+			result = append(result, netip.PrefixFrom(addr, addr.BitLen()))
 		}
 	}
-	return s
+	return result
+}
+
+// config returns a snapshot of the current config, safe for concurrent access.
+// The returned pointer is immutable; reload swaps in a new *config.Config.
+func (s *Server) config() *config.Config {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.Config
 }
 
 // Handler returns the chi router with all routes configured.
@@ -107,6 +135,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/updates/{updateID}", s.handleUpdateDetail)
 		r.Get("/updates/{updateID}/events", s.handleUpdateEvents)
 		r.Post("/updates/{updateID}/cancel", s.sameOriginMutation(s.handleCancelUpdate))
+		r.Get("/config/dirty", s.handleConfigDirty)
+		r.Post("/config/reload", s.sameOriginMutation(s.handleConfigReload))
 	})
 
 	return r
@@ -193,7 +223,7 @@ func (s *Server) serveAdminGate(w http.ResponseWriter, invalid bool) {
 // handleSitePage serves one generated page from the data directory.
 func (s *Server) handleSitePage(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := filepath.Join(s.Config.DataDir, name)
+		p := filepath.Join(s.config().DataDir, name)
 		if st, err := os.Stat(p); err != nil || st.IsDir() {
 			http.Error(w, name+" not found (site generation failed; check serve logs or run prm update)", http.StatusNotFound)
 			return
