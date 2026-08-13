@@ -39,6 +39,11 @@ LABEL org.opencontainers.image.title="Proxy Rule Manager" \
 
 COPY --from=builder /prm /usr/local/bin/prm
 
+ENV PRM_DATA_DIR=/data \
+    PRM_SERVE_HOST=0.0.0.0 \
+    PRM_SERVE_PORT=3001 \
+    PRM_TRUSTED_PROXIES=127.0.0.1/32,172.16.0.0/12
+
 VOLUME ["/data"]
 WORKDIR /data
 

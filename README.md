@@ -105,7 +105,7 @@ rules:
 4. **校验配置**。`prm validate` 通过则继续，报错带 YAML 行号和配置路径。
 5. **执行更新**。`prm update` 抓取来源、生成产物，产物出现在 `data/rules/`。
 
-所有命令都支持 `--config PATH` 指定配置文件（默认 `config.yaml`）。
+所有命令都支持 `--config PATH` 指定配置文件（默认 `config.yaml`）。访问运行数据的命令支持 `--data-dir PATH`（默认 `./data`，环境变量 `PRM_DATA_DIR`）。
 
 ## 命令
 
@@ -116,7 +116,7 @@ rules:
 | `prm update [rule-ids...]` | 全量更新，或只编译列出的规则及其依赖 |
 | `prm preview <rule-id> [--target <id>]` | 查看单条规则各阶段结果，可指定渲染某个输出目标 |
 | `prm build` | 全量更新后，把静态站点导出到 `dist/` |
-| `prm serve` | 启动 HTTP 服务（需要 `ADMIN_TOKEN`） |
+| `prm serve` | 启动 HTTP 服务（需要 `PRM_ADMIN_TOKEN`） |
 
 ## 配置
 
@@ -126,6 +126,7 @@ rules:
 
 - 字符串支持 `${ENV_NAME}` 环境变量插值，适合放令牌和私有地址。
 - 时长用 Go 语法（`30m`、`168h`）；大小可写 `4MB` 或字节数。
+- 数据目录和 HTTP 服务参数属于运行时接口，通过 CLI flag 或 `PRM_*` 环境变量设置。
 - 本地文件来源只从 `data/local/` 下解析。
 - 校验错误带 YAML 行号和配置路径。
 
@@ -148,7 +149,16 @@ data/
 
 ## HTTP 服务
 
-`prm serve` 默认监听 `127.0.0.1:3001`。必须通过环境变量设置 `ADMIN_TOKEN`，否则启动即退出。
+`prm serve` 默认监听 `127.0.0.1:3001`，管理令牌通过 `PRM_ADMIN_TOKEN` 提供。运行时参数遵循 CLI flag > 环境变量 > 默认值：
+
+| 用途 | CLI flag | 环境变量 |
+| --- | --- | --- |
+| 数据目录 | `--data-dir` | `PRM_DATA_DIR` |
+| 监听地址 | `--host` | `PRM_SERVE_HOST` |
+| 监听端口 | `--port` | `PRM_SERVE_PORT` |
+| 可信代理 | 重复 `--trusted-proxy` | `PRM_TRUSTED_PROXIES`（逗号分隔） |
+
+示例：`PRM_ADMIN_TOKEN=secret prm --data-dir ./data serve --host 127.0.0.1 --port 3001`。
 
 - 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite 目录。
 - 规则产物在 `/rules/`。

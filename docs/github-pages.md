@@ -6,7 +6,7 @@
 
 - 源仓库（`fl0w1nd/Proxy-Rule-Manager`）每次发版（打 `v*.*.*` 标签）时，自动发布最新二进制和 Docker 镜像。
 - 你的 Fork 仓库里有一条 Pages 工作流：每天 `03:17 UTC` 自动运行一次，也可以手动触发。
-- 运行时从源仓库下载最新正式 Release，校验 SHA-256，然后在 `publish` 分支上执行 `prm build --output dist`。
+- 运行时从源仓库下载最新正式 Release，校验 SHA-256，然后在 `publish` 分支上执行 `prm --data-dir data build --output dist`。
 - 产物通过 Pages Artifact 发布。构建中断不影响线上站点，旧版本继续服务。
 
 ## 首次设置
@@ -24,7 +24,7 @@
 
    ```bash
    git checkout publish
-   # 编辑 config.yaml，把 data_dir 保持为 ./data
+   # 编辑 config.yaml；运行数据由工作流的 --data-dir data 指定
    # 把本地文件源放入 data/local/，自定义模板放入 data/templates/，图标放入 data/static/icons/
    git add config.yaml data
    git commit -m "chore: update publish configuration"
@@ -73,7 +73,7 @@ prm 版本由源仓库的最新 Release 自动推进；同步 `main` 可以取�
 构建前先在本地生成一次，确认配置与来源都正确：
 
 ```bash
-prm build --output dist
+prm --data-dir data build --output dist
 ```
 
 产物固定包含 `index.html`、`rules/`、`static/icons/`、`.nojekyll`，用任意静态文件服务器即可预览 `dist/`。

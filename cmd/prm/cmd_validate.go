@@ -22,7 +22,11 @@ Every error is reported with its YAML line number and config path.
 Geosite validation issues are reported individually without blocking
 other rules from working.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		app, err := buildApp()
+		dataDir, err := resolveDataDir(cmd)
+		if err != nil {
+			return fmt.Errorf("validation failed: %w", err)
+		}
+		app, err := buildApp(dataDir)
 		if err != nil {
 			// buildApp already reports line-precise errors via ConfigErrors
 			var errs config.ConfigErrors

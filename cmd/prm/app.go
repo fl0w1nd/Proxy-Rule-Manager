@@ -18,6 +18,7 @@ import (
 
 // App holds the fully initialized application components.
 type App struct {
+	DataDir  string
 	Config   *config.Config
 	Registry *render.Registry
 	Engine   *engine.UpdateEngine
@@ -28,8 +29,8 @@ type App struct {
 }
 
 // buildApp creates a fully initialized App from the config file.
-func buildApp() (*App, error) {
-	cfg, err := config.Load(cfgFile)
+func buildApp(dataDir string) (*App, error) {
+	cfg, err := config.Load(cfgFile, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
@@ -42,7 +43,7 @@ func buildApp() (*App, error) {
 	if err := registry.LoadEmbedded(templates.FS); err != nil {
 		return nil, fmt.Errorf("load embedded templates: %w", err)
 	}
-	overrideDir := filepath.Join(cfg.DataDir, "templates")
+	overrideDir := filepath.Join(dataDir, "templates")
 	if err := registry.LoadDir(overrideDir); err != nil {
 		return nil, fmt.Errorf("load override templates: %w", err)
 	}
@@ -56,7 +57,7 @@ func buildApp() (*App, error) {
 	}
 
 	// Open state
-	st, err := state.Open(cfg.DataDir)
+	st, err := state.Open(dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("open state: %w", err)
 	}
@@ -77,7 +78,7 @@ func buildApp() (*App, error) {
 	for i, target := range targets {
 		clientIDs[i] = target.ID
 	}
-	if err := engine.EnsureArtifactDirs(cfg.DataDir, clientIDs); err != nil {
+	if err := engine.EnsureArtifactDirs(dataDir, clientIDs); err != nil {
 		return nil, fmt.Errorf("create artifact dirs: %w", err)
 	}
 
@@ -101,9 +102,10 @@ func buildApp() (*App, error) {
 	)
 
 	// Create geosite manager
-	geositeManager := geosite.NewManager(filepath.Join(cfg.DataDir, "geosite"))
+	geositeManager := geosite.NewManager(filepath.Join(dataDir, "geosite"))
 
 	eng := &engine.UpdateEngine{
+		DataDir:      dataDir,
 		Config:       cfg,
 		Registry:     registry,
 		Fetcher:      fetcher,
@@ -112,7 +114,7 @@ func buildApp() (*App, error) {
 		Geosite:      geositeManager,
 		Logger:       logger,
 	}
-	updateManager, err := updates.NewManager(cfg, st, eng, logger)
+	updateManager, err := updates.NewManager(cfg, dataDir, st, eng, logger)
 	if err != nil {
 		return nil, fmt.Errorf("initialize update manager: %w", err)
 	}
@@ -120,11 +122,12 @@ func buildApp() (*App, error) {
 	// Drop root privileges: when the container starts as root (needed to fix
 	// root-owned bind-mounted volumes), chown the data dir to the unprivileged
 	// uid and switch to it so the server runs as non-root from here on.
-	if err := dropPrivileges(cfg.DataDir); err != nil {
+	if err := dropPrivileges(dataDir); err != nil {
 		return nil, fmt.Errorf("drop privileges: %w", err)
 	}
 
 	return &App{
+		DataDir:  dataDir,
 		Config:   cfg,
 		Registry: registry,
 		Engine:   eng,

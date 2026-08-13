@@ -14,7 +14,6 @@ func TestLoadValid(t *testing.T) {
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-data_dir: ./data
 clients:
   - id: clash
     name: Clash
@@ -32,18 +31,13 @@ update:
     mode: manual
   fetch:
     retries: 0
-serve:
-  port: 3001
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Load(cfgPath)
+	cfg, err := Load(cfgPath, t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
-	}
-	if cfg.DataDir != "./data" {
-		t.Errorf("DataDir = %q, want ./data", cfg.DataDir)
 	}
 	if len(cfg.Clients) != 1 {
 		t.Errorf("len(Clients) = %d, want 1", len(cfg.Clients))
@@ -59,9 +53,6 @@ serve:
 	}
 	if len(cfg.Rules[0].Tags) != 2 || cfg.Rules[0].Tags[0] != "test" || cfg.Rules[0].Tags[1] != "example" {
 		t.Errorf("Tags = %v", cfg.Rules[0].Tags)
-	}
-	if cfg.Serve.Port != 3001 {
-		t.Errorf("Serve.Port = %d, want 3001", cfg.Serve.Port)
 	}
 	if cfg.Update.Fetch.Retries != 0 {
 		t.Errorf("explicit Retries = %d, want 0", cfg.Update.Fetch.Retries)
@@ -87,7 +78,7 @@ rules: []
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Load(cfgPath)
+	cfg, err := Load(cfgPath, t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
@@ -115,12 +106,9 @@ rules:
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Load(cfgPath)
+	cfg, err := Load(cfgPath, t.TempDir())
 	if err != nil {
 		t.Fatalf("Load: %v", err)
-	}
-	if cfg.DataDir != "./data" {
-		t.Errorf("default DataDir = %q", cfg.DataDir)
 	}
 	if cfg.Update.Fetch.Concurrency != 4 {
 		t.Errorf("default Concurrency = %d", cfg.Update.Fetch.Concurrency)
@@ -160,24 +148,23 @@ update:
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "error_retention") {
+	if _, err := Load(path, t.TempDir()); err == nil || !strings.Contains(err.Error(), "error_retention") {
 		t.Fatalf("removed field error = %v", err)
 	}
 }
 
 func TestValidateHistoryBounds(t *testing.T) {
 	cfg := Config{Update: UpdateConfig{HistoryRetention: Duration(0), HistoryLimit: 10001}}
-	if errs := cfg.Validate(); !containsErrorPath(errs, "update.history_retention") || !containsErrorPath(errs, "update.history_limit") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "update.history_retention") || !containsErrorPath(errs, "update.history_limit") {
 		t.Fatalf("history validation errors = %v", ConfigErrors(errs))
 	}
 }
 
 func TestLoadEnvInterpolation(t *testing.T) {
-	t.Setenv("TEST_DATA_DIR", "./env-data")
+	t.Setenv("TEST_USER_AGENT", "custom-agent")
 	dir := t.TempDir()
 	cfgPath := filepath.Join(dir, "config.yaml")
 	content := `
-data_dir: ${TEST_DATA_DIR}
 clients:
   - id: c
     template: t
@@ -187,16 +174,19 @@ rules:
     sources:
       - content: example.com
     outputs: [c]
+update:
+  fetch:
+    user_agent: ${TEST_USER_AGENT}
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg, err := Load(cfgPath)
+	cfg, err := Load(cfgPath, t.TempDir())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.DataDir != "./env-data" {
-		t.Fatalf("data dir: %q", cfg.DataDir)
+	if cfg.Update.Fetch.UserAgent != "custom-agent" {
+		t.Fatalf("user agent: %q", cfg.Update.Fetch.UserAgent)
 	}
 }
 
@@ -221,13 +211,13 @@ rules:
     sources:
       - content: example.com
     outputs: [c]
-serve:
+update:
   prot: 3001
 `
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(cfgPath); err == nil {
+	if _, err := Load(cfgPath, t.TempDir()); err == nil {
 		t.Fatal("unknown field was accepted")
 	}
 }
@@ -248,7 +238,7 @@ rules:
 	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	_, err := Load(cfgPath)
+	_, err := Load(cfgPath, t.TempDir())
 	var configErrs ConfigErrors
 	if !errors.As(err, &configErrs) {
 		t.Fatalf("error: %v", err)
@@ -269,7 +259,7 @@ func TestValidateDuplicateClient(t *testing.T) {
 		},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "clients[1].id") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "clients[1].id") {
 		t.Fatalf("missing duplicate client error: %v", ConfigErrors(errs))
 	}
 }
@@ -277,7 +267,7 @@ func TestValidateDuplicateClient(t *testing.T) {
 func TestValidateNoClients(t *testing.T) {
 	cfg := &Config{}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "clients") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "clients") {
 		t.Fatalf("missing clients error: %v", ConfigErrors(errs))
 	}
 }
@@ -291,18 +281,18 @@ func TestValidateRuleIdentity(t *testing.T) {
 		},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); len(errs) > 0 {
+	if errs := cfg.Validate(t.TempDir()); len(errs) > 0 {
 		t.Fatalf("display names may repeat: %v", ConfigErrors(errs))
 	}
 
 	cfg.Rules[1].ID = "first"
-	if errs := cfg.Validate(); !containsErrorPath(errs, "rules[1].id") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "rules[1].id") {
 		t.Fatalf("missing duplicate rule ID error: %v", ConfigErrors(errs))
 	}
 
 	cfg.Rules[1].ID = ""
 	cfg.Rules[1].Name = ""
-	errs := cfg.Validate()
+	errs := cfg.Validate(t.TempDir())
 	if !containsErrorPath(errs, "rules[1].id") || !containsErrorPath(errs, "rules[1].name") {
 		t.Fatalf("missing required rule identity errors: %v", ConfigErrors(errs))
 	}
@@ -321,7 +311,7 @@ func TestValidateUnknownOutput(t *testing.T) {
 		},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "rules[0].outputs[0]") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "rules[0].outputs[0]") {
 		t.Fatalf("missing output client error: %v", ConfigErrors(errs))
 	}
 }
@@ -338,7 +328,7 @@ func TestValidateRuleTags(t *testing.T) {
 		}},
 	}
 	cfg.Defaults()
-	errs := cfg.Validate()
+	errs := cfg.Validate(t.TempDir())
 	if !containsErrorPath(errs, "rules[0].tags[1]") || !containsErrorPath(errs, "rules[0].tags[2]") {
 		t.Fatalf("tag errors: %v", ConfigErrors(errs))
 	}
@@ -403,7 +393,7 @@ func TestValidateGeositeCompactRef(t *testing.T) {
 		Update: UpdateConfig{Schedule: ScheduleConfig{Mode: "manual"}},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); len(errs) > 0 {
+	if errs := cfg.Validate(t.TempDir()); len(errs) > 0 {
 		t.Errorf("expected valid config, got: %v", ConfigErrors(errs))
 	}
 }
@@ -421,7 +411,7 @@ func TestValidateGeositeInvalidRef(t *testing.T) {
 		},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "rules[0].sources[0].geosite") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "rules[0].sources[0].geosite") {
 		t.Fatalf("missing geosite ref error: %v", ConfigErrors(errs))
 	}
 }
@@ -436,7 +426,7 @@ func TestValidateGeositeProviderWithClients(t *testing.T) {
 		Update: UpdateConfig{Schedule: ScheduleConfig{Mode: "manual"}},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); len(errs) > 0 {
+	if errs := cfg.Validate(t.TempDir()); len(errs) > 0 {
 		t.Errorf("expected valid config, got: %v", ConfigErrors(errs))
 	}
 }
@@ -451,7 +441,7 @@ func TestValidateGeositeProviderMissingClients(t *testing.T) {
 		Update: UpdateConfig{Schedule: ScheduleConfig{Mode: "manual"}},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "geosite.providers[0].clients") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "geosite.providers[0].clients") {
 		t.Fatalf("missing provider clients error: %v", ConfigErrors(errs))
 	}
 }
@@ -466,7 +456,7 @@ func TestValidateGeositeProviderUnknownClient(t *testing.T) {
 		Update: UpdateConfig{Schedule: ScheduleConfig{Mode: "manual"}},
 	}
 	cfg.Defaults()
-	if errs := cfg.Validate(); !containsErrorPath(errs, "geosite.providers[0].clients[0]") {
+	if errs := cfg.Validate(t.TempDir()); !containsErrorPath(errs, "geosite.providers[0].clients[0]") {
 		t.Fatalf("missing provider client error: %v", ConfigErrors(errs))
 	}
 }
@@ -527,7 +517,7 @@ func TestValidateRuleProcessingBoundaries(t *testing.T) {
 				}},
 			}
 			cfg.Defaults()
-			errs := cfg.Validate()
+			errs := cfg.Validate(t.TempDir())
 			for _, err := range errs {
 				if err.Path == tt.wantPath {
 					return
@@ -549,7 +539,7 @@ func TestValidateUnknownRuleReference(t *testing.T) {
 		}},
 	}
 	cfg.Defaults()
-	for _, err := range cfg.Validate() {
+	for _, err := range cfg.Validate(t.TempDir()) {
 		if err.Path == "rules[0].sources[0].ref" {
 			return
 		}
@@ -592,7 +582,7 @@ update:
 			if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
 				t.Fatal(err)
 			}
-			_, err := Load(cfgPath)
+			_, err := Load(cfgPath, t.TempDir())
 			var configErrs ConfigErrors
 			if !errors.As(err, &configErrs) {
 				t.Fatalf("error: %v", err)
@@ -617,7 +607,7 @@ func TestLoadRejectsLegacySyncField(t *testing.T) {
 	if err := os.WriteFile(path, content, 0o644); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := Load(path); err == nil || !strings.Contains(err.Error(), "field sync not found") {
+	if _, err := Load(path, t.TempDir()); err == nil || !strings.Contains(err.Error(), "field sync not found") {
 		t.Fatalf("legacy field error = %v", err)
 	}
 }
@@ -631,15 +621,16 @@ func containsErrorPath(errs []ConfigError, path string) bool {
 	return false
 }
 
-func TestValidateTrustedProxiesParsing(t *testing.T) {
-	cfg := &Config{
-		DataDir: t.TempDir(),
-		Clients: []ClientConfig{{ID: "surge", Template: "surge"}},
-		Serve:   ServeConfig{Host: "127.0.0.1", Port: 3001, TrustedProxies: []string{"10.0.0.0/8", "not-an-ip"}},
-	}
-	cfg.Defaults()
-	errs := cfg.Validate()
-	if !containsErrorPath(errs, "serve.trusted_proxies[1]") {
-		t.Fatalf("expected trusted_proxies parse error, got: %v", ConfigErrors(errs))
+func TestLoadRejectsRemovedRuntimeFields(t *testing.T) {
+	for _, field := range []string{"data_dir: ./data\n", "serve:\n  host: 127.0.0.1\n"} {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "config.yaml")
+		content := field + "clients:\n  - id: surge\n    template: surge\nrules: []\n"
+		if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := Load(path, dir); err == nil || !strings.Contains(err.Error(), "field") {
+			t.Fatalf("removed runtime field error = %v", err)
+		}
 	}
 }

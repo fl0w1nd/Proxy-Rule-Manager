@@ -27,9 +27,10 @@ import (
 
 // Server is the HTTP server.
 type Server struct {
-	Config *config.Config
-	State  *state.Store
-	Engine *engine.UpdateEngine
+	DataDir string
+	Config  *config.Config
+	State   *state.Store
+	Engine  *engine.UpdateEngine
 
 	updates        *updates.Manager
 	apiToken       string
@@ -37,52 +38,38 @@ type Server struct {
 
 	configFile  string
 	configMtime time.Time
-	mu           sync.RWMutex // protects Config, trustedProxies, configMtime
+	mu          sync.RWMutex // protects Config and configMtime
 }
 
-// NewServer creates a new HTTP server. Trusted proxy CIDRs from
-// cfg.Serve.TrustedProxies are parsed once and used to decide which requests
-// may carry forwarded scheme headers. configFile is the path to config.yaml
-// used for hot-reload; empty disables the feature.
+// Options contains immutable HTTP server runtime settings.
+type Options struct {
+	DataDir        string
+	APIToken       string
+	ConfigFile     string
+	TrustedProxies []netip.Prefix
+}
+
+// NewServer creates a new HTTP server. Runtime settings stay fixed for the
+// process lifetime while the business config may be hot-reloaded.
 func NewServer(
 	cfg *config.Config,
 	st *state.Store,
 	eng *engine.UpdateEngine,
 	updateManager *updates.Manager,
-	apiToken, configFile string,
+	opts Options,
 ) *Server {
 	s := &Server{
-		Config: cfg, State: st, Engine: eng,
-		updates: updateManager, apiToken: apiToken,
-		configFile: configFile,
+		DataDir: opts.DataDir, Config: cfg, State: st, Engine: eng,
+		updates: updateManager, apiToken: opts.APIToken,
+		trustedProxies: append([]netip.Prefix(nil), opts.TrustedProxies...),
+		configFile:     opts.ConfigFile,
 	}
-	if configFile != "" {
-		if fi, err := os.Stat(configFile); err == nil {
+	if opts.ConfigFile != "" {
+		if fi, err := os.Stat(opts.ConfigFile); err == nil {
 			s.configMtime = fi.ModTime()
 		}
 	}
-	s.trustedProxies = parseTrustedProxies(cfg.Serve.TrustedProxies)
 	return s
-}
-
-// parseTrustedProxies converts the config's trusted proxy strings into
-// netip.Prefix slices, accepting bare IPs as single-host prefixes.
-func parseTrustedProxies(proxies []string) []netip.Prefix {
-	var result []netip.Prefix
-	for _, p := range proxies {
-		p = strings.TrimSpace(p)
-		if p == "" {
-			continue
-		}
-		if prefix, err := netip.ParsePrefix(p); err == nil {
-			result = append(result, prefix)
-			continue
-		}
-		if addr, err := netip.ParseAddr(p); err == nil {
-			result = append(result, netip.PrefixFrom(addr, addr.BitLen()))
-		}
-	}
-	return result
 }
 
 // config returns a snapshot of the current config, safe for concurrent access.
@@ -108,11 +95,11 @@ func (s *Server) Handler() http.Handler {
 	r.Use(middleware.RequestID)
 
 	// Public: static rule artifacts
-	rulesDir := filepath.Join(s.Config.DataDir, "rules")
+	rulesDir := filepath.Join(s.DataDir, "rules")
 	r.Handle("/rules/*", http.StripPrefix("/rules/", http.FileServer(http.Dir(rulesDir))))
 
 	// Public: generated pages and static assets (icons, etc.)
-	iconsDir := filepath.Join(s.Config.DataDir, "static", "icons")
+	iconsDir := filepath.Join(s.DataDir, "static", "icons")
 	r.Handle("/static/icons/*", http.StripPrefix("/static/icons/", http.FileServer(http.Dir(iconsDir))))
 	r.Get("/", s.handleSitePage("static/index.html"))
 	r.Get("/index.html", s.handleSitePage("static/index.html"))
@@ -223,7 +210,7 @@ func (s *Server) serveAdminGate(w http.ResponseWriter, invalid bool) {
 // handleSitePage serves one generated page from the data directory.
 func (s *Server) handleSitePage(name string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		p := filepath.Join(s.config().DataDir, name)
+		p := filepath.Join(s.DataDir, name)
 		if st, err := os.Stat(p); err != nil || st.IsDir() {
 			http.Error(w, name+" not found (site generation failed; check serve logs or run prm update)", http.StatusNotFound)
 			return
@@ -291,7 +278,7 @@ button:hover{background:#ff6418;border-color:#ff6418}button:active{transform:tra
 <body><div class="card">
 <div class="k">PRM 管理看板 · 输入令牌</div>
 <form method="get" action="/admin">
-<input type="password" name="token" autofocus autocomplete="off" placeholder="ADMIN_TOKEN">
+<input type="password" name="token" autofocus autocomplete="off" placeholder="PRM_ADMIN_TOKEN">
 <button type="submit">进 入</button>
 </form>
 <div class="err" id="e">令牌无效</div>

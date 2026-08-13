@@ -37,7 +37,7 @@ type CompileResult struct {
 
 // CompileRule runs the full pipeline for one rule: fetch sources -> parse ->
 // ops -> merge -> render. localFiles resolves and validates local file source
-// paths against the configured allowed roots; pass config.Config.LocalFileResolver()
+// paths against the configured allowed roots; pass config.NewLocalFileResolver(dataDir)
 // in production. A nil localFiles rejects every file source.
 func CompileRule(
 	ctx context.Context,

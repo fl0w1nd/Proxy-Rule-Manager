@@ -8,11 +8,6 @@ import (
 	"testing"
 )
 
-func resolverCfg(t *testing.T, dataDir string) *Config {
-	t.Helper()
-	return &Config{DataDir: dataDir}
-}
-
 func TestLocalFileResolverAllowsFilesInsideRoot(t *testing.T) {
 	dataDir := t.TempDir()
 	localDir := filepath.Join(dataDir, "local")
@@ -23,8 +18,7 @@ func TestLocalFileResolverAllowsFilesInsideRoot(t *testing.T) {
 	if err := os.WriteFile(target, []byte("ok"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := resolverCfg(t, dataDir)
-	resolve := cfg.LocalFileResolver()
+	resolve := NewLocalFileResolver(dataDir)
 
 	got, err := resolve(target)
 	if err != nil {
@@ -45,10 +39,9 @@ func TestLocalFileResolverAnchorsRelativeAtLocal(t *testing.T) {
 	if err := os.WriteFile(target, []byte("ok"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	cfg := resolverCfg(t, dataDir)
-	resolve := cfg.LocalFileResolver()
+	resolve := NewLocalFileResolver(dataDir)
 
-	// A bare relative name resolves against data_dir/local, not the CWD.
+	// A bare relative name resolves against dataDir/local.
 	got, err := resolve("custom.list")
 	if err != nil {
 		t.Fatalf("relative resolve: %v", err)
@@ -64,8 +57,7 @@ func TestLocalFileResolverAnchorsRelativeAtLocal(t *testing.T) {
 
 func TestLocalFileResolverRejectsTraversalAndAbsoluteEscape(t *testing.T) {
 	dataDir := t.TempDir()
-	cfg := resolverCfg(t, dataDir)
-	resolve := cfg.LocalFileResolver()
+	resolve := NewLocalFileResolver(dataDir)
 
 	for _, tc := range []struct {
 		name string
@@ -74,7 +66,7 @@ func TestLocalFileResolverRejectsTraversalAndAbsoluteEscape(t *testing.T) {
 		{"parent traversal", filepath.Join(dataDir, "..", "secret.list")},
 		{"absolute outside", "/etc/passwd"},
 		{"deep traversal", filepath.Join(dataDir, "..", "..", "etc", "hosts")},
-		{"sibling under data_dir", filepath.Join(dataDir, "rules", "escape.list")},
+		{"sibling under data directory", filepath.Join(dataDir, "rules", "escape.list")},
 		{"relative parent traversal", "../secret.list"},
 		{"relative deep traversal", "../../etc/hosts"},
 	} {
@@ -97,7 +89,7 @@ func TestLocalFileResolverRejectsSymlinkEscape(t *testing.T) {
 	if err := os.WriteFile(outsideFile, []byte("secret"), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	// Place a symlink inside data_dir/local that points outside it.
+	// Place a symlink inside dataDir/local that points outside it.
 	link := filepath.Join(localDir, "escape.list")
 	if err := os.Symlink(outsideFile, link); err != nil {
 		if runtime.GOOS == "windows" {
@@ -105,8 +97,7 @@ func TestLocalFileResolverRejectsSymlinkEscape(t *testing.T) {
 		}
 		t.Fatalf("symlink: %v", err)
 	}
-	cfg := resolverCfg(t, dataDir)
-	if _, err := cfg.LocalFileResolver()(link); err == nil {
+	if _, err := NewLocalFileResolver(dataDir)(link); err == nil {
 		t.Fatalf("expected symlink escape to be rejected")
 	}
 }
@@ -115,8 +106,7 @@ func TestLocalFileResolverNonExistentInsideRootIsAllowed(t *testing.T) {
 	// A missing file inside the root must pass containment (so the caller's
 	// ReadFile surfaces the not-found error rather than a containment error).
 	dataDir := t.TempDir()
-	cfg := resolverCfg(t, dataDir)
-	got, err := cfg.LocalFileResolver()(filepath.Join(dataDir, "local", "missing.list"))
+	got, err := NewLocalFileResolver(dataDir)(filepath.Join(dataDir, "local", "missing.list"))
 	if err != nil {
 		t.Fatalf("expected allowed, got: %v", err)
 	}
@@ -128,7 +118,6 @@ func TestLocalFileResolverNonExistentInsideRootIsAllowed(t *testing.T) {
 func TestValidateRejectsEscapingFileSource(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &Config{
-		DataDir: dataDir,
 		Clients: []ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []RuleConfig{{
 			ID: "r", Name: "r",
@@ -137,7 +126,7 @@ func TestValidateRejectsEscapingFileSource(t *testing.T) {
 		}},
 	}
 	cfg.Defaults()
-	errs := cfg.Validate()
+	errs := cfg.Validate(dataDir)
 	if !containsErrorPath(errs, "rules[0].sources[0].file") {
 		t.Fatalf("expected escape error, got: %v", ConfigErrors(errs))
 	}
@@ -147,12 +136,11 @@ func TestValidateAcceptsFileSourceUnderDataDirLocal(t *testing.T) {
 	dataDir := t.TempDir()
 	for _, file := range []string{
 		filepath.Join(dataDir, "local", "rules.list"), // absolute
-		"rules.list",       // bare relative, anchored at data_dir/local
+		"rules.list",       // bare relative, anchored at dataDir/local
 		"nested/deep.list", // nested relative
 	} {
 		t.Run(file, func(t *testing.T) {
 			cfg := &Config{
-				DataDir: dataDir,
 				Clients: []ClientConfig{{ID: "surge", Template: "surge"}},
 				Rules: []RuleConfig{{
 					ID: "r", Name: "r",
@@ -161,7 +149,7 @@ func TestValidateAcceptsFileSourceUnderDataDirLocal(t *testing.T) {
 				}},
 			}
 			cfg.Defaults()
-			errs := cfg.Validate()
+			errs := cfg.Validate(dataDir)
 			for _, e := range errs {
 				if strings.Contains(e.Path, "sources[0].file") {
 					t.Fatalf("expected no file-source error for %q, got: %v", file, e)

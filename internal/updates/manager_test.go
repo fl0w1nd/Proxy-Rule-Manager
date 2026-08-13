@@ -41,13 +41,14 @@ func (r *blockingRunner) PartialUpdate(ctx context.Context, _ []string) engine.U
 
 func managerFixture(t *testing.T, runner runner) (*Manager, *state.Store, *config.Config) {
 	t.Helper()
-	cfg := &config.Config{DataDir: t.TempDir(), Rules: []config.RuleConfig{{ID: "base", Name: "Base"}, {ID: "child", Name: "Child"}}}
+	dataDir := t.TempDir()
+	cfg := &config.Config{Rules: []config.RuleConfig{{ID: "base", Name: "Base"}, {ID: "child", Name: "Child"}}}
 	cfg.Defaults()
-	st, err := state.Open(cfg.DataDir)
+	st, err := state.Open(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	m, err := NewManager(cfg, st, runner, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	m, err := NewManager(cfg, dataDir, st, runner, slog.New(slog.NewTextHandler(io.Discard, nil)))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -80,10 +81,10 @@ func TestRunPersistsEveryOriginAndCompleteResult(t *testing.T) {
 		},
 	}
 	m, st, cfg := managerFixture(t, resultRunner{result: result})
-	if err := os.MkdirAll(filepath.Join(cfg.DataDir, "rules", "surge"), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Join(m.dataDir, "rules", "surge"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(cfg.DataDir, "rules", "surge", "base.list"), []byte("content"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(m.dataDir, "rules", "surge", "base.list"), []byte("content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, origin := range []string{"web", "scheduled", "cli"} {
@@ -138,9 +139,10 @@ func TestConflictAndCancellationPersistLifecycle(t *testing.T) {
 }
 
 func TestNewManagerRecoversInterruptedTasks(t *testing.T) {
-	cfg := &config.Config{DataDir: t.TempDir()}
+	dataDir := t.TempDir()
+	cfg := &config.Config{}
 	cfg.Defaults()
-	st, err := state.Open(cfg.DataDir)
+	st, err := state.Open(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -149,7 +151,7 @@ func TestNewManagerRecoversInterruptedTasks(t *testing.T) {
 	if err := st.Save(); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := NewManager(cfg, st, resultRunner{}, nil); err != nil {
+	if _, err := NewManager(cfg, dataDir, st, resultRunner{}, nil); err != nil {
 		t.Fatal(err)
 	}
 	record, _ := st.GetUpdateHistory("old")

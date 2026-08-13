@@ -58,7 +58,7 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 		if err != nil {
 			continue
 		}
-		abs := filepath.Join(e.Config.DataDir, filepath.FromSlash(rel))
+		abs := filepath.Join(e.DataDir, filepath.FromSlash(rel))
 		st, err := os.Stat(abs)
 		if err != nil {
 			continue
@@ -265,7 +265,7 @@ func (s *geositeStats) summaries() []GeositeProviderSummary {
 // persisted state. Called at serve startup so a fresh deployment serves a
 // complete public site before the first update.
 func (e *UpdateEngine) EnsureSite() error {
-	staticDir := filepath.Join(e.Config.DataDir, site.StaticDir)
+	staticDir := filepath.Join(e.DataDir, site.StaticDir)
 	res, err := site.UpdateBuiltinAssets(staticDir)
 	if err != nil {
 		return fmt.Errorf("update builtin assets: %w", err)
@@ -299,7 +299,7 @@ func (e *UpdateEngine) EnsureSite() error {
 // stats from the on-disk provider caches. Rules with data on disk report
 // "ok"; rules never updated report "stale".
 func (e *UpdateEngine) RebuildSite() error {
-	staticDir := filepath.Join(e.Config.DataDir, site.StaticDir)
+	staticDir := filepath.Join(e.DataDir, site.StaticDir)
 
 	updatedAt := time.Now()
 	if t, ok := e.State.LastCheck(); ok {
@@ -310,7 +310,7 @@ func (e *UpdateEngine) RebuildSite() error {
 	if err := removeLegacyAdmin(staticDir); err != nil {
 		return err
 	}
-	return site.WritePublic(e.Config.DataDir, idx)
+	return site.WritePublic(e.DataDir, idx)
 }
 
 // publicIndexData assembles the shared public-page model. infos contains
@@ -400,7 +400,7 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 			}
 		}
 		targets := config.ExpandSelectedTargets(e.Config.Clients, prov.Clients)
-		for range countGeositeArtifacts(e.Config.DataDir, prov.Name, targets) {
+		for range countGeositeArtifacts(e.DataDir, prov.Name, targets) {
 			gstats.recordFile(prov.Name)
 		}
 	}
@@ -429,7 +429,7 @@ func countGeositeArtifacts(dataDir, provider string, targets []config.OutputTarg
 func (e *UpdateEngine) writeSite(result *UpdateResult, infos map[string]*ruleSiteInfo, gstats *geositeStats) error {
 	now := time.Now()
 
-	staticDir := filepath.Join(e.Config.DataDir, site.StaticDir)
+	staticDir := filepath.Join(e.DataDir, site.StaticDir)
 	if _, err := site.UpdateBuiltinAssets(staticDir); err != nil {
 		e.Logger.Warn("write builtin icons failed", "error", err)
 		return fmt.Errorf("update builtin assets: %w", err)
@@ -438,11 +438,11 @@ func (e *UpdateEngine) writeSite(result *UpdateResult, infos map[string]*ruleSit
 	if err := removeLegacyAdmin(staticDir); err != nil {
 		return err
 	}
-	if err := site.WritePublic(e.Config.DataDir, idx); err != nil {
+	if err := site.WritePublic(e.DataDir, idx); err != nil {
 		e.Logger.Warn("site generation failed", "error", err)
 		return err
 	}
-	e.Logger.Info("site generated", "path", filepath.Join(e.Config.DataDir, site.StaticDir, site.IndexFile))
+	e.Logger.Info("site generated", "path", filepath.Join(e.DataDir, site.StaticDir, site.IndexFile))
 	return nil
 }
 

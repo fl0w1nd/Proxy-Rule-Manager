@@ -18,14 +18,13 @@ import (
 func TestRebuildSiteFromPersistedState(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "updated", Name: "Updated Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"}},
 			{ID: "never", Name: "Never Updated", Sources: []config.SourceConfig{{Content: "DOMAIN,never.com"}}, Outputs: []string{"surge"}},
 		},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 
 	// Persisted state for "updated": snapshot + artifact on disk.
 	if err := eng.State.SaveSnapshot("updated", []ir.Entry{{Kind: ir.KindDomain, Value: "example.com"}}); err != nil {
@@ -60,13 +59,12 @@ func TestRebuildSiteFromPersistedState(t *testing.T) {
 func TestEnsureSiteFirstRun(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "r", Name: "r", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"}},
 		},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 
 	if err := eng.EnsureSite(); err != nil {
 		t.Fatalf("EnsureSite: %v", err)
@@ -103,11 +101,10 @@ func TestEnsureSiteFirstRun(t *testing.T) {
 func TestEnsureSiteRemovesManagedLegacyAdmin(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules:   []config.RuleConfig{{ID: "r", Name: "r", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"}}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	staticDir := filepath.Join(dataDir, site.StaticDir)
 	if err := os.MkdirAll(staticDir, 0o755); err != nil {
 		t.Fatal(err)

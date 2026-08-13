@@ -19,7 +19,11 @@ var buildCmd = &cobra.Command{
 	Use:   "build",
 	Short: "Build a standalone static rule site",
 	RunE: func(cmd *cobra.Command, _ []string) error {
-		app, err := buildApp()
+		dataDir, err := resolveDataDir(cmd)
+		if err != nil {
+			return err
+		}
+		app, err := buildApp(dataDir)
 		if err != nil {
 			return err
 		}

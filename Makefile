@@ -59,4 +59,4 @@ docker-build: ## Build Docker image
 		-t fl0w1nd/prm:$(VERSION) .
 
 docker-run: docker-build ## Build and run Docker container
-	docker run --rm -e ADMIN_TOKEN -v "$$(pwd)/data:/data" -v "$$(pwd)/config.yaml:/data/config.yaml" -p 3001:3001 fl0w1nd/prm:$(VERSION)
+	docker run --rm -e PRM_ADMIN_TOKEN -v "$$(pwd)/data:/data" -p 3001:3001 fl0w1nd/prm:$(VERSION)

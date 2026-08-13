@@ -51,7 +51,7 @@ type geositeProviderInfo struct {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
-	artifacts, err := engine.CountArtifacts(s.config().DataDir)
+	artifacts, err := engine.CountArtifacts(s.DataDir)
 	if err != nil {
 		writeAPIError(w, http.StatusInternalServerError, "artifact_count_failed", "统计发布文件失败", map[string]any{})
 		return

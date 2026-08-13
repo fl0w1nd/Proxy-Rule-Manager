@@ -25,8 +25,8 @@ import (
 
 func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
 	t.Helper()
+	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Name: "Surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "apple", Name: "Apple", Sources: []config.SourceConfig{{Content: "DOMAIN,apple.example"}}, Outputs: []string{"surge"}},
@@ -34,19 +34,19 @@ func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
 		},
 	}
 	cfg.Defaults()
-	st, err := state.Open(cfg.DataDir)
+	st, err := state.Open(dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := engine.EnsureArtifactDirs(cfg.DataDir, []string{"surge"}); err != nil {
+	if err := engine.EnsureArtifactDirs(dataDir, []string{"surge"}); err != nil {
 		t.Fatal(err)
 	}
-	eng := &engine.UpdateEngine{Config: cfg, Registry: render.NewRegistry(), Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
-	manager, err := updates.NewManager(cfg, st, eng, eng.Logger)
+	eng := &engine.UpdateEngine{DataDir: dataDir, Config: cfg, Registry: render.NewRegistry(), Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	manager, err := updates.NewManager(cfg, dataDir, st, eng, eng.Logger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	return NewServer(cfg, st, eng, manager, "abc", ""), cfg, st
+	return NewServer(cfg, st, eng, manager, Options{DataDir: dataDir, APIToken: "abc"}), cfg, st
 }
 
 func authorized(method, target string, body io.Reader) *http.Request {
@@ -87,8 +87,8 @@ func TestAPITokenGuardAcceptsBearerAndCookie(t *testing.T) {
 }
 
 func TestAdminGateSetsHttpOnlyCookieAndServesEmbeddedApp(t *testing.T) {
-	s, cfg, _ := testServer(t)
-	legacy := filepath.Join(cfg.DataDir, "static", "admin.html")
+	s, _, _ := testServer(t)
+	legacy := filepath.Join(s.DataDir, "static", "admin.html")
 	if err := os.MkdirAll(filepath.Dir(legacy), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -123,8 +123,8 @@ func TestAdminGateSetsHttpOnlyCookieAndServesEmbeddedApp(t *testing.T) {
 }
 
 func TestPublicRoutesAreNarrowed(t *testing.T) {
-	s, cfg, _ := testServer(t)
-	staticDir := filepath.Join(cfg.DataDir, "static")
+	s, _, _ := testServer(t)
+	staticDir := filepath.Join(s.DataDir, "static")
 	if err := os.MkdirAll(filepath.Join(staticDir, "icons"), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -181,12 +181,12 @@ func TestCookieMutationRequiresSameOrigin(t *testing.T) {
 }
 
 func TestStatusAndRulesHaveFocusedContracts(t *testing.T) {
-	s, cfg, st := testServer(t)
+	s, _, st := testServer(t)
 	checked := time.Date(2026, 8, 12, 9, 30, 0, 0, time.UTC)
 	st.SetLastCheck(checked)
 	st.SetRuleCheck("apple", state.RuleUpdated, checked, true)
 	st.SetRuleEntryCount("apple", 42)
-	if err := os.WriteFile(filepath.Join(cfg.DataDir, "rules", "surge", "apple.list"), []byte("DOMAIN,apple.example\n"), 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(s.DataDir, "rules", "surge", "apple.list"), []byte("DOMAIN,apple.example\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -323,7 +323,7 @@ func (r *blockingAPIRunner) PartialUpdate(ctx context.Context, _ []string) engin
 func TestCreateConflictAndCancelAPI(t *testing.T) {
 	s, cfg, st := testServer(t)
 	runner := &blockingAPIRunner{started: make(chan struct{}), release: make(chan struct{})}
-	manager, err := updates.NewManager(cfg, st, runner, nil)
+	manager, err := updates.NewManager(cfg, s.DataDir, st, runner, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -376,8 +376,8 @@ func TestUpdateEventsResumeFromLastEventID(t *testing.T) {
 }
 
 func TestRulesRouteUsesPublishedPathLayout(t *testing.T) {
-	s, cfg, _ := testServer(t)
-	targetDir := filepath.Join(cfg.DataDir, "rules", "Clash Meta", "geosite", "v2fly")
+	s, _, _ := testServer(t)
+	targetDir := filepath.Join(s.DataDir, "rules", "Clash Meta", "geosite", "v2fly")
 	if err := os.MkdirAll(targetDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -526,21 +526,19 @@ func TestConfigReload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// Helper to build a valid config with variable rules and serve.host.
-	buildConfig := func(rules string, host string) string {
-		return "data_dir: " + dataDir + "\n" +
-			"clients:\n  - id: surge\n    name: Surge\n    template: surge\n" +
-			"rules:\n" + rules +
-			"serve:\n  host: " + host + "\n  port: 3001\n"
+	// Helper to build a valid business config with a variable rule set.
+	buildConfig := func(rules string) string {
+		return "clients:\n  - id: surge\n    name: Surge\n    template: surge\n" +
+			"rules:\n" + rules
 	}
 	oneRule := "  - id: apple\n    name: Apple\n    sources:\n      - content: DOMAIN,apple.example\n    outputs: [surge]\n"
 	twoRules := oneRule + "  - id: banana\n    name: Banana\n    sources:\n      - content: DOMAIN,banana.example\n    outputs: [surge]\n"
 
-	if err := os.WriteFile(cfgPath, []byte(buildConfig(oneRule, "127.0.0.1")), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(buildConfig(oneRule)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	cfg, err := config.Load(cfgPath)
+	cfg, err := config.Load(cfgPath, dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -552,15 +550,15 @@ func TestConfigReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	eng := &engine.UpdateEngine{
-		Config: cfg, Registry: render.NewRegistry(),
+		DataDir: dataDir, Config: cfg, Registry: render.NewRegistry(),
 		Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(),
 		State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
-	manager, err := updates.NewManager(cfg, st, eng, eng.Logger)
+	manager, err := updates.NewManager(cfg, dataDir, st, eng, eng.Logger)
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(cfg, st, eng, manager, "abc", cfgPath)
+	s := NewServer(cfg, st, eng, manager, Options{DataDir: dataDir, APIToken: "abc", ConfigFile: cfgPath})
 	handler := s.Handler()
 
 	api := func(method, path string) *httptest.ResponseRecorder {
@@ -577,20 +575,24 @@ func TestConfigReload(t *testing.T) {
 	if rec.Code != 200 {
 		t.Fatalf("dirty: status=%d body=%s", rec.Code, rec.Body.String())
 	}
-	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if err := json.Unmarshal(rec.Body.Bytes(), &dirty); err != nil {
+		t.Fatal(err)
+	}
 	if dirty.Changed {
 		t.Error("expected not dirty initially")
 	}
 
 	// Edit config: add a second rule.
 	time.Sleep(50 * time.Millisecond)
-	if err := os.WriteFile(cfgPath, []byte(buildConfig(twoRules, "127.0.0.1")), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte(buildConfig(twoRules)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
 	// Now dirty.
 	rec = api("GET", "/api/v1/config/dirty")
-	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if err := json.Unmarshal(rec.Body.Bytes(), &dirty); err != nil {
+		t.Fatal(err)
+	}
 	if !dirty.Changed {
 		t.Error("expected dirty after edit")
 	}
@@ -603,7 +605,9 @@ func TestConfigReload(t *testing.T) {
 
 	// Not dirty after reload.
 	rec = api("GET", "/api/v1/config/dirty")
-	json.Unmarshal(rec.Body.Bytes(), &dirty)
+	if err := json.Unmarshal(rec.Body.Bytes(), &dirty); err != nil {
+		t.Fatal(err)
+	}
 	if dirty.Changed {
 		t.Error("expected not dirty after reload")
 	}
@@ -612,14 +616,20 @@ func TestConfigReload(t *testing.T) {
 	if n := len(s.config().Rules); n != 2 {
 		t.Errorf("expected 2 rules after reload, got %d", n)
 	}
+	if s.DataDir != dataDir || s.Engine.DataDir != dataDir {
+		t.Fatalf("runtime data directory changed: server=%q engine=%q", s.DataDir, s.Engine.DataDir)
+	}
 
-	// Non-hot-reloadable field change (host) must be rejected with 422.
+	// Removed runtime fields are rejected by strict config decoding.
 	time.Sleep(50 * time.Millisecond)
-	if err := os.WriteFile(cfgPath, []byte(buildConfig(twoRules, "127.0.0.2")), 0o644); err != nil {
+	if err := os.WriteFile(cfgPath, []byte("serve:\n  host: 127.0.0.2\n"+buildConfig(twoRules)), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	rec = api("POST", "/api/v1/config/reload")
 	if rec.Code != 422 {
-		t.Fatalf("expected 422 for host change, got %d body=%s", rec.Code, rec.Body.String())
+		t.Fatalf("expected 422 for removed runtime field, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "config_invalid") || !strings.Contains(rec.Body.String(), "field serve not found") {
+		t.Fatalf("unexpected removed-field response: %s", rec.Body.String())
 	}
 }

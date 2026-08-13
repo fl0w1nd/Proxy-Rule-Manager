@@ -32,6 +32,7 @@ type PreviewReport struct {
 func Preview(
 	ctx context.Context,
 	cfg *config.Config,
+	dataDir string,
 	ruleID string,
 	targetID string,
 	registry *render.Registry,
@@ -78,7 +79,7 @@ func Preview(
 			registry,
 			geositeProviders,
 			refResults,
-			cfg.LocalFileResolver(),
+			config.NewLocalFileResolver(dataDir),
 			logger,
 		)
 		if current.ID == rule.ID {

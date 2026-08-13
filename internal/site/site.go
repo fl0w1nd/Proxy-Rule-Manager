@@ -1,6 +1,6 @@
 // Package site renders the public static page regenerated on every update:
 //
-//   - {data_dir}/index.html — public rule index: every rule with per-client
+//   - {dataDir}/index.html — public rule index: every rule with per-client
 //     download links and content preview, plus the full geosite catalog.
 //
 // The page is self-contained and works from file:// or any static host.

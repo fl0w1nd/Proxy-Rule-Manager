@@ -18,7 +18,11 @@ var previewCmd = &cobra.Command{
 	Short: "Compile a rule and show per-stage report",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		app, err := buildApp()
+		dataDir, err := resolveDataDir(cmd)
+		if err != nil {
+			return err
+		}
+		app, err := buildApp(dataDir)
 		if err != nil {
 			return err
 		}
@@ -26,6 +30,7 @@ var previewCmd = &cobra.Command{
 		report, err := engine.Preview(
 			context.Background(),
 			app.Config,
+			app.DataDir,
 			args[0],
 			previewTarget,
 			app.Registry,

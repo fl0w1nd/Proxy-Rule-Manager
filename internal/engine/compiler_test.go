@@ -211,8 +211,7 @@ func TestCompileRuleReadsLocalFileSource(t *testing.T) {
 		Name:    "local-file",
 		Sources: []config.SourceConfig{{File: path}},
 	}
-	cfg := &config.Config{DataDir: dataDir}
-	got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, cfg.LocalFileResolver(), testLogger())
+	got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, config.NewLocalFileResolver(dataDir), testLogger())
 	if len(got.Sources) != 1 || got.Sources[0].Error != "" {
 		t.Fatalf("source outcome: %+v", got.Sources)
 	}

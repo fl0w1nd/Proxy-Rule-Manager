@@ -10,9 +10,7 @@ import (
 const exampleConfig = `# Proxy Rule Manager 最小可用配置
 # 这份配置可以直接运行：cp 到 config.yaml 后执行 prm update。
 # 完整字段与讲解见 config.template.yaml 或 docs/configuration.md。
-
-# 数据目录：规则产物、缓存、更新历史都写在这里。
-data_dir: ./data
+# 数据目录和 HTTP 参数通过 CLI flag 或 PRM_* 环境变量设置。
 
 # 输出客户端：规则渲染给哪些代理客户端、用什么格式。
 clients:
@@ -31,15 +29,6 @@ rules:
       - url: https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Google.list
     outputs: [mihomo]
 
-# HTTP 服务：提供公开站点和管理 API，也让你能跑 prm serve。
-# 管理看板需要 ADMIN_TOKEN 环境变量，否则 serve 拒绝启动。
-serve:
-  host: 127.0.0.1              # 只允许本机访问；容器或公网部署改用 0.0.0.0
-  port: 3001
-  # 位于反向代理（Nginx、Caddy 等）后面时，serve 需要知道谁可信，
-  # 才会信任其转发协议头，保证管理看板的 HTTPS 判断和 Cookie 设置正确。
-  # 127.0.0.1/32 适用于本机反代；172.16.0.0/12 适用于 Docker 容器间反代。
-  trusted_proxies: ["127.0.0.1/32", "172.16.0.0/12"]
 `
 
 var initCmd = &cobra.Command{

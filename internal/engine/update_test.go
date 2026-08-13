@@ -83,7 +83,6 @@ func TestGeositeTransientFailureEmitsRetryProgress(t *testing.T) {
 		}, nil
 	})})
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "geo", Name: "Geo", Sources: []config.SourceConfig{{Geosite: "v2fly/google"}}, Outputs: []string{"surge"},
@@ -111,7 +110,6 @@ func TestGeositeTransientFailureEmitsRetryProgress(t *testing.T) {
 
 func TestProgressEventsStayAtRuleLevel(t *testing.T) {
 	eng := newTestUpdateEngine(t, &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "rule", Name: "Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"},
@@ -140,7 +138,6 @@ func TestProgressEventsStayAtRuleLevel(t *testing.T) {
 func TestFailedRuleReturnsStructuredIssue(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "broken", Name: "Broken", Sources: []config.SourceConfig{{File: filepath.Join(dataDir, "local", "missing.list")}}, Outputs: []string{"surge"},
@@ -158,7 +155,6 @@ func TestFailedRuleReturnsStructuredIssue(t *testing.T) {
 
 func TestCancelledUpdateReturnsCancellationResult(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "rule", Name: "Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"},
@@ -179,7 +175,6 @@ func TestCancelledUpdateReturnsCancellationResult(t *testing.T) {
 func TestFullUpdateWritesReferencesAndDetectsUnchangedArtifacts(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{
@@ -196,7 +191,7 @@ func TestFullUpdateWritesReferencesAndDetectsUnchangedArtifacts(t *testing.T) {
 			},
 		},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 
 	first := eng.FullUpdate(context.Background())
 	if first.RulesSucceeded != 2 || first.RulesFailed != 0 || first.Artifacts != 2 || len(first.ChangedRules) != 2 || len(first.Errors) != 0 {
@@ -254,7 +249,6 @@ func TestFullUpdateWritesReferencesAndDetectsUnchangedArtifacts(t *testing.T) {
 
 func TestFailedCheckPreservesContentVersion(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID:      "rule",
@@ -285,7 +279,6 @@ func TestFailedCheckPreservesContentVersion(t *testing.T) {
 func TestSuccessfulCheckInitializesMissingVersionFromExistingArtifact(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID:      "rule",
@@ -294,7 +287,7 @@ func TestSuccessfulCheckInitializesMissingVersionFromExistingArtifact(t *testing
 			Outputs: []string{"surge"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	content := "DOMAIN,example.com\n"
 	path := filepath.Join(dataDir, "rules", "surge", "rule.list")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
@@ -315,7 +308,6 @@ func TestSuccessfulCheckInitializesMissingVersionFromExistingArtifact(t *testing
 func TestFullUpdateRemovesArtifactsAndStateForDeletedRules(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID:      "obsolete",
@@ -324,7 +316,7 @@ func TestFullUpdateRemovesArtifactsAndStateForDeletedRules(t *testing.T) {
 			Outputs: []string{"surge"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	if result := eng.FullUpdate(context.Background()); len(result.Errors) != 0 {
 		t.Fatalf("initial update: %+v", result)
 	}
@@ -351,7 +343,6 @@ func TestFullUpdateRemovesArtifactsAndStateForDeletedRules(t *testing.T) {
 func TestFullUpdateLocalizesParseFailureAndBlocksFailedReferences(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{
@@ -380,7 +371,7 @@ func TestFullUpdateLocalizesParseFailureAndBlocksFailedReferences(t *testing.T) 
 			},
 		},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 
 	result := eng.FullUpdate(context.Background())
 	if result.RulesSucceeded != 1 || result.RulesFailed != 3 || result.Artifacts != 1 {
@@ -403,7 +394,6 @@ func TestFullUpdateLocalizesParseFailureAndBlocksFailedReferences(t *testing.T) 
 func TestPartialUpdateLoadsDependencySnapshot(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{
@@ -420,7 +410,7 @@ func TestPartialUpdateLoadsDependencySnapshot(t *testing.T) {
 			},
 		},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	if result := eng.FullUpdate(context.Background()); len(result.Errors) != 0 {
 		t.Fatalf("initial full update: %+v", result)
 	}
@@ -448,7 +438,6 @@ func TestPartialUpdateLoadsDependencySnapshot(t *testing.T) {
 
 func TestPartialUpdateExpandsDependentsInExecutionOrder(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "base", Name: "base", Sources: []config.SourceConfig{{Content: "DOMAIN,base.example"}}, Outputs: []string{"surge"}},
@@ -466,12 +455,11 @@ func TestPartialUpdateExpandsDependentsInExecutionOrder(t *testing.T) {
 func TestPartialGeositeUsesCacheAndPreservesProviderState(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules:   []config.RuleConfig{{ID: "geo", Name: "geo", Sources: []config.SourceConfig{{Geosite: "v2fly/google"}}, Outputs: []string{"surge"}}},
 		Geosite: &config.GeositeConfig{Providers: []config.GeositeProvider{{Name: "v2fly", Clients: []string{"surge"}}}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	cacheDir := filepath.Join(dataDir, "geosite")
 	if err := os.MkdirAll(cacheDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -511,7 +499,6 @@ func TestPartialGeositeUsesCacheAndPreservesProviderState(t *testing.T) {
 
 func TestGeositePublicationWritesFullListAndVariants(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Geosite: &config.GeositeConfig{Providers: []config.GeositeProvider{{Name: "v2fly", Clients: []string{"surge"}}}},
 	}
@@ -528,7 +515,7 @@ func TestGeositePublicationWritesFullListAndVariants(t *testing.T) {
 		t.Fatalf("result=%+v expected=%v", result, expected)
 	}
 	for _, name := range []string{"google.list", "google@cn.list"} {
-		path := filepath.Join(cfg.DataDir, "rules", "surge", "geosite", "v2fly", name)
+		path := filepath.Join(eng.DataDir, "rules", "surge", "geosite", "v2fly", name)
 		if _, err := os.Stat(path); err != nil {
 			t.Fatalf("published %s: %v", name, err)
 		}
@@ -537,12 +524,11 @@ func TestGeositePublicationWritesFullListAndVariants(t *testing.T) {
 
 func TestPartialGeositeMissingCacheCreatesRuleIssue(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules:   []config.RuleConfig{{ID: "geo", Name: "geo", Sources: []config.SourceConfig{{Geosite: "v2fly/google"}}, Outputs: []string{"surge"}}},
 	}
 	eng := newTestUpdateEngine(t, cfg)
-	eng.Geosite = geosite.NewManager(filepath.Join(cfg.DataDir, "geosite"))
+	eng.Geosite = geosite.NewManager(filepath.Join(eng.DataDir, "geosite"))
 	result := eng.PartialUpdate(context.Background(), []string{"geo"})
 	if result.RulesFailed != 1 || len(result.Issues) != 1 || result.Issues[0].Subject != "geo" || !strings.Contains(result.Issues[0].Message, `geosite provider "v2fly" not loaded`) {
 		t.Fatalf("result=%+v", result)
@@ -555,7 +541,6 @@ func TestRuleChangeCapturesMultipleClientsAndCapsSamples(t *testing.T) {
 		lines = append(lines, fmt.Sprintf("DOMAIN,item-%02d.example", i))
 	}
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}, {ID: "shadowrocket", Template: "shadowrocket"}},
 		Rules:   []config.RuleConfig{{ID: "many", Name: "Many", Sources: []config.SourceConfig{{Content: strings.Join(lines, "\n")}}, Outputs: []string{"surge", "shadowrocket"}}},
 	}
@@ -568,8 +553,8 @@ func TestRuleChangeCapturesMultipleClientsAndCapsSamples(t *testing.T) {
 
 func TestRuleChangeRecordsPureRenderingChange(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(), Clients: []config.ClientConfig{{ID: "client", Template: "surge"}},
-		Rules: []config.RuleConfig{{ID: "ports", Name: "Ports", Sources: []config.SourceConfig{{Content: "DEST-PORT,443"}}, Outputs: []string{"client"}}},
+		Clients: []config.ClientConfig{{ID: "client", Template: "surge"}},
+		Rules:   []config.RuleConfig{{ID: "ports", Name: "Ports", Sources: []config.SourceConfig{{Content: "DEST-PORT,443"}}, Outputs: []string{"client"}}},
 	}
 	eng := newTestUpdateEngine(t, cfg)
 	if result := eng.FullUpdate(context.Background()); len(result.Errors) != 0 {
@@ -585,7 +570,6 @@ func TestRuleChangeRecordsPureRenderingChange(t *testing.T) {
 func TestFullUpdateWritesExplicitFormatsAndVariantDirectories(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{
 			{
 				ID: "mihomo", Formats: []config.ClientFormatConfig{
@@ -607,7 +591,7 @@ func TestFullUpdateWritesExplicitFormatsAndVariantDirectories(t *testing.T) {
 			Outputs: []string{"mihomo", "sing-box"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	result := eng.FullUpdate(context.Background())
 	if len(result.Errors) != 0 || result.Artifacts != 4 {
 		t.Fatalf("result=%+v", result)
@@ -628,7 +612,6 @@ func TestFullUpdateWritesExplicitFormatsAndVariantDirectories(t *testing.T) {
 
 func TestPartialUpdateRejectsUnknownRuleIDs(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 	}
 	eng := newTestUpdateEngine(t, cfg)
@@ -641,7 +624,6 @@ func TestPartialUpdateRejectsUnknownRuleIDs(t *testing.T) {
 func TestPartialUpdateRemovesObsoleteArtifactsForUpdatedRules(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{
 			ID: "mihomo",
 			Formats: []config.ClientFormatConfig{
@@ -653,7 +635,7 @@ func TestPartialUpdateRemovesObsoleteArtifactsForUpdatedRules(t *testing.T) {
 			ID: "rule", Name: "rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"mihomo"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	removedDir := filepath.Join(dataDir, "rules", "removed-target")
 	if err := os.MkdirAll(removedDir, 0o755); err != nil {
 		t.Fatal(err)
@@ -692,7 +674,6 @@ func TestPartialUpdateRemovesObsoleteArtifactsForUpdatedRules(t *testing.T) {
 func TestFullUpdateRemovesVariantArtifactWhenRenderedOutputIsEmpty(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{
 			ID: "singbox", Template: "singbox",
 			Variants: []config.ClientVariantConfig{{
@@ -706,7 +687,7 @@ func TestFullUpdateRemovesVariantArtifactWhenRenderedOutputIsEmpty(t *testing.T)
 			Outputs: []string{"singbox"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	artifactPath := filepath.Join(dataDir, "rules", "singbox-non-ip", "empty.json")
 	if err := os.WriteFile(artifactPath, []byte("{\"rules\":null,\"version\":3}\n"), 0o644); err != nil {
 		t.Fatal(err)
@@ -739,7 +720,6 @@ func TestFullUpdateRemovesVariantArtifactWhenRenderedOutputIsEmpty(t *testing.T)
 func TestFullUpdateCountsArtifactWriteFailure(t *testing.T) {
 	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID:      "blocked",
@@ -748,7 +728,7 @@ func TestFullUpdateCountsArtifactWriteFailure(t *testing.T) {
 			Outputs: []string{"surge"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	artifactPath := filepath.Join(dataDir, "rules", "surge", "blocked.list")
 	clientPath := filepath.Dir(artifactPath)
 	if err := os.Remove(clientPath); err != nil {
@@ -770,7 +750,6 @@ func TestFullUpdateCountsArtifactWriteFailure(t *testing.T) {
 
 func TestCancelledUpdateRecordsEveryPendingRule(t *testing.T) {
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "first", Name: "first", Sources: []config.SourceConfig{{Content: "DOMAIN,first.example"}}, Outputs: []string{"surge"}},
@@ -801,7 +780,6 @@ func TestCancelledUpdateKeepsCompletedRuleResult(t *testing.T) {
 	})
 
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{
 			{ID: "completed", Name: "completed", Sources: []config.SourceConfig{{Content: "DOMAIN,completed.example"}}, Outputs: []string{"surge"}},
@@ -824,10 +802,14 @@ func TestCancelledUpdateKeepsCompletedRuleResult(t *testing.T) {
 	assertRuleResult(t, eng, "pending", state.RuleCancelled)
 }
 
-func newTestUpdateEngine(t *testing.T, cfg *config.Config) *UpdateEngine {
+func newTestUpdateEngine(t *testing.T, cfg *config.Config, dataDirs ...string) *UpdateEngine {
 	t.Helper()
+	dataDir := t.TempDir()
+	if len(dataDirs) > 0 {
+		dataDir = dataDirs[0]
+	}
 	registry := testRegistry(t)
-	store, err := state.Open(cfg.DataDir)
+	store, err := state.Open(dataDir)
 	if err != nil {
 		t.Fatalf("open state: %v", err)
 	}
@@ -836,10 +818,11 @@ func newTestUpdateEngine(t *testing.T, cfg *config.Config) *UpdateEngine {
 	for _, target := range targets {
 		clientIDs = append(clientIDs, target.ID)
 	}
-	if err := EnsureArtifactDirs(cfg.DataDir, clientIDs); err != nil {
+	if err := EnsureArtifactDirs(dataDir, clientIDs); err != nil {
 		t.Fatalf("create artifact dirs: %v", err)
 	}
 	return &UpdateEngine{
+		DataDir:      dataDir,
 		Config:       cfg,
 		Registry:     registry,
 		Fetcher:      NewFetcher(),

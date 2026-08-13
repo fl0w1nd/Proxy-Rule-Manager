@@ -57,6 +57,7 @@ type Manager struct {
 	current *Job
 	runner  runner
 	cfg     *config.Config
+	dataDir string
 	state   *state.Store
 	logger  *slog.Logger
 
@@ -79,10 +80,10 @@ type Job struct {
 }
 
 // NewManager constructs a coordinator and recovers unfinished persisted tasks.
-func NewManager(cfg *config.Config, st *state.Store, updateRunner runner, logger *slog.Logger) (*Manager, error) {
+func NewManager(cfg *config.Config, dataDir string, st *state.Store, updateRunner runner, logger *slog.Logger) (*Manager, error) {
 	m := &Manager{
 		jobs: make(map[string]*Job), runner: updateRunner,
-		cfg: cfg, state: st, logger: logger,
+		cfg: cfg, dataDir: dataDir, state: st, logger: logger,
 	}
 	now := time.Now()
 	changed := st.MarkInterruptedUpdates(now)
@@ -224,7 +225,7 @@ func (m *Manager) execute(ctx context.Context, job *Job) {
 	if finishedAt.IsZero() {
 		finishedAt = time.Now()
 	}
-	published, countErr := engine.CountArtifacts(m.cfg.DataDir)
+	published, countErr := engine.CountArtifacts(m.dataDir)
 	if countErr != nil {
 		message := fmt.Sprintf("count published artifacts: %v", countErr)
 		result.Errors = append(result.Errors, message)

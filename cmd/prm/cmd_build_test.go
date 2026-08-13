@@ -59,11 +59,34 @@ func TestBuildCommandPreservesOutputAfterUpdateError(t *testing.T) {
 	}
 }
 
+func TestRuntimeDataDirAppliesToValidatePreviewAndUpdate(t *testing.T) {
+	root := t.TempDir()
+	configPath := writeBuildTestConfig(t, root, "content: DOMAIN,example.com")
+	dataDir := filepath.Join(root, "runtime-data")
+	resetRuntimeFlags(t)
+	previousConfig, previousDataDir, previousTarget := cfgFile, dataDirFlag, previewTarget
+	cfgFile, dataDirFlag, previewTarget = configPath, dataDir, "surge"
+	t.Cleanup(func() {
+		cfgFile, dataDirFlag, previewTarget = previousConfig, previousDataDir, previousTarget
+	})
+
+	if err := validateCmd.RunE(validateCmd, nil); err != nil {
+		t.Fatalf("validate command: %v", err)
+	}
+	if err := previewCmd.RunE(previewCmd, []string{"rule"}); err != nil {
+		t.Fatalf("preview command: %v", err)
+	}
+	if err := updateCmd.RunE(updateCmd, nil); err != nil {
+		t.Fatalf("update command: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dataDir, "rules", "surge", "rule.list")); err != nil {
+		t.Fatalf("runtime artifact: %v", err)
+	}
+}
+
 func writeBuildTestConfig(t *testing.T, root, source string) string {
 	t.Helper()
-	dataDir := strings.ReplaceAll(filepath.ToSlash(filepath.Join(root, "data")), "'", "''")
-	content := "data_dir: '" + dataDir + "'\n" +
-		"clients:\n" +
+	content := "clients:\n" +
 		"  - id: surge\n" +
 		"    name: Surge\n" +
 		"    template: surge\n" +
@@ -77,9 +100,7 @@ func writeBuildTestConfig(t *testing.T, root, source string) string {
 		"  schedule:\n" +
 		"    mode: manual\n" +
 		"  fetch:\n" +
-		"    retries: 0\n" +
-		"serve:\n" +
-		"  port: 3001\n"
+		"    retries: 0\n"
 	path := filepath.Join(root, "config.yaml")
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatal(err)
@@ -89,9 +110,9 @@ func writeBuildTestConfig(t *testing.T, root, source string) string {
 
 func withBuildCommandPaths(t *testing.T, configPath, output string) {
 	t.Helper()
-	previousConfig, previousOutput := cfgFile, buildOutput
-	cfgFile, buildOutput = configPath, output
+	previousConfig, previousOutput, previousDataDir := cfgFile, buildOutput, dataDirFlag
+	cfgFile, buildOutput, dataDirFlag = configPath, output, filepath.Join(filepath.Dir(configPath), "data")
 	t.Cleanup(func() {
-		cfgFile, buildOutput = previousConfig, previousOutput
+		cfgFile, buildOutput, dataDirFlag = previousConfig, previousOutput, previousDataDir
 	})
 }

@@ -7,23 +7,23 @@ import (
 )
 
 // LocalFileResolver validates that a local file source path is contained
-// within the data directory's local subdirectory (data_dir/local), resolving
+// within the runtime data directory's local subdirectory (dataDir/local), resolving
 // symlinks to prevent escape. It returns an absolute, canonical path that is
 // safe to read, or an error describing why the path was rejected.
 type LocalFileResolver func(file string) (string, error)
 
-// LocalFileResolver builds a resolver confined to data_dir/local. The root is
-// derived from Config.DataDir and canonicalized with filepath.EvalSymlinks so
+// NewLocalFileResolver builds a resolver confined to dataDir/local. The root is
+// derived from the runtime data directory and canonicalized with filepath.EvalSymlinks so
 // symlinked directories (e.g. /var -> /private/var on macOS) and symlinked
 // files that point outside the root are handled correctly. The confinement is
-// fixed and not configurable: local file sources must live under data_dir/local,
+// fixed and not configurable: local file sources must live under dataDir/local,
 // so no config field can widen the set of host paths a rule may read.
 //
-// Relative file paths are anchored at data_dir/local, so a source declared as
-// file: "custom.list" reads data_dir/local/custom.list. Absolute paths are
+// Relative file paths are anchored at dataDir/local, so a source declared as
+// file: "custom.list" reads dataDir/local/custom.list. Absolute paths are
 // accepted only when they resolve under the same root.
-func (c *Config) LocalFileResolver() LocalFileResolver {
-	root := canonicalizePath(absPath(filepath.Join(c.DataDir, "local")))
+func NewLocalFileResolver(dataDir string) LocalFileResolver {
+	root := canonicalizePath(absPath(filepath.Join(dataDir, "local")))
 	return func(file string) (string, error) {
 		if file == "" {
 			return "", fmt.Errorf("local file source path is empty")
@@ -43,7 +43,7 @@ func (c *Config) LocalFileResolver() LocalFileResolver {
 }
 
 // absPath returns an absolute, cleaned form of p. Relative paths are resolved
-// against the process working directory, matching how DataDir is interpreted
+// against the process working directory, matching how the runtime data directory is interpreted
 // elsewhere (artifact paths, etc.).
 func absPath(p string) string {
 	if abs, err := filepath.Abs(p); err == nil {

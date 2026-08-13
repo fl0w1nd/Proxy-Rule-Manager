@@ -17,7 +17,11 @@ var updateCmd = &cobra.Command{
 	Short: "Compile rules and write artifacts",
 	Long:  "Full update (no args) or partial update (rule IDs + dependents).",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		app, err := buildApp()
+		dataDir, err := resolveDataDir(cmd)
+		if err != nil {
+			return err
+		}
+		app, err := buildApp(dataDir)
 		if err != nil {
 			return err
 		}

@@ -21,6 +21,7 @@ import (
 
 // UpdateEngine orchestrates full and partial updates.
 type UpdateEngine struct {
+	DataDir      string
 	Config       *config.Config
 	Registry     *render.Registry
 	Fetcher      *Fetcher
@@ -267,7 +268,7 @@ ruleLoop:
 
 	if !partial && len(result.Errors) == 0 {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在整理过期产物"})
-		if err := ReconcileArtifacts(e.Config.DataDir, expectedPaths); err != nil {
+		if err := ReconcileArtifacts(e.DataDir, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile artifacts: %v", err))
 		}
 		expectedArtifacts, expectedRules := stateManifest(e.Config)
@@ -277,7 +278,7 @@ ruleLoop:
 	}
 	if partial && ctx.Err() == nil && len(succeeded) > 0 {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在整理规则产物"})
-		if err := ReconcileRuleArtifacts(e.Config.DataDir, succeeded, expectedPaths); err != nil {
+		if err := ReconcileRuleArtifacts(e.DataDir, succeeded, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile partial artifacts: %v", err))
 		} else {
 			expectedArtifacts, _ := stateManifest(e.Config)
@@ -380,7 +381,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 	var outcome ruleOutcome
 	log := e.Logger.With("rule_id", rule.ID, "rule_name", rule.Name)
 
-	cr := CompileRule(ctx, rule, e.Config.Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, e.Config.LocalFileResolver(), e.Logger)
+	cr := CompileRule(ctx, rule, e.Config.Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, config.NewLocalFileResolver(e.DataDir), e.Logger)
 
 	info := newRuleSiteInfo(rule, cr)
 
@@ -430,7 +431,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 		if tmpl != nil {
 			ext = tmpl.Extension
 		}
-		artifactPath, err := ArtifactPath(e.Config.DataDir, clientID, rule.ID+ext)
+		artifactPath, err := ArtifactPath(e.DataDir, clientID, rule.ID+ext)
 		if err != nil {
 			outcome.errors = append(outcome.errors, fmt.Sprintf("resolve artifact path for rule %q (%s) client %q: %v", rule.Name, rule.ID, clientID, err))
 			writeFailed = true
@@ -809,7 +810,7 @@ func (e *UpdateEngine) publishGeositeVariant(
 			continue
 		}
 		// data/rules/{client}/geosite/{provider}/{list}{ext} or {list}@{attr}{ext}
-		artifactPath, err := ArtifactPath(e.Config.DataDir, target.ID, artifactName+tmpl.Extension)
+		artifactPath, err := ArtifactPath(e.DataDir, target.ID, artifactName+tmpl.Extension)
 		if err != nil {
 			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("resolve geosite artifact path %s: %v", ref.FormatRef(), err))
 			continue

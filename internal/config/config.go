@@ -5,7 +5,6 @@ package config
 import (
 	"fmt"
 	"math"
-	"net/netip"
 	"os"
 	"regexp"
 	"strconv"
@@ -60,14 +59,11 @@ func (s *Size) UnmarshalYAML(value *yaml.Node) error {
 
 // Config is the root configuration loaded from config.yaml.
 type Config struct {
-	DataDir string `yaml:"data_dir"`
-
 	Clients []ClientConfig `yaml:"clients"`
 	Rules   []RuleConfig   `yaml:"rules"`
 
 	Geosite *GeositeConfig `yaml:"geosite,omitempty"`
 	Update  UpdateConfig   `yaml:"update"`
-	Serve   ServeConfig    `yaml:"serve"`
 
 	// positions is populated by Load() from the raw YAML node tree;
 	// used by Validate() to attach line numbers to errors.
@@ -231,26 +227,10 @@ type PreprocessConfig struct {
 	MaxOutput Size     `yaml:"max_output"`
 }
 
-// ServeConfig controls the optional HTTP server.
-type ServeConfig struct {
-	Host string `yaml:"host"`
-	Port int    `yaml:"port"`
-	// TrustedProxies is the list of IP/CIDR ranges of reverse proxies whose
-	// Forwarded/X-Forwarded-Proto headers prm will honor to detect HTTPS
-	// behind TLS-terminating proxies. Requests whose TCP peer is not in this
-	// list ignore forwarded headers, so a public client cannot fake the
-	// scheme. Empty (default) means no proxy is trusted; HTTPS is detected
-	// only from a direct TLS connection (r.TLS != nil).
-	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
-}
-
 // Defaults fills in zero values with sensible defaults.
 func (c *Config) Defaults() {
 	shouldDefault := func(path string) bool {
 		return c.positions == nil || !c.positions.Has(path)
-	}
-	if c.DataDir == "" && shouldDefault("data_dir") {
-		c.DataDir = "./data"
 	}
 	if c.Update.Schedule.Mode == "" && shouldDefault("update.schedule.mode") {
 		c.Update.Schedule.Mode = "manual"
@@ -294,12 +274,6 @@ func (c *Config) Defaults() {
 	if c.Update.HistoryLimit == 0 && shouldDefault("update.history_limit") {
 		c.Update.HistoryLimit = 200
 	}
-	if c.Serve.Port == 0 && shouldDefault("serve.port") {
-		c.Serve.Port = 3001
-	}
-	if c.Serve.Host == "" && shouldDefault("serve.host") {
-		c.Serve.Host = "127.0.0.1"
-	}
 }
 
 var envPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
@@ -318,7 +292,7 @@ func interpolateEnv(s string) string {
 // Load reads and parses a YAML config file, applying environment variable
 // interpolation and defaults. The returned Config retains YAML source
 // positions so that Validate() can report line-precise errors.
-func Load(path string) (*Config, error) {
+func Load(path, dataDir string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
@@ -340,7 +314,7 @@ func Load(path string) (*Config, error) {
 	cfg.positions = BuildPositionIndex(&doc)
 	cfg.Defaults()
 
-	if errs := cfg.Validate(); len(errs) > 0 {
+	if errs := cfg.Validate(dataDir); len(errs) > 0 {
 		return nil, ConfigErrors(errs)
 	}
 	return &cfg, nil
@@ -349,7 +323,7 @@ func Load(path string) (*Config, error) {
 // Validate checks the config for structural correctness. Returns a list of
 // errors, each carrying the YAML path and line number of the offending node.
 // An empty return means the config is valid.
-func (c *Config) Validate() []ConfigError {
+func (c *Config) Validate(dataDir string) []ConfigError {
 	var errs []ConfigError
 	pos := c.positions
 
@@ -360,10 +334,6 @@ func (c *Config) Validate() []ConfigError {
 		}
 		errs = append(errs, ConfigError{Path: path, Line: p.Line, Message: msg})
 	}
-	if c.DataDir == "" {
-		addErr("data_dir", "must not be empty")
-	}
-
 	if len(c.Clients) == 0 {
 		addErr("clients", "at least one client is required")
 	}
@@ -509,7 +479,7 @@ func (c *Config) Validate() []ConfigError {
 					addErr(sp, "local source requires content or file")
 				}
 				if s.File != "" {
-					if _, err := c.LocalFileResolver()(s.File); err != nil {
+					if _, err := NewLocalFileResolver(dataDir)(s.File); err != nil {
 						addErr(sp+".file", err.Error())
 					}
 				}
@@ -613,25 +583,6 @@ func (c *Config) Validate() []ConfigError {
 	if c.Update.HistoryLimit < 1 || c.Update.HistoryLimit > 10000 {
 		addErr("update.history_limit", "must be between 1 and 10000")
 	}
-	if _, err := netip.ParseAddr(c.Serve.Host); err != nil {
-		addErr("serve.host", fmt.Sprintf("must be an IP address: %v", err))
-	}
-	if c.Serve.Port < 1 || c.Serve.Port > 65535 {
-		addErr("serve.port", "must be between 1 and 65535")
-	}
-	for i, p := range c.Serve.TrustedProxies {
-		tp := strings.TrimSpace(p)
-		if tp == "" {
-			addErr(fmt.Sprintf("serve.trusted_proxies[%d]", i), "must not be empty")
-			continue
-		}
-		if _, err := netip.ParsePrefix(tp); err != nil {
-			if _, err2 := netip.ParseAddr(tp); err2 != nil {
-				addErr(fmt.Sprintf("serve.trusted_proxies[%d]", i), fmt.Sprintf("invalid IP or CIDR: %v", err))
-			}
-		}
-	}
-
 	if c.Geosite != nil {
 		providerNames := map[string]bool{}
 		for i, p := range c.Geosite.Providers {

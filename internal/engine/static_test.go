@@ -15,13 +15,12 @@ func TestExportStaticWritesPublicWhitelistAndReplacesOldOutput(t *testing.T) {
 	root := t.TempDir()
 	dataDir := filepath.Join(root, "data")
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "rule", Name: "Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	result := eng.FullUpdate(context.Background())
 	if len(result.Errors) != 0 {
 		t.Fatalf("full update: %v", result.Errors)
@@ -82,13 +81,12 @@ func TestExportStaticRejectsSymlinksAndPreservesOldOutput(t *testing.T) {
 	root := t.TempDir()
 	dataDir := filepath.Join(root, "data")
 	cfg := &config.Config{
-		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
 			ID: "rule", Name: "Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"},
 		}},
 	}
-	eng := newTestUpdateEngine(t, cfg)
+	eng := newTestUpdateEngine(t, cfg, dataDir)
 	if result := eng.FullUpdate(context.Background()); len(result.Errors) != 0 {
 		t.Fatalf("full update: %v", result.Errors)
 	}

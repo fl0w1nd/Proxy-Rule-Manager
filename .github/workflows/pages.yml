@@ -78,7 +78,7 @@ jobs:
 
       - name: Build static site
         working-directory: user
-        run: ${{ steps.prm.outputs.path }} --config config.yaml build --output dist
+        run: ${{ steps.prm.outputs.path }} --config config.yaml --data-dir data build --output dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4

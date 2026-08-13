@@ -49,7 +49,7 @@ func TestValidateExplicitFormatAndVariantOps(t *testing.T) {
 		}},
 	}}}
 	cfg.Defaults()
-	errs := cfg.Validate()
+	errs := cfg.Validate(t.TempDir())
 	if !containsErrorPath(errs, "clients[0].variants[0].ops[0].pattern") {
 		t.Fatalf("variant validation errors=%v", ConfigErrors(errs))
 	}
@@ -68,7 +68,7 @@ func TestValidateMultiFormatVariantRequiresTemplate(t *testing.T) {
 		}},
 	}}}
 	cfg.Defaults()
-	errs := cfg.Validate()
+	errs := cfg.Validate(t.TempDir())
 	if !containsErrorPath(errs, "clients[0].variants[0].template") {
 		t.Fatalf("variant validation errors=%v", ConfigErrors(errs))
 	}
@@ -80,7 +80,7 @@ func TestValidateOutputIDCannotMatchAnotherClientFamily(t *testing.T) {
 		{ID: "mihomo", Formats: []ClientFormatConfig{{ID: "mihomo-classical", Template: "mihomo-classical"}}},
 	}}
 	cfg.Defaults()
-	err := ConfigErrors(cfg.Validate()).Error()
+	err := ConfigErrors(cfg.Validate(t.TempDir())).Error()
 	if !strings.Contains(err, `output id "mihomo" conflicts with client id`) {
 		t.Fatalf("collision validation errors=%s", err)
 	}

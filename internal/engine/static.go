@@ -15,7 +15,7 @@ import (
 // ExportStatic assembles a standalone static site from the current published
 // rules and icons, then swaps it into outputDir as one complete directory.
 func (e *UpdateEngine) ExportStatic(outputDir string) error {
-	output, err := validateStaticOutputPath(outputDir, e.Config.DataDir)
+	output, err := validateStaticOutputPath(outputDir, e.DataDir)
 	if err != nil {
 		return err
 	}
@@ -36,12 +36,12 @@ func (e *UpdateEngine) ExportStatic(outputDir string) error {
 		}
 	}()
 
-	if err := copyStaticTree(filepath.Join(e.Config.DataDir, "rules"), filepath.Join(staging, "rules")); err != nil {
+	if err := copyStaticTree(filepath.Join(e.DataDir, "rules"), filepath.Join(staging, "rules")); err != nil {
 		return fmt.Errorf("copy rules: %w", err)
 	}
 	stagingStatic := filepath.Join(staging, site.StaticDir)
 	if err := copyStaticTree(
-		filepath.Join(e.Config.DataDir, site.StaticDir, "icons"),
+		filepath.Join(e.DataDir, site.StaticDir, "icons"),
 		filepath.Join(stagingStatic, "icons"),
 	); err != nil {
 		return fmt.Errorf("copy icons: %w", err)

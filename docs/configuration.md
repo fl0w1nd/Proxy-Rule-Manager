@@ -8,15 +8,14 @@
 
 - **clients** 决定输出方向：规则渲染给哪些代理客户端，各自用什么格式。
 - **rules** 决定编译内容：一条规则从哪些来源取数，怎么合并、怎么过滤，最终发给哪些客户端。
-- **update / serve** 决定运行方式：什么时候自动更新、网络请求的限制、HTTP 服务怎么监听。
+- **update** 决定更新方式：什么时候自动更新，以及网络请求和预处理限制。
+- **运行时参数** 决定数据目录、HTTP 监听地址、端口、可信代理和管理令牌。
 
 ## 最小配置
 
 下面这份配置可以直接跑通，也是 `prm init` 生成的内容：
 
 ```yaml
-data_dir: ./data
-
 clients:
   - id: mihomo
     name: Mihomo
@@ -37,7 +36,6 @@ rules:
 
 | 配置 | 含义 |
 | --- | --- |
-| `data_dir: ./data` | 所有产物、缓存、历史记录的存放根目录 |
 | `id: mihomo` | 客户端唯一标识，全文通用引用值 |
 | `formats` 里的 `id` | 一个具体产物（`rules/mihomo-classical/` 目录名） |
 | `template` | 使用哪个内置模板渲染（见模板列表） |
@@ -54,7 +52,7 @@ prm init                          # 生成最小可运行配置（config.yaml）
 prm validate                      # 校验配置，报错带 YAML 行号
 prm preview Google                # 单独编译一条规则，看各阶段结果
 prm update                        # 全量编译，产物写入 data/rules/
-prm serve                         # 启动站点 + 管理 API（需 ADMIN_TOKEN）
+PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 ```
 
 `prm preview` 是排查利器：它会分别显示每个来源解析出多少条目、过滤前/后各多少、按类型统计，还能用 `--target` 指定某个格式看渲染结果。
@@ -193,16 +191,19 @@ geosite:
 | `preprocess.timeout` | 5s | 单次 JS 预处理超时 |
 | `preprocess.max_output` | 8MB | 预处理结果体积上限 |
 
-## serve：HTTP 服务
+## 运行时参数
 
-| 配置 | 默认值 | 说明 |
-| --- | --- | --- |
-| `serve.host` | 127.0.0.1 | 监听地址；容器或公网部署改 `0.0.0.0` |
-| `serve.port` | 3001 | 监听端口 |
+文件系统路径与 HTTP 进程参数通过 CLI flag 或 `PRM_*` 环境变量设置，优先级为 CLI flag > 环境变量 > 默认值。
 
-`ADMIN_TOKEN` 必须通过环境变量提供，否则 serve 拒绝启动。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。
+| 用途 | CLI flag | 环境变量 | 默认值 |
+| --- | --- | --- | --- |
+| 数据目录 | `--data-dir` | `PRM_DATA_DIR` | `./data` |
+| 监听地址 | `serve --host` | `PRM_SERVE_HOST` | `127.0.0.1` |
+| 监听端口 | `serve --port` | `PRM_SERVE_PORT` | `3001` |
+| 可信代理 | 重复 `serve --trusted-proxy` | `PRM_TRUSTED_PROXIES`（CSV） | 空列表 |
+| 管理令牌 | — | `PRM_ADMIN_TOKEN` | 必填 |
 
-位于反向代理后面时，配置 `serve.trusted_proxies` 声明代理网段（可以是 CIDR 或单 IP），serve 才会信任其转发头来判断 HTTPS。不配置则只认直连 TLS。
+可信代理接受单 IP 或 CIDR。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。
 
 ## 环境变量插值
 
