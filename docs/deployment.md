@@ -56,6 +56,7 @@ services:
       - "3001:3001"
     environment:
       ADMIN_TOKEN: ${ADMIN_TOKEN:?请在 .env 中设置 ADMIN_TOKEN}
+      TRUSTED_PROXY_CIDR: '["127.0.0.1/32", "172.16.0.0/12"]'
     volumes:
       - ./data:/data       # 整个目录，包含 config.yaml 和全部数据
 ```
@@ -97,17 +98,19 @@ prm 自带的 HTTP 服务只做规则提供和管理 API，生产环境通常在
   ```
 
 - **令牌**：`ADMIN_TOKEN` 必须是足够随机的长字符串，只通过环境变量注入，不要写进配置文件或提交到仓库。管理接口 `/admin` 和 `/api/v1` 都需要它。
-- **反代网段也可用环境变量**：config 的字符串支持 `${VAR}` 插值（解析前整体替换），compose 场景不必把 IP 写死在 config 里：
+- **反代网段也可用环境变量**：config 的字符串支持 `${VAR}` 插值（解析前整体替换），compose 场景不必把 IP 写死在 config 里。
+
+  默认推荐覆盖最常见反代场景的一组值（本机反代 + Docker 容器反代）：
 
   ```yaml
   # docker-compose.yml
   environment:
-    TRUSTED_PROXY_CIDR: "192.168.1.0/24"
+    TRUSTED_PROXY_CIDR: '["127.0.0.1/32", "172.16.0.0/12"]'
   ```
   ```yaml
   # config.yaml
   serve:
-    trusted_proxies: ["${TRUSTED_PROXY_CIDR}"]
+    trusted_proxies: ${TRUSTED_PROXY_CIDR}
   ```
 
   变量未设置时占位符原样保留，校验会因地址无法解析而报错，正好提示你漏配了。
