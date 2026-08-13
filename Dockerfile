@@ -24,7 +24,7 @@ RUN --mount=type=cache,target=/go/pkg/mod \
       -X github.com/fl0w1nd/proxy-rule-manager/version.Date=$BUILD_DATE" \
     -o /prm ./cmd/prm
 
-FROM gcr.io/distroless/static-debian12:nonroot
+FROM gcr.io/distroless/static-debian12
 
 ARG VERSION
 ARG COMMIT=unknown
@@ -37,7 +37,7 @@ LABEL org.opencontainers.image.title="Proxy Rule Manager" \
       org.opencontainers.image.revision=$COMMIT \
       org.opencontainers.image.created=$BUILD_DATE
 
-COPY --from=builder --chown=nonroot:nonroot /prm /usr/local/bin/prm
+COPY --from=builder /prm /usr/local/bin/prm
 
 VOLUME ["/data"]
 WORKDIR /data

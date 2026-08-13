@@ -120,6 +120,13 @@ func buildApp() (*App, error) {
 		return nil, fmt.Errorf("initialize update manager: %w", err)
 	}
 
+	// Drop root privileges: when the container starts as root (needed to fix
+	// root-owned bind-mounted volumes), chown the data dir to the unprivileged
+	// uid and switch to it so the server runs as non-root from here on.
+	if err := dropPrivileges(cfg.DataDir); err != nil {
+		return nil, fmt.Errorf("drop privileges: %w", err)
+	}
+
 	return &App{
 		Config:   cfg,
 		Registry: registry,
