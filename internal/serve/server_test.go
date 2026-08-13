@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"strings"
@@ -399,4 +400,119 @@ func TestErrorEnvelope(t *testing.T) {
 	if body["error"]["code"] != "invalid_rule_ids" || body["error"]["message"] != "请求包含未知规则" {
 		t.Fatalf("body=%v", body)
 	}
+}
+
+// withTrustedProxy returns a Server whose trusted proxy list includes the
+// loopback range, simulating a TLS-terminating reverse proxy in front of prm.
+func withTrustedProxy(s *Server) *Server {
+	prefix := netip.MustParsePrefix("127.0.0.0/8")
+	s.trustedProxies = []netip.Prefix{prefix}
+	return s
+}
+
+func TestProxyAwareTrustedProxyHonorsForwardedProto(t *testing.T) {
+	s, _, _ := testServer(t)
+	withTrustedProxy(s)
+	// Cookie auth + https Origin should be accepted when a trusted proxy
+	// forwarded the https scheme; the resulting cookie must carry Secure.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/updates", strings.NewReader(`{"scope":"all"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Origin", "https://example.com")
+	req.RemoteAddr = "127.0.0.1:54321"
+	req.AddCookie(&http.Cookie{Name: tokenCookieName, Value: "abc"})
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("trusted https forwarded: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	if job := s.updates.Current(); job != nil {
+		select {
+		case <-job.Done():
+		case <-time.After(3 * time.Second):
+			t.Fatal("update did not finish")
+		}
+	}
+	// /admin?token= must set a Secure cookie under the same proxy condition.
+	adminReq := httptest.NewRequest(http.MethodGet, "/admin?token=abc", nil)
+	adminReq.Header.Set("X-Forwarded-Proto", "https")
+	adminReq.RemoteAddr = "127.0.0.1:54321"
+	adminRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(adminRec, adminReq)
+	if adminRec.Code != http.StatusFound {
+		t.Fatalf("admin redirect=%d", adminRec.Code)
+	}
+	cookies := adminRec.Result().Cookies()
+	if len(cookies) != 1 || !cookies[0].Secure {
+		t.Fatalf("expected Secure cookie behind trusted https proxy, got %+v", cookies)
+	}
+}
+
+func TestProxyAwareUntrustedPeerIgnoresForwardedProto(t *testing.T) {
+	s, _, _ := testServer(t) // no trusted proxies configured
+	// An untrusted peer sending X-Forwarded-Proto: https must not make the
+	// request look HTTPS: the http Origin mismatches and the write is rejected.
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/updates", strings.NewReader(`{"scope":"all"}`))
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Forwarded-Proto", "https")
+	req.Header.Set("Origin", "https://example.com")
+	req.RemoteAddr = "127.0.0.1:54321"
+	req.AddCookie(&http.Cookie{Name: tokenCookieName, Value: "abc"})
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("untrusted forwarded proto: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	// Cookie set without a trusted proxy must NOT carry Secure.
+	adminReq := httptest.NewRequest(http.MethodGet, "/admin?token=abc", nil)
+	adminReq.Header.Set("X-Forwarded-Proto", "https")
+	adminReq.RemoteAddr = "127.0.0.1:54321"
+	adminRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(adminRec, adminReq)
+	cookies := adminRec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Secure {
+		t.Fatalf("expected non-Secure cookie without trusted proxy, got %+v", cookies)
+	}
+}
+
+func TestProxyAwareHTTPProxyDoesNotSetSecureCookie(t *testing.T) {
+	s, _, _ := testServer(t)
+	withTrustedProxy(s)
+	// A trusted proxy that forwards http (not https) must keep the cookie
+	// without Secure, since the upstream scheme is plain HTTP.
+	adminReq := httptest.NewRequest(http.MethodGet, "/admin?token=abc", nil)
+	adminReq.Header.Set("X-Forwarded-Proto", "http")
+	adminReq.RemoteAddr = "127.0.0.1:54321"
+	adminRec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(adminRec, adminReq)
+	cookies := adminRec.Result().Cookies()
+	if len(cookies) != 1 || cookies[0].Secure {
+		t.Fatalf("expected non-Secure cookie for http forwarded proxy, got %+v", cookies)
+	}
+}
+
+func TestSecurityHeadersPresentOnAllRoutes(t *testing.T) {
+	s, _, _ := testServer(t)
+	check := func(target string, auth bool) {
+		t.Helper()
+		var req *http.Request
+		if auth {
+			req = authorized(http.MethodGet, target, nil)
+		} else {
+			req = httptest.NewRequest(http.MethodGet, target, nil)
+		}
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, req)
+		for _, h := range []string{"X-Content-Type-Options", "X-Frame-Options", "Referrer-Policy"} {
+			if rec.Header().Get(h) == "" {
+				t.Errorf("%s: missing %s (status=%d)", target, h, rec.Code)
+			}
+		}
+		if got := rec.Header().Get("X-Frame-Options"); got != "DENY" {
+			t.Errorf("%s: X-Frame-Options=%q want DENY", target, got)
+		}
+	}
+	check("/", false)            // public page (404 in test, headers still apply)
+	check("/admin", false)       // admin gate (401)
+	check("/api/v1/status", true) // authenticated API (200)
 }

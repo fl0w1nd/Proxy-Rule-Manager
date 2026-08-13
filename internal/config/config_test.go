@@ -630,3 +630,16 @@ func containsErrorPath(errs []ConfigError, path string) bool {
 	}
 	return false
 }
+
+func TestValidateTrustedProxiesParsing(t *testing.T) {
+	cfg := &Config{
+		DataDir: t.TempDir(),
+		Clients: []ClientConfig{{ID: "surge", Template: "surge"}},
+		Serve:   ServeConfig{Host: "127.0.0.1", Port: 3001, TrustedProxies: []string{"10.0.0.0/8", "not-an-ip"}},
+	}
+	cfg.Defaults()
+	errs := cfg.Validate()
+	if !containsErrorPath(errs, "serve.trusted_proxies[1]") {
+		t.Fatalf("expected trusted_proxies parse error, got: %v", ConfigErrors(errs))
+	}
+}

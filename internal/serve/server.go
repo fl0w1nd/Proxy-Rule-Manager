@@ -2,9 +2,12 @@
 package serve
 
 import (
+	"context"
 	"crypto/subtle"
 	"encoding/json"
+	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -26,11 +29,14 @@ type Server struct {
 	State  *state.Store
 	Engine *engine.UpdateEngine
 
-	updates  *updates.Manager
-	apiToken string
+	updates        *updates.Manager
+	apiToken       string
+	trustedProxies []netip.Prefix
 }
 
-// NewServer creates a new HTTP server.
+// NewServer creates a new HTTP server. Trusted proxy CIDRs from
+// cfg.Serve.TrustedProxies are parsed once and used to decide which requests
+// may carry forwarded scheme headers.
 func NewServer(
 	cfg *config.Config,
 	st *state.Store,
@@ -38,16 +44,37 @@ func NewServer(
 	updateManager *updates.Manager,
 	apiToken string,
 ) *Server {
-	return &Server{
+	s := &Server{
 		Config: cfg, State: st, Engine: eng,
 		updates: updateManager, apiToken: apiToken,
 	}
+	for _, p := range cfg.Serve.TrustedProxies {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			continue
+		}
+		if prefix, err := netip.ParsePrefix(p); err == nil {
+			s.trustedProxies = append(s.trustedProxies, prefix)
+			continue
+		}
+		// A bare IP is accepted as a single-host prefix.
+		if addr, err := netip.ParseAddr(p); err == nil {
+			s.trustedProxies = append(s.trustedProxies, netip.PrefixFrom(addr, addr.BitLen()))
+		}
+	}
+	return s
 }
 
 // Handler returns the chi router with all routes configured.
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
 
+	// proxyAware runs before middleware.RealIP so it sees the real TCP peer
+	// (RealIP rewrites RemoteAddr from forwarded headers). It stashes the
+	// proxy-aware HTTPS decision in the request context for cookie Secure and
+	// same-origin checks.
+	r.Use(s.proxyAware)
+	r.Use(securityHeaders)
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
@@ -110,7 +137,9 @@ func (s *Server) tokenValid(r *http.Request) bool {
 	return s.validToken(requestToken(r))
 }
 
-// setTokenCookie persists the token for 30 days.
+// setTokenCookie persists the token for 30 days. The Secure flag is set when
+// the request is considered HTTPS, including the TLS-terminating-proxy case
+// where the scheme is taken from a trusted proxy's Forwarded header.
 func setTokenCookie(w http.ResponseWriter, r *http.Request, token string) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     tokenCookieName,
@@ -119,7 +148,7 @@ func setTokenCookie(w http.ResponseWriter, r *http.Request, token string) {
 		MaxAge:   30 * 24 * 3600,
 		HttpOnly: true,
 		SameSite: http.SameSiteStrictMode,
-		Secure:   r.TLS != nil,
+		Secure:   isHTTPSRequest(r),
 	})
 }
 
@@ -202,7 +231,7 @@ func (s *Server) sameOriginMutation(next http.HandlerFunc) http.HandlerFunc {
 		}
 		origin, err := url.Parse(r.Header.Get("Origin"))
 		expectedScheme := "http"
-		if r.TLS != nil {
+		if isHTTPSRequest(r) {
 			expectedScheme = "https"
 		}
 		if err != nil || origin.Scheme != expectedScheme || origin.Host != r.Host {
@@ -243,4 +272,106 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+// secureCtxKey is the context key for the proxy-aware HTTPS decision computed
+// by proxyAware before chi's RealIP middleware rewrites RemoteAddr.
+type secureCtxKey struct{}
+
+// proxyAware determines whether the current request is HTTPS — accounting for
+// TLS-terminating reverse proxies — and stores the result in the request
+// context. It must run before middleware.RealIP so it inspects the original
+// TCP peer rather than the forwarded-for value.
+func (s *Server) proxyAware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		https := s.requestIsHTTPS(r)
+		next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), secureCtxKey{}, https)))
+	})
+}
+
+// isHTTPSRequest reports the proxy-aware HTTPS decision stashed by proxyAware.
+// Falls back to r.TLS != nil when the middleware did not run (e.g. direct unit
+// tests), which preserves the pre-existing direct-TLS behavior.
+func isHTTPSRequest(r *http.Request) bool {
+	if v, ok := r.Context().Value(secureCtxKey{}).(bool); ok {
+		return v
+	}
+	return r.TLS != nil
+}
+
+// requestIsHTTPS decides the effective request scheme. A direct TLS connection
+// is HTTPS. Otherwise forwarded scheme headers are honored only when the TCP
+// peer is a configured trusted proxy, so a public client cannot spoof HTTPS by
+// sending X-Forwarded-Proto.
+func (s *Server) requestIsHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	if !s.trustedProxy(clientHost(r.RemoteAddr)) {
+		return false
+	}
+	return forwardedProto(r) == "https"
+}
+
+// trustedProxy reports whether peer falls within any configured trusted proxy
+// range. With no ranges configured, nothing is trusted.
+func (s *Server) trustedProxy(peer string) bool {
+	if len(s.trustedProxies) == 0 || peer == "" {
+		return false
+	}
+	addr, err := netip.ParseAddr(peer)
+	if err != nil {
+		return false
+	}
+	for _, p := range s.trustedProxies {
+		if p.Contains(addr) {
+			return true
+		}
+	}
+	return false
+}
+
+// clientHost strips the port from a RemoteAddr, returning the bare host. If
+// SplitHostPort fails (no port), the input is returned unchanged.
+func clientHost(remoteAddr string) string {
+	if host, _, err := net.SplitHostPort(remoteAddr); err == nil {
+		return host
+	}
+	return remoteAddr
+}
+
+// forwardedProto extracts the origin scheme from RFC 7239 Forwarded (proto
+// parameter) or, failing that, the first value of X-Forwarded-Proto. Only the
+// leftmost X-Forwarded-Proto value is used, matching a single trusted proxy
+// tier in front of prm.
+func forwardedProto(r *http.Request) string {
+	if f := r.Header.Get("Forwarded"); f != "" {
+		for _, pair := range strings.Split(f, ";") {
+			pair = strings.TrimSpace(pair)
+			if len(pair) >= 6 && strings.EqualFold(pair[:6], "proto=") {
+				return strings.Trim(pair[6:], "\"'")
+			}
+		}
+	}
+	if xfp := r.Header.Get("X-Forwarded-Proto"); xfp != "" {
+		if i := strings.IndexByte(xfp, ','); i >= 0 {
+			xfp = xfp[:i]
+		}
+		return strings.TrimSpace(xfp)
+	}
+	return ""
+}
+
+// securityHeaders applies baseline defensive response headers to every
+// response (public pages, admin board, and API). CSP is intentionally omitted:
+// the generated pages embed inline scripts/styles and load Google Fonts, so a
+// strict CSP would break them. Add CSP only after aligning the page assets.
+func securityHeaders(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		next.ServeHTTP(w, r)
+	})
 }

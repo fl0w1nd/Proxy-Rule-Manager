@@ -235,6 +235,13 @@ type PreprocessConfig struct {
 type ServeConfig struct {
 	Host string `yaml:"host"`
 	Port int    `yaml:"port"`
+	// TrustedProxies is the list of IP/CIDR ranges of reverse proxies whose
+	// Forwarded/X-Forwarded-Proto headers prm will honor to detect HTTPS
+	// behind TLS-terminating proxies. Requests whose TCP peer is not in this
+	// list ignore forwarded headers, so a public client cannot fake the
+	// scheme. Empty (default) means no proxy is trusted; HTTPS is detected
+	// only from a direct TLS connection (r.TLS != nil).
+	TrustedProxies []string `yaml:"trusted_proxies,omitempty"`
 }
 
 // Defaults fills in zero values with sensible defaults.
@@ -606,6 +613,18 @@ func (c *Config) Validate() []ConfigError {
 	}
 	if c.Serve.Port < 1 || c.Serve.Port > 65535 {
 		addErr("serve.port", "must be between 1 and 65535")
+	}
+	for i, p := range c.Serve.TrustedProxies {
+		tp := strings.TrimSpace(p)
+		if tp == "" {
+			addErr(fmt.Sprintf("serve.trusted_proxies[%d]", i), "must not be empty")
+			continue
+		}
+		if _, err := netip.ParsePrefix(tp); err != nil {
+			if _, err2 := netip.ParseAddr(tp); err2 != nil {
+				addErr(fmt.Sprintf("serve.trusted_proxies[%d]", i), fmt.Sprintf("invalid IP or CIDR: %v", err))
+			}
+		}
 	}
 
 	if c.Geosite != nil {
