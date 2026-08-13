@@ -1,3 +1,5 @@
+//go:build linux || darwin
+
 package main
 
 import (
@@ -18,8 +20,8 @@ const (
 // dropPrivileges makes a root-started process safe to run unprivileged: it
 // chowns the data directory to containerUID/GID (so the soon-to-be non-root
 // process can keep writing its state and artifacts) and then switches the
-// process credentials. It is a no-op when already non-root, so local non-root
-// runs and `docker run --user 65532` are unaffected.
+// process credentials. Processes already using an unprivileged uid keep their
+// current credentials, covering local runs and `docker run --user 65532`.
 func dropPrivileges(dataDir string) error {
 	if os.Getuid() != 0 {
 		return nil
@@ -41,7 +43,7 @@ func dropPrivileges(dataDir string) error {
 
 // chownR recursively chowns root and everything under it to uid:gid. When the
 // top of the tree is already owned by uid:gid (the steady state after the
-// first boot), it returns without walking, so restarts don't pay an O(n) scan.
+// first boot), it returns immediately so restarts skip the O(n) scan.
 func chownR(root string, uid, gid int) error {
 	info, err := os.Stat(root)
 	if err != nil {
