@@ -1,11 +1,18 @@
 # GitHub Pages 静态发布
 
-该方案将程序版本与用户配置分开管理：工作流下载源仓库的最新正式 Release，`publish` 保存用户配置和本地资源，生成结果由 GitHub Pages Artifact 承载。
+把规则站点公开为静态页面，不需要常驻服务器。发布流程由 GitHub Actions 完成，构建与源代码分离，规则配置由你掌控。
+
+## 工作原理
+
+- 源仓库（`fl0w1nd/Proxy-Rule-Manager`）每次发版（打 `v*.*.*` 标签）时，自动发布最新二进制和 Docker 镜像。
+- 你的 Fork 仓库里有一条 Pages 工作流：每天 `03:17 UTC` 自动运行一次，也可以手动触发。
+- 运行时从源仓库下载最新正式 Release，校验 SHA-256，然后在 `publish` 分支上执行 `prm build --output dist`。
+- 产物通过 Pages Artifact 发布。构建中断不影响线上站点，旧版本继续服务。
 
 ## 首次设置
 
-1. Fork 仓库，取消勾选 **Copy the DEFAULT branch only**，让 `main` 和 `publish` 一起复制，并保留 `main` 为默认分支。
-2. 检出 Fork 中已有的 `publish` 分支，将示例内容替换为自己的输入：
+1. **Fork 仓库**。Fork 时取消勾选 *Copy the DEFAULT branch only*，让 `main` 和 `publish` 分支一起复制，保持 `main` 是默认分支。
+2. **检出 `publish` 分支**，放入你的输入：
 
    ```text
    config.yaml
@@ -16,52 +23,57 @@
    ```
 
    ```bash
-   git clone https://github.com/YOUR-NAME/Proxy-Rule-Manager.git
-   cd Proxy-Rule-Manager
-   git switch publish
-   # 修改 config.yaml 和 data/ 下的本地资源
+   git checkout publish
+   # 编辑 config.yaml，把 data_dir 保持为 ./data
+   # 把本地文件源放入 data/local/，自定义模板放入 data/templates/，图标放入 data/static/icons/
    git add config.yaml data
    git commit -m "chore: update publish configuration"
    git push origin publish
    ```
 
-3. 确认 `config.yaml` 使用 `data_dir: ./data`。本地文件源位于 `data/local/`，自定义模板位于 `data/templates/`，自定义图标位于 `data/static/icons/`。
-4. 在仓库的 **Settings → Actions → General** 中启用 Actions，在 **Settings → Pages** 中选择 **GitHub Actions** 作为发布来源。
-5. 新建 Repository Variable：`PRM_PAGES_ENABLED=true`。
-6. 建议为 `publish` 启用分支保护，并限制直接推送范围。
+3. **启用 Actions**：仓库 **Settings → Actions → General**，允许 Actions 运行。
+4. **设置 Pages 来源**：**Settings → Pages**，选择 *GitHub Actions* 作为发布来源。
+5. **创建仓库变量**：**Settings → Variables → Actions**，新建 `PRM_PAGES_ENABLED=true`。没有这个变量时构建任务会被跳过。
 
-工作流支持手动运行，并在每天 `03:17 UTC` 自动运行。每次运行都会读取源仓库的 Latest Release 标签，下载 Linux amd64 版本并校验 SHA-256。构建日志和错误详情保留在 Actions 运行记录中；更新错误会终止发布，现有 Pages 版本继续提供服务。
+完成后在 **Actions** 页面手动运行一次 *Publish Rules to GitHub Pages* 工作流，确认站点能构建和发布。
 
 ## 敏感配置
 
-配置文件可使用 `${ENV_NAME}`。在 Repository Secret `PRM_ENV` 中按行保存对应值：
+配置文件可用 `${ENV_NAME}` 引用环境变量。在仓库 Secret 里新建 `PRM_ENV`，每行一个变量：
 
 ```dotenv
 SOURCE_TOKEN=example-token
 PRIVATE_URL=https://example.com/rules
 ```
 
-变量名需符合 shell 环境变量格式，每个值占一行。工作流会在构建前将这些值写入任务环境。
+变量名需符合 shell 环境变量格式。工作流在构建前把这些值写入任务环境，`config.yaml` 里对应的 `${SOURCE_TOKEN}` 会被替换。
+
+## 运行与维护
+
+- **自动运行**：每天 `03:17 UTC`。
+- **手动运行**：Actions 页面 → *Publish Rules to GitHub Pages* → Run workflow。
+- **检查结果**：运行日志和构建错误保留在 Actions 运行记录里。更新错误会终止发布，线上站点不受影响。
+- **数据缓存**：`data/.state`、`data/geosite`、`data/rules` 会缓存以加速后续构建。如配置变化后出现异常，可在 Actions 缓存管理中清除缓存再跑。
 
 ## 同步上游
 
-只在 `main` 同步上游提交：
+只在 `main` 上同步上游提交，`publish` 保持独立历史，配置稳定：
 
 ```bash
-git switch main
+git checkout main
 git fetch upstream
 git merge --ff-only upstream/main
 git push origin main
 ```
 
-`publish` 保持独立提交历史；上游同步操作限定在 `main`，用户配置因此保持稳定。PRM 版本由源仓库的 Latest Release 自动推进，用户同步 `main` 可以获得工作流与文档更新。
+prm 版本由源仓库的最新 Release 自动推进；同步 `main` 可以取得工作流与文档更新。
 
-## 本地预览构建
+## 本地预览
 
-在包含 `config.yaml` 的目录执行：
+构建前先在本地生成一次，确认配置与来源都正确：
 
 ```bash
 prm build --output dist
 ```
 
-成功输出固定包含 `index.html`、`rules/`、`static/icons/` 和 `.nojekyll`。可用任意静态文件服务器预览 `dist/`。
+产物固定包含 `index.html`、`rules/`、`static/icons/`、`.nojekyll`，用任意静态文件服务器即可预览 `dist/`。

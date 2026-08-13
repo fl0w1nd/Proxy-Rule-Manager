@@ -7,93 +7,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const exampleConfig = `# Proxy Rule Manager configuration
-# See: https://github.com/fl0w1nd/proxy-rule-manager
+const exampleConfig = `# Proxy Rule Manager 最小可用配置
+# 这份配置可以直接运行：cp 到 config.yaml 后执行 prm update。
+# 完整字段与讲解见 config.template.yaml 或 docs/configuration.md。
 
-# Local: data_dir: ./data
-# Docker: data_dir: /data  (the Dockerfile sets WORKDIR /data, so ./data
-#         would resolve to /data/data; use /data to match the volume mount)
+# 数据目录：规则产物、缓存、更新历史都写在这里。
 data_dir: ./data
 
+# 输出客户端：规则渲染给哪些代理客户端、用什么格式。
 clients:
   - id: mihomo
     name: Mihomo
-    icon: mihomo
     formats:
       - id: mihomo-classical
         name: Classical
         template: mihomo-classical
-      - id: mihomo-yaml
-        name: YAML
-        template: mihomo-yaml
 
-  - id: sing-box
-    name: sing-box
-    icon: singbox
-    template: singbox
-    variants:
-      - id: sing-box-non-ip
-        name: Non-IP
-        ops:
-          - type: exclude_kinds
-            kinds: [ip_cidr]
-
+# 规则：一条规则 = 一次编译单元（读来源 -> 合并 -> 过滤 -> 渲染）。
 rules:
-  # Local sources support inline content and file paths:
-  # - content: |-
-  #     DOMAIN,example.com
-  # - file: custom.list   # relative to data_dir/local
   - id: Google
     name: Google
-    description: Google services
-    tags: [google, search]
     sources:
       - url: https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Google.list
-    outputs: [mihomo, sing-box]
-
-  - id: AdBlock
-    name: AdBlock
-    sources:
-      - url: https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/BanAD.list
-    ops:
-      - type: include_kinds
-        kinds: [domain, domain_suffix, domain_keyword]
     outputs: [mihomo]
-
-  - id: GeoBlock
-    name: GeoBlock
-    sources:
-      # Compact geosite ref: provider/list or provider/list@attr1,attr2
-      - geosite: v2fly/geolocation-!cn
-    outputs: [mihomo, sing-box]
-
-# Geosite auto-publish (optional)
-# Declare providers + target clients. All lists and attr variants are
-# automatically enumerated and published. No per-list declaration needed.
-# Output naming: v2fly/google.list, v2fly/geolocation-!cn@ads.list, etc.
-geosite:
-  providers:
-    - name: v2fly
-      clients: [mihomo, sing-box]
-
-update:
-  history_retention: 168h
-  history_limit: 200
-  schedule:
-    mode: manual
-  fetch:
-    timeout: 15s
-    max_download: 4MB
-    concurrency: 4
-    per_host_concurrency: 2
-    retries: 2
-    retry_delay: 500ms
-    user_agent: Proxy-Rule-Manager/2.0
-
-serve:
-  # prm serve requires ADMIN_TOKEN in the process environment.
-  host: 127.0.0.1
-  port: 3001
 `
 
 var initCmd = &cobra.Command{
