@@ -69,7 +69,7 @@ jobs:
           retention-days: 7
 
   build:
-    name: Binary build
+    name: Binary validation
     needs:
       - lint
       - test
@@ -95,7 +95,7 @@ jobs:
           test "$actual" = "prm version $expected"
 
   container:
-    name: Container build
+    name: Container validation
     needs:
       - lint
       - test
