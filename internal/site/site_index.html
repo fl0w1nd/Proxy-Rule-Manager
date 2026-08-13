@@ -780,7 +780,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
       </div>
     </div>
     <div class="top-meta">
-      <a class="btn-bracket" href="/admin">[ 管理 ]</a>
+      {{if .AdminURL}}<a class="btn-bracket" href="{{.AdminURL}}">[ 管理 ]</a>{{end}}
       <button id="themeBtn" class="btn-bracket" type="button">[ 亮色 ]</button>
     </div>
   </header>

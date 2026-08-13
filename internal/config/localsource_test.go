@@ -147,8 +147,8 @@ func TestValidateAcceptsFileSourceUnderDataDirLocal(t *testing.T) {
 	dataDir := t.TempDir()
 	for _, file := range []string{
 		filepath.Join(dataDir, "local", "rules.list"), // absolute
-		"rules.list",        // bare relative, anchored at data_dir/local
-		"nested/deep.list",  // nested relative
+		"rules.list",       // bare relative, anchored at data_dir/local
+		"nested/deep.list", // nested relative
 	} {
 		t.Run(file, func(t *testing.T) {
 			cfg := &Config{

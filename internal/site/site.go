@@ -102,6 +102,7 @@ type IconSet struct {
 // IndexData is the view model for the public page.
 type IndexData struct {
 	UpdatedAt time.Time
+	AdminURL  string
 	Clients   []Client
 	Rules     []PublicRule
 	Tags      []string
@@ -129,7 +130,17 @@ func WritePublic(dataDir string, index *IndexData) error {
 	if err := os.MkdirAll(staticDir, 0o755); err != nil {
 		return fmt.Errorf("create static dir: %w", err)
 	}
-	return render(staticDir, IndexFile, IndexFileTemplate, index)
+	return WriteIndex(staticDir, staticDir, index)
+}
+
+// WriteIndex renders the public index into outputDir. iconStaticDir points to
+// the static directory that contains icons/, which may differ from outputDir
+// for a standalone export whose layout is index.html + static/icons/.
+func WriteIndex(outputDir, iconStaticDir string, index *IndexData) error {
+	if err := os.MkdirAll(outputDir, 0o755); err != nil {
+		return fmt.Errorf("create index output dir: %w", err)
+	}
+	return render(outputDir, iconStaticDir, IndexFile, IndexFileTemplate, index)
 }
 
 // AdminPage returns the backend-served management application shell. The
@@ -153,12 +164,12 @@ func AdminPage() ([]byte, error) {
 	return page, nil
 }
 
-func render(dataDir, outName, tmplName string, data any) error {
+func render(outputDir, iconStaticDir, outName, tmplName string, data any) error {
 	// The icon helper resolves user-provided icon files relative to the
 	// generated site directory, so it is bound per render call.
 	funcs := maps.Clone(funcMap)
 	funcs["icon"] = func(name string, px int) template.HTML {
-		return pixelIcon(dataDir, name, px)
+		return pixelIcon(iconStaticDir, name, px)
 	}
 	t, err := template.New(tmplName).Funcs(funcs).ParseFS(htmlFS, tmplName)
 	if err != nil {
@@ -168,7 +179,7 @@ func render(dataDir, outName, tmplName string, data any) error {
 	if err := t.ExecuteTemplate(&buf, tmplName, data); err != nil {
 		return fmt.Errorf("render %s: %w", tmplName, err)
 	}
-	return util.AtomicWriteFile(filepath.Join(dataDir, outName), buf.Bytes())
+	return util.AtomicWriteFile(filepath.Join(outputDir, outName), buf.Bytes())
 }
 
 // escapePath URL-escapes each path segment (client IDs may contain spaces).

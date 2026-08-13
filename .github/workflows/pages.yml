@@ -1,0 +1,92 @@
+name: Publish Rules to GitHub Pages
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build static site
+    if: ${{ vars.PRM_PAGES_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out application
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ vars.PRM_VERSION || 'v0.0.1' }}
+          path: app
+
+      - name: Check out user configuration
+        uses: actions/checkout@v6
+        with:
+          ref: publish
+          path: user
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: app/go.mod
+          cache: true
+          cache-dependency-path: app/go.sum
+
+      - name: Restore rule workspace
+        uses: actions/cache@v4
+        with:
+          path: |
+            user/data/.state
+            user/data/geosite
+            user/data/rules
+          key: ${{ runner.os }}-prm-data-${{ github.repository_id }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-prm-data-${{ github.repository_id }}-
+
+      - name: Build PRM
+        working-directory: app
+        run: make build
+
+      - name: Load secret environment
+        shell: bash
+        env:
+          PRM_ENV: ${{ secrets.PRM_ENV }}
+        run: |
+          while IFS= read -r entry || [[ -n "$entry" ]]; do
+            [[ -z "$entry" || "$entry" == \#* ]] && continue
+            name="${entry%%=*}"
+            if [[ "$entry" != *=* || ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
+              echo "PRM_ENV contains an invalid environment entry" >&2
+              exit 1
+            fi
+            printf '%s\n' "$entry" >> "$GITHUB_ENV"
+          done <<< "$PRM_ENV"
+
+      - name: Build static site
+        working-directory: user
+        run: ../app/bin/prm --config config.yaml build --output dist
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: user/dist
+
+  deploy:
+    name: Deploy GitHub Pages
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy Pages artifact
+        id: deployment
+        uses: actions/deploy-pages@v4

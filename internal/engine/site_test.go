@@ -47,6 +47,9 @@ func TestRebuildSiteFromPersistedState(t *testing.T) {
 	if !strings.Contains(string(index), "Updated Rule") || !strings.Contains(string(index), "rules/surge/updated.list") {
 		t.Error("rebuilt index should list the on-disk artifact")
 	}
+	if !strings.Contains(string(index), `href="/admin"`) {
+		t.Error("service index should link to the admin board")
+	}
 	if _, err := os.Stat(filepath.Join(dataDir, site.StaticDir, "admin.html")); !os.IsNotExist(err) {
 		t.Fatalf("RebuildSite created public admin.html: %v", err)
 	}

@@ -83,7 +83,7 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 		}
 	}
 	// Update internals must not leak into the public page.
-	for _, bad := range []string{"耗时", "管理看板", "变更", "失败", "立即更新", `<select class="client-format"`} {
+	for _, bad := range []string{"耗时", "管理看板", "变更", "失败", "立即更新", "/admin", "/api/v1", `<select class="client-format"`} {
 		if strings.Contains(string(index), bad) {
 			t.Errorf("index leaks admin content %q", bad)
 		}
@@ -93,6 +93,26 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 
 	if _, err := os.Stat(filepath.Join(staticDir, "admin.html")); !os.IsNotExist(err) {
 		t.Fatalf("public writer created admin.html: %v", err)
+	}
+}
+
+func TestWritePublicRendersOptionalAdminLink(t *testing.T) {
+	dir := t.TempDir()
+	staticDir := filepath.Join(dir, StaticDir)
+	if _, err := UpdateBuiltinAssets(staticDir); err != nil {
+		t.Fatal(err)
+	}
+	idx := sampleIndex()
+	idx.AdminURL = "/admin"
+	if err := WritePublic(dir, idx); err != nil {
+		t.Fatal(err)
+	}
+	page, err := os.ReadFile(filepath.Join(staticDir, IndexFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(page), `href="/admin"`) || !strings.Contains(string(page), "[ 管理 ]") {
+		t.Fatal("service public page is missing the admin link")
 	}
 }
 

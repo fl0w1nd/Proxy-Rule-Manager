@@ -512,7 +512,7 @@ func TestSecurityHeadersPresentOnAllRoutes(t *testing.T) {
 			t.Errorf("%s: X-Frame-Options=%q want DENY", target, got)
 		}
 	}
-	check("/", false)            // public page (404 in test, headers still apply)
-	check("/admin", false)       // admin gate (401)
+	check("/", false)             // public page (404 in test, headers still apply)
+	check("/admin", false)        // admin gate (401)
 	check("/api/v1/status", true) // authenticated API (200)
 }

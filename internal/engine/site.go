@@ -306,14 +306,35 @@ func (e *UpdateEngine) RebuildSite() error {
 		updatedAt = t
 	}
 
+	idx := e.publicIndexData(updatedAt, staticDir, "/admin", nil, nil)
+	if err := removeLegacyAdmin(staticDir); err != nil {
+		return err
+	}
+	return site.WritePublic(e.Config.DataDir, idx)
+}
+
+// publicIndexData assembles the shared public-page model. infos contains
+// results from the current update when available; persisted state fills the
+// remaining rules. adminURL selects the service or standalone-static view.
+func (e *UpdateEngine) publicIndexData(
+	updatedAt time.Time,
+	staticDir string,
+	adminURL string,
+	infos map[string]*ruleSiteInfo,
+	gstats *geositeStats,
+) *site.IndexData {
 	idx := &site.IndexData{
 		UpdatedAt: updatedAt,
+		AdminURL:  adminURL,
 		Clients:   e.siteClients(),
 		IconSets:  site.ListIconSets(staticDir),
 	}
 	tagSet := make(map[string]bool)
 	for _, rule := range e.Config.Rules {
-		info := e.persistedRuleSiteInfo(rule)
+		info := infos[rule.ID]
+		if info == nil {
+			info = e.persistedRuleSiteInfo(rule)
+		}
 		idx.Rules = append(idx.Rules, site.PublicRule{
 			ID:          info.id,
 			Name:        info.name,
@@ -331,13 +352,11 @@ func (e *UpdateEngine) RebuildSite() error {
 		}
 	}
 	sort.Strings(idx.Tags)
-
-	gstats := e.rebuildGeositeStats()
-	idx.Geosite = gstats.catalog()
-	if err := removeLegacyAdmin(staticDir); err != nil {
-		return err
+	if gstats == nil {
+		gstats = e.rebuildGeositeStats()
 	}
-	return site.WritePublic(e.Config.DataDir, idx)
+	idx.Geosite = gstats.catalog()
+	return idx
 }
 
 // GeositeProviderSummaries reconstructs current provider summaries for the API.
@@ -415,37 +434,7 @@ func (e *UpdateEngine) writeSite(result *UpdateResult, infos map[string]*ruleSit
 		e.Logger.Warn("write builtin icons failed", "error", err)
 		return fmt.Errorf("update builtin assets: %w", err)
 	}
-	iconSets := site.ListIconSets(staticDir)
-
-	idx := &site.IndexData{
-		UpdatedAt: now,
-		Clients:   e.siteClients(),
-		IconSets:  iconSets,
-	}
-	tagSet := make(map[string]bool)
-	for _, rule := range e.Config.Rules {
-		info, ok := infos[rule.ID]
-		if !ok {
-			info = e.persistedRuleSiteInfo(rule)
-		}
-		idx.Rules = append(idx.Rules, site.PublicRule{
-			ID:          info.id,
-			Name:        info.name,
-			Description: info.description,
-			Tags:        rule.Tags,
-			TagsJoined:  strings.ToLower(strings.Join(rule.Tags, ",")),
-			Entries:     info.entries,
-			Files:       info.files,
-		})
-		for _, tag := range rule.Tags {
-			if !tagSet[tag] {
-				tagSet[tag] = true
-				idx.Tags = append(idx.Tags, tag)
-			}
-		}
-	}
-	sort.Strings(idx.Tags)
-	idx.Geosite = gstats.catalog()
+	idx := e.publicIndexData(now, staticDir, "/admin", infos, gstats)
 	if err := removeLegacyAdmin(staticDir); err != nil {
 		return err
 	}
