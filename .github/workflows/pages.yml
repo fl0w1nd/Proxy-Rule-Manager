@@ -61,10 +61,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-prm-data-${{ github.repository_id }}-
 
-      - name: Build PRM
-        working-directory: app
-        run: make build
-
       - name: Load secret environment
         shell: bash
         env:
