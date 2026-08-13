@@ -1,7 +1,5 @@
 # Migrated from Proxy Rule Manager v0.4.9
 # Migrated clients: mihomo, Shadowrocket, sing-box, and sing-box-non-ip
-data_dir: ./data
-
 clients:
   - id: mihomo
     name: Mihomo
@@ -476,7 +474,3 @@ update:
   preprocess:
     timeout: 5s
     max_output: 8MB
-
-serve:
-  host: 127.0.0.1
-  port: 3001
