@@ -18,24 +18,37 @@ jobs:
     if: ${{ vars.PRM_PAGES_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
-      - name: Check out application
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ vars.PRM_VERSION || 'v0.0.1' }}
-          path: app
-
       - name: Check out user configuration
         uses: actions/checkout@v6
         with:
           ref: publish
           path: user
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
-        with:
-          go-version-file: app/go.mod
-          cache: true
-          cache-dependency-path: app/go.sum
+      - name: Download latest PRM release
+        id: prm
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          source_repo="$(gh api "repos/$GITHUB_REPOSITORY" --jq '.source.full_name // .full_name')"
+          tag="$(gh api "repos/$source_repo/releases/latest" --jq .tag_name)"
+          release_dir="$RUNNER_TEMP/prm-release"
+          mkdir -p "$release_dir"
+
+          gh release download "$tag" \
+            --repo "$source_repo" \
+            --pattern 'prm_*_linux_amd64.tar.gz' \
+            --pattern checksums.txt \
+            --dir "$release_dir"
+
+          cd "$release_dir"
+          sha256sum --check --ignore-missing checksums.txt
+          tar -xzf prm_*_linux_amd64.tar.gz
+          chmod +x "$release_dir/prm"
+          "$release_dir/prm" --version
+          echo "path=$release_dir/prm" >> "$GITHUB_OUTPUT"
 
       - name: Restore rule workspace
         uses: actions/cache@v4
@@ -69,7 +82,7 @@ jobs:
 
       - name: Build static site
         working-directory: user
-        run: ../app/bin/prm --config config.yaml build --output dist
+        run: ${{ steps.prm.outputs.path }} --config config.yaml build --output dist
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v4
