@@ -42,7 +42,7 @@ rules:
   # Local sources support inline content and file paths:
   # - content: |-
   #     DOMAIN,example.com
-  # - file: ./rules/custom.list
+  # - file: custom.list   # relative to data_dir/local
   - id: Google
     name: Google
     description: Google services

@@ -78,6 +78,7 @@ func Preview(
 			registry,
 			geositeProviders,
 			refResults,
+			cfg.LocalFileResolver(),
 			logger,
 		)
 		if current.ID == rule.ID {

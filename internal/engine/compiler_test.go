@@ -55,7 +55,7 @@ func TestCompileRuleFormatsOpsAndRendersCompletePipeline(t *testing.T) {
 
 	got := CompileRule(
 		context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(),
-		testRegistry(t), nil, nil, testLogger(),
+		testRegistry(t), nil, nil, nil, testLogger(),
 	)
 
 	if got.OpsError != "" || len(got.RenderErrors) != 0 {
@@ -129,7 +129,7 @@ func TestCompileRuleExpandsExplicitFormatsAndAppliesVariantOps(t *testing.T) {
 		},
 	}
 
-	got := CompileRule(context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+	got := CompileRule(context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, nil, testLogger())
 	if len(got.RenderErrors) != 0 {
 		t.Fatalf("render errors=%v", got.RenderErrors)
 	}
@@ -155,7 +155,7 @@ func TestCompileRuleReportsDiagnosticsOpsAndRenderErrors(t *testing.T) {
 			Name:    "diagnostic",
 			Sources: []config.SourceConfig{{Content: "DOMAIN,ok.example\nIP-CIDR,999.1.1.1/33"}},
 		}
-		got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+		got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, nil, testLogger())
 		if len(got.Sources) != 1 || len(got.Sources[0].Diagnostics) != 1 {
 			t.Fatalf("diagnostics: %+v", got.Sources)
 		}
@@ -171,7 +171,7 @@ func TestCompileRuleReportsDiagnosticsOpsAndRenderErrors(t *testing.T) {
 			Sources: []config.SourceConfig{{Content: "example.com"}},
 			Ops:     []config.OpConfig{{Type: "filter_values", Mode: "regex", Pattern: "(["}},
 		}
-		got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+		got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, nil, testLogger())
 		if !strings.Contains(got.OpsError, "invalid filter regex") {
 			t.Fatalf("ops error: %q", got.OpsError)
 		}
@@ -188,7 +188,7 @@ func TestCompileRuleReportsDiagnosticsOpsAndRenderErrors(t *testing.T) {
 			{ID: "bad-template", Template: "missing-template"},
 			{ID: "valid", Template: "surge"},
 		}
-		got := CompileRule(context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+		got := CompileRule(context.Background(), rule, clients, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, nil, testLogger())
 		if len(got.RenderErrors) != 2 || got.Rendered["valid"] == nil {
 			t.Fatalf("render outcomes: errors=%v rendered=%v", got.RenderErrors, got.Rendered)
 		}
@@ -196,7 +196,12 @@ func TestCompileRuleReportsDiagnosticsOpsAndRenderErrors(t *testing.T) {
 }
 
 func TestCompileRuleReadsLocalFileSource(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "rules.list")
+	dataDir := t.TempDir()
+	localDir := filepath.Join(dataDir, "local")
+	if err := os.MkdirAll(localDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(localDir, "rules.list")
 	if err := os.WriteFile(path, []byte("payload:\n  - DOMAIN,example.com\n  - DOMAIN-SUFFIX,example.org\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -206,7 +211,8 @@ func TestCompileRuleReadsLocalFileSource(t *testing.T) {
 		Name:    "local-file",
 		Sources: []config.SourceConfig{{File: path}},
 	}
-	got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, testLogger())
+	cfg := &config.Config{DataDir: dataDir}
+	got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, cfg.LocalFileResolver(), testLogger())
 	if len(got.Sources) != 1 || got.Sources[0].Error != "" {
 		t.Fatalf("source outcome: %+v", got.Sources)
 	}
@@ -241,7 +247,7 @@ func TestCompileRuleFetchesSourcesConcurrentlyWithinLimit(t *testing.T) {
 	go func() {
 		done <- CompileRule(
 			context.Background(), rule, nil, fetcher, NewPreprocessRunner(),
-			registry, nil, nil, testLogger(),
+			registry, nil, nil, nil, testLogger(),
 		)
 	}()
 	// globalLimit=2: exactly 2 of the 3 sources should start concurrently;

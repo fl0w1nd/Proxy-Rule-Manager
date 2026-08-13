@@ -138,11 +138,12 @@ func TestProgressEventsStayAtRuleLevel(t *testing.T) {
 }
 
 func TestFailedRuleReturnsStructuredIssue(t *testing.T) {
+	dataDir := t.TempDir()
 	cfg := &config.Config{
-		DataDir: t.TempDir(),
+		DataDir: dataDir,
 		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
 		Rules: []config.RuleConfig{{
-			ID: "broken", Name: "Broken", Sources: []config.SourceConfig{{File: filepath.Join(t.TempDir(), "missing.list")}}, Outputs: []string{"surge"},
+			ID: "broken", Name: "Broken", Sources: []config.SourceConfig{{File: filepath.Join(dataDir, "local", "missing.list")}}, Outputs: []string{"surge"},
 		}},
 	}
 	eng := newTestUpdateEngine(t, cfg)

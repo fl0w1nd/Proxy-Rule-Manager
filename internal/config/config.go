@@ -508,6 +508,11 @@ func (c *Config) Validate() []ConfigError {
 				if s.Content == "" && s.File == "" {
 					addErr(sp, "local source requires content or file")
 				}
+				if s.File != "" {
+					if _, err := c.LocalFileResolver()(s.File); err != nil {
+						addErr(sp+".file", err.Error())
+					}
+				}
 			case "geosite":
 				if s.Geosite != "" {
 					if ref, err := geosite.ParseRef(s.Geosite); err != nil {

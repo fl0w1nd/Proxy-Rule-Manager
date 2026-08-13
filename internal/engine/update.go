@@ -380,7 +380,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 	var outcome ruleOutcome
 	log := e.Logger.With("rule_id", rule.ID, "rule_name", rule.Name)
 
-	cr := CompileRule(ctx, rule, e.Config.Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, e.Logger)
+	cr := CompileRule(ctx, rule, e.Config.Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, e.Config.LocalFileResolver(), e.Logger)
 
 	info := newRuleSiteInfo(rule, cr)
 

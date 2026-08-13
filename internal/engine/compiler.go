@@ -36,7 +36,9 @@ type CompileResult struct {
 }
 
 // CompileRule runs the full pipeline for one rule: fetch sources -> parse ->
-// ops -> merge -> render.
+// ops -> merge -> render. localFiles resolves and validates local file source
+// paths against the configured allowed roots; pass config.Config.LocalFileResolver()
+// in production. A nil localFiles rejects every file source.
 func CompileRule(
 	ctx context.Context,
 	rule config.RuleConfig,
@@ -46,6 +48,7 @@ func CompileRule(
 	registry *render.Registry,
 	geositeProviders map[string]*geosite.ProviderCache,
 	refResults map[string][]ir.Entry,
+	localFiles config.LocalFileResolver,
 	logger *slog.Logger,
 ) CompileResult {
 	result := CompileResult{
@@ -67,7 +70,7 @@ func CompileRule(
 			if label == "" {
 				label = fmt.Sprintf("source[%d]", i)
 			}
-			outcome := fetchSource(ctx, src, fetcher, preprocessor, rule.Preprocess, geositeProviders, refResults, log)
+			outcome := fetchSource(ctx, src, fetcher, preprocessor, rule.Preprocess, geositeProviders, refResults, localFiles, log)
 			outcome.Label = label
 			outcomes[i] = outcome
 		}()
@@ -148,6 +151,7 @@ func fetchSource(
 	preprocessScript string,
 	geositeProviders map[string]*geosite.ProviderCache,
 	refResults map[string][]ir.Entry,
+	localFiles config.LocalFileResolver,
 	log *slog.Logger,
 ) SourceOutcome {
 	srcType := src.SourceType()
@@ -181,7 +185,16 @@ func fetchSource(
 		content := src.Content
 		format := src.Format
 		if src.File != "" {
-			data, err := os.ReadFile(src.File)
+			if localFiles == nil {
+				outcome.Error = fmt.Sprintf("read local source %q: local file sources are disabled (no resolver)", src.File)
+				return outcome
+			}
+			resolved, err := localFiles(src.File)
+			if err != nil {
+				outcome.Error = fmt.Sprintf("read local source %q: %v", src.File, err)
+				return outcome
+			}
+			data, err := os.ReadFile(resolved)
 			if err != nil {
 				outcome.Error = fmt.Sprintf("read local source %q: %v", src.File, err)
 				return outcome

@@ -41,6 +41,8 @@ func ArtifactPath(dataDir, clientID, relativeName string) (string, error) {
 }
 
 // EnsureArtifactDirs creates the output directory structure under dataDir.
+// This includes data_dir/local, the fixed root for local file sources, so it
+// exists at initialization regardless of whether any rule uses a file source.
 func EnsureArtifactDirs(dataDir string, clientIDs []string) error {
 	if err := util.EnsureDir(rulesDir(dataDir)); err != nil {
 		return err
@@ -53,6 +55,9 @@ func EnsureArtifactDirs(dataDir string, clientIDs []string) error {
 		if err := util.EnsureDir(dir); err != nil {
 			return err
 		}
+	}
+	if err := util.EnsureDir(filepath.Join(dataDir, "local")); err != nil {
+		return err
 	}
 	return util.EnsureDir(filepath.Join(dataDir, ".state", "snapshots"))
 }
