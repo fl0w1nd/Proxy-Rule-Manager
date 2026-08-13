@@ -1,5 +1,3 @@
-# Migrated from Proxy Rule Manager v0.4.9
-# Migrated clients: mihomo, Shadowrocket, sing-box, and sing-box-non-ip
 clients:
   - id: mihomo
     name: Mihomo
@@ -45,42 +43,42 @@ rules:
       - file: "OpenAi.list"
     merge:
       strategy: union
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "YouTube"
     name: "YouTube"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/YouTube/YouTube.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "YouTubeMusic"
     name: "YouTubeMusic"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/YouTubeMusic/YouTubeMusic.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Twitch"
     name: "Twitch"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Twitch/Twitch.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Disney"
     name: "Disney"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Disney/Disney.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "TikTok"
     name: "TikTok"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/TikTok/TikTok.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Netflix"
     name: "Netflix"
@@ -90,56 +88,56 @@ rules:
     ops:
       - type: exclude_kinds
         kinds: [user_agent]
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Spotify"
     name: "Spotify"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Spotify/Spotify.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Twitter"
     name: "Twitter"
     tags: ["Media"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Twitter/Twitter.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "GoogleFCM"
     name: "GoogleFCM"
     tags: ["Google"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/GoogleFCM.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Google"
     name: "Google"
     tags: ["Google"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/293afd1572e97a1d6adbaee34050868d696e3e08/rule/Clash/Google/Google.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "PrivateTracker"
     name: "PrivateTracker"
     tags: ["BitTorrent"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/293afd1572e97a1d6adbaee34050868d696e3e08/rule/Clash/PrivateTracker/PrivateTracker.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Bing"
     name: "Bing"
     tags: ["Microsoft"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Bing.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Microsoft"
     name: "Microsoft"
     tags: ["Microsoft"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Microsoft/Microsoft.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "MicrosoftCDN"
     name: "MicrosoftCDN"
@@ -149,112 +147,112 @@ rules:
     ops:
       - type: exclude_kinds
         kinds: [url_regex]
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Apple"
     name: "Apple"
     tags: ["Apple"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "AppleCDN"
     name: "AppleCDN"
     tags: ["Apple","CDN","CN"]
     sources:
       - url: "https://ruleset.skk.moe/Clash/domainset/apple_cdn.txt"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Epic"
     name: "Epic"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Epic.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Origin"
     name: "Origin"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/LM-Firefly/Rules/refs/heads/master/Game/EA.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Nintendo"
     name: "Nintendo"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Nintendo.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Sony"
     name: "Sony"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Sony.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Xbox"
     name: "Xbox"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Xbox/Xbox.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Ubisoft"
     name: "Ubisoft"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/UBI/UBI.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Rockstar"
     name: "Rockstar"
     tags: ["Game"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Rockstar/Rockstar.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "ProxyGFWlist"
     name: "ProxyGFWlist"
     tags: ["GFW"]
     sources:
       - url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Global"
     name: "Global"
     tags: ["GFW"]
     sources:
       - url: "https://ruleset.skk.moe/Clash/non_ip/global.txt"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "ChinaDomain"
     name: "ChinaDomain"
     tags: ["CN"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "ChinaCompanyIp"
     name: "ChinaCompanyIp"
     tags: ["CN"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaCompanyIp.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Download"
     name: "Download"
     tags: ["Download"]
     sources:
       - url: "https://raw.githubusercontent.com/LM-Firefly/Rules/refs/heads/master/Special/Download.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "LocalAreaNetwork"
     name: "LocalAreaNetwork"
     tags: ["LAN"]
     sources:
       - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "GoogleCN"
     name: "GoogleCN"
@@ -271,14 +269,14 @@ rules:
       }
     merge:
       strategy: union
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "OneDrive"
     name: "OneDrive"
     tags: ["Microsoft"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/OneDrive/OneDrive.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "ProxyMedia"
     name: "ProxyMedia"
@@ -293,56 +291,56 @@ rules:
       - ref: "Spotify"
     merge:
       strategy: union
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "BT"
     name: "BT"
     tags: ["BitTorrent"]
     sources:
       - file: "BT.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Copilot"
     name: "Copilot"
     tags: ["Microsoft"]
     sources:
       - file: "Copilot.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "E-hentai"
     name: "E-hentai"
     tags: ["Misc"]
     sources:
       - file: "E-hentai.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "SteamCN"
     name: "SteamCN"
     tags: ["Steam"]
     sources:
       - file: "SteamCN.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "SteamCommunity"
     name: "SteamCommunity"
     tags: ["Steam"]
     sources:
       - file: "SteamCommunity.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Stun"
     name: "Stun"
     tags: ["Misc"]
     sources:
       - file: "Stun.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Telegram"
     name: "Telegram"
     tags: ["Media"]
     sources:
       - file: "Telegram.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "claude"
     name: "claude"
@@ -352,7 +350,7 @@ rules:
       - file: "claude.list"
     merge:
       strategy: union
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "gemini"
     name: "Gemini"
@@ -371,63 +369,63 @@ rules:
           return line;
         }).join("\n");
       }
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "grok"
     name: "Grok"
     tags: ["AI"]
     sources:
       - file: "grok.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "Perplexity"
     name: "Perplexity"
     tags: ["AI"]
     sources:
       - file: "Perplexity.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "metaai"
     name: "MetaAI"
     tags: ["AI"]
     sources:
       - file: "metaai.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "mistralai"
     name: "MistralAI"
     tags: ["AI"]
     sources:
       - file: "mistralai.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "factoryai"
     name: "Factory Droid"
     tags: ["AI"]
     sources:
       - file: "factoryai.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "fish"
     name: "Fish"
     tags: ["personal"]
     sources:
       - file: "fish.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "personal-direct"
     name: "个人直连"
     tags: ["personal"]
     sources:
       - file: "personal-direct.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "nikke"
     name: "Nikke"
     tags: ["Game"]
     sources:
       - file: "nikke.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "common-use"
     name: "常用网站"
@@ -437,21 +435,21 @@ rules:
       - ref: "yandex"
     merge:
       strategy: union
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "yandex"
     name: "Yandex"
     tags: ["GFW"]
     sources:
       - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Yandex/Yandex.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
   - id: "browndust2"
     name: "Browndust 2"
     tags: ["Game"]
     sources:
       - file: "browndust2.list"
-    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+    outputs: ["mihomo", "Shadowrocket", "sing-box", "surge"]
 
 geosite:
   providers:
