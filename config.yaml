@@ -1,0 +1,482 @@
+# Migrated from Proxy Rule Manager v0.4.9
+# Migrated clients: mihomo, Shadowrocket, sing-box, and sing-box-non-ip
+data_dir: ./data
+
+clients:
+  - id: mihomo
+    name: Mihomo
+    icon: mihomo
+    formats:
+      - id: mihomo-classical
+        name: Classical
+        template: mihomo-classical
+      - id: mihomo-yaml
+        name: YAML
+        template: mihomo-yaml
+
+  - id: sing-box
+    name: sing-box
+    icon: sing-box
+    template: singbox
+    variants:
+      - id: sing-box-non-ip
+        name: Non-IP
+        template: singbox
+        ops:
+          - type: exclude_kinds
+            kinds: [ip_cidr]
+
+  - id: "Shadowrocket"
+    name: Shadowrocket
+    template: shadowrocket
+    icon: shadowrocket
+
+  - id: "surge"
+    name: Surge
+    template: surge
+    icon: surge
+
+
+
+rules:
+  - id: "OpenAi"
+    name: "OpenAi"
+    tags: ["AI"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/OpenAI/OpenAI.list"
+      - file: "OpenAi.list"
+    merge:
+      strategy: union
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "YouTube"
+    name: "YouTube"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/YouTube/YouTube.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "YouTubeMusic"
+    name: "YouTubeMusic"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/YouTubeMusic/YouTubeMusic.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Twitch"
+    name: "Twitch"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Twitch/Twitch.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Disney"
+    name: "Disney"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Disney/Disney.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "TikTok"
+    name: "TikTok"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/TikTok/TikTok.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Netflix"
+    name: "Netflix"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Netflix.list"
+    ops:
+      - type: exclude_kinds
+        kinds: [user_agent]
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Spotify"
+    name: "Spotify"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Spotify/Spotify.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Twitter"
+    name: "Twitter"
+    tags: ["Media"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Twitter/Twitter.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "GoogleFCM"
+    name: "GoogleFCM"
+    tags: ["Google"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/GoogleFCM.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Google"
+    name: "Google"
+    tags: ["Google"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/293afd1572e97a1d6adbaee34050868d696e3e08/rule/Clash/Google/Google.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "PrivateTracker"
+    name: "PrivateTracker"
+    tags: ["BitTorrent"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/293afd1572e97a1d6adbaee34050868d696e3e08/rule/Clash/PrivateTracker/PrivateTracker.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Bing"
+    name: "Bing"
+    tags: ["Microsoft"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Bing.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Microsoft"
+    name: "Microsoft"
+    tags: ["Microsoft"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Microsoft/Microsoft.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "MicrosoftCDN"
+    name: "MicrosoftCDN"
+    tags: ["CDN","CN","Microsoft"]
+    sources:
+      - url: "https://ruleset.skk.moe/List/non_ip/microsoft_cdn.conf"
+    ops:
+      - type: exclude_kinds
+        kinds: [url_regex]
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Apple"
+    name: "Apple"
+    tags: ["Apple"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Apple.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "AppleCDN"
+    name: "AppleCDN"
+    tags: ["Apple","CDN","CN"]
+    sources:
+      - url: "https://ruleset.skk.moe/Clash/domainset/apple_cdn.txt"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Epic"
+    name: "Epic"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Epic.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Origin"
+    name: "Origin"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/LM-Firefly/Rules/refs/heads/master/Game/EA.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Nintendo"
+    name: "Nintendo"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Nintendo.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Sony"
+    name: "Sony"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/Ruleset/Sony.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Xbox"
+    name: "Xbox"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Xbox/Xbox.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Ubisoft"
+    name: "Ubisoft"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/UBI/UBI.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Rockstar"
+    name: "Rockstar"
+    tags: ["Game"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Rockstar/Rockstar.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "ProxyGFWlist"
+    name: "ProxyGFWlist"
+    tags: ["GFW"]
+    sources:
+      - url: "https://raw.githubusercontent.com/Loyalsoldier/clash-rules/release/gfw.txt"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Global"
+    name: "Global"
+    tags: ["GFW"]
+    sources:
+      - url: "https://ruleset.skk.moe/Clash/non_ip/global.txt"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "ChinaDomain"
+    name: "ChinaDomain"
+    tags: ["CN"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaDomain.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "ChinaCompanyIp"
+    name: "ChinaCompanyIp"
+    tags: ["CN"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/ChinaCompanyIp.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Download"
+    name: "Download"
+    tags: ["Download"]
+    sources:
+      - url: "https://raw.githubusercontent.com/LM-Firefly/Rules/refs/heads/master/Special/Download.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "LocalAreaNetwork"
+    name: "LocalAreaNetwork"
+    tags: ["LAN"]
+    sources:
+      - url: "https://raw.githubusercontent.com/ACL4SSR/ACL4SSR/master/Clash/LocalAreaNetwork.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "GoogleCN"
+    name: "GoogleCN"
+    tags: ["Google","CN","CDN"]
+    sources:
+      - url: "https://raw.githubusercontent.com/felixonmars/dnsmasq-china-list/refs/heads/master/google.china.conf"
+      - geosite: "v2fly/google@cn"
+    preprocess: |-
+      function process(content) {
+        return content.split(/\r?\n/).map(function(line) {
+          var match = line.match(/^server=\/([^/]+)\/114\.114\.114\.114$/);
+          return match ? "DOMAIN-SUFFIX," + match[1] : line;
+        }).join("\n");
+      }
+    merge:
+      strategy: union
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "OneDrive"
+    name: "OneDrive"
+    tags: ["Microsoft"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/OneDrive/OneDrive.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "ProxyMedia"
+    name: "ProxyMedia"
+    tags: ["Media"]
+    sources:
+      - ref: "Netflix"
+      - ref: "YouTube"
+      - ref: "YouTubeMusic"
+      - ref: "Twitch"
+      - ref: "Disney"
+      - ref: "TikTok"
+      - ref: "Spotify"
+    merge:
+      strategy: union
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "BT"
+    name: "BT"
+    tags: ["BitTorrent"]
+    sources:
+      - file: "BT.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Copilot"
+    name: "Copilot"
+    tags: ["Microsoft"]
+    sources:
+      - file: "Copilot.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "E-hentai"
+    name: "E-hentai"
+    tags: ["Misc"]
+    sources:
+      - file: "E-hentai.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "SteamCN"
+    name: "SteamCN"
+    tags: ["Steam"]
+    sources:
+      - file: "SteamCN.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "SteamCommunity"
+    name: "SteamCommunity"
+    tags: ["Steam"]
+    sources:
+      - file: "SteamCommunity.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Stun"
+    name: "Stun"
+    tags: ["Misc"]
+    sources:
+      - file: "Stun.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Telegram"
+    name: "Telegram"
+    tags: ["Media"]
+    sources:
+      - file: "Telegram.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "claude"
+    name: "claude"
+    tags: ["AI"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Claude/Claude.list"
+      - file: "claude.list"
+    merge:
+      strategy: union
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "gemini"
+    name: "Gemini"
+    tags: ["Google","AI"]
+    sources:
+      - url: "https://raw.githubusercontent.com/v2fly/domain-list-community/8fc2fa9b9dd9ab943839b6273008f085ecceccad/data/google-deepmind"
+    preprocess: |-
+      function process(content) {
+        return content.split(/\r?\n/).map(function(line) {
+          if (/^full:(.+)$/.test(line)) {
+            return line.replace(/^full:(.+)$/, "DOMAIN,$1");
+          }
+          if (/^(?![#\s]|DOMAIN)(.+\..+)$/.test(line)) {
+            return "DOMAIN-SUFFIX," + line;
+          }
+          return line;
+        }).join("\n");
+      }
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "grok"
+    name: "Grok"
+    tags: ["AI"]
+    sources:
+      - file: "grok.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "Perplexity"
+    name: "Perplexity"
+    tags: ["AI"]
+    sources:
+      - file: "Perplexity.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "metaai"
+    name: "MetaAI"
+    tags: ["AI"]
+    sources:
+      - file: "metaai.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "mistralai"
+    name: "MistralAI"
+    tags: ["AI"]
+    sources:
+      - file: "mistralai.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "factoryai"
+    name: "Factory Droid"
+    tags: ["AI"]
+    sources:
+      - file: "factoryai.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "fish"
+    name: "Fish"
+    tags: ["personal"]
+    sources:
+      - file: "fish.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "personal-direct"
+    name: "个人直连"
+    tags: ["personal"]
+    sources:
+      - file: "personal-direct.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "nikke"
+    name: "Nikke"
+    tags: ["Game"]
+    sources:
+      - file: "nikke.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "common-use"
+    name: "常用网站"
+    tags: ["GFW"]
+    sources:
+      - file: "common-use.list"
+      - ref: "yandex"
+    merge:
+      strategy: union
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "yandex"
+    name: "Yandex"
+    tags: ["GFW"]
+    sources:
+      - url: "https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/refs/heads/master/rule/Clash/Yandex/Yandex.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+  - id: "browndust2"
+    name: "Browndust 2"
+    tags: ["Game"]
+    sources:
+      - file: "browndust2.list"
+    outputs: ["mihomo", "Shadowrocket", "sing-box"]
+
+geosite:
+  providers:
+    - name: v2fly
+      clients: ["mihomo", "Shadowrocket", "sing-box", "surge"]
+
+update:
+  history_retention: 168h
+  history_limit: 200
+  schedule:
+    mode: manual
+  fetch:
+    timeout: 20s
+    max_download: 50MB
+    concurrency: 8
+    per_host_concurrency: 2
+    retries: 2
+    retry_delay: 500ms
+    user_agent: Proxy-Rule-Manager/2.0
+  preprocess:
+    timeout: 5s
+    max_output: 8MB
+
+serve:
+  host: 127.0.0.1
+  port: 3001

@@ -1,0 +1,28 @@
+# Plex
+DOMAIN,v4.plex.tv
+
+# Element
+DOMAIN,turn.tools.element.io
+DOMAIN-SUFFIX,element.io
+
+# uptime
+DOMAIN,uptime.zcsouls.com
+DOMAIN,apis.zcsouls.com
+DOMAIN,llm.zcsouls.com
+DOMAIN,litellm.zcsouls.com
+DOMAIN,cloud.zcsouls.com
+
+# Personal Website
+DOMAIN,blog.cloudflare.com
+DOMAIN,developers.cloudflare.com
+DOMAIN,hostinger.com
+DOMAIN,ahrefs.com
+
+# MAIL
+DOMAIN,smtp.azurecomm.net
+
+# DNS
+DOMAIN,nav.zcsouls.com
+
+# Backup
+DOMAIN,rclone.zcsouls.com
