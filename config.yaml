@@ -12,7 +12,7 @@ clients:
 
   - id: sing-box
     name: sing-box
-    icon: sing-box
+    icon: singbox
     template: singbox
     variants:
       - id: sing-box-non-ip
