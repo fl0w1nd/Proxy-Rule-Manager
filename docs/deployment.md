@@ -49,7 +49,7 @@ prm 有两种部署方式，核心区别在**有没有管理能力**：
 ```yaml
 services:
   prm:
-    image: ghcr.io/fl0w1nd/prm:0.0.1
+    image: ghcr.io/fl0w1nd/prm:latest
     container_name: prm
     restart: unless-stopped
     ports:
