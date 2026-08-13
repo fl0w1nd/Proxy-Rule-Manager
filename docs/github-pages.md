@@ -7,7 +7,7 @@
 - 源仓库（`fl0w1nd/Proxy-Rule-Manager`）每次发版（打 `v*.*.*` 标签）时，自动发布最新二进制和 Docker 镜像。
 - 你的 Fork 仓库里有一条 Pages 工作流：每天 `03:17 UTC` 自动运行一次，也可以手动触发。
 - 运行时从源仓库下载最新正式 Release，校验 SHA-256，然后在 `publish` 分支上执行 `prm --data-dir data build --output dist`。
-- 产物通过 Pages Artifact 发布。构建中断不影响线上站点，旧版本继续服务。
+- 产物通过 Pages Artifact 发布。构建中断时，当前线上站点继续服务。
 
 ## 首次设置
 

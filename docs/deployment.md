@@ -15,10 +15,6 @@ prm 有两种部署方式，核心区别在**有没有管理能力**：
 
 两种方式都要求先有一份可用的 `config.yaml`。没有的话先执行 `prm init` 并 `prm validate`。
 
-### v0.0.4 运行时参数迁移
-
-`config.yaml` 删除 `data_dir` 和整个 `serve` 区块。对应设置迁移到 `--data-dir` / `PRM_DATA_DIR`、`serve --host` / `PRM_SERVE_HOST`、`serve --port` / `PRM_SERVE_PORT`、`serve --trusted-proxy` / `PRM_TRUSTED_PROXIES`。管理令牌变量统一为 `PRM_ADMIN_TOKEN`。旧字段会由严格配置校验返回 unknown-field 错误。
-
 ## 方式一：自托管
 
 ### A. 直接运行二进制
@@ -109,7 +105,7 @@ prm 自带的 HTTP 服务只做规则提供和管理 API，生产环境通常在
 
 - **令牌**：`PRM_ADMIN_TOKEN` 使用足够随机的长字符串，通过环境变量注入。管理接口 `/admin` 和 `/api/v1` 都需要它。
 - **可信代理覆盖**：Compose 可设置 `PRM_TRUSTED_PROXIES=127.0.0.1/32,10.0.0.0/8`；每项接受单 IP 或 CIDR。
-- **数据持久化**：`./data` 卷保存规则产物、geosite 缓存和更新历史。迁移或备份时整卷复制即可。
+- **数据持久化**：`./data` 卷保存规则产物、geosite 缓存和更新历史。备份时整卷复制即可。
 - **端口暴露**：只把反代端口暴露到公网，prm 的 `3001` 端口保持内网可达即可。
 
 ## 方式二：GitHub Pages 静态发布
