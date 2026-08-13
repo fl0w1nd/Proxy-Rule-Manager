@@ -51,7 +51,7 @@ jobs:
           echo "path=$release_dir/prm" >> "$GITHUB_OUTPUT"
 
       - name: Restore rule workspace
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             user/data/.state
@@ -81,7 +81,7 @@ jobs:
         run: ${{ steps.prm.outputs.path }} --config config.yaml --data-dir data build --output dist
 
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v4
+        uses: actions/upload-pages-artifact@v5
         with:
           path: user/dist
 
@@ -98,4 +98,4 @@ jobs:
     steps:
       - name: Deploy Pages artifact
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
