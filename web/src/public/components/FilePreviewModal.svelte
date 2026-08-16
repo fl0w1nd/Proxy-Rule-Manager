@@ -36,6 +36,16 @@
   }
 
   $effect(() => {
+    if (item) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  });
+
+  $effect(() => {
     const current = item;
     copied = false;
     if (!current) return;

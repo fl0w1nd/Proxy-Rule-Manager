@@ -31,6 +31,16 @@
     open = false;
     onclose?.();
   }
+
+  $effect(() => {
+    if (open) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  });
 </script>
 
 <svelte:window onkeydown={handleKeydown} />
@@ -79,6 +89,7 @@
     background: var(--backdrop);
     display: flex;
     justify-content: flex-end;
+    overscroll-behavior: contain;
   }
 
   .drawer-panel {
@@ -117,6 +128,7 @@
     overflow-y: auto;
     padding: 16px 18px;
     scrollbar-color: var(--border-vis) var(--bg);
+    overscroll-behavior: contain;
   }
 
   .drawer-footer {

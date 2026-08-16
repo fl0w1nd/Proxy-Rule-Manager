@@ -302,6 +302,7 @@
   justify-content: center;
   padding: 24px;
   background: var(--backdrop);
+  overscroll-behavior: contain;
 }
 .file-modal {
   width: min(920px, 100%);
@@ -312,6 +313,7 @@
   background: var(--surface);
   box-shadow: 7px 7px 0 var(--shadow);
   animation: pixel-pop 140ms steps(3, end) both;
+  overscroll-behavior: contain;
 }
 .modal-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; border-bottom: 2px dashed var(--border-vis); }
 .modal-head h2 { color: var(--display); font: 800 18px "Doto", "Space Mono", monospace; letter-spacing: .04em; }
@@ -328,7 +330,7 @@
 .preview-shell > header span:first-child { color: var(--terminal-text); }
 .preview-shell > header i { display: inline-block; width: 6px; height: 6px; margin-right: 6px; background: var(--green); }
 .preview-shell > header b { color: var(--sec); }
-.preview-shell pre { max-height: 440px; overflow: auto; counter-reset: line; color: var(--terminal-text-dim); font: 11px/1.55 "Space Mono", monospace; }
+.preview-shell pre { max-height: 440px; overflow: auto; counter-reset: line; color: var(--terminal-text-dim); font: 11px/1.55 "Space Mono", monospace; overscroll-behavior: contain; }
 .preview-shell pre span { display: block; min-height: 17px; padding: 0 12px 0 56px; position: relative; white-space: pre-wrap; word-break: break-all; }
 .preview-shell pre span::before { content: attr(data-line); position: absolute; left: 0; width: 44px; padding-right: 8px; border-right: 1px solid var(--border); color: var(--dim); text-align: right; }
 .preview-shell[data-state="error"] pre { color: var(--red); }
