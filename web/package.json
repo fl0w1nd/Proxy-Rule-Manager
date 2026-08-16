@@ -1,0 +1,29 @@
+{
+  "name": "prm-admin-web",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@10.33.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "dev:public": "vite --config vite.public.config.ts",
+    "build:admin": "vite build",
+    "build:public": "vite build --config vite.public.config.ts",
+    "build": "pnpm build:admin && pnpm build:public",
+    "preview": "vite preview",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest --config vitest.config.ts"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.3",
+    "@testing-library/jest-dom": "^7.0.1",
+    "@testing-library/svelte": "^5.4.2",
+    "@testing-library/user-event": "^14.6.4",
+    "jsdom": "^30.0.1",
+    "svelte": "^5.20.2",
+    "svelte-check": "^4.1.4",
+    "typescript": "^5.7.3",
+    "vite": "^6.1.0",
+    "vitest": "^4.1.10"
+  }
+}

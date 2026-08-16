@@ -84,8 +84,31 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.33.0
+
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: web
+
+      - name: Check web types
+        run: pnpm check
+        working-directory: web
+
+      - name: Run web component tests
+        run: pnpm test --run
+        working-directory: web
+
       - name: Build binary
         run: make build
+
+      - name: Verify generated web assets
+        run: test -z "$(git status --porcelain --untracked-files=all -- internal/admin/dist internal/site/dist)"
 
       - name: Verify binary version
         shell: bash

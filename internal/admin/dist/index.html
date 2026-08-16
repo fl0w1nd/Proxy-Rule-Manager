@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="/static/icons/prm.svg" type="image/svg+xml" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="dark light" />
+    <title>PRM · 管理系统</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Doto:wght@600;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet" />
+    <script>
+      (function () {
+        try {
+          var stored = localStorage.getItem('prm-theme');
+          if (stored === 'light' || stored === 'dark') {
+            document.documentElement.setAttribute('data-theme', stored);
+          }
+        } catch (e) {}
+      })();
+    </script>
+    <script type="module" crossorigin src="/admin/assets/index-Bj0j3NJo.js"></script>
+    <link rel="stylesheet" crossorigin href="/admin/assets/index-Di1MZ-nf.css">
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>

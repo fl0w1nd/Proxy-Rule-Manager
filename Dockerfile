@@ -1,5 +1,14 @@
 # syntax=docker/dockerfile:1.7
 
+FROM --platform=$BUILDPLATFORM node:lts-alpine AS web-builder
+
+WORKDIR /build
+COPY web/package.json web/pnpm-lock.yaml ./web/
+RUN npm install -g pnpm@10.33.0 && pnpm --dir web install --frozen-lockfile
+
+COPY web ./web
+RUN pnpm --dir web build
+
 FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
 
 WORKDIR /build
@@ -7,6 +16,8 @@ COPY go.mod go.sum ./
 RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
+COPY --from=web-builder /build/internal/admin/dist ./internal/admin/dist
+COPY --from=web-builder /build/internal/site/dist ./internal/site/dist
 
 ARG TARGETOS
 ARG TARGETARCH

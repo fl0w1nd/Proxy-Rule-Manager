@@ -340,7 +340,6 @@ func (e *UpdateEngine) publicIndexData(
 			Name:        info.name,
 			Description: info.description,
 			Tags:        rule.Tags,
-			TagsJoined:  strings.ToLower(strings.Join(rule.Tags, ",")),
 			Entries:     info.entries,
 			Files:       info.files,
 		})

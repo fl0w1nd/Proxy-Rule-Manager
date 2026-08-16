@@ -175,6 +175,24 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: Install pnpm
+        run: npm install -g pnpm@10.33.0
+
+      - name: Install web dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: web
+
+      - name: Build web assets
+        run: make build-web
+
+      - name: Verify generated web assets
+        run: test -z "$(git status --porcelain --untracked-files=all -- internal/admin/dist internal/site/dist)"
+
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:

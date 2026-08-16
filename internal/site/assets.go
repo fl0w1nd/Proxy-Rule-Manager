@@ -18,7 +18,7 @@ import (
 // rendering logic changes the generated output without touching any embedded
 // asset (template funcs, view-model fields, ...), so serve regenerates pages
 // after such an upgrade.
-const assetRenderVersion = 2
+const assetRenderVersion = 3
 
 // assetManifest records what UpdateBuiltinAssets wrote, enabling a three-way
 // merge on later runs: files the user modified since the last managed write
@@ -37,7 +37,7 @@ type AssetUpdateResult struct {
 	Deleted            []string // orphaned files removed
 }
 
-// AssetFingerprint hashes every embedded asset (icons + page templates) plus
+// AssetFingerprint hashes every embedded asset (icons, page templates, and frontend bundles) plus
 // the render version. It identifies the binary's asset set, independent of
 // whatever users placed under data/static/icons/.
 func AssetFingerprint() string {
@@ -72,7 +72,7 @@ func embeddedAssets() []embeddedAsset {
 		out = append(out, embeddedAsset{rel: rel, content: data, hash: hashBytes(data)})
 		return nil
 	})
-	for _, name := range []string{IndexFileTemplate} {
+	for _, name := range []string{IndexFileTemplate, "dist/public.js", "dist/public.css"} {
 		data, err := htmlFS.ReadFile(name)
 		if err != nil {
 			continue
