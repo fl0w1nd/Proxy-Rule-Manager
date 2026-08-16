@@ -61,16 +61,21 @@ export function formatUpdatedAt(value: string): string {
   return date.toISOString().replace('T', ' ').replace(/\.\d{3}Z$/, ' UTC');
 }
 
-export async function copyURL(path: string): Promise<void> {
-  const url = new URL(path, location.href).href;
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(url);
-    return;
+export async function copyURL(path: string): Promise<boolean> {
+  try {
+    const url = new URL(path, location.href).href;
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+      return true;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = url;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    textarea.remove();
+    return true;
+  } catch {
+    return false;
   }
-  const textarea = document.createElement('textarea');
-  textarea.value = url;
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand('copy');
-  textarea.remove();
 }

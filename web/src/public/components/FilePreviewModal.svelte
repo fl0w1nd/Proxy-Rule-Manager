@@ -91,9 +91,11 @@
 
   async function handleCopy() {
     if (!item?.path) return;
-    await copyURL(item.path);
-    copied = true;
-    setTimeout(() => { copied = false; }, 1500);
+    const ok = await copyURL(item.path);
+    if (ok) {
+      copied = true;
+      setTimeout(() => { copied = false; }, 1500);
+    }
   }
 </script>
 

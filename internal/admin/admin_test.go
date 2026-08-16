@@ -52,6 +52,14 @@ func TestHandlerServesIndexAndFallsBack(t *testing.T) {
 		t.Fatalf("SPA fallback did not return index.html")
 	}
 
+	// Test GET /admin/assets (directory path fallback to SPA index.html)
+	reqDir := httptest.NewRequest(http.MethodGet, "/admin/assets", nil)
+	recDir := httptest.NewRecorder()
+	h.ServeHTTP(recDir, reqDir)
+	if recDir.Code != http.StatusOK || !strings.Contains(recDir.Body.String(), `id="app"`) {
+		t.Fatalf("directory request did not fall back to index.html: status=%d", recDir.Code)
+	}
+
 	// Test GET /admin/assets/... (Asset serving)
 	// Check what assets exist in dist/assets
 	sub, _ := admin.DistFS()

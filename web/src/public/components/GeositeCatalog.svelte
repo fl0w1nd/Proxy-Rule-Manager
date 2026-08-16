@@ -22,10 +22,12 @@
   }
 
   async function copy(path: string, button: HTMLButtonElement) {
-    await copyURL(path);
-    const original = button.textContent;
-    button.textContent = '已复制';
-    setTimeout(() => { button.textContent = original; }, 1500);
+    const ok = await copyURL(path);
+    if (ok) {
+      const original = button.textContent;
+      button.textContent = '已复制';
+      setTimeout(() => { button.textContent = original; }, 1500);
+    }
   }
 
   function preview(provider: string, name: string, entries: number, attr?: string) {

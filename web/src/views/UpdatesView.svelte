@@ -120,7 +120,7 @@
       </div>
 
       {#each updates as item (item.id)}
-        {@const isExpanded = !!expandedDetails[item.id]}
+        {@const isExpanded = !!expandedDetails[item.id] || !!loadingDetails[item.id]}
         {@const detail = expandedDetails[item.id]}
         <div class="update-card {isExpanded ? 'open' : ''}">
           <button

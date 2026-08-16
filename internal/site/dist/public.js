@@ -2885,13 +2885,15 @@ function Na(e) {
   return Number.isNaN(t.getTime()) ? e : t.toISOString().replace("T", " ").replace(/\.\d{3}Z$/, " UTC");
 }
 async function In(e) {
-  const t = new URL(e, location.href).href;
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(t);
-    return;
+  try {
+    const t = new URL(e, location.href).href;
+    if (navigator.clipboard?.writeText)
+      return await navigator.clipboard.writeText(t), !0;
+    const n = document.createElement("textarea");
+    return n.value = t, document.body.appendChild(n), n.select(), document.execCommand("copy"), n.remove(), !0;
+  } catch {
+    return !1;
   }
-  const n = document.createElement("textarea");
-  n.value = t, document.body.appendChild(n), n.select(), document.execCommand("copy"), n.remove();
 }
 var Pa = /* @__PURE__ */ D('<button type="button" role="radio"><span><strong> </strong><small> </small></span> <i></i></button>'), Oa = /* @__PURE__ */ D('<div class="client-menu" role="radiogroup"></div>'), Fa = /* @__PURE__ */ D('<div><button type="button"><img width="32" height="32" alt="" aria-hidden="true"/> <span class="ctext"><strong> </strong> <small> </small></span> <span class="client-state"><i></i> <!></span></button> <!></div>'), Da = /* @__PURE__ */ D('<section class="public-block client-section" aria-labelledby="client-heading"><div class="block-head"><h2 class="block-title" id="client-heading">选择客户端</h2> <span class="label">输出格式与下载目标</span></div> <div class="client-picker"></div></section>');
 function za(e, t) {
@@ -3008,7 +3010,8 @@ function Va(e, t) {
     c.key === "Escape" && t.item && t.onclose();
   }
   async function u() {
-    t.item?.path && (await In(t.item.path), x(a, !0), setTimeout(
+    if (!t.item?.path) return;
+    await In(t.item.path) && (x(a, !0), setTimeout(
       () => {
         x(a, !1);
       },
@@ -3101,14 +3104,15 @@ function ns(e, t) {
     x(r, { ...s(r), [c]: !s(r)[c] }, !0);
   }
   async function f(c, v) {
-    await In(c);
-    const w = v.textContent;
-    v.textContent = "已复制", setTimeout(
-      () => {
-        v.textContent = w;
-      },
-      1500
-    );
+    if (await In(c)) {
+      const p = v.textContent;
+      v.textContent = "已复制", setTimeout(
+        () => {
+          v.textContent = p;
+        },
+        1500
+      );
+    }
   }
   function o(c, v, w, p) {
     t.onpreview({
@@ -3258,14 +3262,15 @@ function us(e, t) {
     x(n, d, !0), x(r, Math.min(60, d.icons.length), !0);
   }
   async function a(d, _) {
-    await In(d);
-    const h = _.textContent;
-    _.textContent = "已复制", setTimeout(
-      () => {
-        _.textContent = h;
-      },
-      1500
-    );
+    if (await In(d)) {
+      const c = _.textContent;
+      _.textContent = "已复制", setTimeout(
+        () => {
+          _.textContent = c;
+        },
+        1500
+      );
+    }
   }
   var l = fs(), f = g(l);
   {

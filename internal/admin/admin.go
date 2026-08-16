@@ -44,13 +44,16 @@ func Handler() http.Handler {
 			return
 		}
 
-		// Check if the requested file exists in the embedded filesystem
+		// Check if the requested file exists as a regular file in the embedded filesystem
 		if f, err := distSub.Open(p); err == nil {
+			stat, statErr := f.Stat()
 			_ = f.Close()
-			r2 := r.Clone(r.Context())
-			r2.URL.Path = "/" + p
-			fileServer.ServeHTTP(w, r2)
-			return
+			if statErr == nil && !stat.IsDir() {
+				r2 := r.Clone(r.Context())
+				r2.URL.Path = "/" + p
+				fileServer.ServeHTTP(w, r2)
+				return
+			}
 		}
 
 		// Fallback to index.html for SPA

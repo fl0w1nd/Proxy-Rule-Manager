@@ -13,6 +13,7 @@
 
   let { jobId, onfinish, onprogressrule, onclose }: Props = $props();
 
+  let activeJobId = $state<string | null>(null);
   let statusText = $state('就绪');
   let currentMsg = $state('等待指令');
   let currentCount = $state(0);
@@ -26,6 +27,7 @@
 
   $effect(() => {
     if (jobId) {
+      activeJobId = jobId;
       connectJob(jobId);
     }
     return () => {
@@ -66,6 +68,7 @@
 
   function connectJob(id: string) {
     cleanup();
+    activeJobId = id;
     isRunning = true;
     isCancelling = false;
     statusText = '运行中';
@@ -116,10 +119,11 @@
   }
 
   async function handleCancel() {
-    if (!jobId || isCancelling) return;
+    const targetId = activeJobId || jobId;
+    if (!targetId || isCancelling) return;
     isCancelling = true;
     try {
-      await api.cancelUpdate(jobId);
+      await api.cancelUpdate(targetId);
       currentMsg = '正在请求取消任务…';
     } catch (e: any) {
       currentMsg = `取消失败: ${e.message}`;
@@ -135,8 +139,8 @@
         <span class="dot"></span>
         {statusText}
       </span>
-      {#if jobId}
-        <span class="job-id">JOB #{jobId.slice(0, 8)}</span>
+      {#if activeJobId}
+        <span class="job-id">JOB #{activeJobId.slice(0, 8)}</span>
       {/if}
     </div>
     <div class="current-msg" title={currentMsg}>{currentMsg}</div>
@@ -172,7 +176,7 @@
         <PixelIcon name="cross" size={10} />
         {isCancelling ? '取消中…' : '取消更新'}
       </PixelButton>
-    {:else if jobId}
+    {:else if activeJobId || events.length > 0}
       <PixelButton variant="primary" size="sm" onclick={() => onclose?.()}>
         <PixelIcon name="check" size={10} color="#fff" />
         完成并关闭

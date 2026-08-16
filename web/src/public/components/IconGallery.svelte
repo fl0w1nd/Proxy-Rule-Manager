@@ -14,10 +14,12 @@
   }
 
   async function copy(path: string, button: HTMLButtonElement) {
-    await copyURL(path);
-    const label = button.textContent;
-    button.textContent = '已复制';
-    setTimeout(() => { button.textContent = label; }, 1500);
+    const ok = await copyURL(path);
+    if (ok) {
+      const label = button.textContent;
+      button.textContent = '已复制';
+      setTimeout(() => { button.textContent = label; }, 1500);
+    }
   }
 </script>
 
