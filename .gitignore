@@ -1,6 +1,8 @@
 # Build output
 /bin/
 /dist/
+internal/admin/dist/
+internal/site/dist/
 
 # Runtime data
 /data/

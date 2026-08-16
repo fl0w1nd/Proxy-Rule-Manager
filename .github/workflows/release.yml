@@ -190,9 +190,6 @@ jobs:
       - name: Build web assets
         run: make build-web
 
-      - name: Verify generated web assets
-        run: test -z "$(git status --porcelain --untracked-files=all -- internal/admin/dist internal/site/dist)"
-
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@v7
         with:
