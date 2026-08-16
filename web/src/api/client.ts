@@ -31,20 +31,19 @@ export interface GeositeProviderItem {
   checked_at?: string;
 }
 
-export interface ChangeFile {
-  client_id: string;
-  change: string;
-  path: string;
-}
-
 export interface ChangeItem {
+  update_id: string;
   finished_at: string;
+  origin: string;
+  scope: string;
+  rule_id: string;
   rule_name: string;
   added: number;
   removed: number;
-  files?: ChangeFile[];
-  added_samples?: string[];
-  removed_samples?: string[];
+  added_samples: string[];
+  removed_samples: string[];
+  added_omitted: number;
+  removed_omitted: number;
 }
 
 export interface UpdateChange {

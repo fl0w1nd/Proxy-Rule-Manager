@@ -47,22 +47,14 @@ type UpdateResult struct {
 	Issues           []UpdateIssue
 }
 
-// RuleChange captures the actual files changed for one rule and its logical diff.
+// RuleChange captures the logical IR diff for one rule.
 type RuleChange struct {
-	RuleID         string           `json:"rule_id"`
-	RuleName       string           `json:"rule_name"`
-	Files          []ArtifactChange `json:"files"`
-	Added          int              `json:"added"`
-	Removed        int              `json:"removed"`
-	AddedSamples   []string         `json:"added_samples"`
-	RemovedSamples []string         `json:"removed_samples"`
-}
-
-// ArtifactChange identifies one updated or deleted client artifact.
-type ArtifactChange struct {
-	ClientID string `json:"client_id"`
-	Path     string `json:"path"`
-	Change   string `json:"change"`
+	RuleID         string   `json:"rule_id"`
+	RuleName       string   `json:"rule_name"`
+	Added          int      `json:"added"`
+	Removed        int      `json:"removed"`
+	AddedSamples   []string `json:"added_samples"`
+	RemovedSamples []string `json:"removed_samples"`
 }
 
 func (r *UpdateResult) addError(stage, subject, message string) {
@@ -216,10 +208,9 @@ ruleLoop:
 		if outcome.changed {
 			result.ChangedRules = append(result.ChangedRules, rule.ID)
 		}
-		if len(outcome.changedFiles) > 0 {
+		if outcome.updated && outcome.info != nil && (outcome.info.added > 0 || outcome.info.removed > 0) {
 			result.Changes = append(result.Changes, RuleChange{
 				RuleID: rule.ID, RuleName: rule.Name,
-				Files: append([]ArtifactChange(nil), outcome.changedFiles...),
 				Added: outcome.info.added, Removed: outcome.info.removed,
 				AddedSamples:   append([]string(nil), outcome.info.addedSamples...),
 				RemovedSamples: append([]string(nil), outcome.info.removedSamples...),
@@ -365,7 +356,6 @@ type ruleOutcome struct {
 	artifactPaths []string
 	errors        []string
 	info          *ruleSiteInfo
-	changedFiles  []ArtifactChange
 }
 
 // compileAndWriteRule runs the full pipeline for one rule (fetch → parse →
@@ -417,6 +407,22 @@ func (e *UpdateEngine) compileAndWriteRule(
 		return outcome
 	}
 
+	// Compute the client-independent IR delta before publishing any artifacts.
+	// A missing snapshot is the empty baseline for a newly introduced rule.
+	old, _, err := e.State.LoadSnapshotIfExists(rule.ID)
+	if err != nil {
+		outcome.errors = append(outcome.errors, fmt.Sprintf("load snapshot for rule %q (%s): %v", rule.Name, rule.ID, err))
+		outcome.failed = true
+		outcome.info = info
+		return outcome
+	}
+	diff := ir.Diff(old, cr.Merged)
+	info.added, info.removed = diff.AddedCount, diff.RemovedCount
+	for _, g := range diff.Groups {
+		info.addedSamples = appendSamples(info.addedSamples, g.Added)
+		info.removedSamples = appendSamples(info.removedSamples, g.Removed)
+	}
+
 	refResults[rule.ID] = cr.Merged
 
 	writeFailed := false
@@ -446,11 +452,6 @@ func (e *UpdateEngine) compileAndWriteRule(
 			e.State.DeleteArtifactHash(rule.ID, clientID)
 			if existed {
 				outcome.changed = true
-				outcome.changedFiles = append(outcome.changedFiles, ArtifactChange{
-					ClientID: clientID,
-					Path:     "rules/" + clientID + "/" + rule.ID + ext,
-					Change:   "deleted",
-				})
 			}
 			continue
 		}
@@ -480,11 +481,6 @@ func (e *UpdateEngine) compileAndWriteRule(
 		e.State.SetArtifactHash(rule.ID, clientID, contentHash)
 		outcome.artifacts++
 		outcome.artifactPaths = append(outcome.artifactPaths, artifactPath)
-		outcome.changedFiles = append(outcome.changedFiles, ArtifactChange{
-			ClientID: clientID,
-			Path:     file.Path,
-			Change:   "updated",
-		})
 		if storedHash != contentHash {
 			outcome.changed = true
 		}
@@ -494,16 +490,6 @@ func (e *UpdateEngine) compileAndWriteRule(
 		outcome.failed = true
 		outcome.info = info
 		return outcome
-	}
-
-	// Entry-level diff against the previous snapshot feeds the admin board.
-	if old, _, err := e.State.LoadSnapshotIfExists(rule.ID); err == nil {
-		diff := ir.Diff(old, cr.Merged)
-		info.added, info.removed = diff.AddedCount, diff.RemovedCount
-		for _, g := range diff.Groups {
-			info.addedSamples = appendSamples(info.addedSamples, g.Added)
-			info.removedSamples = appendSamples(info.removedSamples, g.Removed)
-		}
 	}
 
 	if err := e.State.SaveSnapshot(rule.ID, cr.Merged); err != nil {

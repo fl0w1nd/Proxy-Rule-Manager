@@ -197,7 +197,7 @@ func TestFullUpdateWritesReferencesAndDetectsUnchangedArtifacts(t *testing.T) {
 	if first.RulesSucceeded != 2 || first.RulesFailed != 0 || first.Artifacts != 2 || len(first.ChangedRules) != 2 || len(first.Errors) != 0 {
 		t.Fatalf("first update: %+v", first)
 	}
-	if len(first.Changes) != 2 || first.Changes[0].Added == 0 || len(first.Changes[0].Files) != 1 {
+	if len(first.Changes) != 2 || first.Changes[0].Added == 0 {
 		t.Fatalf("first update changes: %+v", first.Changes)
 	}
 	assertRuleResult(t, eng, "base", state.RuleUpdated)
@@ -237,8 +237,8 @@ func TestFullUpdateWritesReferencesAndDetectsUnchangedArtifacts(t *testing.T) {
 	if len(third.Errors) != 0 || len(third.ChangedRules) != 0 {
 		t.Fatalf("missing artifact recovery: %+v", third)
 	}
-	if len(third.Changes) != 1 || len(third.Changes[0].Files) != 1 || third.Changes[0].Files[0].Change != "updated" || third.Changes[0].Added != 0 || third.Changes[0].Removed != 0 {
-		t.Fatalf("missing artifact recovery change: %+v", third.Changes)
+	if len(third.Changes) != 0 {
+		t.Fatalf("missing artifact recovery logical diff: %+v", third.Changes)
 	}
 	readArtifact(t, dataDir, "surge", "base.list")
 	_, _, recoveredVersion, _ := eng.State.RuleUpdate("base")
@@ -535,9 +535,9 @@ func TestPartialGeositeMissingCacheCreatesRuleIssue(t *testing.T) {
 	}
 }
 
-func TestRuleChangeCapturesMultipleClientsAndCapsSamples(t *testing.T) {
+func TestRuleChangeCapsEachDiffSideAndKeepsExactCounts(t *testing.T) {
 	var lines []string
-	for i := 0; i < 20; i++ {
+	for i := 0; i < 150; i++ {
 		lines = append(lines, fmt.Sprintf("DOMAIN,item-%02d.example", i))
 	}
 	cfg := &config.Config{
@@ -545,13 +545,22 @@ func TestRuleChangeCapturesMultipleClientsAndCapsSamples(t *testing.T) {
 		Rules:   []config.RuleConfig{{ID: "many", Name: "Many", Sources: []config.SourceConfig{{Content: strings.Join(lines, "\n")}}, Outputs: []string{"surge", "shadowrocket"}}},
 	}
 	eng := newTestUpdateEngine(t, cfg)
+	first := eng.FullUpdate(context.Background())
+	if len(first.Changes) != 1 || first.Changes[0].Added != 150 || len(first.Changes[0].AddedSamples) != 100 {
+		t.Fatalf("initial changes=%+v", first.Changes)
+	}
+	lines = lines[:0]
+	for i := 0; i < 150; i++ {
+		lines = append(lines, fmt.Sprintf("DOMAIN,replacement-%02d.example", i))
+	}
+	cfg.Rules[0].Sources[0].Content = strings.Join(lines, "\n")
 	result := eng.FullUpdate(context.Background())
-	if len(result.Changes) != 1 || len(result.Changes[0].Files) != 2 || result.Changes[0].Added != 20 || len(result.Changes[0].AddedSamples) != 15 {
+	if len(result.Changes) != 1 || result.Changes[0].Added != 150 || result.Changes[0].Removed != 150 || len(result.Changes[0].AddedSamples) != 100 || len(result.Changes[0].RemovedSamples) != 100 {
 		t.Fatalf("changes=%+v", result.Changes)
 	}
 }
 
-func TestRuleChangeRecordsPureRenderingChange(t *testing.T) {
+func TestRuleChangeExcludesPureRenderingChange(t *testing.T) {
 	cfg := &config.Config{
 		Clients: []config.ClientConfig{{ID: "client", Template: "surge"}},
 		Rules:   []config.RuleConfig{{ID: "ports", Name: "Ports", Sources: []config.SourceConfig{{Content: "DEST-PORT,443"}}, Outputs: []string{"client"}}},
@@ -562,8 +571,45 @@ func TestRuleChangeRecordsPureRenderingChange(t *testing.T) {
 	}
 	cfg.Clients[0].Template = "shadowrocket"
 	result := eng.FullUpdate(context.Background())
-	if len(result.Changes) != 1 || result.Changes[0].Added != 0 || result.Changes[0].Removed != 0 || len(result.Changes[0].Files) != 1 {
+	if len(result.Changes) != 0 || len(result.ChangedRules) != 1 {
 		t.Fatalf("format change=%+v", result.Changes)
+	}
+}
+
+func TestRuleChangeTracksIRWhenRenderedArtifactStaysStable(t *testing.T) {
+	cfg := &config.Config{
+		Clients: []config.ClientConfig{{ID: "shadowrocket", Template: "shadowrocket"}},
+		Rules:   []config.RuleConfig{{ID: "filtered", Name: "Filtered", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"shadowrocket"}}},
+	}
+	eng := newTestUpdateEngine(t, cfg)
+	if result := eng.FullUpdate(context.Background()); len(result.Errors) != 0 {
+		t.Fatalf("initial=%+v", result)
+	}
+	cfg.Rules[0].Sources[0].Content = "DOMAIN,example.com\nIN-PORT,8080"
+	result := eng.FullUpdate(context.Background())
+	if len(result.ChangedRules) != 0 || len(result.Changes) != 1 || result.Changes[0].Added != 1 || result.Changes[0].Removed != 0 {
+		t.Fatalf("filtered change=%+v", result)
+	}
+}
+
+func TestCorruptSnapshotFailsBeforePublishingArtifacts(t *testing.T) {
+	dataDir := t.TempDir()
+	cfg := &config.Config{
+		Clients: []config.ClientConfig{{ID: "surge", Template: "surge"}},
+		Rules:   []config.RuleConfig{{ID: "rule", Name: "Rule", Sources: []config.SourceConfig{{Content: "DOMAIN,example.com"}}, Outputs: []string{"surge"}}},
+	}
+	eng := newTestUpdateEngine(t, cfg, dataDir)
+	snapshotPath := filepath.Join(dataDir, ".state", "snapshots", "rule.json")
+	if err := os.WriteFile(snapshotPath, []byte("{"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result := eng.FullUpdate(context.Background())
+	if result.RulesFailed != 1 || len(result.Issues) != 1 || !strings.Contains(result.Issues[0].Message, "load snapshot") {
+		t.Fatalf("result=%+v", result)
+	}
+	artifactPath := filepath.Join(dataDir, "rules", "surge", "rule.list")
+	if _, err := os.Stat(artifactPath); !os.IsNotExist(err) {
+		t.Fatalf("artifact published after snapshot failure: %v", err)
 	}
 }
 
@@ -704,15 +750,8 @@ func TestFullUpdateRemovesVariantArtifactWhenRenderedOutputIsEmpty(t *testing.T)
 	if hash := eng.State.GetArtifactHash("empty", "singbox-non-ip"); hash != "" {
 		t.Fatalf("stale hash remains: %q", hash)
 	}
-	if len(result.Changes) != 1 || len(result.Changes[0].Files) != 2 {
-		t.Fatalf("deleted artifact change = %+v", result.Changes)
-	}
-	var deleted bool
-	for _, file := range result.Changes[0].Files {
-		deleted = deleted || file.ClientID == "singbox-non-ip" && file.Change == "deleted"
-	}
-	if !deleted {
-		t.Fatalf("variant deletion missing: %+v", result.Changes[0].Files)
+	if len(result.Changes) != 1 || result.Changes[0].Added != 1 || result.Changes[0].Removed != 0 {
+		t.Fatalf("logical change = %+v", result.Changes)
 	}
 	assertRuleResult(t, eng, "empty", state.RuleUpdated)
 }
