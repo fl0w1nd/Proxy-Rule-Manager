@@ -58,6 +58,13 @@ export function finishSummary(detail: UpdateDetail): string {
   return label;
 }
 
+// A prepare-stage issue in a full update means the update aborted before the
+// Geosite refresh ran (topological sort failure or rejected update), so the
+// digest must not claim Geosite succeeded.
+function hasGeositeBlocker(detail: UpdateDetail): boolean {
+  return (detail.issues || []).some((issue) => issue.stage === 'prepare');
+}
+
 function hasGeositeIssue(detail: UpdateDetail): boolean {
   return (detail.issues || []).some((issue) => (issue.stage || '').startsWith('geosite'));
 }
@@ -70,7 +77,13 @@ export function updateDigest(detail: UpdateDetail): string {
   const parts: string[] = [];
   if (detail.scope === 'all') {
     parts.push(`规则 ${checked}`, `变更 ${changed}`);
-    parts.push(hasGeositeIssue(detail) ? 'Geosite 更新失败' : 'Geosite 已更新');
+    if (hasGeositeIssue(detail)) {
+      parts.push('Geosite 更新失败');
+    } else if (hasGeositeBlocker(detail)) {
+      parts.push('Geosite 未更新');
+    } else {
+      parts.push('Geosite 已更新');
+    }
   } else {
     parts.push(`指定 ${requested.length}`, `含依赖 ${checked}`, `变更 ${changed}`);
   }
