@@ -114,7 +114,7 @@ func TestAdminGateSetsHttpOnlyCookieAndServesEmbeddedApp(t *testing.T) {
 	req.AddCookie(cookies[0])
 	rec = httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "LEGACY") || !strings.Contains(rec.Body.String(), "var API = '/api/v1'") {
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "LEGACY") || !strings.Contains(rec.Body.String(), "PRM · 管理系统") || !strings.Contains(rec.Body.String(), `id="app"`) {
 		t.Fatalf("admin=%d body=%s", rec.Code, rec.Body.String())
 	}
 	if rec.Header().Get("Cache-Control") != "no-store" {
@@ -128,10 +128,16 @@ func TestPublicRoutesAreNarrowed(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(staticDir, "icons"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(staticDir, "assets"), 0o755); err != nil {
+		t.Fatal(err)
+	}
 	if err := os.WriteFile(filepath.Join(staticDir, "admin.html"), []byte("legacy"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(filepath.Join(staticDir, "icons", "prm.svg"), []byte("icon"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(staticDir, "assets", "public.js"), []byte("bundle"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	for _, target := range []string{"/static/admin.html", "/api/status", "/api/logs", "/api/update"} {
@@ -145,6 +151,11 @@ func TestPublicRoutesAreNarrowed(t *testing.T) {
 	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/icons/prm.svg", nil))
 	if rec.Code != http.StatusOK || rec.Body.String() != "icon" {
 		t.Fatalf("icon=%d %q", rec.Code, rec.Body.String())
+	}
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/assets/public.js", nil))
+	if rec.Code != http.StatusOK || rec.Body.String() != "bundle" {
+		t.Fatalf("asset=%d %q", rec.Code, rec.Body.String())
 	}
 }
 

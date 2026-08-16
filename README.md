@@ -142,7 +142,9 @@ data/
 │       └── OpenAI.json
 ├── local/              # 本地文件来源
 ├── templates/          # 自定义模板覆盖
-├── static/icons/       # 站点图标
+├── static/
+│   ├── assets/         # 应用管理的公开页 JS 与 CSS
+│   └── icons/          # 内置及用户自定义图标
 ├── geosite/            # provider 缓存
 └── .state/             # 快照和更新历史
 ```
@@ -163,6 +165,7 @@ data/
 - 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite 目录。
 - 规则产物在 `/rules/`。
 - 图标在 `/static/icons/`。
+- 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
 - 管理看板在 `/admin`，管理 API 在 `/api/v1`。
 - API 端点：`status`、`rules`、`geosite/providers`、`changes`、`updates`（含详情、事件流、取消）。
 
@@ -179,11 +182,11 @@ data/
 
 ## 静态站点
 
-不用自托管服务器时，`prm build` 可以把规则站导出为独立静态站点：`index.html`、`rules/`、`static/icons/`、`.nojekyll`。导出内容可以用任意静态文件服务器托管，也可以按 README 里的部署章节发布到 GitHub Pages。
+不用自托管服务器时，`prm build` 可以把规则站导出为独立静态站点：`index.html`、`rules/`、`static/assets/`、`static/icons/`、`.nojekyll`。页面使用相对资源路径，可直接发布到 GitHub Pages 仓库子路径。
 
 ## 开发
 
-环境要求：Go 1.25、make。
+环境要求：Go 1.25、Node.js LTS、pnpm 10、make。
 
 | 命令 | 作用 |
 | --- | --- |

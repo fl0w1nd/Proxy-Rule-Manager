@@ -46,7 +46,7 @@ func TestRebuildSiteFromPersistedState(t *testing.T) {
 	if !strings.Contains(string(index), "Updated Rule") || !strings.Contains(string(index), "rules/surge/updated.list") {
 		t.Error("rebuilt index should list the on-disk artifact")
 	}
-	if !strings.Contains(string(index), `href="/admin"`) {
+	if !strings.Contains(string(index), `"admin_url":"/admin"`) {
 		t.Error("service index should link to the admin board")
 	}
 	if _, err := os.Stat(filepath.Join(dataDir, site.StaticDir, "admin.html")); !os.IsNotExist(err) {
@@ -85,6 +85,11 @@ func TestEnsureSiteFirstRun(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(staticDir, "icons", "prm.svg")); err != nil {
 		t.Error("prm.svg not written to icons dir")
 	}
+	for _, name := range []string{"public.js", "public.css"} {
+		if _, err := os.Stat(filepath.Join(staticDir, "assets", name)); err != nil {
+			t.Errorf("%s not written to assets dir", name)
+		}
+	}
 
 	// Second run: pages are fresh; ensure they are not rewritten.
 	indexPath := filepath.Join(staticDir, site.IndexFile)
@@ -95,6 +100,26 @@ func TestEnsureSiteFirstRun(t *testing.T) {
 	st2, _ := os.Stat(indexPath)
 	if st1.ModTime() != st2.ModTime() {
 		t.Error("EnsureSite rewrote pages although assets were unchanged")
+	}
+
+	// A binary asset upgrade changes the recorded fingerprint and rebuilds the
+	// page and managed frontend bundles from the embedded resources.
+	if err := os.WriteFile(indexPath, []byte("stale page"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manifestPath := filepath.Join(staticDir, ".builtin-assets.json")
+	if err := os.WriteFile(manifestPath, []byte(`{"fingerprint":"old","files":{}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := eng.EnsureSite(); err != nil {
+		t.Fatalf("EnsureSite (asset upgrade): %v", err)
+	}
+	rebuilt, err := os.ReadFile(indexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(rebuilt), "stale page") || !strings.Contains(string(rebuilt), `id="prm-data"`) {
+		t.Error("EnsureSite did not rebuild the public page after an asset fingerprint change")
 	}
 }
 

@@ -3,7 +3,7 @@
 //   - {dataDir}/index.html — public rule index: every rule with per-client
 //     download links and content preview, plus the full geosite catalog.
 //
-// The page is self-contained and works from file:// or any static host.
+// The page is a client-rendered Svelte application that works from any static host.
 package site
 
 import (
@@ -12,18 +12,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
-	"maps"
 	"os"
 	"path/filepath"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 )
 
-//go:embed site_index.html site_admin.html site_admin_app.html
+//go:embed site_index.html dist/public.js dist/public.css
 var htmlFS embed.FS
 
 // StaticDir is the subdirectory under dataDir for generated pages and assets.
@@ -37,89 +35,81 @@ const IndexFileTemplate = "site_index.html"
 
 // Client describes one configured client family shown on the public page.
 type Client struct {
-	ID      string
-	Name    string
-	Icon    string
-	Options []ClientOption
-	Rules   bool // at least one option has rule output
-	Geosite bool // at least one option has geosite output
+	ID      string         `json:"id"`
+	Name    string         `json:"name"`
+	Icon    string         `json:"icon"`
+	Options []ClientOption `json:"options"`
+	Rules   bool           `json:"rules"`   // at least one option has rule output
+	Geosite bool           `json:"geosite"` // at least one option has geosite output
 }
 
 // ClientOption is one concrete official format or IR-derived variant.
 type ClientOption struct {
-	ID      string
-	Name    string
-	Ext     string
-	Rules   bool
-	Geosite bool
+	ID      string `json:"id"`
+	Name    string `json:"name"`
+	Ext     string `json:"ext"`
+	Rules   bool   `json:"rules"`
+	Geosite bool   `json:"geosite"`
 }
 
 // RuleFile is one client-specific artifact of a rule.
 type RuleFile struct {
-	Client string // client ID
-	Icon   string // pixel icon name
-	Path   string // relative URL path, e.g. "rules/sing-box/OpenAi.json"
-	Size   int64
+	Client string `json:"target_id"` // client ID
+	Icon   string `json:"-"`         // pixel icon name
+	Path   string `json:"path"`      // relative URL path, e.g. "rules/sing-box/OpenAi.json"
+	Size   int64  `json:"size"`
 }
 
 // PublicRule is one rule row on the public index.
 type PublicRule struct {
-	ID          string
-	Name        string
-	Description string
-	Tags        []string
-	TagsJoined  string
-	Entries     int
-	Files       []RuleFile
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	Tags        []string   `json:"tags"`
+	Entries     int        `json:"entries"`
+	Files       []RuleFile `json:"files"`
 }
 
 // GeositeVariant is one @attr variant of a geosite list.
 type GeositeVariant struct {
-	Attr    string
-	Entries int
+	Attr    string `json:"attr"`
+	Entries int    `json:"entries"`
 }
 
 // GeositeList is one published geosite list with its variants.
 type GeositeList struct {
-	Name     string
-	Entries  int
-	Variants []GeositeVariant
+	Name     string           `json:"name"`
+	Entries  int              `json:"entries"`
+	Variants []GeositeVariant `json:"variants"`
 }
 
 // GeositeCatalog is the full published catalog of one provider.
 type GeositeCatalog struct {
-	Provider string
-	Lists    []GeositeList
+	Provider string        `json:"provider"`
+	Lists    []GeositeList `json:"lists"`
 }
 
 // IconSet describes one icon collection directory for the gallery.
 type IconSet struct {
-	Name  string
-	Count int
-	Icons []string
+	Name  string   `json:"name"`
+	Count int      `json:"count"`
+	Icons []string `json:"icons"`
 }
 
 // IndexData is the view model for the public page.
 type IndexData struct {
-	UpdatedAt time.Time
-	AdminURL  string
-	Clients   []Client
-	Rules     []PublicRule
-	Tags      []string
-	Geosite   []GeositeCatalog
-	IconSets  []IconSet
+	UpdatedAt time.Time        `json:"updated_at"`
+	AdminURL  string           `json:"admin_url,omitempty"`
+	Clients   []Client         `json:"clients"`
+	Rules     []PublicRule     `json:"rules"`
+	Tags      []string         `json:"tags"`
+	Geosite   []GeositeCatalog `json:"geosite"`
+	IconSets  []IconSet        `json:"icon_sets"`
 }
 
 var funcMap = template.FuncMap{
-	"commas":   commas,
-	"human":    humanBytes,
-	"tfmt":     formatTime,
-	"lower":    strings.ToLower,
-	"escpath":  escapePath,
-	"catalog":  catalogJSON,
-	"clients":  clientsJSON,
-	"rulemeta": ruleMetaJSON,
-	"iconsets": iconSetsJSON,
+	"publicdata": publicDataJSON,
+	"assetver":   publicAssetVersion,
 }
 
 // WritePublic renders the public page into dataDir/static/.
@@ -140,38 +130,14 @@ func WriteIndex(outputDir, iconStaticDir string, index *IndexData) error {
 	if err := os.MkdirAll(outputDir, 0o755); err != nil {
 		return fmt.Errorf("create index output dir: %w", err)
 	}
+	if err := writePublicAssets(iconStaticDir); err != nil {
+		return err
+	}
 	return render(outputDir, iconStaticDir, IndexFile, IndexFileTemplate, index)
 }
 
-// AdminPage returns the backend-served management application shell. The
-// established visual stylesheet is kept with the old template while the body
-// is a fixed API client with no generated business data.
-func AdminPage() ([]byte, error) {
-	styled, err := htmlFS.ReadFile("site_admin.html")
-	if err != nil {
-		return nil, err
-	}
-	app, err := htmlFS.ReadFile("site_admin_app.html")
-	if err != nil {
-		return nil, err
-	}
-	headEnd := bytes.Index(styled, []byte("</head>"))
-	if headEnd < 0 {
-		return nil, fmt.Errorf("admin stylesheet document has no head")
-	}
-	page := append([]byte(nil), styled[:headEnd+len("</head>")]...)
-	page = append(page, app...)
-	return page, nil
-}
-
-func render(outputDir, iconStaticDir, outName, tmplName string, data any) error {
-	// The icon helper resolves user-provided icon files relative to the
-	// generated site directory, so it is bound per render call.
-	funcs := maps.Clone(funcMap)
-	funcs["icon"] = func(name string, px int) template.HTML {
-		return pixelIcon(iconStaticDir, name, px)
-	}
-	t, err := template.New(tmplName).Funcs(funcs).ParseFS(htmlFS, tmplName)
+func render(outputDir, _ string, outName, tmplName string, data any) error {
+	t, err := template.New(tmplName).Funcs(funcMap).ParseFS(htmlFS, tmplName)
 	if err != nil {
 		return fmt.Errorf("parse %s template: %w", tmplName, err)
 	}
@@ -180,6 +146,70 @@ func render(outputDir, iconStaticDir, outName, tmplName string, data any) error 
 		return fmt.Errorf("render %s: %w", tmplName, err)
 	}
 	return util.AtomicWriteFile(filepath.Join(outputDir, outName), buf.Bytes())
+}
+
+func writePublicAssets(staticDir string) error {
+	assetsDir := filepath.Join(staticDir, "assets")
+	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
+		return fmt.Errorf("create public assets dir: %w", err)
+	}
+	for _, name := range []string{"public.js", "public.css"} {
+		data, err := htmlFS.ReadFile("dist/" + name)
+		if err != nil {
+			return fmt.Errorf("read embedded public asset %s: %w", name, err)
+		}
+		if err := util.AtomicWriteFile(filepath.Join(assetsDir, name), data); err != nil {
+			return fmt.Errorf("write public asset %s: %w", name, err)
+		}
+	}
+	return nil
+}
+
+func publicAssetVersion() string {
+	fingerprint := AssetFingerprint()
+	if len(fingerprint) > 12 {
+		return fingerprint[:12]
+	}
+	return fingerprint
+}
+
+func publicDataJSON(index *IndexData) (template.JS, error) {
+	payload := *index
+	payload.Clients = make([]Client, len(index.Clients))
+	for i, client := range index.Clients {
+		payload.Clients[i] = client
+		payload.Clients[i].Options = append([]ClientOption{}, client.Options...)
+	}
+	payload.Tags = append([]string{}, index.Tags...)
+	payload.Rules = make([]PublicRule, len(index.Rules))
+	for i, rule := range index.Rules {
+		payload.Rules[i] = rule
+		payload.Rules[i].Tags = append([]string{}, rule.Tags...)
+		payload.Rules[i].Files = make([]RuleFile, len(rule.Files))
+		for j, file := range rule.Files {
+			payload.Rules[i].Files[j] = file
+			payload.Rules[i].Files[j].Path = escapePath(file.Path)
+		}
+	}
+	payload.Geosite = make([]GeositeCatalog, len(index.Geosite))
+	for i, catalog := range index.Geosite {
+		payload.Geosite[i] = catalog
+		payload.Geosite[i].Lists = make([]GeositeList, len(catalog.Lists))
+		for j, list := range catalog.Lists {
+			payload.Geosite[i].Lists[j] = list
+			payload.Geosite[i].Lists[j].Variants = append([]GeositeVariant{}, list.Variants...)
+		}
+	}
+	payload.IconSets = make([]IconSet, len(index.IconSets))
+	for i, set := range index.IconSets {
+		payload.IconSets[i] = set
+		payload.IconSets[i].Icons = append([]string{}, set.Icons...)
+	}
+	data, err := json.Marshal(&payload)
+	if err != nil {
+		return "", fmt.Errorf("marshal public page data: %w", err)
+	}
+	return template.JS(data), nil //nolint:gosec // json.Marshal escapes HTML-sensitive characters
 }
 
 // escapePath URL-escapes each path segment (client IDs may contain spaces).
@@ -203,108 +233,6 @@ func urlPathEscape(s string) string {
 		}
 	}
 	return b.String()
-}
-
-// catalogJSON serialises the geosite catalog as a compact JS array:
-// [["provider",[["list",entries,[["attr",entries],...]],...]],...]
-// List and attr names are validated safe segments (lowercase alnum/dash),
-// so the output is safe to embed in a script context.
-func catalogJSON(cats []GeositeCatalog) template.JS {
-	compact := make([]any, 0, len(cats))
-	for _, c := range cats {
-		lists := make([]any, 0, len(c.Lists))
-		for _, l := range c.Lists {
-			variants := make([]any, 0, len(l.Variants))
-			for _, v := range l.Variants {
-				variants = append(variants, []any{v.Attr, v.Entries})
-			}
-			lists = append(lists, []any{l.Name, l.Entries, variants})
-		}
-		compact = append(compact, []any{c.Provider, lists})
-	}
-	data, err := json.Marshal(compact)
-	if err != nil {
-		return template.JS("[]")
-	}
-	return template.JS(data) //nolint:gosec // names are validated safe segments
-}
-
-// clientsJSON serialises client families and their concrete output options.
-func clientsJSON(clients []Client) template.JS {
-	type optionJSON struct {
-		ID      string `json:"id"`
-		Name    string `json:"name"`
-		Ext     string `json:"ext"`
-		Rules   bool   `json:"rules"`
-		Geosite bool   `json:"geosite"`
-	}
-	type clientJSON struct {
-		ID      string       `json:"id"`
-		Name    string       `json:"name"`
-		Icon    string       `json:"icon"`
-		Options []optionJSON `json:"options"`
-		Rules   bool         `json:"rules"`
-		Geosite bool         `json:"geosite"`
-	}
-	out := make([]clientJSON, 0, len(clients))
-	for _, c := range clients {
-		item := clientJSON{ID: c.ID, Name: c.Name, Icon: c.Icon, Rules: c.Rules, Geosite: c.Geosite}
-		for _, option := range c.Options {
-			item.Options = append(item.Options, optionJSON(option))
-		}
-		out = append(out, item)
-	}
-	data, err := json.Marshal(out)
-	if err != nil {
-		return template.JS("[]")
-	}
-	return template.JS(data) //nolint:gosec // json.Marshal escapes HTML-sensitive chars
-}
-
-// ruleMetaJSON serialises per-rule metadata for the detail modal:
-// [{"i":"openai","n":"OpenAI","d":"...","t":["AI"],"e":1234,"f":{"Clash Meta":["rules/...",123],...}},...]
-// File paths are escaped per segment before embedding.
-func ruleMetaJSON(rules []PublicRule) template.JS {
-	type ruleMeta struct {
-		ID          string            `json:"i"`
-		Name        string            `json:"n"`
-		Description string            `json:"d,omitempty"`
-		Tags        []string          `json:"t,omitempty"`
-		Entries     int               `json:"e"`
-		Files       map[string][2]any `json:"f"`
-	}
-	out := make([]ruleMeta, 0, len(rules))
-	for _, r := range rules {
-		m := ruleMeta{ID: r.ID, Name: r.Name, Description: r.Description, Tags: r.Tags, Entries: r.Entries}
-		m.Files = make(map[string][2]any, len(r.Files))
-		for _, f := range r.Files {
-			m.Files[f.Client] = [2]any{escapePath(f.Path), f.Size}
-		}
-		out = append(out, m)
-	}
-	data, err := json.Marshal(out)
-	if err != nil {
-		return template.JS("[]")
-	}
-	return template.JS(data) //nolint:gosec // json.Marshal escapes HTML-sensitive chars
-}
-
-// iconSetsJSON serialises the icon set list for the page scripts.
-func iconSetsJSON(sets []IconSet) template.JS {
-	type iconSetJSON struct {
-		Name  string   `json:"name"`
-		Count int      `json:"count"`
-		Icons []string `json:"icons"`
-	}
-	out := make([]iconSetJSON, 0, len(sets))
-	for _, s := range sets {
-		out = append(out, iconSetJSON(s))
-	}
-	data, err := json.Marshal(out)
-	if err != nil {
-		return template.JS("[]")
-	}
-	return template.JS(data) //nolint:gosec
 }
 
 // ListIconSets scans staticDir/icons/ for subdirectories and returns one
@@ -342,44 +270,4 @@ func ListIconSets(staticDir string) []IconSet {
 	}
 	sort.Slice(sets, func(i, j int) bool { return sets[i].Name < sets[j].Name })
 	return sets
-}
-
-func commas(n int) string {
-	s := strconv.Itoa(n)
-	if len(s) <= 3 {
-		return s
-	}
-	var b strings.Builder
-	pre := len(s) % 3
-	if pre > 0 {
-		b.WriteString(s[:pre])
-	}
-	for i := pre; i < len(s); i += 3 {
-		if b.Len() > 0 {
-			b.WriteByte(',')
-		}
-		b.WriteString(s[i : i+3])
-	}
-	return b.String()
-}
-
-func humanBytes(b int64) string {
-	const unit = 1024
-	if b < unit {
-		return fmt.Sprintf("%d B", b)
-	}
-	div, exp := int64(unit), 0
-	for n := b / unit; n >= unit; n /= unit {
-		div *= unit
-		exp++
-	}
-	v := float64(b) / float64(div)
-	if v >= 100 {
-		return fmt.Sprintf("%.0f %cB", v, "KMGTPE"[exp])
-	}
-	return fmt.Sprintf("%.1f %cB", v, "KMGTPE"[exp])
-}
-
-func formatTime(t time.Time) string {
-	return t.UTC().Format("2006-01-02 15:04:05") + " UTC"
 }

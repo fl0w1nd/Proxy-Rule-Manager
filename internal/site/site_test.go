@@ -23,11 +23,10 @@ func sampleIndex() *IndexData {
 		},
 		Rules: []PublicRule{
 			{
-				ID:         "OpenAi",
-				Name:       "OpenAi",
-				Tags:       []string{"AI"},
-				TagsJoined: "ai",
-				Entries:    1234,
+				ID:      "OpenAi",
+				Name:    "OpenAi",
+				Tags:    []string{"AI"},
+				Entries: 1234,
 				Files: []RuleFile{
 					{Client: "Clash Meta", Icon: "mihomo", Path: "rules/Clash Meta/OpenAi.list", Size: 2048},
 					{Client: "sing-box", Icon: "singbox", Path: "rules/sing-box/OpenAi.json", Size: 4096},
@@ -66,17 +65,10 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 		t.Fatalf("read index: %v", err)
 	}
 	for _, want := range []string{
-		"规则", "OpenAi", "client-card", "rule-row", "modal-bk",
-		"preview-shell", "preview-line", "FILE PREVIEW",
-		"GEO_CATALOG", "RULE_META", "ICON_SETS", "v2fly", "复制链接", "打开文件", "更新于",
-		`class="table-scroll"`, `class="data-table rule-table"`, `scope="col"`, `scope="row"`,
+		`id="public-app"`, `id="prm-data"`, `type="application/json"`,
+		"static/assets/public.css?v=", "static/assets/public.js?v=", "OpenAi", "v2fly",
 		"rules/Clash%20Meta/OpenAi.list",
-		`data-rules="true" data-geo="true"`,  // Clash Meta: rules + geosite
-		`data-rules="true" data-geo="false"`, // sing-box: rules only
-		"gprev",                              // geosite preview button
-		`class="client-menu"`,                // full-card format/variant menu
-		`data-target="sing-box-non-ip"`,      // explicit IR-derived output
-		"图标",                                 // icon tab
+		`"id":"sing-box-non-ip"`,
 	} {
 		if !strings.Contains(string(index), want) {
 			t.Errorf("index missing %q", want)
@@ -90,6 +82,12 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 	}
 	assertThemeInitializedBeforeStyles(t, index)
 	assertInlineScriptsParse(t, index)
+	assertPublicData(t, index, "")
+	for _, name := range []string{"public.js", "public.css"} {
+		if info, err := os.Stat(filepath.Join(staticDir, "assets", name)); err != nil || info.IsDir() {
+			t.Errorf("public asset %s: info=%v err=%v", name, info, err)
+		}
+	}
 
 	if _, err := os.Stat(filepath.Join(staticDir, "admin.html")); !os.IsNotExist(err) {
 		t.Fatalf("public writer created admin.html: %v", err)
@@ -111,9 +109,7 @@ func TestWritePublicRendersOptionalAdminLink(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(page), `href="/admin"`) || !strings.Contains(string(page), "[ 管理 ]") {
-		t.Fatal("service public page is missing the admin link")
-	}
+	assertPublicData(t, page, "/admin")
 }
 
 func assertInlineScriptsParse(t *testing.T, page []byte) {
@@ -141,46 +137,11 @@ func assertInlineScriptsParse(t *testing.T, page []byte) {
 	}
 }
 
-func TestAdminPageIsFixedAPIApplication(t *testing.T) {
-	admin, err := AdminPage()
-	if err != nil {
-		t.Fatal(err)
-	}
-	html := string(admin)
-	for _, want := range []string{"管理看板", "更新日志", "var API = '/api/v1'", "request('/status')", "scope:'rules'", "textContent", "replaceChildren", "EventSource", "sessionStorage", "update-list-head", "规则更新明细"} {
-		if !strings.Contains(html, want) {
-			t.Errorf("admin missing %q", want)
-		}
-	}
-	for _, status := range []string{"completed_with_warnings:'警告'", "completed_with_errors:'异常'"} {
-		if !strings.Contains(html, status) {
-			t.Errorf("admin missing status copy %q", status)
-		}
-	}
-	for _, removed := range []string{"{{", "location.reload", "location.href = '/admin", "/api/update", "ErrorHistory", "index === 0 && expandedUpdates.size === 0", "error-items", "update-facts"} {
-		if strings.Contains(html, removed) {
-			t.Errorf("admin contains removed pattern %q", removed)
-		}
-	}
-	if strings.Contains(html, "updateFinal") || strings.Contains(html, "update-final") {
-		t.Error("admin contains redundant update footer status")
-	}
-	for _, countID := range []string{"rulesCount", "changesCount", "updatesCount", "geositeCount"} {
-		if !strings.Contains(html, `id="`+countID+`" hidden`) {
-			t.Errorf("admin count %s is visible before its data loads", countID)
-		}
-	}
-	if !strings.Contains(html, "badge.hidden = false") {
-		t.Error("admin does not reveal counts after loading")
-	}
-	assertThemeInitializedBeforeStyles(t, admin)
-}
-
 func assertThemeInitializedBeforeStyles(t *testing.T, page []byte) {
 	t.Helper()
 	html := string(page)
 	themeInit := strings.Index(html, "localStorage.getItem('prm-theme')")
-	styles := strings.Index(html, "<style>")
+	styles := strings.Index(html, "public.css")
 	if themeInit < 0 || styles < 0 || themeInit > styles {
 		t.Error("saved theme must be restored before styles are evaluated")
 	}
@@ -192,28 +153,53 @@ func TestEscapePath(t *testing.T) {
 	}
 }
 
-func TestCommas(t *testing.T) {
-	cases := map[int]string{0: "0", 12: "12", 999: "999", 1000: "1,000", 1234567: "1,234,567"}
-	for in, want := range cases {
-		if got := commas(in); got != want {
-			t.Errorf("commas(%d) = %q, want %q", in, got, want)
+func TestPublicDataJSONEscapesHTML(t *testing.T) {
+	idx := sampleIndex()
+	idx.Rules[0].Description = `</script><script>alert("x")</script>`
+	got, err := publicDataJSON(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "</script>") || !strings.Contains(string(got), `\u003c/script\u003e`) {
+		t.Fatalf("public data HTML escaping = %s", got)
+	}
+}
+
+func TestPublicDataJSONUsesArraysForEmptyCollections(t *testing.T) {
+	idx := &IndexData{UpdatedAt: time.Now(), Clients: []Client{{ID: "empty"}}, Rules: []PublicRule{{ID: "empty"}}, Geosite: []GeositeCatalog{{Provider: "empty", Lists: []GeositeList{{Name: "empty"}}}}, IconSets: []IconSet{{Name: "empty"}}}
+	got, err := publicDataJSON(idx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`"options":[]`, `"tags":[]`, `"files":[]`, `"variants":[]`, `"icons":[]`} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("public data missing stable array %s: %s", want, got)
 		}
 	}
 }
 
-func TestCatalogJSON(t *testing.T) {
-	got := string(catalogJSON(sampleIndex().Geosite))
-	if !strings.Contains(got, `"v2fly"`) || !strings.Contains(got, `"google"`) || !strings.Contains(got, `"cn"`) {
-		t.Errorf("catalog JSON unexpected: %s", got)
+func assertPublicData(t *testing.T, page []byte, adminURL string) {
+	t.Helper()
+	html := string(page)
+	startMarker := `<script id="prm-data" type="application/json">`
+	start := strings.Index(html, startMarker)
+	if start < 0 {
+		t.Fatal("public data script missing")
 	}
-}
-
-func TestRuleMetaJSON(t *testing.T) {
-	got := string(ruleMetaJSON(sampleIndex().Rules))
-	for _, want := range []string{`"i":"OpenAi"`, `"n":"OpenAi"`, `rules/Clash%20Meta/OpenAi.list`, `"e":1234`} {
-		if !strings.Contains(got, want) {
-			t.Errorf("rulemeta JSON missing %q: %s", want, got)
-		}
+	start += len(startMarker)
+	end := strings.Index(html[start:], "</script>")
+	if end < 0 {
+		t.Fatal("public data script has no closing tag")
+	}
+	var payload IndexData
+	if err := json.Unmarshal([]byte(html[start:start+end]), &payload); err != nil {
+		t.Fatalf("decode public data: %v", err)
+	}
+	if payload.AdminURL != adminURL || len(payload.Rules) != 1 || payload.Rules[0].ID != "OpenAi" {
+		t.Fatalf("public data mismatch: admin=%q rules=%+v", payload.AdminURL, payload.Rules)
+	}
+	if got := payload.Rules[0].Files[0].Path; got != "rules/Clash%20Meta/OpenAi.list" {
+		t.Fatalf("escaped rule path = %q", got)
 	}
 }
 

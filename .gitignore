@@ -1,6 +1,8 @@
 # Build output
 /bin/
 /dist/
+internal/admin/dist/
+internal/site/dist/
 
 # Runtime data
 /data/
@@ -37,5 +39,5 @@ out/
 node_modules/
 *.tsbuildinfo
 next-env.d.ts
-package.json
-pnpm-lock.yaml
+/package.json
+/pnpm-lock.yaml

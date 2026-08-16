@@ -76,4 +76,4 @@ prm 版本由源仓库的最新 Release 自动推进；同步 `main` 可以取�
 prm --data-dir data build --output dist
 ```
 
-产物固定包含 `index.html`、`rules/`、`static/icons/`、`.nojekyll`，用任意静态文件服务器即可预览 `dist/`。
+产物固定包含 `index.html`、`rules/`、`static/assets/public.js`、`static/assets/public.css`、`static/icons/`、`.nojekyll`。页面资源使用相对路径，可在 GitHub Pages 仓库子路径运行，也可用任意静态文件服务器预览 `dist/`。

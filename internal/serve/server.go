@@ -18,9 +18,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 
+	"github.com/fl0w1nd/proxy-rule-manager/internal/admin"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
-	"github.com/fl0w1nd/proxy-rule-manager/internal/site"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
 )
@@ -101,12 +101,15 @@ func (s *Server) Handler() http.Handler {
 	// Public: generated pages and static assets (icons, etc.)
 	iconsDir := filepath.Join(s.DataDir, "static", "icons")
 	r.Handle("/static/icons/*", http.StripPrefix("/static/icons/", http.FileServer(http.Dir(iconsDir))))
+	assetsDir := filepath.Join(s.DataDir, "static", "assets")
+	r.Handle("/static/assets/*", http.StripPrefix("/static/assets/", http.FileServer(http.Dir(assetsDir))))
 	r.Get("/", s.handleSitePage("static/index.html"))
 	r.Get("/index.html", s.handleSitePage("static/index.html"))
 
 	// Admin board (Bearer or login query token; unauthorized browsers get a token gate)
 	r.Get("/admin", s.handleAdminPage)
 	r.Get("/admin.html", s.handleAdminPage)
+	r.Get("/admin/*", s.handleAdminPage)
 
 	// API routes
 	r.Route("/api/v1", func(r chi.Router) {
@@ -186,14 +189,7 @@ func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
 		s.serveAdminGate(w, false)
 		return
 	}
-	page, err := site.AdminPage()
-	if err != nil {
-		http.Error(w, "admin page unavailable", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Cache-Control", "no-store")
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	_, _ = w.Write(page)
+	admin.Handler().ServeHTTP(w, r)
 }
 
 func (s *Server) serveAdminGate(w http.ResponseWriter, invalid bool) {

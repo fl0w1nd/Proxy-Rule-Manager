@@ -1,4 +1,4 @@
-.PHONY: build test test-race lint ci run serve update validate clean distclean help proto docker-build docker-run
+.PHONY: build build-web test test-web test-race lint ci run serve update validate clean distclean help proto docker-build docker-run
 
 BINARY := bin/prm
 VERSION_FILE := version/VERSION
@@ -14,11 +14,17 @@ help: ## Show this help
 proto: ## Regenerate protobuf Go code from .proto (requires protoc + protoc-gen-go)
 	protoc --go_out=. --go_opt=paths=source_relative internal/geosite/geosite.proto
 
-build: ## Build the prm binary
+build-web: ## Build Svelte 5 admin and public web assets
+	cd web && pnpm build
+
+build: build-web ## Build the prm binary with embedded web assets
 	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/prm
 
 test: ## Run all tests
 	go test -shuffle=on -coverprofile=coverage.out ./...
+
+test-web: ## Check and test Svelte web applications
+	cd web && pnpm check && pnpm test --run
 
 test-race: ## Run all tests with the race detector
 	go test -race -shuffle=on ./...
@@ -31,7 +37,7 @@ lint: ## Run formatting, vet, and golangci-lint checks
 	@echo "==> golangci-lint"
 	golangci-lint run ./...
 
-ci: lint test-race ## Run the local CI quality gate
+ci: lint test-race test-web ## Run the local CI quality gate
 
 run: build ## Build and run update
 	./$(BINARY) update
