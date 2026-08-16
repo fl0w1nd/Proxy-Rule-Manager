@@ -3,6 +3,7 @@
   import PixelProgressBar from './pixel/PixelProgressBar.svelte';
   import PixelButton from './pixel/PixelButton.svelte';
   import PixelIcon from './pixel/PixelIcon.svelte';
+  import { finishSummary, getStatusLabel } from '../updateLabels';
 
   interface Props {
     jobId: string | null;
@@ -52,8 +53,8 @@
       if (['completed', 'cancelled', 'completed_with_warnings', 'completed_with_errors', 'interrupted'].includes(d.status)) {
         isRunning = false;
         isCancelling = false;
-        statusText = d.status === 'completed' ? '完成' : d.status;
-        currentMsg = `任务结束：成功 ${d.rules_succeeded} · 失败 ${d.rules_failed}`;
+        statusText = getStatusLabel(d.status);
+        currentMsg = finishSummary(d);
         cleanup();
         onfinish?.(d);
       } else {
@@ -71,7 +72,7 @@
     activeJobId = id;
     isRunning = true;
     isCancelling = false;
-    statusText = '运行中';
+    statusText = '进行中';
     currentMsg = '正在连接实时事件流…';
     currentCount = 0;
     totalCount = 0;
@@ -94,8 +95,8 @@
       (detail) => {
         isRunning = false;
         isCancelling = false;
-        statusText = detail.status === 'completed' ? '完成' : detail.status;
-        currentMsg = `任务结束：成功 ${detail.rules_succeeded} · 失败 ${detail.rules_failed}`;
+        statusText = getStatusLabel(detail.status);
+        currentMsg = finishSummary(detail);
         cleanup();
         onfinish?.(detail);
       },

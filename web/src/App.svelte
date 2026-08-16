@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type UpdateItem, type UpdateDetail } from './api/client';
+  import { api, type UpdateDetail } from './api/client';
   import AdminLayout from './layouts/AdminLayout.svelte';
   import DashboardView from './views/DashboardView.svelte';
   import RulesView from './views/RulesView.svelte';
@@ -8,6 +8,7 @@
   import UpdatesView from './views/UpdatesView.svelte';
   import GeositeView from './views/GeositeView.svelte';
   import PixelToast from './components/pixel/PixelToast.svelte';
+  import { finishSummary } from './updateLabels';
 
   type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite';
 
@@ -111,11 +112,11 @@
 
     if (detail) {
       if (detail.status === 'completed') {
-        toastRef?.show(`更新任务圆满完成 (成功 ${detail.rules_succeeded} / ${detail.rules_total})`, 'success');
+        toastRef?.show(finishSummary(detail), 'success');
       } else if (detail.status === 'cancelled') {
-        toastRef?.show('更新任务已取消', 'info');
+        toastRef?.show('更新已取消', 'info');
       } else {
-        toastRef?.show(`更新任务结束，状态：${detail.status}`, 'error');
+        toastRef?.show(finishSummary(detail), detail.status === 'completed_with_warnings' ? 'info' : 'error');
       }
     }
 
@@ -141,7 +142,6 @@
   {#if currentTab === 'dashboard'}
     <DashboardView
       bind:this={dashboardRef}
-      onStartUpdate={handleStartUpdate}
       onViewUpdates={() => handleTabChange('updates')}
     />
   {:else if currentTab === 'rules'}

@@ -70,7 +70,7 @@
         <th style="width: 10%;" class="num">列表数</th>
         <th style="width: 10%;" class="num">变体数</th>
         <th style="width: 10%;" class="num">条目总量</th>
-        <th style="width: 10%;" class="num">产物文件</th>
+        <th style="width: 10%;" class="num">规则文件</th>
       </tr>
     </thead>
     <tbody>
