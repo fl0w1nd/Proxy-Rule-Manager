@@ -123,6 +123,22 @@ func TestDiff(t *testing.T) {
 	if got := Diff(newSet, []Entry{newSet[3], newSet[0], newSet[2], newSet[1]}); !got.Empty() {
 		t.Errorf("reorder should be empty diff: %+v", got)
 	}
+
+	// Canonical set semantics collapse duplicates and treat flags as identity.
+	duplicates := Diff(nil, []Entry{
+		{Kind: KindDomain, Value: "duplicate.example"},
+		{Kind: KindDomain, Value: "duplicate.example"},
+	})
+	if duplicates.AddedCount != 1 {
+		t.Fatalf("duplicate additions: %+v", duplicates)
+	}
+	flags := Diff(
+		[]Entry{{Kind: KindIPCIDR, Value: "192.0.2.0/24"}},
+		[]Entry{{Kind: KindIPCIDR, Value: "192.0.2.0/24", Flags: []string{FlagNoResolve}}},
+	)
+	if flags.AddedCount != 1 || flags.RemovedCount != 1 {
+		t.Fatalf("flag change: %+v", flags)
+	}
 }
 
 func TestCountKinds(t *testing.T) {

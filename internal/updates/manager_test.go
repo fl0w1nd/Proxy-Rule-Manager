@@ -76,8 +76,8 @@ func TestRunPersistsEveryOriginAndCompleteResult(t *testing.T) {
 		StartTime: time.Now().Add(-time.Second), EndTime: time.Now(), EffectiveRuleIDs: []string{"base", "child"}, RulesTotal: 2, RulesSucceeded: 1, RulesFailed: 1, Artifacts: 3,
 		Errors: []string{"failed"}, Warnings: []string{"warning"}, Issues: []engine.UpdateIssue{{Stage: "rule", Subject: "child", Message: "failed"}},
 		Changes: []engine.RuleChange{
-			{RuleID: "child", RuleName: "Child", Files: []engine.ArtifactChange{{ClientID: "surge", Path: "rules/surge/child.list", Change: "updated"}}},
-			{RuleID: "base", RuleName: "Base", Files: []engine.ArtifactChange{{ClientID: "surge", Path: "rules/surge/base.list", Change: "updated"}}, Added: 2, Removed: 1, AddedSamples: []string{"one", "two"}, RemovedSamples: []string{"old"}},
+			{RuleID: "child", RuleName: "Child"},
+			{RuleID: "base", RuleName: "Base", Added: 2, Removed: 1, AddedSamples: []string{"one", "two"}, RemovedSamples: []string{"old"}},
 		},
 	}
 	m, st, cfg := managerFixture(t, resultRunner{result: result})
@@ -92,7 +92,7 @@ func TestRunPersistsEveryOriginAndCompleteResult(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if record.Origin != origin || record.Status != "completed_with_errors" || record.PublishedArtifacts != 1 || len(record.Changes) != 2 || record.Changes[0].RuleID != "base" || record.Changes[1].RuleID != "child" || len(record.Issues) != 1 || !reflect.DeepEqual(record.EffectiveRuleIDs, []string{"base", "child"}) {
+		if record.Origin != origin || record.Status != "completed_with_errors" || record.PublishedArtifacts != 1 || len(record.Changes) != 1 || record.Changes[0].RuleID != "base" || len(record.Issues) != 1 || !reflect.DeepEqual(record.EffectiveRuleIDs, []string{"base", "child"}) {
 			t.Fatalf("record=%+v", record)
 		}
 	}

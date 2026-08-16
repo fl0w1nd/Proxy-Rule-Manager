@@ -56,7 +56,7 @@
   {#if loading && changes.length === 0}
     <div class="changes-empty">加载变动记录中…</div>
   {:else if changes.length === 0}
-    <div class="changes-empty">期限内没有实际规则文件变动</div>
+    <div class="changes-empty">暂无变更记录</div>
   {:else}
     <div class="changes-list">
       {#each changes as item}
@@ -75,26 +75,23 @@
           </summary>
 
           <div class="change-details">
-            {#if item.files && item.files.length > 0}
-              <div class="detail-section">
-                <div class="section-k">变动的规则文件</div>
-                <pre class="pixel-code-block">{#each item.files as f}<div>{f.client_id} · {f.change} · {f.path}</div>{/each}</pre>
+            <div class="detail-section">
+              <div class="section-k">IR 规则条目 Diff</div>
+              <div class="pixel-code-block" role="region" aria-label={`${item.rule_name} IR Diff`}>
+                {#each item.removed_samples || [] as line}
+                  <div class="del-line">- {line}</div>
+                {/each}
+                {#if item.removed_omitted > 0}
+                  <div class="omit-line">… 另有 {item.removed_omitted.toLocaleString()} 条移除已省略</div>
+                {/if}
+                {#each item.added_samples || [] as line}
+                  <div class="add-line">+ {line}</div>
+                {/each}
+                {#if item.added_omitted > 0}
+                  <div class="omit-line">… 另有 {item.added_omitted.toLocaleString()} 条新增已省略</div>
+                {/if}
               </div>
-            {/if}
-
-            {#if item.added_samples && item.added_samples.length > 0}
-              <div class="detail-section">
-                <div class="section-k">新增条目样例 ({item.added_samples.length})</div>
-                <pre class="pixel-code-block add-box">{#each item.added_samples as s}<div class="add-line">+ {s}</div>{/each}</pre>
-              </div>
-            {/if}
-
-            {#if item.removed_samples && item.removed_samples.length > 0}
-              <div class="detail-section">
-                <div class="section-k">移除条目样例 ({item.removed_samples.length})</div>
-                <pre class="pixel-code-block del-box">{#each item.removed_samples as s}<div class="del-line">- {s}</div>{/each}</pre>
-              </div>
-            {/if}
+            </div>
           </div>
         </details>
       {/each}
@@ -282,5 +279,9 @@
   }
   .del-line {
     color: var(--orange);
+  }
+  .omit-line {
+    color: var(--dim);
+    font-style: italic;
   }
 </style>

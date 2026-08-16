@@ -256,10 +256,10 @@ func TestUpdateHistoryDetailChangesAndCursor(t *testing.T) {
 		record := state.UpdateHistoryRecord{ID: id, Origin: "cli", Scope: "rules", RequestedRuleIDs: []string{"apple"}, EffectiveRuleIDs: []string{"apple", "child"}, Status: "completed", StartedAt: finished.Add(-time.Second).Format(time.RFC3339), FinishedAt: finished.Format(time.RFC3339), RulesTotal: 2, RulesSucceeded: 2}
 		if id == "third" {
 			record.Changes = []state.RuleChangeRecord{{
-				RuleID: "apple", RuleName: "Apple",
-				Files:        []state.ArtifactChangeRecord{{ClientID: "surge", Path: "rules/surge/apple.list", Change: "updated"}},
-				Added:        1,
+				RuleID: "apple", RuleName: "Apple", Added: 101,
 				AddedSamples: []string{"domain,apple.example"},
+			}, {
+				RuleID: "render-only", RuleName: "Render only",
 			}}
 		}
 		st.PutUpdateHistory(record, time.Duration(cfg.Update.HistoryRetention), cfg.Update.HistoryLimit, now.Add(5*time.Minute))
@@ -270,7 +270,7 @@ func TestUpdateHistoryDetailChangesAndCursor(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(page.Items) != 2 || page.Items[0].ID != "third" || page.NextCursor == "" {
+	if len(page.Items) != 2 || page.Items[0].ID != "third" || page.Items[0].ChangeCount != 1 || page.NextCursor == "" {
 		t.Fatalf("page=%+v", page)
 	}
 	rec = httptest.NewRecorder()
@@ -282,12 +282,12 @@ func TestUpdateHistoryDetailChangesAndCursor(t *testing.T) {
 	}
 	rec = httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, authorized(http.MethodGet, "/api/v1/updates/third", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"effective_rule_ids":["apple","child"]`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"effective_rule_ids":["apple","child"]`) || strings.Contains(rec.Body.String(), "render-only") {
 		t.Fatalf("detail=%d %s", rec.Code, rec.Body.String())
 	}
 	rec = httptest.NewRecorder()
 	s.Handler().ServeHTTP(rec, authorized(http.MethodGet, "/api/v1/changes", nil))
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"change":"updated"`) || !strings.Contains(rec.Body.String(), `"added_samples":["domain,apple.example"]`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"added_samples":["domain,apple.example"]`) || !strings.Contains(rec.Body.String(), `"added_omitted":100`) || strings.Contains(rec.Body.String(), `"files"`) {
 		t.Fatalf("changes=%d %s", rec.Code, rec.Body.String())
 	}
 }

@@ -52,22 +52,14 @@ type UpdateIssueRecord struct {
 	Message string `json:"message"`
 }
 
-// RuleChangeRecord captures changed output files and the logical rule diff.
+// RuleChangeRecord captures one persisted logical rule diff.
 type RuleChangeRecord struct {
-	RuleID         string                 `json:"rule_id"`
-	RuleName       string                 `json:"rule_name"`
-	Files          []ArtifactChangeRecord `json:"files"`
-	Added          int                    `json:"added"`
-	Removed        int                    `json:"removed"`
-	AddedSamples   []string               `json:"added_samples"`
-	RemovedSamples []string               `json:"removed_samples"`
-}
-
-// ArtifactChangeRecord identifies one changed or deleted published file.
-type ArtifactChangeRecord struct {
-	ClientID string `json:"client_id"`
-	Path     string `json:"path"`
-	Change   string `json:"change"`
+	RuleID         string   `json:"rule_id"`
+	RuleName       string   `json:"rule_name"`
+	Added          int      `json:"added"`
+	Removed        int      `json:"removed"`
+	AddedSamples   []string `json:"added_samples"`
+	RemovedSamples []string `json:"removed_samples"`
 }
 
 // UpdateRecord tracks the current content version and the latest check.
@@ -436,7 +428,6 @@ func cloneUpdateHistoryRecord(record UpdateHistoryRecord) UpdateHistoryRecord {
 	record.Issues = append([]UpdateIssueRecord(nil), record.Issues...)
 	record.Changes = append([]RuleChangeRecord(nil), record.Changes...)
 	for i := range record.Changes {
-		record.Changes[i].Files = append([]ArtifactChangeRecord(nil), record.Changes[i].Files...)
 		record.Changes[i].AddedSamples = append([]string(nil), record.Changes[i].AddedSamples...)
 		record.Changes[i].RemovedSamples = append([]string(nil), record.Changes[i].RemovedSamples...)
 	}

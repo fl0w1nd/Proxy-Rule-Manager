@@ -50,17 +50,18 @@ type changesResponse struct {
 }
 
 type changeInfo struct {
-	UpdateID       string                       `json:"update_id"`
-	FinishedAt     string                       `json:"finished_at"`
-	Origin         string                       `json:"origin"`
-	Scope          string                       `json:"scope"`
-	RuleID         string                       `json:"rule_id"`
-	RuleName       string                       `json:"rule_name"`
-	Files          []state.ArtifactChangeRecord `json:"files"`
-	Added          int                          `json:"added"`
-	Removed        int                          `json:"removed"`
-	AddedSamples   []string                     `json:"added_samples"`
-	RemovedSamples []string                     `json:"removed_samples"`
+	UpdateID       string   `json:"update_id"`
+	FinishedAt     string   `json:"finished_at"`
+	Origin         string   `json:"origin"`
+	Scope          string   `json:"scope"`
+	RuleID         string   `json:"rule_id"`
+	RuleName       string   `json:"rule_name"`
+	Added          int      `json:"added"`
+	Removed        int      `json:"removed"`
+	AddedSamples   []string `json:"added_samples"`
+	RemovedSamples []string `json:"removed_samples"`
+	AddedOmitted   int      `json:"added_omitted"`
+	RemovedOmitted int      `json:"removed_omitted"`
 }
 
 func (s *Server) history() []state.UpdateHistoryRecord {
@@ -119,16 +120,17 @@ func (s *Server) handleChanges(w http.ResponseWriter, r *http.Request) {
 	keys := make([]string, 0)
 	for _, record := range s.history() {
 		for _, change := range record.Changes {
-			if len(change.Files) == 0 {
+			if change.Added == 0 && change.Removed == 0 {
 				continue
 			}
 			items = append(items, changeInfo{
 				UpdateID: record.ID, FinishedAt: record.FinishedAt, Origin: record.Origin, Scope: record.Scope,
 				RuleID: change.RuleID, RuleName: change.RuleName,
-				Files: append([]state.ArtifactChangeRecord(nil), change.Files...),
 				Added: change.Added, Removed: change.Removed,
 				AddedSamples:   append([]string{}, change.AddedSamples...),
 				RemovedSamples: append([]string{}, change.RemovedSamples...),
+				AddedOmitted:   omittedCount(change.Added, len(change.AddedSamples)),
+				RemovedOmitted: omittedCount(change.Removed, len(change.RemovedSamples)),
 			})
 			keys = append(keys, record.ID+"\x00"+change.RuleID)
 		}
@@ -317,7 +319,7 @@ func summarizeUpdate(record state.UpdateHistoryRecord) updateSummary {
 		StartedAt: record.StartedAt, FinishedAt: record.FinishedAt,
 		RulesTotal: record.RulesTotal, RulesSucceeded: record.RulesSucceeded, RulesFailed: record.RulesFailed,
 		ArtifactsProcessed: record.ArtifactsProcessed, PublishedArtifacts: record.PublishedArtifacts,
-		ChangeCount: len(record.Changes), WarningCount: len(record.Warnings), IssueCount: len(record.Issues),
+		ChangeCount: logicalChangeCount(record.Changes), WarningCount: len(record.Warnings), IssueCount: len(record.Issues),
 	}
 }
 
@@ -326,11 +328,32 @@ func normalizeUpdateRecord(record state.UpdateHistoryRecord) state.UpdateHistory
 	record.EffectiveRuleIDs = append([]string{}, record.EffectiveRuleIDs...)
 	record.Warnings = append([]string{}, record.Warnings...)
 	record.Issues = append([]state.UpdateIssueRecord{}, record.Issues...)
-	record.Changes = append([]state.RuleChangeRecord{}, record.Changes...)
-	for i := range record.Changes {
-		record.Changes[i].Files = append([]state.ArtifactChangeRecord{}, record.Changes[i].Files...)
-		record.Changes[i].AddedSamples = append([]string{}, record.Changes[i].AddedSamples...)
-		record.Changes[i].RemovedSamples = append([]string{}, record.Changes[i].RemovedSamples...)
+	changes := make([]state.RuleChangeRecord, 0, len(record.Changes))
+	for _, change := range record.Changes {
+		if change.Added == 0 && change.Removed == 0 {
+			continue
+		}
+		change.AddedSamples = append([]string{}, change.AddedSamples...)
+		change.RemovedSamples = append([]string{}, change.RemovedSamples...)
+		changes = append(changes, change)
 	}
+	record.Changes = changes
 	return record
+}
+
+func logicalChangeCount(changes []state.RuleChangeRecord) int {
+	count := 0
+	for _, change := range changes {
+		if change.Added > 0 || change.Removed > 0 {
+			count++
+		}
+	}
+	return count
+}
+
+func omittedCount(total, shown int) int {
+	if total > shown {
+		return total - shown
+	}
+	return 0
 }

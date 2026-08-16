@@ -14,8 +14,9 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 )
 
-// diffSampleLimit caps added/removed sample lines stored for update history.
-const diffSampleLimit = 15
+// diffSampleLimit caps each side of a logical rule diff stored in update
+// history. Exact totals are retained separately from these display lines.
+const diffSampleLimit = 100
 
 // ruleSiteInfo aggregates everything the generated public page needs for one rule.
 type ruleSiteInfo struct {

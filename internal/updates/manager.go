@@ -251,14 +251,14 @@ func (m *Manager) execute(ctx context.Context, job *Job) {
 		record.Issues = append(record.Issues, state.UpdateIssueRecord{Stage: issue.Stage, Subject: issue.Subject, Message: issue.Message})
 	}
 	for _, change := range result.Changes {
+		if change.Added == 0 && change.Removed == 0 {
+			continue
+		}
 		stored := state.RuleChangeRecord{
 			RuleID: change.RuleID, RuleName: change.RuleName,
 			Added: change.Added, Removed: change.Removed,
 			AddedSamples:   append([]string(nil), change.AddedSamples...),
 			RemovedSamples: append([]string(nil), change.RemovedSamples...),
-		}
-		for _, file := range change.Files {
-			stored.Files = append(stored.Files, state.ArtifactChangeRecord{ClientID: file.ClientID, Path: file.Path, Change: file.Change})
 		}
 		record.Changes = append(record.Changes, stored)
 	}
