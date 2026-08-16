@@ -4,6 +4,19 @@
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import {
+    changeCount,
+    displayTime,
+    formatTime,
+    getStatusLabel,
+    getStatusType,
+    originText,
+    scopeText,
+    updateDigest,
+  } from '../updateLabels';
+
+  const CHANGE_PREVIEW_LIMIT = 20;
+  const REQUESTED_LIST_LIMIT = 5;
 
   let updates = $state<UpdateItem[]>([]);
   let expandedDetails = $state<Record<string, UpdateDetail>>({});
@@ -49,42 +62,23 @@
     }
   }
 
-  function formatTime(iso?: string) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
+  function requestedIds(detail: UpdateDetail): string[] {
+    return detail.requested_rule_ids || [];
   }
 
-  function originText(v?: string) {
-    const map: Record<string, string> = { web: '管理页', scheduled: '定时调度', cli: '命令行' };
-    return (v && map[v]) || v || '—';
-  }
-
-  function getStatusType(st: string): 'success' | 'warning' | 'error' | 'active' | 'neutral' {
-    if (st === 'completed') return 'success';
-    if (st === 'running' || st === 'cancelling') return 'active';
-    if (st === 'completed_with_warnings' || st === 'cancelled') return 'warning';
-    if (st === 'completed_with_errors' || st === 'interrupted') return 'error';
-    return 'neutral';
-  }
-
-  function getStatusLabel(st: string): string {
-    const map: Record<string, string> = {
-      completed: '完成',
-      running: '运行中',
-      cancelling: '取消中',
-      cancelled: '已取消',
-      completed_with_warnings: '带警告完成',
-      completed_with_errors: '异常结束',
-      interrupted: '已中断',
+  function previewChanges(detail: UpdateDetail) {
+    const all = detail.changes || [];
+    return {
+      shown: all.slice(0, CHANGE_PREVIEW_LIMIT),
+      hidden: Math.max(0, all.length - CHANGE_PREVIEW_LIMIT),
     };
-    return map[st] || st;
   }
 </script>
 
 <div class="updates-view">
   <div class="updates-header">
     <div class="header-left">
-      <h2 class="view-title">更新历史记录</h2>
+      <h2 class="view-title">更新日志</h2>
       <span class="count-badge">{updates.length} 次更新</span>
     </div>
     <div class="header-right">
@@ -111,12 +105,12 @@
     <div class="updates-list">
       <div class="list-head">
         <span></span>
-        <span>更新时间</span>
+        <span>时间</span>
         <span>状态</span>
         <span>来源</span>
-        <span>请求范围</span>
-        <span class="text-right">成功 / 总计</span>
-        <span class="text-right">产物数</span>
+        <span>范围</span>
+        <span class="text-right">变更</span>
+        <span class="text-right">文件</span>
       </div>
 
       {#each updates as item (item.id)}
@@ -130,37 +124,62 @@
             aria-expanded={isExpanded}
           >
             <span class="toggle-icon">{isExpanded ? '▼' : '▶'}</span>
-            <span class="col-time font-mono">{formatTime(item.started_at)}</span>
+            <span class="col-time font-mono">{formatTime(displayTime(item))}</span>
             <span>
               <PixelBadge status={getStatusType(item.status)} pulse={item.status === 'running'}>
                 {getStatusLabel(item.status)}
               </PixelBadge>
             </span>
             <span class="col-origin">{originText(item.origin)}</span>
-            <span class="col-scope">{item.scope === 'all' ? '全部规则' : `${(item.requested_rule_ids || []).length} 条指定规则`}</span>
-            <span class="col-num text-right font-mono">{item.rules_succeeded} / {item.rules_total}</span>
-            <span class="col-num text-right font-mono">{item.artifacts_processed}</span>
+            <span class="col-scope">{scopeText(item)}</span>
+            <span class="col-num text-right font-mono">{changeCount(item)}</span>
+            <span class="col-num text-right font-mono">{(item.artifacts_processed ?? 0).toLocaleString()}</span>
           </button>
 
           {#if isExpanded}
             <div class="update-detail-panel">
               {#if loadingDetails[item.id]}
-                <div class="loading-hint">正在读取详细明细…</div>
+                <div class="loading-hint">加载详情…</div>
               {:else if detail}
-                {#if detail.effective_rule_ids && detail.effective_rule_ids.length > 0}
-                  <div class="detail-block">
-                    <div class="block-k">更新生效规则 ({detail.effective_rule_ids.length})</div>
-                    <div class="tag-chips">
-                      {#each detail.effective_rule_ids as rid}
-                        <span class="rule-chip">{rid}</span>
-                      {/each}
+                <div class="digest">{updateDigest(detail)}</div>
+
+                {#if detail.scope !== 'all'}
+                  {@const requested = requestedIds(detail)}
+                  {#if requested.length > 0 && requested.length <= REQUESTED_LIST_LIMIT}
+                    <div class="detail-block">
+                      <div class="block-k">指定规则</div>
+                      <div class="tag-chips">
+                        {#each requested as rid}
+                          <span class="rule-chip">{rid}</span>
+                        {/each}
+                      </div>
                     </div>
+                  {/if}
+                {/if}
+
+                {#if (detail.changes || []).length > 0}
+                  {@const preview = previewChanges(detail)}
+                  <div class="detail-block">
+                    <div class="block-k">变更 ({(detail.changes || []).length})</div>
+                    {#each preview.shown as ch}
+                      <div class="change-row">
+                        <span class="change-name">{ch.rule_name}</span>
+                        <span class="change-diff font-mono">
+                          <span class="diff-add">+{ch.added.toLocaleString()}</span>
+                          <span class="diff-sep">/</span>
+                          <span class="diff-del">-{ch.removed.toLocaleString()}</span>
+                        </span>
+                      </div>
+                    {/each}
+                    {#if preview.hidden > 0}
+                      <div class="more-hint">其余 {preview.hidden} 条见变更对比</div>
+                    {/if}
                   </div>
                 {/if}
 
                 {#if detail.warnings && detail.warnings.length > 0}
                   <div class="detail-block">
-                    <div class="block-k text-orange">任务警告消息 ({detail.warnings.length})</div>
+                    <div class="block-k text-orange">警告 ({detail.warnings.length})</div>
                     {#each detail.warnings as w}
                       <div class="warn-msg">! {w}</div>
                     {/each}
@@ -169,10 +188,9 @@
 
                 {#if detail.issues && detail.issues.length > 0}
                   <div class="detail-block">
-                    <div class="block-k text-red">异常与错误 ({detail.issues.length})</div>
+                    <div class="block-k text-red">失败 ({detail.issues.length})</div>
                     {#each detail.issues as issue}
                       <div class="error-msg">
-                        <span class="issue-stage">[{[issue.stage, issue.subject].filter(Boolean).join(' · ') || '异常'}]</span>
                         <span class="issue-text">{issue.message}</span>
                       </div>
                     {/each}
@@ -258,7 +276,7 @@
 
   .list-head {
     display: grid;
-    grid-template-columns: 24px minmax(180px, 1.3fr) 110px 80px minmax(120px, 1fr) 100px 80px;
+    grid-template-columns: 24px minmax(170px, 1.3fr) 90px 70px minmax(110px, 1fr) 80px 90px;
     gap: 10px;
     align-items: center;
     padding: 10px 14px;
@@ -279,7 +297,7 @@
 
   .update-summary {
     display: grid;
-    grid-template-columns: 24px minmax(180px, 1.3fr) 110px 80px minmax(120px, 1fr) 100px 80px;
+    grid-template-columns: 24px minmax(170px, 1.3fr) 90px 70px minmax(110px, 1fr) 80px 90px;
     gap: 10px;
     align-items: center;
     padding: 11px 14px;
@@ -338,6 +356,12 @@
     gap: 12px;
   }
 
+  .digest {
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--display);
+  }
+
   .detail-block {
     display: flex;
     flex-direction: column;
@@ -370,6 +394,39 @@
     color: var(--text);
   }
 
+  .change-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 10px;
+    background: var(--bg);
+    border-left: 3px solid var(--border-vis);
+  }
+  .change-name {
+    font-size: 12px;
+    color: var(--display);
+  }
+  .change-diff {
+    font-size: 11px;
+    white-space: nowrap;
+  }
+  .diff-add {
+    color: var(--green);
+  }
+  .diff-sep {
+    color: var(--dim);
+    margin: 0 4px;
+  }
+  .diff-del {
+    color: var(--red);
+  }
+  .more-hint {
+    font-size: 11px;
+    color: var(--dim);
+    padding: 2px 2px 0;
+  }
+
   .warn-msg, .error-msg {
     padding: 6px 10px;
     font-family: "Space Mono", monospace;
@@ -379,12 +436,6 @@
   }
   .error-msg {
     border-left-color: var(--red);
-    display: flex;
-    gap: 8px;
-  }
-  .issue-stage {
-    color: var(--red);
-    font-weight: 700;
   }
 
   .loading-hint {

@@ -47,6 +47,13 @@ export interface ChangeItem {
   removed_samples?: string[];
 }
 
+export interface UpdateChange {
+  rule_id: string;
+  rule_name: string;
+  added: number;
+  removed: number;
+}
+
 export interface UpdateItem {
   id: string;
   origin: 'web' | 'scheduled' | 'cli' | string;
@@ -58,9 +65,12 @@ export interface UpdateItem {
   rules_succeeded: number;
   rules_failed: number;
   artifacts_processed: number;
+  published_artifacts?: number;
+  change_count?: number;
   warning_count: number;
   issue_count: number;
   requested_rule_ids?: string[];
+  changes?: UpdateChange[];
 }
 
 export interface UpdateIssue {

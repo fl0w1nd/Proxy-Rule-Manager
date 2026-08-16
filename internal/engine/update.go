@@ -128,7 +128,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 		if saveErr := e.State.Save(); saveErr != nil {
 			result.addError("state", "update.json", fmt.Sprintf("save state: %v", saveErr))
 		}
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在重建网页"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在刷新规则目录"})
 		if siteErr := e.writeSite(&result, ruleInfos, e.rebuildGeositeStats()); siteErr != nil {
 			result.addError("site", "public", fmt.Sprintf("rebuild site: %v", siteErr))
 			_ = e.State.Save()
@@ -140,7 +140,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	if partial {
 		geositeProviders = e.readCachedGeositeProviders(sorted)
 	} else {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_refresh", Status: "running", Message: "正在刷新 Geosite Provider"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_refresh", Status: "running", Message: "正在刷新 Geosite"})
 		var geositeResults map[string]string
 		var geositeWarnings []string
 		var geositeErrors map[string]string
@@ -180,7 +180,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	}
 	processed := make(map[string]bool, len(sorted))
 	succeeded := make(map[string]struct{}, len(sorted))
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rules", Status: "running", Total: len(sorted), Message: fmt.Sprintf("正在更新普通规则 · 0 / %d", len(sorted))})
+	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rules", Status: "running", Total: len(sorted), Message: fmt.Sprintf("正在更新规则 · 0 / %d", len(sorted))})
 
 ruleLoop:
 	for ruleIndex, rule := range sorted {
@@ -267,7 +267,7 @@ ruleLoop:
 	}
 
 	if !partial && len(result.Errors) == 0 {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在整理过期产物"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
 		if err := ReconcileArtifacts(e.DataDir, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile artifacts: %v", err))
 		}
@@ -277,7 +277,7 @@ ruleLoop:
 		}
 	}
 	if partial && ctx.Err() == nil && len(succeeded) > 0 {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在整理规则产物"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
 		if err := ReconcileRuleArtifacts(e.DataDir, succeeded, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile partial artifacts: %v", err))
 		} else {
@@ -292,22 +292,21 @@ ruleLoop:
 
 	result.EndTime = time.Now()
 	e.State.SetLastCheck(result.EndTime)
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "state", Status: "running", Message: "正在保存更新状态"})
 	if err := e.State.Save(); err != nil {
 		result.addError("state", "update.json", fmt.Sprintf("save state: %v", err))
 	}
 
-	// Regenerate the public page from the latest persisted rule state.
+	// Refresh the public catalog from the latest persisted rule state.
 	if partial {
 		gstats = e.rebuildGeositeStats()
 	}
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在重建公开页"})
+	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在刷新规则目录"})
 	if err := e.writeSite(&result, ruleInfos, gstats); err != nil {
 		result.addError("site", "public", fmt.Sprintf("rebuild site: %v", err))
 		_ = e.State.Save()
-		reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "site", Status: "failed", Message: fmt.Sprintf("网页重建失败：%v", err)})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "site", Status: "failed", Message: fmt.Sprintf("规则目录更新失败：%v", err)})
 	} else {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "site", Status: "completed", Message: "网页重建完成"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "site", Status: "completed", Message: "规则目录已更新"})
 	}
 
 	log.Info("update complete",
@@ -327,7 +326,7 @@ func (e *UpdateEngine) finishRejectedUpdate(ctx context.Context, message string)
 	reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "prepare", Status: "failed", Message: message})
 	e.State.SetLastCheck(now)
 	_ = e.State.Save()
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在重建公开页"})
+	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在刷新规则目录"})
 	if err := e.writeSite(&result, map[string]*ruleSiteInfo{}, e.rebuildGeositeStats()); err != nil {
 		result.addError("site", "public", fmt.Sprintf("rebuild site: %v", err))
 		_ = e.State.Save()
@@ -721,7 +720,7 @@ func (e *UpdateEngine) updateGeositePublications(
 	expectedPaths map[string]struct{},
 	gstats *geositeStats,
 ) {
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Message: "正在发布 Geosite 产物"})
+	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Message: "正在更新 Geosite 规则文件"})
 	for _, prov := range e.Config.Geosite.Providers {
 		cache, ok := providers[prov.Name]
 		if !ok {
@@ -731,7 +730,7 @@ func (e *UpdateEngine) updateGeositePublications(
 
 		summaries := geosite.CatalogSummaries(cache)
 		e.Logger.Info("geosite auto-publish", "provider", prov.Name, "lists", len(summaries))
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Total: len(summaries), Subject: prov.Name, Message: fmt.Sprintf("正在发布 Geosite %s · 0 / %d", prov.Name, len(summaries))})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Total: len(summaries), Subject: prov.Name, Message: fmt.Sprintf("正在更新 Geosite %s · 0 / %d", prov.Name, len(summaries))})
 
 		for summaryIndex, summary := range summaries {
 			select {
@@ -751,7 +750,7 @@ func (e *UpdateEngine) updateGeositePublications(
 				e.publishGeositeVariant(cache, attrRef, prov.Clients, result, expectedPaths, gstats)
 			}
 		}
-		reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "geosite_publish", Status: "completed", Current: len(summaries), Total: len(summaries), Subject: prov.Name, Message: fmt.Sprintf("Geosite %s · 发布完成", prov.Name)})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "geosite_publish", Status: "completed", Current: len(summaries), Total: len(summaries), Subject: prov.Name, Message: fmt.Sprintf("Geosite %s · 已更新", prov.Name)})
 	}
 }
 

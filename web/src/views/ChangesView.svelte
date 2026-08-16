@@ -34,7 +34,7 @@
 <div class="changes-view">
   <div class="changes-header">
     <div class="header-left">
-      <h2 class="view-title">规则变动对比 (Diff)</h2>
+      <h2 class="view-title">规则变动对比</h2>
       <span class="count-badge">{changes.length} 条记录</span>
     </div>
     <div class="header-right">
@@ -77,7 +77,7 @@
           <div class="change-details">
             {#if item.files && item.files.length > 0}
               <div class="detail-section">
-                <div class="section-k">变动产物文件</div>
+                <div class="section-k">变动的规则文件</div>
                 <pre class="pixel-code-block">{#each item.files as f}<div>{f.client_id} · {f.change} · {f.path}</div>{/each}</pre>
               </div>
             {/if}

@@ -156,7 +156,7 @@
     <div class="sidebar-foot">
       <a href="/" class="nav-btn back-btn" target="_self">
         <PixelIcon name="external" size={12} />
-        <span>[ 返回公共首页 ]</span>
+        <span>[ 返回规则站 ]</span>
       </a>
       <div class="sidebar-meta">
         <span class="meta-dot"></span>
