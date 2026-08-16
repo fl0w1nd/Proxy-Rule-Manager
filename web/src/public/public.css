@@ -203,7 +203,10 @@
 .data-table .action { width: 60px; text-align: center; }
 .rule-row { cursor: pointer; transition: background 80ms steps(2, end); }
 .rule-row:hover { background: var(--surface-2); }
-.rule-row th button { border: 0; background: transparent; color: var(--display); font-weight: 700; cursor: pointer; }
+.rule-row th button { border: 0; background: transparent; color: var(--display); font-weight: 700; cursor: pointer; font: inherit; text-align: left; padding: 0; }
+.rule-row:hover th button { color: var(--orange); }
+.rule-row .action-btn { display: inline-flex; align-items: center; justify-content: center; background: transparent; border: 0; color: var(--sec); cursor: pointer; padding: 4px; }
+.rule-row:hover .action-btn { color: var(--orange); }
 .rtags { display: flex; flex-wrap: wrap; gap: 5px; }
 .rtags em,
 .modal-tags em,

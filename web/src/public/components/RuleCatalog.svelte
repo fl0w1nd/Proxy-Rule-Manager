@@ -53,11 +53,35 @@
       </thead>
       <tbody>
         {#each filteredRules as rule (rule.id)}
-          <tr class="rule-row">
-            <th scope="row"><button type="button" onclick={() => onpreview(rule)}>{rule.name}</button></th>
+          <tr
+            class="rule-row"
+            onclick={() => onpreview(rule)}
+            onkeydown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onpreview(rule); } }}
+            tabindex="0"
+            role="button"
+            aria-label="查看规则 {rule.name}"
+          >
+            <th scope="row">
+              <button
+                type="button"
+                class="rule-name-btn"
+                onclick={(e) => { e.stopPropagation(); onpreview(rule); }}
+              >
+                {rule.name}
+              </button>
+            </th>
             <td><span class="rtags">{#each rule.tags as tag}<em>{tag}</em>{/each}</span></td>
             <td class="num">{formatCount(rule.entries)}</td>
-            <td class="action"><PixelIcon name="chevron-right" size={10} /></td>
+            <td class="action">
+              <button
+                type="button"
+                class="action-btn"
+                aria-label="预览 {rule.name}"
+                onclick={(e) => { e.stopPropagation(); onpreview(rule); }}
+              >
+                <PixelIcon name="chevron-right" size={10} />
+              </button>
+            </td>
           </tr>
         {:else}
           <tr><td colspan="4" class="empty">没有匹配的规则。</td></tr>

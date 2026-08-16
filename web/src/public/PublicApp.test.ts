@@ -112,7 +112,8 @@ describe('PublicApp', () => {
     vi.stubGlobal('fetch', fetchMock);
     render(PublicApp, { data: fixture() });
 
-    await user.click(screen.getByRole('button', { name: 'OpenAI' }));
+    // Open via action button
+    await user.click(screen.getByRole('button', { name: '预览 OpenAI' }));
     expect(await screen.findByText(/仅显示前 500 行/)).toBeInTheDocument();
     expect(screen.getByText('500 / 501 LINES')).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '复制链接' }));
@@ -120,7 +121,9 @@ describe('PublicApp', () => {
 
     await fireEvent.keyDown(window, { key: 'Escape' });
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'OpenAI' }));
+
+    // Open via row click
+    await user.click(screen.getByRole('button', { name: '查看规则 OpenAI' }));
     await screen.findByText('500 / 501 LINES');
     expect(fetchMock).toHaveBeenCalledTimes(1);
 
