@@ -54,7 +54,7 @@
     <div class="icon-sets">
       {#each sets as set (set.name)}
         <button class="icon-set-card" type="button" onclick={() => openSet(set)}>
-          <PixelIcon name="iconset" size={26} />
+          <img src="static/icons/iconset.svg" width="32" height="32" alt="" class="is-icon" aria-hidden="true" />
           <span><strong>{set.name}</strong><small>{formatCount(set.count)} 个图标</small></span>
         </button>
       {:else}

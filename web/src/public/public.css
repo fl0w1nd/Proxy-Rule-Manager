@@ -273,6 +273,7 @@
   cursor: pointer;
 }
 .icon-set-card:hover { border-color: var(--orange); transform: translate(-1px, -1px); box-shadow: 4px 4px 0 var(--shadow); }
+.icon-set-card img { width: 32px; height: 32px; flex-shrink: 0; image-rendering: pixelated; }
 .icon-set-card span { display: flex; flex-direction: column; gap: 4px; }
 .icon-set-card strong { color: var(--display); }
 .icon-set-card small { color: var(--dim); font: 10px "Space Mono", monospace; }
