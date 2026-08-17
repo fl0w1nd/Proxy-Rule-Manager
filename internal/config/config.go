@@ -297,27 +297,38 @@ func Load(path, dataDir string) (*Config, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+	cfg, _, err := decodeDocument(data, dataDir)
+	return cfg, err
+}
+
+// decodeDocument parses raw YAML into the effective runtime configuration and
+// retains the unexpanded document used for source-preserving edits.
+func decodeDocument(data []byte, dataDir string) (*Config, *yaml.Node, error) {
+	var source yaml.Node
+	if err := yaml.Unmarshal(data, &source); err != nil {
+		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("parse config: %w", err)}
+	}
 	expanded := interpolateEnv(string(data))
 
 	// Parse into Node tree to capture source positions.
 	var doc yaml.Node
 	if err := yaml.Unmarshal([]byte(expanded), &doc); err != nil {
-		return nil, fmt.Errorf("parse config: %w", err)
+		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("parse config: %w", err)}
 	}
 
 	var cfg Config
 	decoder := yaml.NewDecoder(strings.NewReader(expanded))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
-		return nil, fmt.Errorf("decode config: %w", err)
+		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("decode config: %w", err)}
 	}
 	cfg.positions = BuildPositionIndex(&doc)
 	cfg.Defaults()
 
 	if errs := cfg.Validate(dataDir); len(errs) > 0 {
-		return nil, ConfigErrors(errs)
+		return nil, nil, ConfigErrors(errs)
 	}
-	return &cfg, nil
+	return &cfg, &source, nil
 }
 
 // Validate checks the config for structural correctness. Returns a list of
