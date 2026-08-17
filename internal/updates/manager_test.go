@@ -21,6 +21,20 @@ type resultRunner struct{ result engine.UpdateResult }
 func (r resultRunner) FullUpdate(context.Context) engine.UpdateResult              { return r.result }
 func (r resultRunner) PartialUpdate(context.Context, []string) engine.UpdateResult { return r.result }
 
+type signalingRunner struct{ calls chan struct{} }
+
+func (r signalingRunner) FullUpdate(context.Context) engine.UpdateResult {
+	select {
+	case r.calls <- struct{}{}:
+	default:
+	}
+	return engine.UpdateResult{StartTime: time.Now(), EndTime: time.Now()}
+}
+
+func (r signalingRunner) PartialUpdate(ctx context.Context, _ []string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
+}
+
 type blockingRunner struct {
 	started chan struct{}
 	release chan struct{}
@@ -168,5 +182,33 @@ func TestJobEventsReplayAfterSequence(t *testing.T) {
 	events := job.EventsAfter(1)
 	if len(events) != 2 || events[0].Sequence != 2 || events[0].Message != "second" || events[1].Sequence != 3 {
 		t.Fatalf("events=%+v", events)
+	}
+}
+
+func TestReconfigureRestartsSchedulerWithCommittedConfig(t *testing.T) {
+	runner := signalingRunner{calls: make(chan struct{}, 1)}
+	m, _, cfg := managerFixture(t, runner)
+	m.StartScheduler()
+	t.Cleanup(m.StopScheduler)
+
+	updated := cfg.DeepCopy()
+	updated.Update.Schedule.Mode = "interval"
+	updated.Update.Schedule.Interval = config.Duration(10 * time.Millisecond)
+	if err := m.Reconfigure(true, func() (*config.Config, error) { return updated, nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-runner.calls:
+	case <-time.After(time.Second):
+		t.Fatal("reconfigured scheduler did not start an update")
+	}
+	m.StopScheduler()
+	if job := m.Current(); job != nil {
+		select {
+		case <-job.Done():
+		case <-time.After(time.Second):
+			t.Fatal("scheduled update did not finish")
+		}
 	}
 }

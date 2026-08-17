@@ -195,6 +195,42 @@ func TestManagerNoopCommitDetectsLateExternalChange(t *testing.T) {
 	}
 }
 
+func TestManagerChangedCommitPreservesLateExternalChange(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	source := "clients:\n  - id: surge\n    name: Surge\n    template: surge\nrules:\n  - id: base\n    name: Base\n    sources: [{content: \"DOMAIN,base.example\"}]\n    outputs: [surge]\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := NewManager(path, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := manager.Prepare(1, []PatchOp{{
+		Type: "update_rule", ID: "base",
+		Value: patchValue(t, `{"id":"base","name":"Updated","sources":[{"content":"DOMAIN,base.example"}],"outputs":["surge"]}`),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	external := source + "# late edit\n"
+	if err := os.WriteFile(path, []byte(external), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	_, version, err := manager.Commit(candidate)
+	var dirtyErr *DirtyConfigError
+	if !errors.As(err, &dirtyErr) || version != 1 {
+		t.Fatalf("version=%d error=%#v", version, err)
+	}
+	written, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(written) != external {
+		t.Fatalf("external source overwritten:\n%s", written)
+	}
+}
+
 func TestManagerWriteFailureKeepsRuntimeAndSource(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")

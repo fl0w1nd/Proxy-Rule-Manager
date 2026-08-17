@@ -228,3 +228,29 @@ geosite:
 		t.Fatalf("geosite remains in source:\n%s", written)
 	}
 }
+
+func TestUpdateHistoryWritesStableFieldOrder(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "config.yaml")
+	source := "clients:\n  - id: surge\n    name: Surge\n    template: surge\nrules:\n  - id: base\n    name: Base\n    sources: [{content: \"DOMAIN,base.example\"}]\n    outputs: [surge]\nupdate: {}\n"
+	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	manager, err := NewManager(path, dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	candidate, err := manager.Prepare(1, []PatchOp{{
+		Type:  "update_history",
+		Value: patchValue(t, `{"history_limit":50,"history_retention":"48h"}`),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(candidate.raw)
+	retention := strings.Index(text, "history_retention:")
+	limit := strings.Index(text, "history_limit:")
+	if retention < 0 || limit < 0 || retention > limit {
+		t.Fatalf("history fields have unstable order:\n%s", text)
+	}
+}

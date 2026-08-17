@@ -108,7 +108,6 @@ func buildApp(dataDir string) (*App, error) {
 
 	eng := &engine.UpdateEngine{
 		DataDir:      dataDir,
-		Config:       cfg,
 		Registry:     registry,
 		Fetcher:      fetcher,
 		Preprocessor: preprocessor,
@@ -116,6 +115,7 @@ func buildApp(dataDir string) (*App, error) {
 		Geosite:      geositeManager,
 		Logger:       logger,
 	}
+	eng.SetConfig(cfg)
 	updateManager, err := updates.NewManager(cfg, dataDir, st, eng, logger)
 	if err != nil {
 		return nil, fmt.Errorf("initialize update manager: %w", err)

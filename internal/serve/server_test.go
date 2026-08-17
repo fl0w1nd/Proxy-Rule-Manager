@@ -46,7 +46,8 @@ func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
 	if err := registry.LoadEmbedded(templates.FS); err != nil {
 		t.Fatal(err)
 	}
-	eng := &engine.UpdateEngine{DataDir: dataDir, Config: cfg, Registry: registry, Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	eng := &engine.UpdateEngine{DataDir: dataDir, Registry: registry, Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	eng.SetConfig(cfg)
 	manager, err := updates.NewManager(cfg, dataDir, st, eng, eng.Logger)
 	if err != nil {
 		t.Fatal(err)
@@ -571,10 +572,11 @@ func TestConfigReload(t *testing.T) {
 		t.Fatal(err)
 	}
 	eng := &engine.UpdateEngine{
-		DataDir: dataDir, Config: cfg, Registry: registry,
+		DataDir: dataDir, Registry: registry,
 		Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(),
 		State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
+	eng.SetConfig(cfg)
 	manager, err := updates.NewManager(cfg, dataDir, st, eng, eng.Logger)
 	if err != nil {
 		t.Fatal(err)

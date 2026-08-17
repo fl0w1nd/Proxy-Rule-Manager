@@ -47,16 +47,18 @@ func (m *Manager) Prepare(version int64, ops []PatchOp) (*Candidate, error) {
 	baseVersion := m.version
 	path := m.path
 	cfg := m.cfg.DeepCopy()
-	m.mu.RUnlock()
-
 	if path == "" {
+		m.mu.RUnlock()
 		return nil, ErrPersistenceUnavailable
 	}
 	if dirty, err := fileDigestDiffers(path, baseDigest); err != nil {
+		m.mu.RUnlock()
 		return nil, err
 	} else if dirty {
+		m.mu.RUnlock()
 		return nil, &DirtyConfigError{}
 	}
+	m.mu.RUnlock()
 
 	changed, err := applyPatchOperations(doc, ops)
 	if err != nil {
@@ -331,6 +333,7 @@ func updateHistory(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
 	if value == nil || value.Kind != yaml.MappingNode {
 		return false, "value", fmt.Errorf("must be an object")
 	}
+	keys := []string{"history_retention", "history_limit"}
 	allowed := map[string]bool{"history_retention": true, "history_limit": true}
 	seen := map[string]bool{}
 	for i := 0; i+1 < len(value.Content); i += 2 {
@@ -340,7 +343,7 @@ func updateHistory(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
 		}
 		seen[key] = true
 	}
-	for key := range allowed {
+	for _, key := range keys {
 		if !seen[key] {
 			return false, "value." + key, fmt.Errorf("required")
 		}
@@ -350,7 +353,7 @@ func updateHistory(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
 		return false, "value", err
 	}
 	update := ensureMappingValue(root, "update")
-	for key := range allowed {
+	for _, key := range keys {
 		node, _, _ := mappingValue(value, key)
 		setMappingValue(update, key, cloneYAMLNode(node))
 	}

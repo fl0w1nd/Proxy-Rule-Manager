@@ -23,7 +23,6 @@ import (
 // UpdateEngine orchestrates full and partial updates.
 type UpdateEngine struct {
 	DataDir      string
-	Config       *config.Config
 	Registry     *render.Registry
 	Fetcher      *Fetcher
 	Preprocessor *PreprocessRunner
@@ -39,12 +38,6 @@ func (e *UpdateEngine) SetConfig(cfg *config.Config) {
 }
 
 func (e *UpdateEngine) currentConfig() *config.Config {
-	if cfg := e.configValue.Load(); cfg != nil {
-		return cfg
-	}
-	if e.Config != nil && e.configValue.CompareAndSwap(nil, e.Config) {
-		return e.Config
-	}
 	return e.configValue.Load()
 }
 

@@ -79,6 +79,13 @@ func TestConfigPatchAPIUpdatesSourceAndRuntime(t *testing.T) {
 	if got := s.config().Rules[0].Name; got != "Base Updated" {
 		t.Fatalf("runtime rule name=%q", got)
 	}
+	index, err := os.ReadFile(filepath.Join(s.DataDir, "static", "index.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(index), "Base Updated") {
+		t.Fatalf("public index was not refreshed:\n%s", index)
+	}
 
 	rec = patchConfig(handler, body)
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "config_version_conflict") || !strings.Contains(rec.Body.String(), `"current_version":2`) {
@@ -242,9 +249,10 @@ rules:
 	}
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	eng := &engine.UpdateEngine{
-		DataDir: dataDir, Config: cfg, Registry: registry, Fetcher: engine.NewFetcher(),
+		DataDir: dataDir, Registry: registry, Fetcher: engine.NewFetcher(),
 		Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: logger,
 	}
+	eng.SetConfig(cfg)
 	var updateRunner updatesRunner = eng
 	if runner != nil {
 		updateRunner = runner
@@ -256,6 +264,9 @@ rules:
 	s := NewServer(cfg, st, eng, updateManager, Options{
 		DataDir: dataDir, APIToken: "abc", ConfigFile: path, ConfigManager: manager,
 	})
+	if err := eng.RebuildSite(); err != nil {
+		t.Fatal(err)
+	}
 	return s, path
 }
 

@@ -256,7 +256,7 @@ func (s *Server) preflightConfig(cfg *config.Config) error {
 func (s *Server) commitConfig(candidate *config.Candidate) (int64, []string, error) {
 	var version int64
 	changed := candidate.Changed()
-	err := s.updates.ReconfigureChanged(changed, func() (*config.Config, error) {
+	err := s.updates.Reconfigure(changed, func() (*config.Config, error) {
 		cfg, committedVersion, err := s.ConfigManager.Commit(candidate)
 		if err != nil {
 			return nil, err
@@ -301,7 +301,7 @@ func (s *Server) reconcileConfig(cfg *config.Config) []string {
 			warnings = append(warnings, fmt.Sprintf("保存规则状态失败：%v", err))
 		}
 	}
-	if err := s.Engine.EnsureSite(); err != nil {
+	if err := s.Engine.RebuildSite(); err != nil {
 		warnings = append(warnings, fmt.Sprintf("刷新规则站失败：%v", err))
 	}
 	return warnings

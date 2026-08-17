@@ -163,12 +163,21 @@ func (m *Manager) Commit(candidate *Candidate) (*Config, int64, error) {
 			return nil, m.version, &DirtyConfigError{}
 		}
 	} else {
-		if dirty, err := fileDigestDiffers(m.path, candidate.baseDigest); err != nil {
-			return nil, m.version, err
-		} else if dirty {
-			return nil, m.version, &DirtyConfigError{}
+		checkSource := func() error {
+			raw, err := os.ReadFile(m.path)
+			if err != nil {
+				return fmt.Errorf("read config: %w", err)
+			}
+			if !bytes.Equal(raw, m.raw) {
+				return &DirtyConfigError{}
+			}
+			return nil
 		}
-		if err := util.AtomicWriteFile(m.path, candidate.raw); err != nil {
+		if err := util.AtomicWriteFileChecked(m.path, candidate.raw, checkSource); err != nil {
+			var dirty *DirtyConfigError
+			if errors.As(err, &dirty) {
+				return nil, m.version, err
+			}
 			return nil, m.version, fmt.Errorf("write config: %w", err)
 		}
 	}
