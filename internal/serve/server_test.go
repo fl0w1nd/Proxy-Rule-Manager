@@ -20,6 +20,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
+	"github.com/fl0w1nd/proxy-rule-manager/templates"
 	"github.com/fl0w1nd/proxy-rule-manager/version"
 )
 
@@ -41,7 +42,11 @@ func testServer(t *testing.T) (*Server, *config.Config, *state.Store) {
 	if err := engine.EnsureArtifactDirs(dataDir, []string{"surge"}); err != nil {
 		t.Fatal(err)
 	}
-	eng := &engine.UpdateEngine{DataDir: dataDir, Config: cfg, Registry: render.NewRegistry(), Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
+	registry := render.NewRegistry()
+	if err := registry.LoadEmbedded(templates.FS); err != nil {
+		t.Fatal(err)
+	}
+	eng := &engine.UpdateEngine{DataDir: dataDir, Config: cfg, Registry: registry, Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(), State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil))}
 	manager, err := updates.NewManager(cfg, dataDir, st, eng, eng.Logger)
 	if err != nil {
 		t.Fatal(err)
@@ -549,10 +554,11 @@ func TestConfigReload(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	cfg, err := config.Load(cfgPath, dataDir)
+	configManager, err := config.NewManager(cfgPath, dataDir)
 	if err != nil {
 		t.Fatal(err)
 	}
+	cfg, _ := configManager.Snapshot()
 	st, err := state.Open(dataDir)
 	if err != nil {
 		t.Fatal(err)
@@ -560,8 +566,12 @@ func TestConfigReload(t *testing.T) {
 	if err := engine.EnsureArtifactDirs(dataDir, []string{"surge"}); err != nil {
 		t.Fatal(err)
 	}
+	registry := render.NewRegistry()
+	if err := registry.LoadEmbedded(templates.FS); err != nil {
+		t.Fatal(err)
+	}
 	eng := &engine.UpdateEngine{
-		DataDir: dataDir, Config: cfg, Registry: render.NewRegistry(),
+		DataDir: dataDir, Config: cfg, Registry: registry,
 		Fetcher: engine.NewFetcher(), Preprocessor: engine.NewPreprocessRunner(),
 		State: st, Logger: slog.New(slog.NewTextHandler(io.Discard, nil)),
 	}
@@ -569,7 +579,7 @@ func TestConfigReload(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	s := NewServer(cfg, st, eng, manager, Options{DataDir: dataDir, APIToken: "abc", ConfigFile: cfgPath})
+	s := NewServer(cfg, st, eng, manager, Options{DataDir: dataDir, APIToken: "abc", ConfigFile: cfgPath, ConfigManager: configManager})
 	handler := s.Handler()
 
 	api := func(method, path string) *httptest.ResponseRecorder {
