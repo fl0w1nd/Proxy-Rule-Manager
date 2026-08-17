@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
@@ -29,6 +30,22 @@ type UpdateEngine struct {
 	State        *state.Store
 	Geosite      *geosite.Manager
 	Logger       *slog.Logger
+	configValue  atomic.Pointer[config.Config]
+}
+
+// SetConfig atomically swaps the immutable runtime configuration.
+func (e *UpdateEngine) SetConfig(cfg *config.Config) {
+	e.configValue.Store(cfg)
+}
+
+func (e *UpdateEngine) currentConfig() *config.Config {
+	if cfg := e.configValue.Load(); cfg != nil {
+		return cfg
+	}
+	if e.Config != nil && e.configValue.CompareAndSwap(nil, e.Config) {
+		return e.Config
+	}
+	return e.configValue.Load()
 }
 
 // UpdateResult holds the outcome of an update operation.
@@ -68,13 +85,14 @@ func (r *UpdateResult) addWarning(message string) {
 
 // FullUpdate compiles all rules and writes artifacts.
 func (e *UpdateEngine) FullUpdate(ctx context.Context) UpdateResult {
-	return e.updateRules(ctx, e.Config.Rules, false)
+	return e.updateRules(ctx, e.currentConfig().Rules, false)
 }
 
 // PartialUpdate compiles only the selected rule IDs plus their dependents.
 func (e *UpdateEngine) PartialUpdate(ctx context.Context, ruleIDs []string) UpdateResult {
-	known := make(map[string]bool, len(e.Config.Rules))
-	for _, rule := range e.Config.Rules {
+	cfg := e.currentConfig()
+	known := make(map[string]bool, len(cfg.Rules))
+	for _, rule := range cfg.Rules {
 		known[rule.ID] = true
 	}
 	var unknown []string
@@ -87,9 +105,9 @@ func (e *UpdateEngine) PartialUpdate(ctx context.Context, ruleIDs []string) Upda
 		return e.finishRejectedUpdate(ctx, fmt.Sprintf("unknown rule IDs: %s", strings.Join(unknown, ", ")))
 	}
 
-	affected := CollectAffectedRules(e.Config.Rules, ruleIDs)
+	affected := CollectAffectedRules(cfg.Rules, ruleIDs)
 	var rules []config.RuleConfig
-	for _, r := range e.Config.Rules {
+	for _, r := range cfg.Rules {
 		if _, ok := affected[r.ID]; ok {
 			rules = append(rules, r)
 		}
@@ -141,7 +159,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 			result.addWarning(warning)
 			reportProgress(ctx, ProgressEvent{Kind: ProgressWarning, Stage: "geosite_refresh", Status: "warning", Message: warning})
 		}
-		for _, provider := range collectProviderNames(e.Config) {
+		for _, provider := range collectProviderNames(e.currentConfig()) {
 			message, exists := geositeErrors[provider]
 			if !exists {
 				continue
@@ -151,7 +169,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 			reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "geosite_refresh", Status: "failed", Subject: provider, Message: fullMessage})
 		}
 		geositeCheckedAt := time.Now()
-		for _, name := range collectProviderNames(e.Config) {
+		for _, name := range collectProviderNames(e.currentConfig()) {
 			version := ""
 			if cache := geositeProviders[name]; cache != nil {
 				version = cache.ResolvedVersion
@@ -243,7 +261,7 @@ ruleLoop:
 	}
 
 	// Handle geosite publications
-	if !partial && e.Config.Geosite != nil {
+	if !partial && e.currentConfig().Geosite != nil {
 		e.updateGeositePublications(ctx, geositeProviders, &result, expectedPaths, gstats)
 	}
 
@@ -262,7 +280,7 @@ ruleLoop:
 		if err := ReconcileArtifacts(e.DataDir, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile artifacts: %v", err))
 		}
-		expectedArtifacts, expectedRules := stateManifest(e.Config)
+		expectedArtifacts, expectedRules := stateManifest(e.currentConfig())
 		if err := e.State.Reconcile(expectedArtifacts, expectedRules); err != nil {
 			result.addError("cleanup", "state", fmt.Sprintf("reconcile state: %v", err))
 		}
@@ -272,7 +290,7 @@ ruleLoop:
 		if err := ReconcileRuleArtifacts(e.DataDir, succeeded, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile partial artifacts: %v", err))
 		} else {
-			expectedArtifacts, _ := stateManifest(e.Config)
+			expectedArtifacts, _ := stateManifest(e.currentConfig())
 			selectedArtifacts := make(map[string]map[string]struct{}, len(succeeded))
 			for ruleID := range succeeded {
 				selectedArtifacts[ruleID] = expectedArtifacts[ruleID]
@@ -370,7 +388,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 	var outcome ruleOutcome
 	log := e.Logger.With("rule_id", rule.ID, "rule_name", rule.Name)
 
-	cr := CompileRule(ctx, rule, e.Config.Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, config.NewLocalFileResolver(e.DataDir), e.Logger)
+	cr := CompileRule(ctx, rule, e.currentConfig().Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, config.NewLocalFileResolver(e.DataDir), e.Logger)
 
 	info := newRuleSiteInfo(rule, cr)
 
@@ -427,7 +445,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 
 	writeFailed := false
 	for clientID, content := range cr.Rendered {
-		target, ok := config.FindOutputTarget(e.Config.Clients, clientID)
+		target, ok := config.FindOutputTarget(e.currentConfig().Clients, clientID)
 		if !ok {
 			continue
 		}
@@ -500,7 +518,7 @@ func (e *UpdateEngine) compileAndWriteRule(
 	}
 
 	// Stable file ordering following rule.Outputs.
-	orderedTargets := config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs)
+	orderedTargets := config.ExpandSelectedTargets(e.currentConfig().Clients, rule.Outputs)
 	order := make(map[string]int, len(orderedTargets))
 	for i, target := range orderedTargets {
 		order[target.ID] = i
@@ -522,14 +540,14 @@ func (e *UpdateEngine) compileAndWriteRule(
 func (e *UpdateEngine) refreshGeosite(ctx context.Context) (map[string]*geosite.ProviderCache, map[string]string, []string, map[string]string) {
 	previous := make(map[string]*geosite.ProviderCache)
 	if e.Geosite != nil {
-		for _, name := range collectProviderNames(e.Config) {
+		for _, name := range collectProviderNames(e.currentConfig()) {
 			cache, _ := e.Geosite.Read(name)
 			previous[name] = cache
 		}
 	}
-	caches, failed, fetchErrors := refreshGeositeProviders(ctx, e.Config, e.Geosite, e.Logger)
+	caches, failed, fetchErrors := refreshGeositeProviders(ctx, e.currentConfig(), e.Geosite, e.Logger)
 	results := make(map[string]string)
-	for _, name := range collectProviderNames(e.Config) {
+	for _, name := range collectProviderNames(e.currentConfig()) {
 		results[name] = geositeFetchResult(previous[name], caches[name], failed[name])
 	}
 	var warnings []string
@@ -707,7 +725,7 @@ func (e *UpdateEngine) updateGeositePublications(
 	gstats *geositeStats,
 ) {
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Message: "正在更新 Geosite 规则文件"})
-	for _, prov := range e.Config.Geosite.Providers {
+	for _, prov := range e.currentConfig().Geosite.Providers {
 		cache, ok := providers[prov.Name]
 		if !ok {
 			result.addError("geosite_publish", prov.Name, fmt.Sprintf("geosite provider %q not loaded", prov.Name))
@@ -777,7 +795,7 @@ func (e *UpdateEngine) publishGeositeVariant(
 
 	artifactName := "geosite/" + ref.ArtifactName()
 
-	for _, target := range config.ExpandSelectedTargets(e.Config.Clients, clientIDs) {
+	for _, target := range config.ExpandSelectedTargets(e.currentConfig().Clients, clientIDs) {
 		tmpl, ok := e.Registry.Get(target.Template)
 		if !ok {
 			result.addError("geosite_publish", target.ID, fmt.Sprintf("geosite template %q not found for output %q", target.Template, target.ID))

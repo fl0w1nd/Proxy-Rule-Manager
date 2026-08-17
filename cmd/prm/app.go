@@ -18,22 +18,24 @@ import (
 
 // App holds the fully initialized application components.
 type App struct {
-	DataDir  string
-	Config   *config.Config
-	Registry *render.Registry
-	Engine   *engine.UpdateEngine
-	State    *state.Store
-	Buffer   *logging.Buffer
-	Logger   *slog.Logger
-	Updates  *updates.Manager
+	DataDir       string
+	Config        *config.Config
+	ConfigManager *config.Manager
+	Registry      *render.Registry
+	Engine        *engine.UpdateEngine
+	State         *state.Store
+	Buffer        *logging.Buffer
+	Logger        *slog.Logger
+	Updates       *updates.Manager
 }
 
 // buildApp creates a fully initialized App from the config file.
 func buildApp(dataDir string) (*App, error) {
-	cfg, err := config.Load(cfgFile, dataDir)
+	configManager, err := config.NewManager(cfgFile, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
 	}
+	cfg, _ := configManager.Snapshot()
 
 	buf := logging.NewBuffer(2000)
 	logger := logging.Setup("text", buf)
@@ -127,13 +129,14 @@ func buildApp(dataDir string) (*App, error) {
 	}
 
 	return &App{
-		DataDir:  dataDir,
-		Config:   cfg,
-		Registry: registry,
-		Engine:   eng,
-		State:    st,
-		Buffer:   buf,
-		Logger:   logger,
-		Updates:  updateManager,
+		DataDir:       dataDir,
+		Config:        cfg,
+		ConfigManager: configManager,
+		Registry:      registry,
+		Engine:        eng,
+		State:         st,
+		Buffer:        buf,
+		Logger:        logger,
+		Updates:       updateManager,
 	}, nil
 }

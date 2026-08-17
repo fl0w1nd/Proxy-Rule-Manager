@@ -45,7 +45,7 @@ var serveCmd = &cobra.Command{
 
 		srv := serve.NewServer(app.Config, app.State, app.Engine, app.Updates, serve.Options{
 			DataDir: runtimeOpts.DataDir, APIToken: runtimeOpts.AdminToken,
-			ConfigFile: cfgFile, TrustedProxies: runtimeOpts.TrustedProxies,
+			ConfigFile: cfgFile, ConfigManager: app.ConfigManager, TrustedProxies: runtimeOpts.TrustedProxies,
 		})
 		handler := srv.Handler()
 
