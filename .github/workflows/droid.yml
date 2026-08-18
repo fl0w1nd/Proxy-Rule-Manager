@@ -36,5 +36,7 @@ jobs:
         uses: Factory-AI/droid-action@main
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
-          droid_args: "--model deepseek-v4-flash-0731"
+          droid_args: >-
+            ${{ vars.DROID_MODEL && format('--model {0}', vars.DROID_MODEL) || '' }}
+            ${{ vars.DROID_REASONING_EFFORT && format('--reasoning-effort {0}', vars.DROID_REASONING_EFFORT) || '' }}
           show_full_output: true

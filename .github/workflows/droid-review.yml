@@ -32,5 +32,5 @@ jobs:
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
           automatic_review: true
-          review_model: deepseek-v4-flash-0731
-          reasoning_effort: high
+          review_model: ${{ vars.DROID_MODEL }}
+          reasoning_effort: ${{ vars.DROID_REASONING_EFFORT }}

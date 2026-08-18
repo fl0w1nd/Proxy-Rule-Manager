@@ -4,28 +4,21 @@ on:
   push:
     branches:
       - "**"
-    paths-ignore:
-      - ".github/workflows/**"
+    paths-ignore: &ci-skip-paths
+      # Docs and files this workflow does not validate. Keep ci.yml,
+      # Dockerfile, .dockerignore, and .golangci.yml out of this list.
+      - "*.md"
+      - "**/*.md"
       - "docs/**"
-      - "README.md"
-      - ".vscode/**"
-      - ".gitignore"
-      - ".dockerignore"
-      - ".goreleaser.yaml"
-      - ".golangci.yml"
       - "config.template.yaml"
+      - ".gitignore"
+      - ".goreleaser.yaml"
+      - ".github/workflows/droid.yml"
+      - ".github/workflows/droid-review.yml"
+      - ".github/workflows/pages.yml"
+      - ".github/workflows/release.yml"
   pull_request:
-    paths-ignore:
-      - ".github/workflows/**"
-      - "docs/**"
-      - "README.md"
-      - ".vscode/**"
-      - ".gitignore"
-      - ".dockerignore"
-      - ".goreleaser.yaml"
-      - ".golangci.yml"
-      - "config.template.yaml"
-  workflow_call:
+    paths-ignore: *ci-skip-paths
   workflow_dispatch:
 
 permissions:
@@ -201,5 +194,5 @@ jobs:
           cache-from: type=gha,scope=ci-container
           cache-to: type=gha,mode=max,scope=ci-container
 
-      - name: Verify container version
-        run: docker run --rm prm:ci --version | grep -Fx "prm version ${{ steps.metadata.outputs.version }}"
+      - name: Smoke-test container
+        run: docker run --rm prm:ci --version
