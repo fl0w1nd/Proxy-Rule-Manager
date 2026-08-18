@@ -167,7 +167,7 @@ data/
 - 图标在 `/static/icons/`。
 - 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
 - 管理看板在 `/admin`，管理 API 在 `/api/v1`。
-- API 端点：`status`、`rules`、`geosite/providers`、`changes`、`updates`（含详情、事件流、取消）。
+- API 端点：`status`、`rules`、`geosite/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
 
 写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
 
@@ -205,6 +205,7 @@ CI 依次跑 lint、测试、发布二进制构建、容器构建。发布用 go
 ## 文档
 
 - [docs/configuration.md](docs/configuration.md)：配置友好教程。
+- [docs/config-patch-api.md](docs/config-patch-api.md)：配置快照、事务 Patch、错误响应与 YAML 保证。
 - [docs/deployment.md](docs/deployment.md)：部署指南（自托管、Docker Compose、反向代理）。
 - [docs/github-pages.md](docs/github-pages.md)：GitHub Pages 静态发布。
 - [config.template.yaml](config.template.yaml)：逐字段参考模板。

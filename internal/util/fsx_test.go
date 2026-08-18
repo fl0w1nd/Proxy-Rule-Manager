@@ -43,6 +43,27 @@ func TestAtomicWriteStreamCleansUpAfterReadFailure(t *testing.T) {
 	}
 }
 
+func TestAtomicWriteFileCheckedPreservesDestination(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.yaml")
+	if err := os.WriteFile(path, []byte("external"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	checkErr := errors.New("source changed")
+	if err := AtomicWriteFileChecked(path, []byte("candidate"), func() error { return checkErr }); !errors.Is(err, checkErr) {
+		t.Fatalf("write error = %v", err)
+	}
+	content, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(content) != "external" {
+		t.Fatalf("content = %q", content)
+	}
+	if matches, err := filepath.Glob(filepath.Join(filepath.Dir(path), ".config.yaml.*.tmp")); err != nil || len(matches) != 0 {
+		t.Fatalf("temporary files = %v, err = %v", matches, err)
+	}
+}
+
 type failingReader struct {
 	err error
 }

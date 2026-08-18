@@ -5,6 +5,15 @@ import (
 	"strings"
 )
 
+// InvalidDocumentError reports malformed YAML or fields outside the config
+// schema before semantic validation can run.
+type InvalidDocumentError struct {
+	Err error
+}
+
+func (e *InvalidDocumentError) Error() string { return e.Err.Error() }
+func (e *InvalidDocumentError) Unwrap() error { return e.Err }
+
 // ConfigError is a single validation issue with an optional source position.
 type ConfigError struct {
 	Path    string // config path, e.g. "rules[0].sources[1].geosite"

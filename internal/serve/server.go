@@ -12,8 +12,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -27,18 +25,16 @@ import (
 
 // Server is the HTTP server.
 type Server struct {
-	DataDir string
-	Config  *config.Config
-	State   *state.Store
-	Engine  *engine.UpdateEngine
+	DataDir       string
+	ConfigManager *config.Manager
+	State         *state.Store
+	Engine        *engine.UpdateEngine
 
 	updates        *updates.Manager
 	apiToken       string
 	trustedProxies []netip.Prefix
 
-	configFile  string
-	configMtime time.Time
-	mu          sync.RWMutex // protects Config and configMtime
+	configFile string
 }
 
 // Options contains immutable HTTP server runtime settings.
@@ -46,6 +42,7 @@ type Options struct {
 	DataDir        string
 	APIToken       string
 	ConfigFile     string
+	ConfigManager  *config.Manager
 	TrustedProxies []netip.Prefix
 }
 
@@ -58,26 +55,23 @@ func NewServer(
 	updateManager *updates.Manager,
 	opts Options,
 ) *Server {
+	configManager := opts.ConfigManager
+	if configManager == nil {
+		configManager = config.NewMemoryManager(cfg)
+	}
 	s := &Server{
-		DataDir: opts.DataDir, Config: cfg, State: st, Engine: eng,
+		DataDir: opts.DataDir, ConfigManager: configManager, State: st, Engine: eng,
 		updates: updateManager, apiToken: opts.APIToken,
 		trustedProxies: append([]netip.Prefix(nil), opts.TrustedProxies...),
 		configFile:     opts.ConfigFile,
 	}
-	if opts.ConfigFile != "" {
-		if fi, err := os.Stat(opts.ConfigFile); err == nil {
-			s.configMtime = fi.ModTime()
-		}
-	}
 	return s
 }
 
-// config returns a snapshot of the current config, safe for concurrent access.
-// The returned pointer is immutable; reload swaps in a new *config.Config.
+// config returns an independent snapshot of the current runtime config.
 func (s *Server) config() *config.Config {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	return s.Config
+	cfg, _ := s.ConfigManager.Snapshot()
+	return cfg
 }
 
 // Handler returns the chi router with all routes configured.
@@ -125,6 +119,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/updates/{updateID}", s.handleUpdateDetail)
 		r.Get("/updates/{updateID}/events", s.handleUpdateEvents)
 		r.Post("/updates/{updateID}/cancel", s.sameOriginMutation(s.handleCancelUpdate))
+		r.Get("/config", s.handleConfig)
+		r.Post("/config/patch", s.sameOriginMutation(s.handleConfigPatch))
 		r.Get("/config/dirty", s.handleConfigDirty)
 		r.Post("/config/reload", s.sameOriginMutation(s.handleConfigReload))
 	})

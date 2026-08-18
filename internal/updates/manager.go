@@ -22,7 +22,7 @@ const liveJobRetention = 10 * time.Minute
 
 var ErrJobNotRunning = errors.New("update job is not running")
 
-// ErrUpdateInProgress is returned by ReloadConfig when an update is active.
+// ErrUpdateInProgress is returned when a configuration commit overlaps an update.
 var ErrUpdateInProgress = errors.New("update in progress")
 
 // ConflictError reports the one globally active update.
@@ -121,6 +121,9 @@ func (m *Manager) Run(ctx context.Context, req Request, origin string) (state.Up
 }
 
 func (m *Manager) prepare(parent context.Context, req Request, origin string) (*Job, context.Context, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
 	normalized, err := m.normalize(req)
 	if err != nil {
 		return nil, nil, err
@@ -129,8 +132,6 @@ func (m *Manager) prepare(parent context.Context, req Request, origin string) (*
 		origin = "web"
 	}
 
-	m.mu.Lock()
-	defer m.mu.Unlock()
 	if m.current != nil {
 		return nil, nil, &ConflictError{CurrentUpdateID: m.current.ID}
 	}
@@ -364,13 +365,20 @@ func (m *Manager) StopScheduler() {
 	}
 }
 
-// ReloadConfig atomically swaps the manager's config and rebuilds the
-// scheduler. Returns ErrUpdateInProgress if an update is active.
-func (m *Manager) ReloadConfig(newCfg *config.Config) error {
+// Reconfigure runs a configuration commit while update starts are excluded,
+// rebuilding the scheduler only when configuration content changed.
+func (m *Manager) Reconfigure(changed bool, commit func() (*config.Config, error)) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	if m.current != nil {
 		return ErrUpdateInProgress
+	}
+	newCfg, err := commit()
+	if err != nil {
+		return err
+	}
+	if !changed {
+		return nil
 	}
 	if m.stopScheduler != nil {
 		m.stopScheduler()

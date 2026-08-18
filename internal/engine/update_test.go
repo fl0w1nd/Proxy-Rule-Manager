@@ -860,15 +860,16 @@ func newTestUpdateEngine(t *testing.T, cfg *config.Config, dataDirs ...string) *
 	if err := EnsureArtifactDirs(dataDir, clientIDs); err != nil {
 		t.Fatalf("create artifact dirs: %v", err)
 	}
-	return &UpdateEngine{
+	eng := &UpdateEngine{
 		DataDir:      dataDir,
-		Config:       cfg,
 		Registry:     registry,
 		Fetcher:      NewFetcher(),
 		Preprocessor: NewPreprocessRunner(),
 		State:        store,
 		Logger:       testLogger(),
 	}
+	eng.SetConfig(cfg)
+	return eng
 }
 
 func readArtifact(t *testing.T, dataDir, client, name string) string {

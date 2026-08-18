@@ -54,7 +54,7 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 	if entries, exists, err := e.State.LoadSnapshotIfExists(rule.ID); err == nil && exists {
 		info.entries = len(entries)
 	}
-	for _, target := range config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs) {
+	for _, target := range config.ExpandSelectedTargets(e.currentConfig().Clients, rule.Outputs) {
 		rel, err := e.ruleFileRelPath(rule.ID, target.ID)
 		if err != nil {
 			continue
@@ -78,7 +78,7 @@ func (e *UpdateEngine) persistedRuleSiteInfo(rule config.RuleConfig) *ruleSiteIn
 // ruleFileRelPath builds the site-relative artifact URL path for a rule and
 // client: rules/<client>/<rule-id><ext>.
 func (e *UpdateEngine) ruleFileRelPath(ruleID, clientID string) (string, error) {
-	target, ok := config.FindOutputTarget(e.Config.Clients, clientID)
+	target, ok := config.FindOutputTarget(e.currentConfig().Clients, clientID)
 	if !ok {
 		return "", os.ErrNotExist
 	}
@@ -94,21 +94,22 @@ func (e *UpdateEngine) ruleFileRelPath(ruleID, clientID string) (string, error) 
 // and geosite providers that publish to it.
 func (e *UpdateEngine) siteClients() []site.Client {
 	ruleClients := make(map[string]bool)
-	for _, rule := range e.Config.Rules {
-		for _, target := range config.ExpandSelectedTargets(e.Config.Clients, rule.Outputs) {
+	cfg := e.currentConfig()
+	for _, rule := range cfg.Rules {
+		for _, target := range config.ExpandSelectedTargets(cfg.Clients, rule.Outputs) {
 			ruleClients[target.ID] = true
 		}
 	}
 	geoClients := make(map[string]bool)
-	if e.Config.Geosite != nil {
-		for _, p := range e.Config.Geosite.Providers {
-			for _, target := range config.ExpandSelectedTargets(e.Config.Clients, p.Clients) {
+	if cfg.Geosite != nil {
+		for _, p := range cfg.Geosite.Providers {
+			for _, target := range config.ExpandSelectedTargets(cfg.Clients, p.Clients) {
 				geoClients[target.ID] = true
 			}
 		}
 	}
-	out := make([]site.Client, 0, len(e.Config.Clients))
-	for _, c := range e.Config.Clients {
+	out := make([]site.Client, 0, len(cfg.Clients))
+	for _, c := range cfg.Clients {
 		name := c.Name
 		if name == "" {
 			name = c.ID
@@ -331,7 +332,7 @@ func (e *UpdateEngine) publicIndexData(
 		IconSets:  site.ListIconSets(staticDir),
 	}
 	tagSet := make(map[string]bool)
-	for _, rule := range e.Config.Rules {
+	for _, rule := range e.currentConfig().Rules {
 		info := infos[rule.ID]
 		if info == nil {
 			info = e.persistedRuleSiteInfo(rule)
@@ -369,10 +370,11 @@ func (e *UpdateEngine) GeositeProviderSummaries() []GeositeProviderSummary {
 // the artifacts present on disk per provider.
 func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 	gstats := newGeositeStats()
-	if e.Config.Geosite == nil || e.Geosite == nil {
+	cfg := e.currentConfig()
+	if cfg.Geosite == nil || e.Geosite == nil {
 		return gstats
 	}
-	for _, prov := range e.Config.Geosite.Providers {
+	for _, prov := range cfg.Geosite.Providers {
 		cache, err := e.Geosite.Read(prov.Name)
 		result, checkedAt, recorded := e.State.GeositeUpdate(prov.Name)
 		if err != nil || cache == nil {
@@ -399,7 +401,7 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 				}
 			}
 		}
-		targets := config.ExpandSelectedTargets(e.Config.Clients, prov.Clients)
+		targets := config.ExpandSelectedTargets(cfg.Clients, prov.Clients)
 		for range countGeositeArtifacts(e.DataDir, prov.Name, targets) {
 			gstats.recordFile(prov.Name)
 		}

@@ -97,6 +97,73 @@ export interface ConfigDirtyStatus {
   changed: boolean;
 }
 
+export type ConfigDocument = Record<string, unknown>;
+
+export interface ConfigSnapshot {
+  version: number;
+  config: ConfigDocument;
+}
+
+export interface ConfigMutationResult {
+  status?: string;
+  version: number;
+  warnings: string[];
+}
+
+export interface ConfigValidationIssue {
+  path: string;
+  line?: number;
+  message: string;
+}
+
+export interface APIErrorDetails {
+  errors?: ConfigValidationIssue[];
+  current_version?: number;
+  config?: ConfigDocument;
+  current_update_id?: string;
+  reason?: string;
+  [key: string]: unknown;
+}
+
+export interface APIErrorPayload {
+  error: {
+    code: string;
+    message: string;
+    details: APIErrorDetails;
+  };
+}
+
+export class APIRequestError extends Error {
+  readonly status: number;
+  readonly code: string;
+  readonly details: APIErrorDetails;
+  readonly payload: APIErrorPayload;
+
+  constructor(status: number, payload: APIErrorPayload) {
+    super(payload.error.message || `请求失败（${status}）`);
+    this.name = 'APIRequestError';
+    this.status = status;
+    this.code = payload.error.code;
+    this.details = payload.error.details;
+    this.payload = payload;
+  }
+}
+
+type ConfigValue = Record<string, unknown>;
+
+export type ConfigPatchOp =
+  | { op: 'add_client'; value: ConfigValue }
+  | { op: 'update_client'; id: string; value: ConfigValue }
+  | { op: 'remove_client'; id: string }
+  | { op: 'add_rule'; value: ConfigValue }
+  | { op: 'update_rule'; id: string; value: ConfigValue }
+  | { op: 'remove_rule'; id: string }
+  | { op: 'add_output' | 'remove_output'; rule_id: string; output_id: string }
+  | { op: 'batch_add_output' | 'batch_remove_output'; rule_ids: string[]; output_ids: string[] }
+  | { op: 'reorder_rules'; order: string[] }
+  | { op: 'update_schedule' | 'update_fetch' | 'update_preprocess' | 'update_history'; value: ConfigValue }
+  | { op: 'update_geosite'; value: ConfigValue | null };
+
 const API_BASE = '/api/v1';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
@@ -115,11 +182,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     payload = {};
   }
   if (!res.ok) {
-    const message = (payload && payload.error && payload.error.message) || `请求失败（${res.status}）`;
-    const err = new Error(message) as any;
-    err.status = res.status;
-    err.payload = payload;
-    throw err;
+    const errorPayload: APIErrorPayload = payload?.error
+      ? payload
+      : {
+          error: {
+            code: 'request_failed',
+            message: `请求失败（${res.status}）`,
+            details: {},
+          },
+        };
+    throw new APIRequestError(res.status, errorPayload);
   }
   return payload as T;
 }
@@ -171,8 +243,20 @@ export const api = {
     return request<ConfigDirtyStatus>('/config/dirty');
   },
 
-  reloadConfig(): Promise<void> {
-    return request<void>('/config/reload', {
+  getConfig(): Promise<ConfigSnapshot> {
+    return request<ConfigSnapshot>('/config');
+  },
+
+  patchConfig(version: number, ops: ConfigPatchOp[]): Promise<ConfigMutationResult> {
+    return request<ConfigMutationResult>('/config/patch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version, ops }),
+    });
+  },
+
+  reloadConfig(): Promise<ConfigMutationResult> {
+    return request<ConfigMutationResult>('/config/reload', {
       method: 'POST',
     });
   },

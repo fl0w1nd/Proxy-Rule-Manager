@@ -10,6 +10,12 @@ import (
 // AtomicWriteFile writes content to filePath via a temporary file + rename.
 // It creates parent directories as needed.
 func AtomicWriteFile(filePath string, content []byte) error {
+	return AtomicWriteFileChecked(filePath, content, nil)
+}
+
+// AtomicWriteFileChecked writes content atomically after running check with
+// the completed temporary file ready for rename.
+func AtomicWriteFileChecked(filePath string, content []byte, check func() error) error {
 	dir := filepath.Dir(filePath)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", dir, err)
@@ -33,11 +39,13 @@ func AtomicWriteFile(filePath string, content []byte) error {
 	if err := temp.Close(); err != nil {
 		return fmt.Errorf("close temp %s: %w", tempPath, err)
 	}
-	if err := os.Rename(tempPath, filePath); err != nil {
-		_ = os.Remove(filePath)
-		if rerr := os.Rename(tempPath, filePath); rerr != nil {
-			return fmt.Errorf("rename %s: %w", filePath, rerr)
+	if check != nil {
+		if err := check(); err != nil {
+			return err
 		}
+	}
+	if err := os.Rename(tempPath, filePath); err != nil {
+		return fmt.Errorf("rename %s: %w", filePath, err)
 	}
 	cleanup = false
 	return nil
@@ -70,10 +78,7 @@ func AtomicWriteStream(filePath string, src io.Reader) error {
 		return fmt.Errorf("close temp %s: %w", tempPath, err)
 	}
 	if err := os.Rename(tempPath, filePath); err != nil {
-		_ = os.Remove(filePath)
-		if rerr := os.Rename(tempPath, filePath); rerr != nil {
-			return fmt.Errorf("rename %s: %w", filePath, rerr)
-		}
+		return fmt.Errorf("rename %s: %w", filePath, err)
 	}
 	cleanup = false
 	return nil
