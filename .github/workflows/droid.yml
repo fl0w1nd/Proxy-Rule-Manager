@@ -37,3 +37,4 @@ jobs:
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
           droid_args: "--model deepseek-v4-flash-0731"
+          show_full_output: true
