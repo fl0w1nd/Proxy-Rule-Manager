@@ -68,6 +68,8 @@ changelog:
     exclude:
       - '^Merge pull request'
       - '^Merge branch'
+      - '^.*?ci(\([[:word:]-]+\))??!?:.+$'
+      - '^.*?build(\([[:word:]-]+\))??!?:.+$'
 
 release:
   make_latest: "{{ .Env.IS_LATEST }}"
