@@ -1,5 +1,8 @@
 /.vscode
 /bin
-/data
+/data/*
+!/data/local
 coverage.out
 .DS_Store
+/internal
+/web

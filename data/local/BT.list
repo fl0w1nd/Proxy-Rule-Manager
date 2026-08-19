@@ -49,8 +49,8 @@ DOMAIN,portcheck.transmissionbt.com
 # Trackers
 # 数量：160条
 DOMAIN,1337.abcvg.info
-IP-CIDR,207.241.226.111/32
-IP-CIDR,207.241.231.226/32
+IP-CIDR,207.241.226.111/32,no-resolve
+IP-CIDR,207.241.231.226/32,no-resolve
 DOMAIN,bt.okmp3.ru
 DOMAIN,bvarf.tracker.sh
 DOMAIN,ch3oh.ru
@@ -116,10 +116,10 @@ DOMAIN,trackers.mlsub.net
 DOMAIN,trackers.run
 DOMAIN,www.peckservers.com
 DOMAIN,1c.premierzal.ru
-IP-CIDR,207.241.226.111/32
-IP-CIDR,207.241.231.226/32
-IP-CIDR,49.12.76.8/32
-IP-CIDR,52.58.128.163/32
+IP-CIDR,207.241.226.111/32,no-resolve
+IP-CIDR,207.241.231.226/32,no-resolve
+IP-CIDR,49.12.76.8/32,no-resolve
+IP-CIDR,52.58.128.163/32,no-resolve
 DOMAIN,aegir.sexy
 DOMAIN,amigacity.xyz
 DOMAIN,bandito.byterunner.io
