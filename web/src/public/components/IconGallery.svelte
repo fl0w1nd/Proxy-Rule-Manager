@@ -1,5 +1,6 @@
 <script lang="ts">
   import PixelIcon from '../../components/pixel/PixelIcon.svelte';
+  import iconsetSvg from '../../assets/icons/ui/iconset.svg';
   import type { PublicIconSet } from '../types';
   import { copyURL, formatCount, iconPath } from '../utils';
 
@@ -25,7 +26,7 @@
 
 <section class="public-block" aria-labelledby="icons-heading">
   {#if selected}
-    <button class="icon-back" type="button" onclick={() => { selected = null; }}>［ 返回图标集 ］</button>
+    <button class="icon-back" type="button" onclick={() => { selected = null; }}>[ 返回图标集 ]</button>
     <div class="block-head">
       <h2 class="block-title" id="icons-heading">{selected.name} <span class="count">{formatCount(selected.count)}</span></h2>
     </div>
@@ -54,7 +55,7 @@
     <div class="icon-sets">
       {#each sets as set (set.name)}
         <button class="icon-set-card" type="button" onclick={() => openSet(set)}>
-          <img src="static/icons/iconset.svg" width="32" height="32" alt="" class="is-icon" aria-hidden="true" />
+          <img src={iconsetSvg} width="32" height="32" alt="" class="is-icon" aria-hidden="true" />
           <span><strong>{set.name}</strong><small>{formatCount(set.count)} 个图标</small></span>
         </button>
       {:else}

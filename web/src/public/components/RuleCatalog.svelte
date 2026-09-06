@@ -79,7 +79,7 @@
                 aria-label="预览 {rule.name}"
                 onclick={(e) => { e.stopPropagation(); onpreview(rule); }}
               >
-                <PixelIcon name="chevron-right" size={10} />
+                <PixelIcon name="chevron-right" size={12} />
               </button>
             </td>
           </tr>

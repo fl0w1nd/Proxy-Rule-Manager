@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import { retroScroll } from '../../utils/scrollbars';
 
   interface Props {
     minWidth?: string;
@@ -10,7 +11,7 @@
   let { minWidth = '100%', class: className = '', children }: Props = $props();
 </script>
 
-<div class="pixel-table-wrap {className}">
+<div class="pixel-table-wrap {className}" use:retroScroll>
   <table class="pixel-table" style="min-width: {minWidth};">
     {#if children}
       {@render children()}
@@ -22,21 +23,17 @@
   .pixel-table-wrap {
     width: 100%;
     overflow-x: auto;
-    border: 2px solid var(--border-vis);
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
     background: var(--surface);
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-light),
-      inset -1px -1px 0 var(--bevel-dark),
-      3px 3px 0 var(--shadow);
-    scrollbar-color: var(--border-vis) var(--bg);
+    scrollbar-color: var(--bevel-dark) var(--surface-2);
     scrollbar-width: thin;
   }
 
   .pixel-table {
     width: 100%;
     border-collapse: collapse;
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
+    font: 400 12px/20px var(--font-ui);
     text-align: left;
   }
 
@@ -45,32 +42,47 @@
     top: 0;
     z-index: 5;
     background: var(--surface-2);
-    border-bottom: 2px solid var(--border-vis);
+    border-bottom: 1px solid var(--border-vis);
     color: var(--sec);
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.05em;
+    font: 400 12px/20px var(--font-ui);
+    letter-spacing: 0;
     padding: 10px 14px;
     white-space: nowrap;
   }
 
   :global(.pixel-table tbody td),
   :global(.pixel-table tbody th) {
-    padding: 11px 14px;
-    border-bottom: 1px dashed var(--border);
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--border);
     vertical-align: middle;
   }
 
   :global(.pixel-table tbody tr) {
-    transition: background 80ms steps(2, end);
+    transition: background-color 80ms linear;
   }
 
   :global(.pixel-table tbody tr:hover) {
     background: var(--surface-2);
   }
 
-  :global(.pixel-table tbody tr:hover > :first-child) {
-    box-shadow: inset 4px 0 0 var(--orange);
+  :global(.pixel-table tbody tr.selected),
+  :global(.pixel-table tbody tr.selected:hover) {
+    background: var(--selected);
+    color: var(--selected-text);
+  }
+
+  :global(.pixel-table tbody tr.selected td),
+  :global(.pixel-table tbody tr.selected th),
+  :global(.pixel-table tbody tr.selected .font-name),
+  :global(.pixel-table tbody tr.selected .text-sec),
+  :global(.pixel-table tbody tr.selected .text-dim) {
+    color: var(--selected-text);
+  }
+
+  :global(.pixel-table tbody tr.selected em) {
+    background: transparent;
+    border-color: currentColor;
+    color: var(--selected-text);
   }
 
   :global(.pixel-table .num) {

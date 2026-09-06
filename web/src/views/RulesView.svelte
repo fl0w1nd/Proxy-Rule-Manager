@@ -79,12 +79,17 @@
 </script>
 
 <div class="rules-view">
-  <div class="rules-header">
-    <div class="header-left">
-      <h2 class="view-title">规则更新状态</h2>
-      <span class="count-badge">{filteredRules.length} / {rules.length}</span>
+  <div class="rules-toolbar">
+    <div class="toolbar-left">
+      <span class="count-badge">
+        {#if searchQuery}
+          匹配 {filteredRules.length} / 共 {rules.length} 条规则
+        {:else}
+          共 {rules.length} 条规则
+        {/if}
+      </span>
     </div>
-    <div class="header-right">
+    <div class="toolbar-right">
       <div class="search-wrap">
         <input
           type="text"
@@ -103,7 +108,7 @@
 
   {#if error}
     <div class="rules-error">
-      <PixelIcon name="warn" size={16} color="var(--red)" />
+      <PixelIcon name="warn" size={16} />
       <span>读取规则列表失败：{error}</span>
       <PixelButton size="sm" onclick={loadRules}>重试</PixelButton>
     </div>
@@ -133,11 +138,11 @@
           {@const isRuleActive = activeRuleId === rule.id || currentProcessingRuleId === rule.id}
           <tr>
             <td>
-              <div class="rule-name">{rule.name}</div>
+              <div class="rule-name font-name">{rule.name}</div>
               <div class="rule-id">{rule.id}</div>
             </td>
-            <td class="num font-mono">{rule.entries.toLocaleString()}</td>
-            <td class="font-mono text-sec">{formatTime(rule.version_at)}</td>
+            <td class="num">{rule.entries.toLocaleString()}</td>
+            <td class="text-sec">{formatTime(rule.version_at)}</td>
             <td>
               <div class="status-cell">
                 <PixelBadge status={isRuleActive ? 'active' : getCheckStatusType(rule.last_check?.result)} pulse={isRuleActive}>
@@ -173,7 +178,7 @@
     gap: 16px;
   }
 
-  .rules-header {
+  .rules-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -181,55 +186,20 @@
     flex-wrap: wrap;
   }
 
-  .header-left {
+  .toolbar-left {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .view-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--display);
-    letter-spacing: 0.04em;
-    text-shadow: 1px 0 currentColor;
-  }
-
-  .count-badge {
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    color: var(--dim);
-    background: var(--surface-2);
-    border: 1px solid var(--border-vis);
-    padding: 2px 6px;
-  }
-
-  .header-right {
+  .toolbar-right {
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
-  .pixel-input {
-    background: var(--surface);
-    border: 2px solid var(--border-vis);
-    box-shadow: inset 1px 1px 0 var(--bevel-dark);
-    color: var(--display);
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    padding: 6px 10px;
-    width: 240px;
-    outline: none;
-    transition: border-color 80ms;
-  }
-  .pixel-input:focus {
-    border-color: var(--orange);
-    outline: 2px solid var(--orange);
-    outline-offset: 1px;
-  }
-  .pixel-input::placeholder {
-    color: var(--dim);
+  .search-wrap .pixel-input {
+    width: 260px;
   }
 
   .rules-error {
@@ -237,31 +207,20 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: var(--red-dim);
-    border: 2px solid var(--red);
-    color: var(--red);
-    font-size: 12px;
-  }
-
-  .rule-name {
-    font-weight: 700;
-    color: var(--display);
-    font-size: 13px;
+    background: var(--status-error);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    color: var(--text);
   }
 
   .rule-id {
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
+    margin-top: 4px;
     color: var(--dim);
-    margin-top: 2px;
+    font: 400 13px/20px var(--font-code);
   }
 
-  .font-mono {
-    font-family: "Space Mono", monospace;
-  }
   .text-sec {
     color: var(--sec);
-    font-size: 11px;
   }
 
   .status-cell {
@@ -271,14 +230,13 @@
   }
 
   .check-time {
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
     color: var(--dim);
+    font-variant-numeric: tabular-nums;
   }
 
   .table-empty {
     text-align: center;
     color: var(--dim);
-    padding: 32px 0;
+    padding: 36px 0;
   }
 </style>

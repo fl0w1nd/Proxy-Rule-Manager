@@ -34,11 +34,9 @@
 <style>
   .pixel-card {
     background: var(--surface);
-    border: 2px solid var(--border-vis);
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-light),
-      inset -1px -1px 0 var(--bevel-dark),
-      3px 3px 0 var(--shadow);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    box-shadow: var(--highlight-top), var(--shadow-panel);
     padding: 16px 20px;
   }
 
@@ -49,16 +47,14 @@
     gap: 12px;
     padding-bottom: 12px;
     margin-bottom: 14px;
-    border-bottom: 2px dashed var(--border-vis);
+    border-bottom: 1px solid var(--border);
   }
 
   .pixel-card-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.05em;
+    font: 400 24px/32px var(--font-ui);
     color: var(--display);
-    text-shadow: 1px 0 currentColor;
+    letter-spacing: 0;
+    text-shadow: none;
   }
 
   .pixel-card-actions {

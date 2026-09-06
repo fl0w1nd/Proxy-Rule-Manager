@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import prmLogo from '../assets/icons/brand/prm.svg';
   import ClientPicker from './components/ClientPicker.svelte';
   import FilePreviewModal from './components/FilePreviewModal.svelte';
   import GeositeCatalog from './components/GeositeCatalog.svelte';
@@ -121,12 +122,12 @@
 <div class="public-app">
   <header class="public-topbar">
     <div class="public-brand">
-      <img src="static/icons/prm.svg" width="40" height="40" alt="PRM" />
+      <img src={prmLogo} width="40" height="40" alt="PRM" />
       <div><strong>PROXY RULE MANAGER</strong><small>规则索引 · 更新于 {formatUpdatedAt(data.updated_at)}</small></div>
     </div>
     <div class="top-actions">
-      {#if data.admin_url}<a class="bracket-btn" href={data.admin_url}>［ 管理 ］</a>{/if}
-      <button class="bracket-btn" type="button" onclick={toggleTheme}>［ {theme === 'dark' ? '亮色' : '暗色'} ］</button>
+      {#if data.admin_url}<a class="bracket-btn" href={data.admin_url}>[ 管理 ]</a>{/if}
+      <button class="bracket-btn" type="button" onclick={toggleTheme}>[ {theme === 'dark' ? '亮色' : '暗色'} ]</button>
     </div>
   </header>
 

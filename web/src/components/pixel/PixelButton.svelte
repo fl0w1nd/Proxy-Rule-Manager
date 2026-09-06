@@ -47,93 +47,81 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    background: var(--surface);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    background: var(--surface-2);
     color: var(--text);
-    border: 2px solid var(--border-vis);
-    font-family: "Space Mono", monospace;
-    font-weight: 700;
-    letter-spacing: 0.05em;
+    box-shadow: var(--edge-raised);
+    font: 400 12px/20px var(--font-ui);
+    letter-spacing: 0;
+    text-shadow: none;
     cursor: pointer;
     text-decoration: none;
     white-space: nowrap;
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-light),
-      inset -1px -1px 0 var(--bevel-dark),
-      2px 2px 0 var(--shadow);
-    transition: all 80ms steps(2, end);
+    transition: background-color 80ms linear;
   }
 
-  /* Sizes */
   .pixel-btn.sm {
-    padding: 4px 10px;
-    font-size: 11px;
+    min-height: 28px;
+    padding: 0 10px;
   }
   .pixel-btn.md {
-    padding: 7px 16px;
-    font-size: 12px;
+    min-height: 32px;
+    padding: 0 12px;
   }
   .pixel-btn.lg {
-    padding: 10px 22px;
-    font-size: 13px;
+    min-height: 40px;
+    padding: 0 16px;
   }
 
-  /* Hover & Active states */
-  .pixel-btn:hover:not(:disabled) {
-    color: var(--display);
-    border-color: var(--orange);
-    transform: translate(-1px, -1px);
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-light),
-      inset -1px -1px 0 var(--bevel-dark),
-      3px 3px 0 var(--shadow);
-  }
-
-  .pixel-btn:active:not(:disabled) {
-    transform: translate(2px, 2px);
-    box-shadow:
-      inset -1px -1px 0 var(--bevel-light),
-      inset 1px 1px 0 var(--bevel-dark),
-      0 0 0 var(--shadow);
-  }
-
-  /* Variants */
   .pixel-btn.primary {
-    background: var(--orange);
-    color: #ffffff;
-    border-color: var(--orange);
-    box-shadow:
-      inset 1px 1px 0 rgba(255, 255, 255, 0.3),
-      inset -1px -1px 0 rgba(0, 0, 0, 0.3),
-      2px 2px 0 var(--shadow);
+    background: var(--accent);
+    color: var(--text);
   }
   .pixel-btn.primary:hover:not(:disabled) {
-    background: #ff7830;
-    border-color: #ff7830;
+    background: var(--accent-hover);
+  }
+
+  .pixel-btn.secondary:hover:not(:disabled) {
+    background: var(--surface);
   }
 
   .pixel-btn.danger {
-    color: var(--red);
-    border-color: var(--red);
+    background: var(--status-error);
+    color: var(--text);
   }
   .pixel-btn.danger:hover:not(:disabled) {
-    background: var(--red);
-    color: #ffffff;
+    background: var(--surface-3);
   }
 
   .pixel-btn.ghost {
     background: transparent;
+    color: var(--sec);
     border-color: transparent;
     box-shadow: none;
   }
   .pixel-btn.ghost:hover:not(:disabled) {
     background: var(--surface-2);
-    border-color: var(--border-vis);
-    box-shadow: 2px 2px 0 var(--shadow);
+    color: var(--text);
+    border-color: transparent;
+    box-shadow: none;
+  }
+
+  .pixel-btn:active:not(:disabled) {
+    box-shadow: var(--edge-pressed);
+    transform: translateY(1px);
+  }
+  .pixel-btn.ghost:active:not(:disabled) {
+    box-shadow: var(--edge-pressed);
   }
 
   .pixel-btn:disabled {
-    opacity: 0.4;
+    opacity: 0.45;
     cursor: not-allowed;
-    filter: grayscale(0.5);
+    transform: none;
+    box-shadow: var(--edge-raised);
+  }
+  .pixel-btn.ghost:disabled {
+    box-shadow: none;
   }
 </style>

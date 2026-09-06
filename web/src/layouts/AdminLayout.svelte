@@ -7,6 +7,12 @@
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
   import UpdateConsole from '../components/UpdateConsole.svelte';
+  import iconDashboard from '../assets/icons/nav/dashboard.svg';
+  import iconRules from '../assets/icons/nav/rules.svg';
+  import iconChanges from '../assets/icons/nav/changes.svg';
+  import iconUpdates from '../assets/icons/nav/updates.svg';
+  import iconGeosite from '../assets/icons/nav/geosite.svg';
+  import prmBrandIcon from '../assets/icons/brand/prm.svg';
 
   interface Props {
     activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite';
@@ -104,11 +110,11 @@
   }
 
   const navItems = [
-    { id: 'dashboard', label: '仪表盘', icon: 'dashboard' },
-    { id: 'rules', label: '规则状态', icon: 'rules' },
-    { id: 'changes', label: '变更对比', icon: 'changes' },
-    { id: 'updates', label: '更新日志', icon: 'updates' },
-    { id: 'geosite', label: 'Geosite', icon: 'globe' },
+    { id: 'dashboard', label: '仪表盘', icon: iconDashboard },
+    { id: 'rules', label: '规则管理', icon: iconRules },
+    { id: 'changes', label: 'Diff', icon: iconChanges },
+    { id: 'updates', label: '更新日志', icon: iconUpdates },
+    { id: 'geosite', label: 'Geosite', icon: iconGeosite },
   ] as const;
 
   const currentTitle = $derived(
@@ -121,13 +127,24 @@
       drawerOpen = true;
     }
   });
+
+  // Lock body overflow when mobile sidebar is open
+  $effect(() => {
+    if (sidebarOpen) {
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = prev;
+      };
+    }
+  });
 </script>
 
 <div class="admin-shell">
   <!-- Sidebar -->
   <aside class="admin-sidebar {sidebarOpen ? 'mobile-open' : ''}">
     <div class="sidebar-brand">
-      <img src="/static/icons/prm.svg" class="brand-icon" width="32" height="32" alt="PRM" />
+      <img src={prmBrandIcon} class="brand-icon" width="32" height="32" alt="PRM" />
       <div>
         <div class="brand-title">PROXY RULE</div>
         <div class="brand-sub">MANAGER ADMIN</div>
@@ -144,7 +161,7 @@
           }}
           type="button"
         >
-          <PixelIcon name={item.icon} size={14} />
+          <img src={item.icon} class="nav-pixel-icon" width="24" height="24" alt="" />
           <span>{item.label}</span>
           {#if activeTab === item.id}
             <span class="active-indicator"></span>
@@ -156,7 +173,7 @@
     <div class="sidebar-foot">
       <a href="/" class="nav-btn back-btn" target="_self">
         <PixelIcon name="external" size={12} />
-        <span>[ 返回规则站 ]</span>
+        <span>[ 返回首页 ]</span>
       </a>
       <div class="sidebar-meta">
         <span class="meta-dot"></span>
@@ -178,11 +195,7 @@
         <button class="mobile-toggle" onclick={() => (sidebarOpen = !sidebarOpen)} type="button" aria-label="切换菜单">
           ☰
         </button>
-        <div class="breadcrumb">
-          <span class="bc-root">PRM</span>
-          <span class="bc-sep">/</span>
-          <span class="bc-cur">{currentTitle}</span>
-        </div>
+        <h1 class="topbar-title">{currentTitle}</h1>
       </div>
 
       <div class="topbar-right">
@@ -198,7 +211,7 @@
         </button>
 
         <PixelButton variant="primary" size="sm" onclick={() => onStartUpdate('all')}>
-          <PixelIcon name="refresh" size={12} color="#ffffff" />
+          <PixelIcon name="refresh" size={12} />
           <span>全部更新</span>
         </PixelButton>
 
@@ -212,7 +225,7 @@
     {#if configDirty}
       <div class="dirty-banner" role="alert">
         <div class="dirty-text">
-          <PixelIcon name="warn" size={14} color="var(--orange)" />
+          <PixelIcon name="warn" size={16} />
           <span>检测到配置文件在外部已被修改，是否立即重新加载？</span>
         </div>
         <div class="dirty-acts">
@@ -257,15 +270,19 @@
     background: var(--bg);
   }
 
-  /* Sidebar */
   .admin-sidebar {
     width: 240px;
+    height: 100vh;
+    max-height: 100dvh;
+    align-self: flex-start;
+    position: sticky;
+    top: 0;
     background: var(--surface);
-    border-right: 2px solid var(--border-vis);
-    box-shadow: 2px 0 0 var(--shadow);
+    border-right: 1px solid var(--border-vis);
     display: flex;
     flex-direction: column;
     flex-shrink: 0;
+    overflow: hidden;
     z-index: 40;
   }
 
@@ -274,81 +291,83 @@
     align-items: center;
     gap: 12px;
     padding: 20px 18px;
-    border-bottom: 2px dashed var(--border-vis);
+    border-bottom: 1px solid var(--border-vis);
     background: var(--surface-2);
   }
   .brand-icon {
     image-rendering: pixelated;
   }
   .brand-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 15px;
-    font-weight: 800;
-    letter-spacing: 0.1em;
+    font: 400 24px/28px var(--font-display);
+    letter-spacing: 0.3px;
     color: var(--display);
-    line-height: 1.1;
+    text-shadow: none;
   }
   .brand-sub {
-    font-family: "Space Mono", monospace;
-    font-size: 9px;
-    color: var(--dim);
-    letter-spacing: 0.08em;
     margin-top: 2px;
+    color: var(--dim);
+    font: 400 12px/20px var(--font-ui);
   }
 
   .sidebar-nav {
     flex: 1;
+    min-height: 0;
     padding: 14px 10px;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    overflow-y: auto;
   }
 
   .nav-btn {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 12px;
     width: 100%;
-    padding: 10px 14px;
+    padding: 8px 12px;
     background: transparent;
     border: 1px solid transparent;
+    border-radius: 4px;
     color: var(--sec);
-    font-family: "Space Mono", monospace;
-    font-size: 13px;
-    font-weight: 700;
+    font: 400 12px/20px var(--font-ui);
     cursor: pointer;
     text-align: left;
     text-decoration: none;
-    transition: all 80ms steps(2, end);
-    position: relative;
+    transition: background-color 80ms linear;
+  }
+  .nav-pixel-icon {
+    width: 24px;
+    height: 24px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    flex-shrink: 0;
+    display: block;
   }
   .nav-btn:hover {
     background: var(--surface-2);
-    color: var(--display);
-    border-color: var(--border);
+    color: var(--text);
   }
   .nav-btn.active {
-    background: var(--surface-2);
-    color: var(--orange);
-    border-color: var(--orange);
-    box-shadow: 2px 2px 0 var(--shadow);
+    background: var(--selected);
+    color: var(--selected-text);
+    border-color: transparent;
   }
   .active-indicator {
     width: 6px;
     height: 6px;
-    background: var(--orange);
+    background: currentColor;
     margin-left: auto;
   }
 
   .sidebar-foot {
+    flex-shrink: 0;
     padding: 14px 10px 18px;
-    border-top: 2px dashed var(--border-vis);
+    border-top: 1px solid var(--border);
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
   .back-btn {
-    font-size: 11px;
     color: var(--dim);
   }
   .sidebar-meta {
@@ -356,17 +375,15 @@
     align-items: center;
     gap: 6px;
     padding: 0 14px;
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
     color: var(--dim);
+    font: 400 12px/20px var(--font-ui);
   }
   .meta-dot {
     width: 6px;
     height: 6px;
-    background: var(--green);
+    background: var(--status-success);
   }
 
-  /* Main Column */
   .admin-main {
     flex: 1;
     display: flex;
@@ -374,15 +391,13 @@
     min-width: 0;
   }
 
-  /* Topbar */
   .admin-topbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     padding: 14px 28px;
     background: var(--surface);
-    border-bottom: 2px solid var(--border-vis);
-    box-shadow: 0 2px 0 var(--shadow);
+    border-bottom: 1px solid var(--border-vis);
     gap: 16px;
     flex-wrap: wrap;
   }
@@ -396,28 +411,20 @@
     display: none;
     background: var(--surface-2);
     border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    box-shadow: var(--edge-raised);
     color: var(--display);
     font-size: 16px;
     padding: 4px 8px;
     cursor: pointer;
   }
 
-  .breadcrumb {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    font-family: "Space Mono", monospace;
-    font-size: 13px;
-    font-weight: 700;
-  }
-  .bc-root {
-    color: var(--dim);
-  }
-  .bc-sep {
-    color: var(--border-vis);
-  }
-  .bc-cur {
+  .topbar-title {
+    font: 400 20px/24px var(--font-ui);
     color: var(--display);
+    letter-spacing: 0;
+    text-shadow: none;
+    margin: 0;
   }
 
   .topbar-right {
@@ -430,20 +437,24 @@
     display: inline-flex;
     align-items: center;
     gap: 8px;
+    min-height: 28px;
     background: var(--surface-2);
-    border: 2px solid var(--border-vis);
-    padding: 5px 12px;
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    font-weight: 700;
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    padding: 0 12px;
+    font: 400 12px/20px var(--font-ui);
     color: var(--sec);
     cursor: pointer;
-    box-shadow: 2px 2px 0 var(--shadow);
-    transition: all 80ms steps(2, end);
+    box-shadow: var(--edge-raised);
+    transition: background-color 80ms linear;
   }
   .task-capsule:hover {
-    border-color: var(--orange);
-    color: var(--display);
+    background: var(--surface);
+    color: var(--text);
+  }
+  .task-capsule:active {
+    box-shadow: var(--edge-pressed);
+    transform: translateY(1px);
   }
   .capsule-led {
     width: 6px;
@@ -451,27 +462,24 @@
     background: var(--dim);
   }
   .task-capsule.running {
-    border-color: var(--orange);
-    color: var(--orange);
+    background: var(--status-info);
+    color: var(--text);
   }
   .task-capsule.running .capsule-led {
-    background: var(--orange);
+    background: currentColor;
     animation: pixel-signal 600ms steps(2, end) infinite;
   }
 
-  /* Dirty Banner */
   .dirty-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
     padding: 10px 28px;
-    background: var(--banner-bg);
-    border-bottom: 2px solid var(--banner-border);
-    color: var(--banner-text);
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
+    background: var(--status-warning);
+    border-bottom: 1px solid var(--border-vis);
+    color: var(--text);
+    font: 400 12px/20px var(--font-ui);
     flex-wrap: wrap;
   }
   .dirty-text {
@@ -484,7 +492,6 @@
     gap: 8px;
   }
 
-  /* Content Workspace */
   .admin-content {
     flex: 1;
     padding: 24px 28px 40px;
@@ -493,7 +500,6 @@
     margin: 0 auto;
   }
 
-  /* Mobile Responsive */
   @media (max-width: 768px) {
     .mobile-toggle {
       display: block;
@@ -504,7 +510,7 @@
       bottom: 0;
       left: 0;
       transform: translateX(-100%);
-      transition: transform 120ms steps(3, end);
+      transition: transform 140ms cubic-bezier(.2, .8, .2, 1);
     }
     .admin-sidebar.mobile-open {
       transform: translateX(0);

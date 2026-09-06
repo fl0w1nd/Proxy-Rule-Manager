@@ -40,12 +40,11 @@
 </script>
 
 <div class="geosite-view">
-  <div class="geosite-header">
-    <div class="header-left">
-      <h2 class="view-title">Geosite Provider 状态</h2>
-      <span class="count-badge">{providers.length} 个 Provider</span>
+  <div class="geosite-toolbar">
+    <div class="toolbar-left">
+      <span class="count-badge">共 {providers.length} 个 Provider 源</span>
     </div>
-    <div class="header-right">
+    <div class="toolbar-right">
       <PixelButton size="sm" onclick={loadGeosite}>
         <PixelIcon name="refresh" size={12} />
         刷新
@@ -55,7 +54,7 @@
 
   {#if error}
     <div class="geosite-error">
-      <PixelIcon name="warn" size={16} color="var(--red)" />
+      <PixelIcon name="warn" size={16} />
       <span>读取 Geosite 状态失败：{error}</span>
       <PixelButton size="sm" onclick={loadGeosite}>重试</PixelButton>
     </div>
@@ -87,8 +86,7 @@
           <tr>
             <td>
               <div class="p-name">
-                <PixelIcon name="globe" size={14} color="var(--orange)" />
-                <span>{p.name}</span>
+                <span class="font-name">{p.name}</span>
               </div>
             </td>
             <td>
@@ -101,11 +99,11 @@
                 {/if}
               </div>
             </td>
-            <td class="font-mono text-dim">{p.version || '—'}</td>
-            <td class="num font-mono">{p.lists.toLocaleString()}</td>
-            <td class="num font-mono">{p.variants.toLocaleString()}</td>
-            <td class="num font-mono text-display">{p.entries.toLocaleString()}</td>
-            <td class="num font-mono">{p.files.toLocaleString()}</td>
+            <td class="text-dim">{p.version || '—'}</td>
+            <td class="num">{p.lists.toLocaleString()}</td>
+            <td class="num">{p.variants.toLocaleString()}</td>
+            <td class="num text-display">{p.entries.toLocaleString()}</td>
+            <td class="num">{p.files.toLocaleString()}</td>
           </tr>
         {/each}
       {/if}
@@ -120,35 +118,24 @@
     gap: 16px;
   }
 
-  .geosite-header {
+  .geosite-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
+    flex-wrap: wrap;
   }
 
-  .header-left {
+  .toolbar-left {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .view-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--display);
-    letter-spacing: 0.04em;
-    text-shadow: 1px 0 currentColor;
-  }
-
-  .count-badge {
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    color: var(--dim);
-    background: var(--surface-2);
-    border: 1px solid var(--border-vis);
-    padding: 2px 6px;
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .geosite-error {
@@ -156,17 +143,16 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: var(--red-dim);
-    border: 2px solid var(--red);
-    color: var(--red);
-    font-size: 12px;
+    background: var(--status-error);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    color: var(--text);
   }
 
   .p-name {
     display: flex;
     align-items: center;
     gap: 8px;
-    font-weight: 700;
     color: var(--display);
   }
 
@@ -177,26 +163,20 @@
   }
 
   .check-time {
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
     color: var(--dim);
+    font-variant-numeric: tabular-nums;
   }
 
-  .font-mono {
-    font-family: "Space Mono", monospace;
-  }
   .text-dim {
     color: var(--dim);
-    font-size: 11px;
   }
   .text-display {
     color: var(--display);
-    font-weight: 700;
   }
 
   .table-empty {
     text-align: center;
     color: var(--dim);
-    padding: 32px 0;
+    padding: 36px 0;
   }
 </style>

@@ -56,7 +56,7 @@
       {@const variantCount = catalog.lists.reduce((total, list) => total + list.variants.length, 0)}
       <article class="geo-provider">
         <header>
-          <strong><PixelIcon name="globe" size={18} /> {catalog.provider}</strong>
+          <strong>{catalog.provider}</strong>
           <span>{formatCount(catalog.lists.length)} 个列表 · {formatCount(variantCount)} 个属性变体</span>
           <span>格式：<b>{client.name} · {target.name}</b></span>
         </header>
@@ -66,7 +66,7 @@
           <div class="geo-item" class:open={expanded[key]}>
             <div class="geo-row">
               <button class="geo-toggle" type="button" onclick={() => toggle(key)} aria-expanded={!!expanded[key]}>
-                <PixelIcon name={expanded[key] ? 'chevron-down' : 'chevron-right'} size={9} />
+                <PixelIcon name={expanded[key] ? 'chevron-down' : 'chevron-right'} size={12} />
                 <strong>{list.name}</strong>
               </button>
               <span>{formatCount(list.entries)} 条</span>

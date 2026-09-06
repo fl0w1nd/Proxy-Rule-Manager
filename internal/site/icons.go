@@ -15,7 +15,6 @@ var iconAssets embed.FS
 // fileIconSet is the set of names that resolve to static files.
 var fileIconSet = map[string]string{
 	"prm":          "prm.svg",
-	"iconset":      "iconset.svg",
 	"mihomo":       "mihomo.svg",
 	"singbox":      "singbox.svg",
 	"shadowrocket": "shadowrocket.svg",

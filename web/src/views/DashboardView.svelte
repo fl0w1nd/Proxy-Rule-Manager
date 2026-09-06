@@ -56,21 +56,9 @@
 </script>
 
 <div class="dashboard-root">
-  <div class="dashboard-header">
-    <div class="header-left">
-      <h2 class="view-title">概览</h2>
-    </div>
-    <div class="header-right">
-      <PixelButton size="sm" onclick={loadData}>
-        <PixelIcon name="refresh" size={12} />
-        刷新
-      </PixelButton>
-    </div>
-  </div>
-
   {#if error}
     <div class="dashboard-error">
-      <PixelIcon name="warn" size={16} color="var(--red)" />
+      <PixelIcon name="warn" size={16} />
       <span>读取状态失败：{error}</span>
       <PixelButton size="sm" onclick={loadData}>重试</PixelButton>
     </div>
@@ -78,35 +66,16 @@
 
   <div class="facts-grid">
     <PixelCard class="fact-card">
-      <div class="fact-label">上次更新</div>
-      <div class="fact-val">
-        {#if latestUpdate}
-          {formatTime(displayTime(latestUpdate))}
-        {:else}
-          {formatTime(status?.last_check)}
-        {/if}
-      </div>
-      <div class="fact-sub">
-        {#if latestUpdate}
-          <PixelBadge status={getStatusType(latestUpdate.status)} pulse={latestUpdate.status === 'running'}>
-            {getStatusLabel(latestUpdate.status)}
-          </PixelBadge>
-        {:else if !loading}
-          <span class="fact-muted">暂无记录</span>
-        {/if}
-      </div>
-    </PixelCard>
-    <PixelCard class="fact-card">
       <div class="fact-label">规则</div>
-      <div class="fact-val">{ruleCount === null ? '—' : ruleCount.toLocaleString()}</div>
+      <div class="fact-val font-metric">{ruleCount === null ? '—' : ruleCount.toLocaleString()}</div>
     </PixelCard>
     <PixelCard class="fact-card">
       <div class="fact-label">Geosite 源</div>
-      <div class="fact-val">{geositeCount === null ? '—' : geositeCount.toLocaleString()}</div>
+      <div class="fact-val font-metric">{geositeCount === null ? '—' : geositeCount.toLocaleString()}</div>
     </PixelCard>
     <PixelCard class="fact-card">
       <div class="fact-label">规则文件</div>
-      <div class="fact-val">{status ? status.published_artifacts.toLocaleString() : '—'}</div>
+      <div class="fact-val font-metric">{status ? status.published_artifacts.toLocaleString() : '—'}</div>
     </PixelCard>
   </div>
 
@@ -124,7 +93,7 @@
         {#each recentUpdates as item}
           <div class="recent-item">
             <div class="recent-left">
-              <span class="recent-time">{formatTime(displayTime(item))}</span>
+              <span class="recent-time font-timestamp">{formatTime(displayTime(item))}</span>
               <span class="recent-scope">{scopeText(item)}</span>
               <span class="recent-changed">变更 {changeCount(item)}</span>
             </div>
@@ -150,78 +119,43 @@
     gap: 20px;
   }
 
-  .dashboard-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .view-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--display);
-    letter-spacing: 0.04em;
-    text-shadow: 1px 0 currentColor;
-  }
-
   .dashboard-error {
     display: flex;
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: var(--red-dim);
-    border: 2px solid var(--red);
-    color: var(--red);
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
+    background: var(--status-error);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    color: var(--text);
   }
 
   .facts-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px;
   }
 
+  @media (max-width: 768px) {
+    .facts-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+
   .fact-label {
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
     color: var(--sec);
     margin-bottom: 8px;
-    letter-spacing: 0.05em;
   }
 
   .fact-val {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 20px;
-    font-weight: 800;
     color: var(--display);
-    letter-spacing: 0.04em;
-  }
-
-  .fact-sub {
-    margin-top: 10px;
-    min-height: 22px;
-  }
-
-  .fact-muted {
-    font-size: 11px;
-    color: var(--dim);
+    line-height: 1;
   }
 
   .empty-hint {
     color: var(--dim);
     text-align: center;
     padding: 24px 0;
-    font-size: 12px;
   }
 
   .recent-list {
@@ -233,9 +167,9 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 9px 0;
-    border-bottom: 1px dashed var(--border);
-    gap: 12px;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    gap: 14px;
   }
   .recent-item:last-child {
     border-bottom: none;
@@ -249,20 +183,11 @@
     flex-wrap: wrap;
   }
 
-  .recent-time {
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
-    color: var(--display);
-  }
-
   .recent-scope {
-    font-size: 11px;
     color: var(--dim);
   }
 
   .recent-changed {
-    font-size: 11px;
     color: var(--sec);
   }
 </style>

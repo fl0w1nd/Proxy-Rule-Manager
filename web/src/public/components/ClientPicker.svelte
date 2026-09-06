@@ -34,7 +34,18 @@
     onselecttarget(clientIndex, targetID);
     openIndex = null;
   }
+
+  function handleWindowClick(event: MouseEvent) {
+    if (openIndex !== null) {
+      const target = event.target as HTMLElement | null;
+      if (!target?.closest('.client-slot')) {
+        openIndex = null;
+      }
+    }
+  }
 </script>
+
+<svelte:window onclick={handleWindowClick} />
 
 <section class="public-block client-section" aria-labelledby="client-heading">
   <div class="block-head">
@@ -63,7 +74,7 @@
           <span class="client-state">
             <i></i>
             {#if client.options.length > 1}
-              <PixelIcon name="chevron-down" size={10} />
+              <PixelIcon name="chevron-down" size={12} />
             {/if}
           </span>
         </button>

@@ -1,0 +1,8 @@
+Zpix (最像素) © SolidZORO
+Source: https://github.com/SolidZORO/zpix-pixel-font
+Personal and education use is free. Commercial use requires a license from the author.
+This tree ships the official v3.2.0 woff2 release; the file is not converted here.
+
+VT323 © Peter Hull
+SIL Open Font License 1.1
+https://github.com/google/fonts/tree/main/ofl/vt323

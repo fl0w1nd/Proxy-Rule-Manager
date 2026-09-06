@@ -12,6 +12,7 @@
   import PixelIcon from '../../components/pixel/PixelIcon.svelte';
   import type { PreviewItem, PublicClient, PublicClientOption } from '../types';
   import { copyURL, formatBytes, formatCount } from '../utils';
+  import { retroScroll } from '../../utils/scrollbars';
 
   interface Props {
     item: PreviewItem | null;
@@ -132,7 +133,7 @@
       </div>
       <div class="preview-shell" data-state={previewState}>
         <header><span><i></i> FILE PREVIEW</span><span>{item.path?.split('/').pop() || 'NO FILE'}</span><b>{previewStat}</b></header>
-        <pre>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+        <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
       </div>
     </div>
   </div>

@@ -72,12 +72,19 @@ func embeddedAssets() []embeddedAsset {
 		out = append(out, embeddedAsset{rel: rel, content: data, hash: hashBytes(data)})
 		return nil
 	})
-	for _, name := range []string{IndexFileTemplate, "dist/public.js", "dist/public.css"} {
-		data, err := htmlFS.ReadFile(name)
-		if err != nil {
-			continue
+	_ = fs.WalkDir(htmlFS, "dist", func(path string, d fs.DirEntry, err error) error {
+		if err != nil || d.IsDir() {
+			return err
 		}
-		out = append(out, embeddedAsset{rel: name, content: data, hash: hashBytes(data), shared: true})
+		data, err := htmlFS.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		out = append(out, embeddedAsset{rel: path, content: data, hash: hashBytes(data), shared: true})
+		return nil
+	})
+	if data, err := htmlFS.ReadFile(IndexFileTemplate); err == nil {
+		out = append(out, embeddedAsset{rel: IndexFileTemplate, content: data, hash: hashBytes(data), shared: true})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].rel < out[j].rel })
 	return out

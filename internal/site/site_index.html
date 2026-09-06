@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN" data-theme="dark">
+<html lang="zh-CN" data-theme="dark" data-overlayscrollbars-initialize>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -16,12 +16,13 @@
 })();
 </script>
 <link rel="icon" href="static/icons/prm.svg" type="image/svg+xml">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Doto:wght@600;800&family=Space+Mono:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+@font-face{font-family:"Zpix";src:url("static/assets/zpix.woff2") format("woff2");font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:"VT323";src:url("static/assets/VT323-Regular.ttf") format("truetype");font-weight:400;font-style:normal;font-display:swap}
+</style>
 <link rel="stylesheet" href="static/assets/public.css?v={{assetver}}">
 </head>
-<body>
+<body data-overlayscrollbars-initialize>
 <div id="public-app"></div>
 <script id="prm-data" type="application/json">{{publicdata .}}</script>
 <script type="module" src="static/assets/public.js?v={{assetver}}"></script>

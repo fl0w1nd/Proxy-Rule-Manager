@@ -2,6 +2,8 @@
   import type { Snippet } from 'svelte';
   import PixelButton from './PixelButton.svelte';
   import PixelIcon from './PixelIcon.svelte';
+  import terminalIcon from '../../assets/icons/ui/terminal.svg';
+  import { retroScroll } from '../../utils/scrollbars';
 
   interface Props {
     open: boolean;
@@ -58,15 +60,15 @@
     >
       <div class="drawer-header">
         <div class="drawer-title">
-          <PixelIcon name="terminal" size={14} color="var(--orange)" />
+          <img src={terminalIcon} class="drawer-pixel-icon" width="24" height="24" alt="" />
           <span>{title}</span>
         </div>
         <PixelButton size="sm" variant="ghost" onclick={close} aria-label="关闭抽屉">
-          <PixelIcon name="cross" size={10} />
+          <PixelIcon name="cross" size={12} />
         </PixelButton>
       </div>
 
-      <div class="drawer-body">
+      <div class="drawer-body" use:retroScroll>
         {#if children}
           {@render children()}
         {/if}
@@ -90,17 +92,18 @@
     display: flex;
     justify-content: flex-end;
     overscroll-behavior: contain;
+    animation: pixel-fade 120ms linear;
   }
 
   .drawer-panel {
     width: 100%;
     height: 100%;
     background: var(--surface);
-    border-left: 2px solid var(--border-vis);
-    box-shadow: -4px 0 0 var(--shadow);
+    border-left: 1px solid var(--border-vis);
+    box-shadow: var(--shadow-dialog);
     display: flex;
     flex-direction: column;
-    animation: pixel-slide-left 120ms steps(3, end) forwards;
+    animation: pixel-drawer 140ms cubic-bezier(.2, .8, .2, 1) both;
   }
 
   .drawer-header {
@@ -109,32 +112,41 @@
     justify-content: space-between;
     padding: 14px 18px;
     background: var(--surface-2);
-    border-bottom: 2px solid var(--border-vis);
+    border-bottom: 1px solid var(--border-vis);
   }
 
   .drawer-title {
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 15px;
-    font-weight: 800;
+    gap: 10px;
+    font: 400 24px/32px var(--font-ui);
     color: var(--display);
-    letter-spacing: 0.05em;
+    letter-spacing: 0;
+    text-shadow: none;
+  }
+
+  .drawer-pixel-icon {
+    width: 24px;
+    height: 24px;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    flex-shrink: 0;
+    display: block;
   }
 
   .drawer-body {
     flex: 1;
     overflow-y: auto;
     padding: 16px 18px;
-    scrollbar-color: var(--border-vis) var(--bg);
+    background: var(--surface);
+    scrollbar-color: var(--bevel-dark) var(--surface-2);
     overscroll-behavior: contain;
   }
 
   .drawer-footer {
     padding: 12px 18px;
     background: var(--surface-2);
-    border-top: 2px dashed var(--border-vis);
+    border-top: 1px solid var(--border-vis);
     display: flex;
     justify-content: flex-end;
     gap: 10px;

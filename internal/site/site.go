@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -21,7 +22,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 )
 
-//go:embed site_index.html dist/public.js dist/public.css
+//go:embed site_index.html dist
 var htmlFS embed.FS
 
 // StaticDir is the subdirectory under dataDir for generated pages and assets.
@@ -153,7 +154,15 @@ func writePublicAssets(staticDir string) error {
 	if err := os.MkdirAll(assetsDir, 0o755); err != nil {
 		return fmt.Errorf("create public assets dir: %w", err)
 	}
-	for _, name := range []string{"public.js", "public.css"} {
+	entries, err := fs.ReadDir(htmlFS, "dist")
+	if err != nil {
+		return fmt.Errorf("read embedded public dist: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		name := entry.Name()
 		data, err := htmlFS.ReadFile("dist/" + name)
 		if err != nil {
 			return fmt.Errorf("read embedded public asset %s: %w", name, err)

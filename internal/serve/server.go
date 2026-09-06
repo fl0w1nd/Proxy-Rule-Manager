@@ -258,14 +258,15 @@ const adminGatePage = `<!doctype html>
 <title>PRM · 管理</title>
 <style>
 *{box-sizing:border-box}
-body{background-color:#11100d;background-image:radial-gradient(circle at 1px 1px,rgba(255,250,240,.05) .7px,transparent .8px);background-size:5px 5px;color:#d8d3c9;font-family:"Space Mono","SF Mono",monospace;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
-.card{background:#181713;border:2px solid #777168;clip-path:polygon(4px 0,calc(100% - 4px) 0,100% 4px,100% calc(100% - 4px),calc(100% - 4px) 100%,4px 100%,0 calc(100% - 4px),0 4px);filter:drop-shadow(7px 7px 0 #000);padding:32px;width:340px}
-.k{font-size:11px;letter-spacing:.1em;color:#fffaf0;margin-bottom:18px;padding-bottom:12px;border-bottom:1px dashed #777168}
-input{width:100%;background:#0b0c09;border:1px solid #777168;border-radius:0;color:#fff;font:inherit;font-size:13px;padding:11px 12px;outline:none;box-shadow:2px 2px 0 #000}
-input:focus{border-color:#ff6418;outline:2px solid #ff6418;outline-offset:2px}
-button{margin-top:16px;width:100%;background:#fffaf0;color:#11100d;border:1px solid #fffaf0;border-radius:0;box-shadow:3px 3px 0 #ff6418;font:inherit;font-size:12px;font-weight:700;letter-spacing:.08em;padding:10px 0;cursor:pointer;transition:transform 80ms steps(2,end),box-shadow 80ms steps(2,end)}
-button:hover{background:#ff6418;border-color:#ff6418}button:active{transform:translate(3px,3px);box-shadow:0 0 0 #000}
-.err{color:#f04438;font-size:11px;margin-top:10px;display:none}
+body{background-color:#1c2820;background-image:radial-gradient(rgb(174 182 168 / 12%) .5px,transparent .65px);background-size:4px 4px;color:#eeeadd;font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;font-size:12px;line-height:20px;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;padding:20px}
+.card{background:#202522;border:1px solid #aeb6a8;border-radius:4px;box-shadow:0 26px 34px -24px rgb(0 0 0 / 56%);padding:24px;width:340px}
+.k{font-size:12px;color:#fffdf1;margin-bottom:18px;padding-bottom:12px;border-bottom:1px solid #aeb6a8}
+input{width:100%;min-height:32px;background:#202522;border:1px solid #aeb6a8;border-radius:3px;color:#eeeadd;font:inherit;padding:4px 8px;outline:none;box-shadow:inset 1px 1px 0 #111713;caret-color:#eeeadd}
+input:focus{outline:2px solid #afc7ff;outline-offset:3px}
+input::placeholder{color:#b1baab}
+button{margin-top:16px;width:100%;min-height:40px;background:#4b6549;color:#eeeadd;border:1px solid #aeb6a8;border-radius:4px;box-shadow:inset 1px 1px 0 #5b645a,inset -1px -1px 0 #111713,0 1px 0 #aeb6a8;font:inherit;padding:0;cursor:pointer}
+button:hover{background:#587653}button:active{box-shadow:inset 1px 1px 0 #111713,inset -1px -1px 0 #5b645a;transform:translateY(1px)}
+.err{color:#eeeadd;background:#663d38;border:1px solid #aeb6a8;border-radius:3px;font-size:12px;margin-top:10px;padding:6px 8px;display:none}
 </style></head>
 <body><div class="card">
 <div class="k">PRM 管理看板 · 输入令牌</div>
@@ -373,7 +374,7 @@ func forwardedProto(r *http.Request) string {
 
 // securityHeaders applies baseline defensive response headers to every
 // response (public pages, admin board, and API). CSP is intentionally omitted:
-// the generated pages embed inline scripts/styles and load Google Fonts, so a
+// the generated pages embed inline scripts and styles, so a
 // strict CSP would break them. Add CSP only after aligning the page assets.
 func securityHeaders(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

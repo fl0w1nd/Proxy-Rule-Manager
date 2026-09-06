@@ -3,6 +3,7 @@
   import { api, type ChangeItem } from '../api/client';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import { retroScroll } from '../utils/scrollbars';
 
   let changes = $state<ChangeItem[]>([]);
   let loading = $state(true);
@@ -32,12 +33,11 @@
 </script>
 
 <div class="changes-view">
-  <div class="changes-header">
-    <div class="header-left">
-      <h2 class="view-title">规则变动对比</h2>
-      <span class="count-badge">{changes.length} 条记录</span>
+  <div class="changes-toolbar">
+    <div class="toolbar-left">
+      <span class="count-badge">共 {changes.length} 条变更记录</span>
     </div>
-    <div class="header-right">
+    <div class="toolbar-right">
       <PixelButton size="sm" onclick={loadChanges}>
         <PixelIcon name="refresh" size={12} />
         刷新
@@ -47,7 +47,7 @@
 
   {#if error}
     <div class="changes-error">
-      <PixelIcon name="warn" size={16} color="var(--red)" />
+      <PixelIcon name="warn" size={16} />
       <span>读取变动记录失败：{error}</span>
       <PixelButton size="sm" onclick={loadChanges}>重试</PixelButton>
     </div>
@@ -64,10 +64,10 @@
           <summary class="change-summary">
             <div class="summary-left">
               <span class="summary-toggle">›</span>
-              <span class="change-time">{formatTime(item.finished_at)}</span>
-              <span class="rule-name">{item.rule_name}</span>
+              <span class="change-time font-timestamp">{formatTime(item.finished_at)}</span>
+              <span class="rule-name font-name">{item.rule_name}</span>
             </div>
-            <div class="summary-diff font-mono">
+            <div class="summary-diff num">
               <span class="diff-add">+{item.added.toLocaleString()}</span>
               <span class="diff-sep">/</span>
               <span class="diff-del">-{item.removed.toLocaleString()}</span>
@@ -77,7 +77,7 @@
           <div class="change-details">
             <div class="detail-section">
               <div class="section-k">IR 规则条目 Diff</div>
-              <div class="pixel-code-block" role="region" aria-label={`${item.rule_name} IR Diff`}>
+              <div class="pixel-code-block" use:retroScroll role="region" aria-label={`${item.rule_name} IR Diff`}>
                 {#each item.removed_samples || [] as line}
                   <div class="del-line">- {line}</div>
                 {/each}
@@ -106,35 +106,24 @@
     gap: 16px;
   }
 
-  .changes-header {
+  .changes-toolbar {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 14px;
+    flex-wrap: wrap;
   }
 
-  .header-left {
+  .toolbar-left {
     display: flex;
     align-items: center;
     gap: 12px;
   }
 
-  .view-title {
-    font-family: "Doto", "Space Mono", monospace;
-    font-size: 16px;
-    font-weight: 800;
-    color: var(--display);
-    letter-spacing: 0.04em;
-    text-shadow: 1px 0 currentColor;
-  }
-
-  .count-badge {
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    color: var(--dim);
-    background: var(--surface-2);
-    border: 1px solid var(--border-vis);
-    padding: 2px 6px;
+  .toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .changes-error {
@@ -142,20 +131,19 @@
     align-items: center;
     gap: 10px;
     padding: 10px 14px;
-    background: var(--red-dim);
-    border: 2px solid var(--red);
-    color: var(--red);
-    font-size: 12px;
+    background: var(--status-error);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    color: var(--text);
   }
 
   .changes-empty {
-    text-align: center;
-    color: var(--dim);
-    padding: 48px 0;
-    font-family: "Space Mono", monospace;
-    font-size: 13px;
-    border: 2px dashed var(--border-vis);
+    padding: 36px 16px;
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
     background: var(--surface);
+    color: var(--dim);
+    text-align: center;
   }
 
   .changes-list {
@@ -166,11 +154,9 @@
 
   .change-card {
     background: var(--surface);
-    border: 2px solid var(--border-vis);
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-light),
-      inset -1px -1px 0 var(--bevel-dark),
-      2px 2px 0 var(--shadow);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    box-shadow: var(--highlight-top), var(--shadow-panel);
   }
 
   .change-summary {
@@ -180,7 +166,7 @@
     padding: 12px 16px;
     cursor: pointer;
     list-style: none;
-    transition: background 80ms steps(2, end);
+    transition: background-color 80ms linear;
   }
   .change-summary::-webkit-details-marker {
     display: none;
@@ -190,7 +176,7 @@
   }
 
   .change-card[open] .change-summary {
-    border-bottom: 2px dashed var(--border-vis);
+    border-bottom: 1px solid var(--border-vis);
     background: var(--surface-2);
   }
 
@@ -201,42 +187,22 @@
   }
 
   .summary-toggle {
-    font-family: "Space Mono", monospace;
-    font-size: 14px;
-    font-weight: 700;
     color: var(--dim);
-    transition: transform 80ms steps(2, end);
+    transition: transform 80ms linear;
   }
   .change-card[open] .summary-toggle {
     transform: rotate(90deg);
-    color: var(--orange);
-  }
-
-  .change-time {
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    color: var(--sec);
-  }
-
-  .rule-name {
-    font-weight: 700;
-    color: var(--display);
-    font-size: 13px;
-  }
-
-  .font-mono {
-    font-family: "Space Mono", monospace;
+    color: var(--text);
   }
 
   .summary-diff {
-    font-size: 12px;
-    font-weight: 700;
+    font-variant-numeric: tabular-nums;
   }
   .diff-add {
-    color: var(--green);
+    color: var(--diff-add);
   }
   .diff-del {
-    color: var(--orange);
+    color: var(--diff-remove);
   }
   .diff-sep {
     color: var(--dim);
@@ -248,40 +214,33 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
-    background: var(--surface-2);
-    border-left: 4px solid var(--orange);
+    background: var(--surface);
   }
 
   .section-k {
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    font-weight: 700;
     color: var(--sec);
     margin-bottom: 6px;
   }
 
   .pixel-code-block {
     background: var(--terminal-bg);
-    border: 2px solid var(--border-vis);
-    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.6);
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
     padding: 10px 12px;
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    line-height: 1.6;
-    color: var(--terminal-text-dim, #cbd2bf);
+    font: 400 13px/20px var(--font-code);
+    color: var(--terminal-text);
     max-height: 240px;
     overflow-y: auto;
-    scrollbar-color: var(--border-vis) var(--bg);
+    scrollbar-color: var(--bevel-dark) var(--surface-2);
   }
 
   .add-line {
-    color: var(--green);
+    color: var(--diff-add);
   }
   .del-line {
-    color: var(--orange);
+    color: var(--diff-remove);
   }
   .omit-line {
-    color: var(--dim);
-    font-style: italic;
+    color: var(--terminal-muted);
   }
 </style>

@@ -28,59 +28,42 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 3px 8px;
+    padding: 0 6px;
+    min-height: 20px;
     border: 1px solid var(--border-vis);
-    background: var(--surface);
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 1;
+    border-radius: 3px;
+    background: var(--surface-2);
+    color: var(--sec);
+    font: 400 12px/20px var(--font-ui);
+    letter-spacing: 0;
+    text-shadow: none;
     white-space: nowrap;
-    box-shadow: 1px 1px 0 var(--shadow);
   }
 
   .indicator {
     display: inline-block;
     width: 6px;
     height: 6px;
-    background: var(--dim);
+    background: currentColor;
     flex-shrink: 0;
   }
 
   .pixel-badge.success {
-    color: var(--green);
-    border-color: var(--green);
-    background: var(--green-dim);
+    background: var(--status-success);
+    color: var(--text);
   }
-  .pixel-badge.success .indicator {
-    background: var(--green);
-  }
-
   .pixel-badge.warning {
-    color: var(--orange);
-    border-color: var(--orange);
-    background: var(--orange-dim);
+    background: var(--status-warning);
+    color: var(--text);
   }
-  .pixel-badge.warning .indicator {
-    background: var(--orange);
-  }
-
   .pixel-badge.error {
-    color: var(--red);
-    border-color: var(--red);
-    background: var(--red-dim);
+    background: var(--status-error);
+    color: var(--text);
   }
-  .pixel-badge.error .indicator {
-    background: var(--red);
-  }
-
-  .pixel-badge.info, .pixel-badge.active {
-    color: var(--blue);
-    border-color: var(--blue);
-    background: var(--blue-dim);
-  }
-  .pixel-badge.info .indicator, .pixel-badge.active .indicator {
-    background: var(--blue);
+  .pixel-badge.info,
+  .pixel-badge.active {
+    background: var(--status-info);
+    color: var(--text);
   }
 
   .pixel-badge.pulse .indicator {

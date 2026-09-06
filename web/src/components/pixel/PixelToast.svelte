@@ -51,40 +51,38 @@
     align-items: center;
     gap: 8px;
     background: var(--surface);
-    color: var(--display);
-    border: 2px solid var(--border-vis);
-    box-shadow: 4px 4px 0 var(--shadow);
+    color: var(--text);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    box-shadow: var(--shadow-popup);
     padding: 10px 16px;
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
-    animation: pixel-pop 100ms steps(2, end);
+    font: 400 12px/20px var(--font-ui);
+    letter-spacing: 0;
+    text-shadow: none;
+    animation: pixel-fade 120ms linear;
     pointer-events: auto;
     cursor: pointer;
     text-align: left;
     max-width: 100%;
     word-break: break-word;
+    transition: background-color 80ms linear;
   }
 
   .toast-item:hover {
-    filter: brightness(1.1);
+    background: var(--surface-2);
   }
 
   .toast-item.success {
-    border-color: var(--green);
-    color: var(--green);
+    background: var(--status-success);
   }
   .toast-item.error {
-    border-color: var(--red);
-    color: var(--red);
+    background: var(--status-error);
   }
   .toast-item.info {
-    border-color: var(--blue);
-    color: var(--blue);
+    background: var(--status-info);
   }
 
   .icon {
-    font-weight: 800;
     flex-shrink: 0;
   }
 

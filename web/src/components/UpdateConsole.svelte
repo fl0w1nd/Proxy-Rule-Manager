@@ -4,6 +4,7 @@
   import PixelButton from './pixel/PixelButton.svelte';
   import PixelIcon from './pixel/PixelIcon.svelte';
   import { finishSummary, getStatusLabel } from '../updateLabels';
+  import { retroScroll } from '../utils/scrollbars';
 
   interface Props {
     jobId: string | null;
@@ -113,7 +114,8 @@
     if (logBox) {
       requestAnimationFrame(() => {
         if (logBox) {
-          logBox.scrollTop = logBox.scrollHeight;
+          const vp = logBox.querySelector<HTMLElement>('[data-overlayscrollbars-viewport]') || logBox;
+          vp.scrollTop = vp.scrollHeight;
         }
       });
     }
@@ -146,11 +148,11 @@
     </div>
     <div class="current-msg" title={currentMsg}>{currentMsg}</div>
     <div class="progress-box">
-      <PixelProgressBar current={currentCount} total={totalCount} color={isRunning ? 'orange' : 'green'} />
+      <PixelProgressBar current={currentCount} total={totalCount} />
     </div>
   </div>
 
-  <div class="console-logs" bind:this={logBox} role="log" aria-live="polite">
+  <div class="console-logs" bind:this={logBox} use:retroScroll role="log" aria-live="polite">
     {#if events.length === 0}
       <div class="log-empty">等待日志事件流…</div>
     {:else}
@@ -174,12 +176,12 @@
   <div class="console-actions">
     {#if isRunning}
       <PixelButton variant="danger" size="sm" onclick={handleCancel} disabled={isCancelling}>
-        <PixelIcon name="cross" size={10} />
+        <PixelIcon name="cross" size={12} />
         {isCancelling ? '取消中…' : '取消更新'}
       </PixelButton>
     {:else if activeJobId || events.length > 0}
       <PixelButton variant="primary" size="sm" onclick={() => onclose?.()}>
-        <PixelIcon name="check" size={10} color="#fff" />
+        <PixelIcon name="check" size={12} />
         完成并关闭
       </PixelButton>
     {/if}
@@ -196,9 +198,9 @@
 
   .console-summary {
     background: var(--surface-2);
-    border: 2px solid var(--border-vis);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
     padding: 12px 14px;
-    box-shadow: 2px 2px 0 var(--shadow);
   }
 
   .summary-top {
@@ -212,38 +214,37 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    font-weight: 700;
+    padding: 0 6px;
+    min-height: 20px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
   }
   .status-badge.running {
-    color: var(--orange);
+    background: var(--status-info);
+    color: var(--text);
   }
   .status-badge.running .dot {
     width: 6px;
     height: 6px;
-    background: var(--orange);
+    background: currentColor;
     animation: pixel-signal 600ms steps(2, end) infinite;
   }
   .status-badge.done {
-    color: var(--green);
+    background: var(--status-success);
+    color: var(--text);
   }
   .status-badge.done .dot {
     width: 6px;
     height: 6px;
-    background: var(--green);
+    background: currentColor;
   }
 
   .job-id {
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
     color: var(--dim);
+    font: 400 13px/20px var(--font-code);
   }
 
   .current-msg {
-    font-family: "Space Mono", monospace;
-    font-size: 12px;
-    font-weight: 700;
     color: var(--display);
     white-space: nowrap;
     overflow: hidden;
@@ -257,17 +258,16 @@
     max-height: 480px;
     overflow-y: auto;
     background: var(--terminal-bg);
-    border: 2px solid var(--border-vis);
-    box-shadow: inset 1px 1px 0 rgba(0, 0, 0, 0.8), 2px 2px 0 var(--shadow);
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
     padding: 10px 12px;
-    font-family: "Space Mono", monospace;
-    font-size: 11px;
-    line-height: 1.6;
-    scrollbar-color: var(--border-vis) var(--bg);
+    font: 400 13px/20px var(--font-code);
+    color: var(--terminal-text);
+    scrollbar-color: var(--bevel-dark) var(--surface-2);
   }
 
   .log-empty {
-    color: var(--dim);
+    color: var(--terminal-muted);
     text-align: center;
     padding: 40px 0;
   }
@@ -278,17 +278,15 @@
     gap: 6px;
     align-items: baseline;
     padding: 2px 0;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+    border-bottom: 1px solid var(--border);
   }
 
   .log-time {
-    color: var(--dim);
-    font-size: 10px;
+    color: var(--terminal-muted);
     font-variant-numeric: tabular-nums;
   }
 
   .log-marker {
-    font-weight: 800;
     text-align: center;
   }
 
@@ -296,17 +294,21 @@
     word-break: break-all;
   }
 
-  .log-row.info .log-marker, .log-row.info .log-msg {
-    color: var(--sec);
+  .log-row.info .log-marker,
+  .log-row.info .log-msg {
+    color: var(--terminal-muted);
   }
-  .log-row.success .log-marker, .log-row.success .log-msg {
-    color: var(--green);
+  .log-row.success .log-marker,
+  .log-row.success .log-msg {
+    color: var(--diff-add);
   }
-  .log-row.warning .log-marker, .log-row.warning .log-msg {
-    color: var(--orange);
+  .log-row.warning .log-marker,
+  .log-row.warning .log-msg {
+    color: var(--terminal-text);
   }
-  .log-row.error .log-marker, .log-row.error .log-msg {
-    color: var(--red);
+  .log-row.error .log-marker,
+  .log-row.error .log-msg {
+    color: var(--diff-remove);
   }
 
   .console-actions {

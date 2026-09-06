@@ -2,7 +2,6 @@
   interface Props {
     current: number;
     total: number;
-    color?: 'orange' | 'green' | 'red' | 'blue';
     showText?: boolean;
     class?: string;
   }
@@ -10,7 +9,6 @@
   let {
     current = 0,
     total = 100,
-    color = 'orange',
     showText = true,
     class: className = '',
   }: Props = $props();
@@ -21,8 +19,8 @@
 </script>
 
 <div class="progress-wrap {className}">
-  <div class="progress-shell {color}">
-    <div class="progress-bar" style="width: {percentage}%;"></div>
+  <div class="progress-shell">
+    <div class="progress-bar" style="transform: scaleX({percentage / 100});"></div>
   </div>
   {#if showText}
     <div class="progress-info">
@@ -41,71 +39,40 @@
     width: 100%;
     height: 14px;
     background: var(--surface-2);
-    border: 2px solid var(--border-vis);
-    box-shadow:
-      inset 1px 1px 0 var(--bevel-dark),
-      2px 2px 0 var(--shadow);
-    padding: 2px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    box-shadow: var(--edge-inset);
     overflow: hidden;
   }
 
   .progress-bar {
+    width: 100%;
     height: 100%;
-    transition: width 120ms steps(8, end);
-  }
-
-  /* Segmented dither bar patterns */
-  .progress-shell.orange .progress-bar {
-    background-color: var(--orange);
+    transform-origin: left center;
+    background-color: var(--accent);
     background-image: repeating-linear-gradient(
       90deg,
-      transparent 0,
+      var(--accent) 0,
+      var(--accent) 4px,
       transparent 4px,
-      rgba(0, 0, 0, 0.4) 4px,
-      rgba(0, 0, 0, 0.4) 6px
+      transparent 6px
     );
+    transition: transform 120ms linear;
+    will-change: transform;
   }
 
-  .progress-shell.green .progress-bar {
-    background-color: var(--green);
-    background-image: repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 4px,
-      rgba(0, 0, 0, 0.4) 4px,
-      rgba(0, 0, 0, 0.4) 6px
-    );
-  }
-
-  .progress-shell.red .progress-bar {
-    background-color: var(--red);
-    background-image: repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 4px,
-      rgba(0, 0, 0, 0.4) 4px,
-      rgba(0, 0, 0, 0.4) 6px
-    );
-  }
-
-  .progress-shell.blue .progress-bar {
-    background-color: var(--blue);
-    background-image: repeating-linear-gradient(
-      90deg,
-      transparent 0,
-      transparent 4px,
-      rgba(0, 0, 0, 0.4) 4px,
-      rgba(0, 0, 0, 0.4) 6px
-    );
+  @media (prefers-reduced-motion: reduce) {
+    .progress-bar {
+      transition: none;
+    }
   }
 
   .progress-info {
     display: flex;
     justify-content: space-between;
-    font-family: "Space Mono", monospace;
-    font-size: 10px;
-    font-weight: 700;
-    color: var(--sec);
     margin-top: 4px;
+    color: var(--sec);
+    font: 400 12px/20px var(--font-ui);
+    font-variant-numeric: tabular-nums;
   }
 </style>
