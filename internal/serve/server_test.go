@@ -128,6 +128,23 @@ func TestAdminGateSetsHttpOnlyCookieAndServesEmbeddedApp(t *testing.T) {
 	}
 }
 
+func TestDevelopmentModeBypassesAdminAuth(t *testing.T) {
+	s, _, _ := testServer(t)
+	s.devMode = true
+
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/admin", nil))
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `id="app"`) {
+		t.Fatalf("admin=%d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/status", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestPublicRoutesAreNarrowed(t *testing.T) {
 	s, _, _ := testServer(t)
 	staticDir := filepath.Join(s.DataDir, "static")

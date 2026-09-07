@@ -30,6 +30,7 @@ type serveRuntimeOptions struct {
 	Port           int
 	TrustedProxies []netip.Prefix
 	AdminToken     string
+	DevMode        bool
 }
 
 func init() {
@@ -102,15 +103,25 @@ func resolveServeRuntime(cmd *cobra.Command) (serveRuntimeOptions, error) {
 		return serveRuntimeOptions{}, err
 	}
 
+	devMode := developmentMode()
 	adminToken := strings.TrimSpace(os.Getenv("PRM_ADMIN_TOKEN"))
-	if adminToken == "" {
+	if adminToken == "" && !devMode {
 		return serveRuntimeOptions{}, fmt.Errorf("PRM_ADMIN_TOKEN environment variable is required")
 	}
 
 	return serveRuntimeOptions{
 		DataDir: dataDir, Host: host, Port: port,
-		TrustedProxies: proxies, AdminToken: adminToken,
+		TrustedProxies: proxies, AdminToken: adminToken, DevMode: devMode,
 	}, nil
+}
+
+func developmentMode() bool {
+	switch strings.ToLower(strings.TrimSpace(os.Getenv("PRM_DEV"))) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func parseTrustedProxies(values []string) ([]netip.Prefix, error) {

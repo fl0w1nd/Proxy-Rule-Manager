@@ -33,6 +33,7 @@ type Server struct {
 	updates        *updates.Manager
 	apiToken       string
 	trustedProxies []netip.Prefix
+	devMode        bool
 
 	configFile string
 }
@@ -44,6 +45,7 @@ type Options struct {
 	ConfigFile     string
 	ConfigManager  *config.Manager
 	TrustedProxies []netip.Prefix
+	DevMode        bool
 }
 
 // NewServer creates a new HTTP server. Runtime settings stay fixed for the
@@ -63,6 +65,7 @@ func NewServer(
 		DataDir: opts.DataDir, ConfigManager: configManager, State: st, Engine: eng,
 		updates: updateManager, apiToken: opts.APIToken,
 		trustedProxies: append([]netip.Prefix(nil), opts.TrustedProxies...),
+		devMode:        opts.DevMode,
 		configFile:     opts.ConfigFile,
 	}
 	return s
@@ -150,6 +153,9 @@ func (s *Server) validToken(token string) bool {
 }
 
 func (s *Server) tokenValid(r *http.Request) bool {
+	if s.devMode {
+		return true
+	}
 	return s.validToken(requestToken(r))
 }
 
@@ -172,6 +178,10 @@ func setTokenCookie(w http.ResponseWriter, r *http.Request, token string) {
 // cookie and the URL is cleaned via redirect; without a valid token a minimal
 // gate page prompts for it.
 func (s *Server) handleAdminPage(w http.ResponseWriter, r *http.Request) {
+	if s.devMode {
+		admin.Handler().ServeHTTP(w, r)
+		return
+	}
 	if q := r.URL.Query().Get("token"); q != "" {
 		if s.validToken(q) {
 			setTokenCookie(w, r, q)
@@ -233,6 +243,10 @@ func noStore(next http.Handler) http.Handler {
 
 func (s *Server) sameOriginMutation(next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if s.devMode {
+			next(w, r)
+			return
+		}
 		const prefix = "Bearer "
 		if auth := r.Header.Get("Authorization"); strings.HasPrefix(auth, prefix) && s.validToken(strings.TrimPrefix(auth, prefix)) {
 			next(w, r)

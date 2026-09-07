@@ -1,5 +1,6 @@
 # Build output
 /bin/
+/tmp/
 /dist/
 internal/admin/dist/
 internal/site/dist/
@@ -28,6 +29,7 @@ Thumbs.db
 # Workspace-local config and docs
 /AGENTS.md
 /config.yaml
+/config.dev.yaml
 
 # Cursor agent skills (workspace-specific)
 .agents/

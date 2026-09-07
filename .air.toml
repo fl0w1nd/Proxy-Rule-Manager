@@ -1,0 +1,23 @@
+root = "."
+tmp_dir = "tmp"
+
+[build]
+cmd = "go build -o ./tmp/prm ./cmd/prm"
+entrypoint = ["./tmp/prm"]
+include_ext = ["go", "html"]
+exclude_dir = ["web", "data", "bin", "tmp", "docs", "pixel", "internal/admin/dist", "internal/site/dist"]
+exclude_regex = ["_test\\.go"]
+exclude_unchanged = true
+delay = 500
+send_interrupt = true
+kill_delay = "2s"
+stop_on_error = false
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = true
+
+[proxy]
+enabled = false

@@ -43,9 +43,14 @@ var serveCmd = &cobra.Command{
 			app.Logger.Warn("site initialization failed", "error", err)
 		}
 
+		if runtimeOpts.DevMode {
+			app.Logger.Warn("development mode enabled; admin authentication is disabled")
+		}
+
 		srv := serve.NewServer(app.Config, app.State, app.Engine, app.Updates, serve.Options{
 			DataDir: runtimeOpts.DataDir, APIToken: runtimeOpts.AdminToken,
 			ConfigFile: cfgFile, ConfigManager: app.ConfigManager, TrustedProxies: runtimeOpts.TrustedProxies,
+			DevMode: runtimeOpts.DevMode,
 		})
 		handler := srv.Handler()
 

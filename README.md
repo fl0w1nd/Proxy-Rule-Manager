@@ -190,6 +190,7 @@ data/
 
 | 命令 | 作用 |
 | --- | --- |
+| `make dev` | 本地开发：Go 热重载 + 管理看板 Vite |
 | `make build` | 构建 `bin/prm` |
 | `make test` | 运行全部测试（随机顺序 + 覆盖率） |
 | `make test-race` | 带竞态检测运行测试 |
@@ -198,7 +199,9 @@ data/
 | `make proto` | 重新生成 geosite 的 protobuf 代码（需要 protoc） |
 | `make docker-build` | 构建容器镜像 |
 | `make docker-run` | 用 `./data` 和 `config.yaml` 运行容器 |
-| `make clean` | 清理 `bin/` |
+| `make clean` | 清理 `bin/` 和 `tmp/` |
+
+`make dev` 默认使用 `config.dev.yaml`（不存在时从 `config.template.yaml` 复制），数据目录为 `./data`，并设置 `PRM_DEV=1` 跳过管理令牌。自定义配置：`make dev CONFIG=path.yaml`。管理看板走 Vite：http://127.0.0.1:5173/admin/ ；HTTP 服务在 http://127.0.0.1:3001/ 。
 
 CI 依次跑 lint、测试、发布二进制构建、容器构建。发布用 goreleaser，容器推送到 `ghcr.io/fl0w1nd/prm`。
 

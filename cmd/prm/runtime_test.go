@@ -122,8 +122,25 @@ func TestResolveServeRuntimeRejectsInvalidValues(t *testing.T) {
 func TestResolveServeRuntimeRequiresAdminToken(t *testing.T) {
 	resetRuntimeFlags(t)
 	unsetEnv(t, "PRM_ADMIN_TOKEN")
+	t.Setenv("PRM_DEV", "0")
 	if _, err := resolveServeRuntime(serveCmd); err == nil || !strings.Contains(err.Error(), "PRM_ADMIN_TOKEN") {
 		t.Fatalf("missing token error = %v", err)
+	}
+}
+
+func TestResolveServeRuntimeDevelopmentModeSkipsAdminToken(t *testing.T) {
+	resetRuntimeFlags(t)
+	unsetEnv(t, "PRM_ADMIN_TOKEN")
+	t.Setenv("PRM_DEV", "1")
+	got, err := resolveServeRuntime(serveCmd)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.DevMode {
+		t.Fatal("expected development mode")
+	}
+	if got.AdminToken != "" {
+		t.Fatalf("admin token = %q", got.AdminToken)
 	}
 }
 
@@ -136,7 +153,7 @@ func resetRuntimeFlags(t *testing.T) {
 	for _, name := range []string{"host", "port", "trusted-proxy"} {
 		serveCmd.Flags().Lookup(name).Changed = false
 	}
-	for _, name := range []string{"PRM_DATA_DIR", "PRM_SERVE_HOST", "PRM_SERVE_PORT", "PRM_TRUSTED_PROXIES", "PRM_ADMIN_TOKEN"} {
+	for _, name := range []string{"PRM_DATA_DIR", "PRM_SERVE_HOST", "PRM_SERVE_PORT", "PRM_TRUSTED_PROXIES", "PRM_ADMIN_TOKEN", "PRM_DEV"} {
 		unsetEnv(t, name)
 	}
 	t.Cleanup(func() {

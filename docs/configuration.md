@@ -202,8 +202,9 @@ geosite:
 | 监听端口 | `serve --port` | `PRM_SERVE_PORT` | `3001` |
 | 可信代理 | 重复 `serve --trusted-proxy` | `PRM_TRUSTED_PROXIES`（CSV） | 空列表 |
 | 管理令牌 | — | `PRM_ADMIN_TOKEN` | 必填 |
+| 开发模式 | — | `PRM_DEV` | 关闭 |
 
-可信代理接受单 IP 或 CIDR。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。
+可信代理接受单 IP 或 CIDR。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。`PRM_DEV` 为 `1`、`true`、`yes` 或 `on` 时进入开发模式：管理令牌可不设，`/admin` 与 `/api/v1` 不鉴权。仅用于本地开发。
 
 ## 环境变量插值
 

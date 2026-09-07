@@ -203,6 +203,19 @@ func TestConfigPatchAPIRequiresAuthenticationAndSameOrigin(t *testing.T) {
 	}
 }
 
+func TestConfigPatchAPIDevelopmentModeAllowsUnauthenticated(t *testing.T) {
+	s, _ := fileBackedConfigServer(t, nil)
+	s.devMode = true
+	body := `{"version":1,"ops":[{"op":"add_output","rule_id":"base","output_id":"surge"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/config/patch", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	s.Handler().ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("development mode=%d %s", rec.Code, rec.Body.String())
+	}
+}
+
 func patchConfig(handler http.Handler, body string) *httptest.ResponseRecorder {
 	req := authorized(http.MethodPost, "/api/v1/config/patch", strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
