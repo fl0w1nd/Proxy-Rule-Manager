@@ -24,6 +24,31 @@ Config Patch API 为管理界面提供带版本检查的配置事务。所有端
 
 `POST /config/reload` 导入当前磁盘文件并切换运行时配置。内容变化时版本递增。
 
+## 备份与回滚
+
+每次配置成功提交前，当前源 YAML 会写入 `data/.state/backups/config-YYYYMMDD-HHmmss.yaml`。同一秒内的后续快照会追加序号。目录最多保留 20 份，超出时删除最旧的文件。无变化的提交不写快照。
+
+`GET /config/backups` 返回当前 `version` 与快照列表，按时间从新到旧。`added` / `removed` 是该快照相对当前配置将增加 / 删除的行数：
+
+```json
+{
+  "version": 3,
+  "items": [
+    {
+      "id": "config-20260908-121800.yaml",
+      "created_at": "2026-09-08T12:18:00.000Z",
+      "size": 2048,
+      "added": 1,
+      "removed": 1
+    }
+  ]
+}
+```
+
+`GET /config/backups/{id}` 返回快照原文，以及把它应用到当前配置时的行差异（`lines[].kind` 为 `add` 或 `del`）。
+
+`POST /config/backups/{id}/restore` 用指定快照替换当前配置，请求体为 `{ "version": 3 }`。回滚走与 Raw 保存相同的校验、乐观锁、脏检查和热重载路径。
+
 ## 提交 Patch
 
 `POST /config/patch` 接受一个 JSON 对象，请求体上限为 1 MiB：
@@ -98,7 +123,8 @@ Config Patch API 为管理界面提供带版本检查的配置事务。所有端
 
 | HTTP 状态 | 场景 |
 | --- | --- |
-| `200` | Patch 或 reload 已提交；响应包含 `version` 和 `warnings` |
+| `200` | Patch、reload、Raw 保存或回滚已提交；响应包含 `version` 和 `warnings` |
+| `404` | 回滚的快照不存在或标识无效 |
 | `409` | `config_version_conflict`、`config_dirty` 或 `update_in_progress` |
 | `413` | 请求体超过 1 MiB |
 | `415` | Content-Type 不是 `application/json` |
@@ -114,7 +140,7 @@ Patch、reload 和更新任务共享配置变更临界区。活跃更新任务�
 
 ## TypeScript
 
-`web/src/api/client.ts` 导出 `ConfigSnapshot`、`ConfigPatchOp`、`ConfigMutationResult`、`ConfigValidationIssue` 和 `APIRequestError`。调用方式：
+`web/src/api/client.ts` 导出 `ConfigSnapshot`、`ConfigPatchOp`、`ConfigMutationResult`、`ConfigValidationIssue`、`ConfigBackupList` 和 `APIRequestError`。调用方式：
 
 ```ts
 const snapshot = await api.getConfig();

@@ -25,6 +25,7 @@ describe('SettingsView', () => {
     await screen.findByText('设置已保存');
     expect(patch).toHaveBeenCalledWith(7, [{ op: 'update_fetch', value: { timeout: '25s', user_agent: 'PRM-UA' } }]);
     expect(screen.getByRole('button', { name: '保存设置' })).toBeDisabled();
+    expect(screen.getByRole('tab', { name: '备份与恢复' })).toBeEnabled();
   });
 
   it('retains edits after a version conflict', async () => {
@@ -39,5 +40,20 @@ describe('SettingsView', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('请刷新页面后重试'));
     expect(timeout).toHaveValue('25');
     expect(screen.getByRole('button', { name: '保存设置' })).toBeEnabled();
+  });
+
+  it('opens an imported file in the config editor', async () => {
+    vi.spyOn(api, 'getConfig').mockResolvedValue(snapshot);
+    vi.spyOn(api, 'getConfigRaw').mockResolvedValue({ yaml: 'clients: []\n', path: 'config.yaml', version: 7 });
+    vi.spyOn(api, 'listConfigBackups').mockResolvedValue({ version: 7, items: [] });
+    render(SettingsView);
+    await screen.findByLabelText('抓取超时');
+    await fireEvent.click(screen.getByRole('tab', { name: '备份与恢复' }));
+    await screen.findByRole('button', { name: '导入配置文件' });
+    const input = document.querySelector('input[type="file"]') as HTMLInputElement;
+    Object.defineProperty(input, 'files', { configurable: true, value: [new File(['# imported\n'], 'config.yaml', { type: 'text/yaml' })] });
+    await fireEvent.change(input);
+    await screen.findByRole('textbox', { name: 'YAML 配置文件' });
+    expect(screen.getByRole('button', { name: '保存配置' })).toBeEnabled();
   });
 });

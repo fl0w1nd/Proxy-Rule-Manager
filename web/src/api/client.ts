@@ -116,6 +116,29 @@ export interface ConfigMutationResult {
   warnings: string[];
 }
 
+export interface ConfigBackupItem {
+  id: string;
+  created_at: string;
+  size: number;
+  added: number;
+  removed: number;
+}
+
+export interface ConfigBackupLine {
+  kind: 'eq' | 'add' | 'del';
+  text: string;
+}
+
+export interface ConfigBackupDetail extends ConfigBackupItem {
+  yaml: string;
+  lines: ConfigBackupLine[];
+}
+
+export interface ConfigBackupList {
+  version: number;
+  items: ConfigBackupItem[];
+}
+
 export interface ConfigValidationIssue {
   path: string;
   line?: number;
@@ -282,6 +305,22 @@ export const api = {
   reloadConfig(): Promise<ConfigMutationResult> {
     return request<ConfigMutationResult>('/config/reload', {
       method: 'POST',
+    });
+  },
+
+  listConfigBackups(): Promise<ConfigBackupList> {
+    return request<ConfigBackupList>('/config/backups');
+  },
+
+  getConfigBackup(id: string): Promise<ConfigBackupDetail> {
+    return request<ConfigBackupDetail>(`/config/backups/${encodeURIComponent(id)}`);
+  },
+
+  restoreConfigBackup(id: string, version: number): Promise<ConfigMutationResult> {
+    return request<ConfigMutationResult>(`/config/backups/${encodeURIComponent(id)}/restore`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ version }),
     });
   },
 

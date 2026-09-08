@@ -4,7 +4,7 @@
   import YamlEditor from '../components/YamlEditor.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
 
-  let { onstatechange }: { onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
+  let { onstatechange, draft = '' }: { onstatechange?: (dirty: boolean, busy: boolean) => void; draft?: string } = $props();
   let snapshot = $state<ConfigRawSnapshot | null>(null);
   let text = $state('');
   let loading = $state(true);
@@ -22,7 +22,7 @@
     message = '';
     try {
       snapshot = await api.getConfigRaw();
-      text = snapshot.yaml;
+      text = draft || snapshot.yaml;
     } catch (error) { message = `读取配置失败：${(error as Error).message}`; }
     finally { loading = false; }
   }

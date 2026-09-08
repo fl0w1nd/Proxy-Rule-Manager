@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/go-chi/chi/v5"
+
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
@@ -84,6 +86,15 @@ type configRawResponse struct {
 type configRawRequest struct {
 	YAML    *string `json:"yaml"`
 	Version int64   `json:"version"`
+}
+
+type configBackupListResponse struct {
+	Version int64           `json:"version"`
+	Items   []config.Backup `json:"items"`
+}
+
+type configBackupRestoreRequest struct {
+	Version int64 `json:"version"`
 }
 
 func (s *Server) handleConfigRaw(w http.ResponseWriter, _ *http.Request) {
@@ -343,10 +354,75 @@ func (s *Server) preflightConfig(cfg *config.Config) error {
 	return nil
 }
 
+func (s *Server) handleConfigBackups(w http.ResponseWriter, _ *http.Request) {
+	items, err := s.ConfigManager.ListBackups()
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "backup_list_failed", "读取配置快照失败", map[string]any{})
+		return
+	}
+	if items == nil {
+		items = []config.Backup{}
+	}
+	_, version := s.ConfigManager.Snapshot()
+	writeJSON(w, http.StatusOK, configBackupListResponse{Version: version, Items: items})
+}
+
+func (s *Server) handleConfigBackup(w http.ResponseWriter, r *http.Request) {
+	detail, err := s.ConfigManager.BackupDetail(chi.URLParam(r, "backupID"))
+	if errors.Is(err, config.ErrBackupNotFound) {
+		writeAPIError(w, http.StatusNotFound, "backup_not_found", "找不到该配置快照", map[string]any{})
+		return
+	}
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "backup_read_failed", "读取配置快照失败", map[string]any{})
+		return
+	}
+	writeJSON(w, http.StatusOK, detail)
+}
+
+func (s *Server) handleConfigBackupRestore(w http.ResponseWriter, r *http.Request) {
+	var request configBackupRestoreRequest
+	if !decodeConfigRequest(w, r, &request) {
+		return
+	}
+	if request.Version < 1 {
+		writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求内容无效", map[string]any{"errors": []configIssue{{Path: "version", Message: "must be greater than zero"}}})
+		return
+	}
+	raw, err := s.ConfigManager.ReadBackup(chi.URLParam(r, "backupID"))
+	if errors.Is(err, config.ErrBackupNotFound) {
+		writeAPIError(w, http.StatusNotFound, "backup_not_found", "找不到该配置快照", map[string]any{})
+		return
+	}
+	if err != nil {
+		writeAPIError(w, http.StatusInternalServerError, "backup_read_failed", "读取配置快照失败", map[string]any{})
+		return
+	}
+	candidate, err := s.ConfigManager.PrepareRaw(request.Version, raw)
+	if err == nil && candidate.Changed() {
+		err = s.preflightConfig(candidate.Config())
+	}
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	version, warnings, err := s.commitConfig(candidate)
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, configMutationResponse{Version: version, Warnings: warnings})
+}
+
 func (s *Server) commitConfig(candidate *config.Candidate) (int64, []string, error) {
 	var version int64
 	changed := candidate.Changed()
 	err := s.updates.Reconfigure(changed, func() (*config.Config, error) {
+		if changed {
+			if err := s.ConfigManager.SaveBackup(time.Now()); err != nil {
+				return nil, fmt.Errorf("save config backup: %w", err)
+			}
+		}
 		cfg, committedVersion, err := s.ConfigManager.Commit(candidate)
 		if err != nil {
 			return nil, err

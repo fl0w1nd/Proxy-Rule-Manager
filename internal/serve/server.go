@@ -129,6 +129,9 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/config/patch", s.sameOriginMutation(s.handleConfigPatch))
 		r.Get("/config/dirty", s.handleConfigDirty)
 		r.Post("/config/reload", s.sameOriginMutation(s.handleConfigReload))
+		r.Get("/config/backups", s.handleConfigBackups)
+		r.Get("/config/backups/{backupID}", s.handleConfigBackup)
+		r.Post("/config/backups/{backupID}/restore", s.sameOriginMutation(s.handleConfigBackupRestore))
 	})
 
 	return r

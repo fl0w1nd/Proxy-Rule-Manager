@@ -11,6 +11,14 @@ async function editor() {
   return EditorView.findFromDOM(element)!;
 }
 
+it('loads imported draft text as unsaved editor content', async () => {
+  vi.spyOn(api, 'getConfigRaw').mockResolvedValue({ yaml: 'clients: []\n', path: 'config.yaml', version: 3 });
+  render(ConfigEditorView, { draft: '# imported\nclients: []\n' });
+  const view = await editor();
+  expect(view.state.doc.toString()).toBe('# imported\nclients: []\n');
+  expect(screen.getByRole('button', { name: '保存配置' })).toBeEnabled();
+});
+
 it('preserves the editor and selection when saving the submitted source', async () => {
   vi.spyOn(api, 'getConfigRaw').mockResolvedValue({ yaml: '# comment\nclients: []\n', path: 'config.yaml', version: 4 });
   const save = vi.spyOn(api, 'saveConfigRaw').mockResolvedValue({ version: 5, warnings: [] });
