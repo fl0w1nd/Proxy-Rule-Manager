@@ -75,6 +75,78 @@ type configIssue struct {
 	Message string `json:"message"`
 }
 
+type configRawResponse struct {
+	YAML    string `json:"yaml"`
+	Path    string `json:"path"`
+	Version int64  `json:"version"`
+}
+
+type configRawRequest struct {
+	YAML    *string `json:"yaml"`
+	Version int64   `json:"version"`
+}
+
+func (s *Server) handleConfigRaw(w http.ResponseWriter, _ *http.Request) {
+	raw, path, version, err := s.ConfigManager.RawSnapshot()
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, configRawResponse{YAML: raw, Path: path, Version: version})
+}
+
+func (s *Server) handleConfigValidate(w http.ResponseWriter, r *http.Request) {
+	var request configRawRequest
+	if !decodeConfigRequest(w, r, &request) || !validateRawRequest(w, request, false) {
+		return
+	}
+	cfg, err := s.ConfigManager.ValidateRaw([]byte(*request.YAML))
+	if err == nil {
+		err = s.validateConfigTemplates(cfg)
+	}
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"valid": true, "errors": []configIssue{}})
+}
+
+func (s *Server) handleConfigRawSave(w http.ResponseWriter, r *http.Request) {
+	var request configRawRequest
+	if !decodeConfigRequest(w, r, &request) || !validateRawRequest(w, request, true) {
+		return
+	}
+	candidate, err := s.ConfigManager.PrepareRaw(request.Version, []byte(*request.YAML))
+	if err == nil && candidate.Changed() {
+		err = s.preflightConfig(candidate.Config())
+	}
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	version, warnings, err := s.commitConfig(candidate)
+	if err != nil {
+		writeConfigMutationError(w, s.ConfigManager, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, configMutationResponse{Version: version, Warnings: warnings})
+}
+
+func validateRawRequest(w http.ResponseWriter, request configRawRequest, save bool) bool {
+	var issues []configIssue
+	if request.YAML == nil {
+		issues = append(issues, configIssue{Path: "yaml", Message: "required"})
+	}
+	if save && request.Version < 1 {
+		issues = append(issues, configIssue{Path: "version", Message: "must be greater than zero"})
+	}
+	if len(issues) > 0 {
+		writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求内容无效", map[string]any{"errors": issues})
+		return false
+	}
+	return true
+}
+
 func (s *Server) handleConfig(w http.ResponseWriter, _ *http.Request) {
 	source, version, err := s.ConfigManager.SourceSnapshot()
 	if err != nil {
@@ -155,26 +227,8 @@ func (s *Server) handleConfigReload(w http.ResponseWriter, _ *http.Request) {
 }
 
 func decodeConfigPatchRequest(w http.ResponseWriter, r *http.Request) (configPatchRequest, bool) {
-	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
-	if err != nil || mediaType != "application/json" {
-		writeAPIError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "请求需要 application/json", map[string]any{})
-		return configPatchRequest{}, false
-	}
-	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
 	var request configPatchRequest
-	if err := decoder.Decode(&request); err != nil {
-		var maxBytes *http.MaxBytesError
-		if errors.As(err, &maxBytes) {
-			writeAPIError(w, http.StatusRequestEntityTooLarge, "request_too_large", "请求内容超过 1 MiB", map[string]any{})
-		} else {
-			writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求内容无效", map[string]any{"errors": []configIssue{{Path: "request", Message: err.Error()}}})
-		}
-		return configPatchRequest{}, false
-	}
-	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
-		writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求只能包含一个 JSON 对象", map[string]any{"errors": []configIssue{{Path: "request", Message: "must contain exactly one JSON object"}}})
+	if !decodeConfigRequest(w, r, &request) {
 		return configPatchRequest{}, false
 	}
 	if request.Version < 1 {
@@ -186,6 +240,31 @@ func decodeConfigPatchRequest(w http.ResponseWriter, r *http.Request) (configPat
 		return configPatchRequest{}, false
 	}
 	return request, true
+}
+
+func decodeConfigRequest(w http.ResponseWriter, r *http.Request, request any) bool {
+	mediaType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/json" {
+		writeAPIError(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "请求需要 application/json", map[string]any{})
+		return false
+	}
+	r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(request); err != nil {
+		var maxBytes *http.MaxBytesError
+		if errors.As(err, &maxBytes) {
+			writeAPIError(w, http.StatusRequestEntityTooLarge, "request_too_large", "请求内容超过 1 MiB", map[string]any{})
+		} else {
+			writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求内容无效", map[string]any{"errors": []configIssue{{Path: "request", Message: err.Error()}}})
+		}
+		return false
+	}
+	if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+		writeAPIError(w, http.StatusUnprocessableEntity, "invalid_request", "请求只能包含一个 JSON 对象", map[string]any{"errors": []configIssue{{Path: "request", Message: "must contain exactly one JSON object"}}})
+		return false
+	}
+	return true
 }
 
 func buildPatchOperations(items []configPatchOperation) ([]config.PatchOp, error) {
@@ -234,13 +313,24 @@ func unexpectedPatchField(item configPatchOperation) string {
 	return ""
 }
 
-func (s *Server) preflightConfig(cfg *config.Config) error {
+func (s *Server) validateConfigTemplates(cfg *config.Config) error {
+	var issues config.ConfigErrors
 	for i, client := range cfg.Clients {
 		for _, target := range config.ExpandClientTargets(client) {
 			if _, ok := s.Engine.Registry.Get(target.Template); !ok {
-				return config.ConfigErrors{{Path: fmt.Sprintf("clients[%d]", i), Message: fmt.Sprintf("output target %q references unknown template %q", target.ID, target.Template)}}
+				issues = append(issues, cfg.ErrorAt(fmt.Sprintf("clients[%d]", i), fmt.Sprintf("output target %q references unknown template %q", target.ID, target.Template)))
 			}
 		}
+	}
+	if len(issues) > 0 {
+		return issues
+	}
+	return nil
+}
+
+func (s *Server) preflightConfig(cfg *config.Config) error {
+	if err := s.validateConfigTemplates(cfg); err != nil {
+		return err
 	}
 	targets := config.ExpandOutputTargets(cfg.Clients)
 	ids := make([]string, len(targets))
@@ -347,11 +437,6 @@ func writeConfigMutationError(w http.ResponseWriter, manager *config.Manager, er
 			issues[i] = configIssue{Path: issue.Path, Line: issue.Line, Message: issue.Message}
 		}
 		writeAPIError(w, http.StatusUnprocessableEntity, "config_invalid", "配置校验失败", map[string]any{"errors": issues})
-		return
-	}
-	var documentErr *config.InvalidDocumentError
-	if errors.As(err, &documentErr) {
-		writeAPIError(w, http.StatusUnprocessableEntity, "config_invalid", "配置文件无效", map[string]any{"errors": []configIssue{{Path: "config", Message: documentErr.Error()}}})
 		return
 	}
 	writeAPIError(w, http.StatusInternalServerError, "config_update_failed", "配置更新失败", map[string]any{"reason": err.Error()})

@@ -102,6 +102,49 @@ func (m *Manager) SourceSnapshot() (any, int64, error) {
 	return source, m.version, nil
 }
 
+// RawSnapshot reads the current disk contents alongside the managed version.
+func (m *Manager) RawSnapshot() (string, string, int64, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if m.path == "" {
+		return "", "", 0, ErrPersistenceUnavailable
+	}
+	raw, err := os.ReadFile(m.path)
+	return string(raw), m.path, m.version, err
+}
+
+// ValidateRaw checks a complete document without changing managed state.
+func (m *Manager) ValidateRaw(raw []byte) (*Config, error) {
+	cfg, _, err := decodeDocument(raw, m.dataDir)
+	return cfg, err
+}
+
+// PrepareRaw validates a replacement while retaining its exact source bytes.
+func (m *Manager) PrepareRaw(version int64, raw []byte) (*Candidate, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	if version != m.version {
+		return nil, &VersionConflictError{CurrentVersion: m.version}
+	}
+	if m.path == "" {
+		return nil, ErrPersistenceUnavailable
+	}
+	if dirty, err := fileDigestDiffers(m.path, m.digest); err != nil {
+		return nil, err
+	} else if dirty {
+		return nil, &DirtyConfigError{}
+	}
+	raw = append([]byte(nil), raw...)
+	cfg, doc, err := decodeDocument(raw, m.dataDir)
+	if err != nil {
+		return nil, err
+	}
+	return &Candidate{
+		baseVersion: version, baseDigest: m.digest, raw: raw,
+		doc: doc, cfg: cfg, changed: !bytes.Equal(raw, m.raw),
+	}, nil
+}
+
 // Dirty reports whether the source file differs from the managed document.
 func (m *Manager) Dirty() (bool, error) {
 	m.mu.RLock()

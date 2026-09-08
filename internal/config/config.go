@@ -4,7 +4,9 @@ package config
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"math"
 	"os"
 	"regexp"
@@ -25,11 +27,11 @@ type Duration time.Duration
 func (d *Duration) UnmarshalYAML(value *yaml.Node) error {
 	var s string
 	if err := value.Decode(&s); err != nil {
-		return fmt.Errorf("duration must be a string like \"15s\"")
+		return fmt.Errorf("line %d: duration must be a string like \"15s\"", value.Line)
 	}
 	parsed, err := time.ParseDuration(s)
 	if err != nil {
-		return fmt.Errorf("invalid duration %q: %w", s, err)
+		return fmt.Errorf("line %d: invalid duration %q: %w", value.Line, s, err)
 	}
 	*d = Duration(parsed)
 	return nil
@@ -44,7 +46,7 @@ func (s *Size) UnmarshalYAML(value *yaml.Node) error {
 	if err := value.Decode(&str); err == nil {
 		n, err := ParseSize(str)
 		if err != nil {
-			return err
+			return fmt.Errorf("line %d: %w", value.Line, err)
 		}
 		*s = Size(n)
 		return nil
@@ -52,7 +54,7 @@ func (s *Size) UnmarshalYAML(value *yaml.Node) error {
 	// Fall back to plain integer (bytes).
 	var n int64
 	if err := value.Decode(&n); err != nil {
-		return fmt.Errorf("size must be a string like \"4MB\" or an integer byte count")
+		return fmt.Errorf("line %d: size must be a string like \"4MB\" or an integer byte count", value.Line)
 	}
 	*s = Size(n)
 	return nil
@@ -294,14 +296,24 @@ func Load(path, dataDir string) (*Config, error) {
 func decodeDocument(data []byte, dataDir string) (*Config, *yaml.Node, error) {
 	var source yaml.Node
 	if err := yaml.Unmarshal(data, &source); err != nil {
-		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("parse config: %w", err)}
+		return nil, nil, documentError(err, nil)
 	}
 
 	var cfg Config
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
-		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("decode config: %w", err)}
+		return nil, nil, documentError(err, &source)
+	}
+	if len(source.Content) == 0 || source.Content[0].Kind != yaml.MappingNode {
+		return nil, nil, ConfigErrors{{Path: "config", Line: 1, Message: "configuration must be a YAML mapping"}}
+	}
+	var extra yaml.Node
+	if err := decoder.Decode(&extra); !errors.Is(err, io.EOF) {
+		if err != nil {
+			return nil, nil, documentError(err, nil)
+		}
+		return nil, nil, ConfigErrors{{Path: "config", Line: extra.Line, Message: "must contain exactly one YAML document"}}
 	}
 	cfg.positions = BuildPositionIndex(&source)
 	cfg.Defaults()

@@ -1,18 +1,14 @@
 package config
 
 import (
+	"errors"
 	"fmt"
+	"regexp"
+	"strconv"
 	"strings"
+
+	"gopkg.in/yaml.v3"
 )
-
-// InvalidDocumentError reports malformed YAML or fields outside the config
-// schema before semantic validation can run.
-type InvalidDocumentError struct {
-	Err error
-}
-
-func (e *InvalidDocumentError) Error() string { return e.Err.Error() }
-func (e *InvalidDocumentError) Unwrap() error { return e.Err }
 
 // ConfigError is a single validation issue with an optional source position.
 type ConfigError struct {
@@ -47,4 +43,54 @@ func (c *Config) ErrorAt(path, message string) ConfigError {
 		p = c.positions.Lookup(path)
 	}
 	return ConfigError{Path: path, Line: p.Line, Message: message}
+}
+
+var yamlErrorLine = regexp.MustCompile(`line ([0-9]+):`)
+
+// documentError converts YAML decoder diagnostics into editor positions.
+func documentError(err error, doc *yaml.Node) error {
+	messages := []string{err.Error()}
+	var typeErr *yaml.TypeError
+	if errors.As(err, &typeErr) {
+		messages = typeErr.Errors
+	}
+	issues := make(ConfigErrors, 0, len(messages))
+	for _, message := range messages {
+		line := 1
+		if match := yamlErrorLine.FindStringSubmatch(message); len(match) > 1 {
+			line, _ = strconv.Atoi(match[1])
+		}
+		path := "config"
+		// Prefer the deepest field on the reported line, including unknown keys.
+		var walk func(*yaml.Node, string)
+		walk = func(node *yaml.Node, prefix string) {
+			if node == nil {
+				return
+			}
+			if node.Kind == yaml.DocumentNode {
+				for _, child := range node.Content {
+					walk(child, prefix)
+				}
+			} else if node.Kind == yaml.MappingNode {
+				for i := 0; i+1 < len(node.Content); i += 2 {
+					key, value := node.Content[i], node.Content[i+1]
+					field := key.Value
+					if prefix != "" {
+						field = prefix + "." + field
+					}
+					if key.Line == line || value.Line == line {
+						path = field
+					}
+					walk(value, field)
+				}
+			} else if node.Kind == yaml.SequenceNode {
+				for i, child := range node.Content {
+					walk(child, fmt.Sprintf("%s[%d]", prefix, i))
+				}
+			}
+		}
+		walk(doc, "")
+		issues = append(issues, ConfigError{Path: path, Line: line, Message: message})
+	}
+	return issues
 }
