@@ -24,7 +24,7 @@
   }: Props = $props();
 
   function handleKeydown(ev: KeyboardEvent) {
-    if (ev.key === 'Escape' && open) {
+    if (ev.key === 'Escape' && open && !document.querySelector('dialog[open]')) {
       close();
     }
   }

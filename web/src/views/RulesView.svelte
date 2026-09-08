@@ -5,12 +5,16 @@
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import PixelTabs from '../components/pixel/PixelTabs.svelte';
+  import PixelDialog from '../components/pixel/PixelDialog.svelte';
+  import LocalFilesView from './LocalFilesView.svelte';
 
   interface Props {
     onStartUpdate: (scope: 'rules', ruleIds: string[]) => void;
     activeRuleId?: string | null;
     isUpdating?: boolean;
     currentProcessingRuleId?: string | null;
+    onstatechange?: (dirty: boolean, saving: boolean) => void;
   }
 
   let {
@@ -18,7 +22,34 @@
     activeRuleId = null,
     isUpdating = false,
     currentProcessingRuleId = null,
+    onstatechange,
   }: Props = $props();
+
+  let tab = $state('compile');
+  let filesDirty = $state(false);
+  let filesBusy = $state(false);
+  let pending = $state('');
+  let leaveDialog = $state(false);
+
+  const tabs = [
+    { value: 'compile', label: '编译规则' },
+    { value: 'files', label: '本地文件' },
+  ];
+
+  function filesState(dirty: boolean, busy: boolean) {
+    filesDirty = dirty;
+    filesBusy = busy;
+    onstatechange?.(dirty, busy);
+  }
+  function leave(next: string) {
+    filesState(false, false);
+    tab = next;
+  }
+  function switchTab(next: string) {
+    if (next === tab || filesBusy) return;
+    if (filesDirty) { pending = next; leaveDialog = true; return; }
+    leave(next);
+  }
 
   let rules = $state<RuleItem[]>([]);
   let searchQuery = $state('');
@@ -78,7 +109,12 @@
   }
 </script>
 
-<div class="rules-view">
+<div class="rules-page">
+  <PixelTabs id="rules" label="规则管理" items={tabs.map(item => ({ ...item, disabled: filesBusy }))}
+    value={tab} onchange={switchTab} />
+
+  {#if tab === 'compile'}
+    <div class="rules-view" role="tabpanel" id="rules-panel-compile" aria-labelledby="rules-tab-compile">
   <div class="rules-toolbar">
     <div class="toolbar-left">
       <span class="count-badge">
@@ -169,9 +205,26 @@
       {/if}
     </tbody>
   </PixelTable>
+    </div>
+  {:else if tab === 'files'}
+    <div role="tabpanel" id="rules-panel-files" aria-labelledby="rules-tab-files">
+      <LocalFilesView onstatechange={filesState} />
+    </div>
+  {/if}
 </div>
+<PixelDialog bind:open={leaveDialog} title="切换规则页面？" confirmLabel="放弃修改并切换" cancelLabel="继续编辑" danger
+  oncancel={() => { pending = ''; }} onconfirm={() => { leave(pending); pending = ''; }}>
+  当前文件尚未保存，切换后将丢弃这些修改。
+</PixelDialog>
 
 <style>
+  .rules-page {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+  }
+
   .rules-view {
     display: flex;
     flex-direction: column;

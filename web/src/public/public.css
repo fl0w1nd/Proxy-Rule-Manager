@@ -486,30 +486,7 @@
 .modal-meta > strong { color: var(--display); font: 400 20px/24px var(--font-display); }
 .modal-meta > span { color: var(--dim); }
 .modal-actions { gap: 8px; margin-left: auto; }
-.preview-shell {
-  margin: 14px 20px 20px;
-  border: 1px solid var(--border-vis);
-  border-radius: 3px;
-  background: var(--terminal-bg);
-}
-.preview-shell > header {
-  display: grid;
-  grid-template-columns: 160px 1fr auto;
-  gap: 12px;
-  padding: 8px 12px;
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border-vis);
-  color: var(--terminal-muted);
-}
-.preview-shell > header span:first-child { color: var(--terminal-text); }
-.preview-shell > header i {
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 6px;
-  background: var(--diff-add);
-}
-.preview-shell > header b { color: var(--sec); }
+.preview-shell { margin: 14px 20px 20px; }
 .preview-shell pre {
   max-height: 440px;
   overflow: auto;
@@ -564,6 +541,4 @@
   .modal-backdrop { padding: 10px; }
   .file-modal { max-height: 96vh; }
   .modal-actions { width: 100%; margin-left: 0; }
-  .preview-shell > header { grid-template-columns: 1fr auto; }
-  .preview-shell > header span:nth-child(2) { grid-column: 1 / -1; grid-row: 2; }
 }

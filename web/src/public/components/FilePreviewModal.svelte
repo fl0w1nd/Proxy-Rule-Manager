@@ -8,6 +8,7 @@
 </script>
 
 <script lang="ts">
+  import CodePanel from '../../components/CodePanel.svelte';
   import PixelButton from '../../components/pixel/PixelButton.svelte';
   import PixelIcon from '../../components/pixel/PixelIcon.svelte';
   import type { PreviewItem, PublicClient, PublicClientOption } from '../types';
@@ -132,8 +133,9 @@
         </div>
       </div>
       <div class="preview-shell" data-state={previewState}>
-        <header><span><i></i> FILE PREVIEW</span><span>{item.path?.split('/').pop() || 'NO FILE'}</span><b>{previewStat}</b></header>
-        <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+        <CodePanel filename={item.path?.split('/').pop()} stat={previewStat}>
+          <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+        </CodePanel>
       </div>
     </div>
   </div>

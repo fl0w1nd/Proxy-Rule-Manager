@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { api, APIRequestError, type ConfigRawSnapshot, type ConfigValidationIssue } from '../api/client';
-  import YamlEditor from '../components/YamlEditor.svelte';
+  import CodeEditor from '../components/CodeEditor.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
 
   let { onstatechange, draft = '' }: { onstatechange?: (dirty: boolean, busy: boolean) => void; draft?: string } = $props();
@@ -13,7 +13,7 @@
   let issues = $state<ConfigValidationIssue[]>([]);
   let message = $state('');
   let success = $state(false);
-  let editor = $state<YamlEditor>();
+  let editor = $state<CodeEditor>();
   const dirty = $derived(snapshot !== null && text !== snapshot.yaml);
   $effect(() => { onstatechange?.(dirty, saving); });
 
@@ -79,7 +79,7 @@
 {:else}
   <section class="config-editor" aria-label="配置文件编辑器">
     <header><code>{snapshot.path}</code><span>版本 {snapshot.version}{dirty ? ' · 未保存' : ''}</span></header>
-    <YamlEditor bind:this={editor} value={snapshot.yaml} {issues} readonly={saving} onchange={edited} />
+    <CodeEditor bind:this={editor} value={text} filename={snapshot.path.split(/[\\/]/).pop()} language="yaml" label="YAML 配置文件" {issues} readonly={saving} onchange={edited} />
     <footer>
       <PixelButton disabled={saving || validating} onclick={validate}>{validating ? '校验中…' : '校验'}</PixelButton>
       <PixelButton variant="primary" disabled={!dirty || saving || validating} onclick={save}>{saving ? '保存中…' : '保存配置'}</PixelButton>

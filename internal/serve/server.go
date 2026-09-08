@@ -132,6 +132,11 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/config/backups", s.handleConfigBackups)
 		r.Get("/config/backups/{backupID}", s.handleConfigBackup)
 		r.Post("/config/backups/{backupID}/restore", s.sameOriginMutation(s.handleConfigBackupRestore))
+		r.Get("/local-files", s.handleLocalFiles)
+		r.Post("/local-files", s.sameOriginMutation(s.handleLocalFileCreate))
+		r.Get("/local-files/{name}", s.handleLocalFile)
+		r.Put("/local-files/{name}", s.sameOriginMutation(s.handleLocalFileUpdate))
+		r.Delete("/local-files/{name}", s.sameOriginMutation(s.handleLocalFileDelete))
 	})
 
 	return r

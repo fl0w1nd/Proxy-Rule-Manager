@@ -31,7 +31,7 @@
 </script>
 
 <div class="settings-view">
-  <PixelTabs id="settings" label="系统设置" items={settingTabs.map(item => ({ ...item, disabled: item.disabled || busy }))}
+  <PixelTabs id="settings" label="系统设置" items={settingTabs.map(item => ({ ...item, disabled: busy }))}
     value={active} onchange={switchTab} />
   {#if active === 'runtime'}
     <RuntimeSettingsView onstatechange={stateChanged} />

@@ -139,6 +139,17 @@ export interface ConfigBackupList {
   items: ConfigBackupItem[];
 }
 
+export interface LocalFileItem {
+  name: string;
+  size: number;
+  lines: number;
+  modified_at: string;
+}
+
+export interface LocalFileDetail extends LocalFileItem {
+  content: string;
+}
+
 export interface ConfigValidationIssue {
   path: string;
   line?: number;
@@ -151,6 +162,7 @@ export interface APIErrorDetails {
   config?: ConfigDocument;
   current_update_id?: string;
   reason?: string;
+  rules?: { id: string; name: string }[];
   [key: string]: unknown;
 }
 
@@ -321,6 +333,36 @@ export const api = {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version }),
+    });
+  },
+
+  listLocalFiles(): Promise<{ items: LocalFileItem[] }> {
+    return request<{ items: LocalFileItem[] }>('/local-files');
+  },
+
+  getLocalFile(name: string): Promise<LocalFileDetail> {
+    return request<LocalFileDetail>(`/local-files/${encodeURIComponent(name)}`);
+  },
+
+  createLocalFile(name: string, content: string): Promise<LocalFileDetail> {
+    return request<LocalFileDetail>('/local-files', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, content }),
+    });
+  },
+
+  saveLocalFile(name: string, content: string): Promise<LocalFileDetail> {
+    return request<LocalFileDetail>(`/local-files/${encodeURIComponent(name)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    });
+  },
+
+  deleteLocalFile(name: string): Promise<{ name: string }> {
+    return request<{ name: string }>(`/local-files/${encodeURIComponent(name)}`, {
+      method: 'DELETE',
     });
   },
 
