@@ -1,8 +1,9 @@
 // Package config defines the YAML configuration model for prm, including
-// loader, validator, and environment-variable interpolation.
+// loader and validator.
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"math"
 	"os"
@@ -276,22 +277,9 @@ func (c *Config) Defaults() {
 	}
 }
 
-var envPattern = regexp.MustCompile(`\$\{([A-Za-z_][A-Za-z0-9_]*)\}`)
-
-// interpolateEnv replaces ${VAR} placeholders with os.Getenv(VAR).
-func interpolateEnv(s string) string {
-	return envPattern.ReplaceAllStringFunc(s, func(match string) string {
-		varName := envPattern.FindStringSubmatch(match)[1]
-		if v, ok := os.LookupEnv(varName); ok {
-			return v
-		}
-		return match
-	})
-}
-
-// Load reads and parses a YAML config file, applying environment variable
-// interpolation and defaults. The returned Config retains YAML source
-// positions so that Validate() can report line-precise errors.
+// Load reads and parses a YAML config file and applies defaults. The returned
+// Config retains YAML source positions so that Validate() can report
+// line-precise errors.
 func Load(path, dataDir string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -301,28 +289,21 @@ func Load(path, dataDir string) (*Config, error) {
 	return cfg, err
 }
 
-// decodeDocument parses raw YAML into the effective runtime configuration and
-// retains the unexpanded document used for source-preserving edits.
+// decodeDocument parses raw YAML into the runtime configuration and retains
+// the document used for source-preserving edits.
 func decodeDocument(data []byte, dataDir string) (*Config, *yaml.Node, error) {
 	var source yaml.Node
 	if err := yaml.Unmarshal(data, &source); err != nil {
 		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("parse config: %w", err)}
 	}
-	expanded := interpolateEnv(string(data))
-
-	// Parse into Node tree to capture source positions.
-	var doc yaml.Node
-	if err := yaml.Unmarshal([]byte(expanded), &doc); err != nil {
-		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("parse config: %w", err)}
-	}
 
 	var cfg Config
-	decoder := yaml.NewDecoder(strings.NewReader(expanded))
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
 	if err := decoder.Decode(&cfg); err != nil {
 		return nil, nil, &InvalidDocumentError{Err: fmt.Errorf("decode config: %w", err)}
 	}
-	cfg.positions = BuildPositionIndex(&doc)
+	cfg.positions = BuildPositionIndex(&source)
 	cfg.Defaults()
 
 	if errs := cfg.Validate(dataDir); len(errs) > 0 {

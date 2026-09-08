@@ -13,7 +13,6 @@ import (
 )
 
 func TestManagerPreservesSourceAndAdvancesVersion(t *testing.T) {
-	t.Setenv("PRIVATE_RULE_HOST", "secret.example")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	source := `# managed config
@@ -26,7 +25,7 @@ rules:
   - id: base
     name: Base
     sources:
-      - url: https://${PRIVATE_RULE_HOST}/rules.list
+      - url: https://rules.example/rules.list
     outputs: [surge]
 `
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
@@ -37,7 +36,7 @@ rules:
 		t.Fatal(err)
 	}
 	cfg, version := manager.Snapshot()
-	if version != 1 || cfg.Rules[0].Sources[0].URL != "https://secret.example/rules.list" {
+	if version != 1 || cfg.Rules[0].Sources[0].URL != "https://rules.example/rules.list" {
 		t.Fatalf("version=%d url=%q", version, cfg.Rules[0].Sources[0].URL)
 	}
 	rawView, _, err := manager.SourceSnapshot()
@@ -48,8 +47,8 @@ rules:
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(encodedView), `${PRIVATE_RULE_HOST}`) {
-		t.Fatalf("source view expanded environment variable: %s", encodedView)
+	if !strings.Contains(string(encodedView), "https://rules.example/rules.list") {
+		t.Fatalf("source view missing url: %s", encodedView)
 	}
 
 	value := patchValue(t, `{"id":"extra","name":"Extra","sources":[{"content":"DOMAIN,extra.example"}],"outputs":["surge"]}`)
@@ -72,7 +71,7 @@ rules:
 		t.Fatal(err)
 	}
 	text := string(written)
-	for _, want := range []string{"# managed config", "# keep client comment", `${PRIVATE_RULE_HOST}`, "id: extra"} {
+	for _, want := range []string{"# managed config", "# keep client comment", "https://rules.example/rules.list", "id: extra"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("written config missing %q:\n%s", want, text)
 		}

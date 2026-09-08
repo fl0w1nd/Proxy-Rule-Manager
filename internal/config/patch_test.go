@@ -120,7 +120,6 @@ func TestManagerRejectsInvalidTransactionWithoutWriting(t *testing.T) {
 }
 
 func TestPatchPreservesUntouchedYAMLPresentation(t *testing.T) {
-	t.Setenv("RULE_HOST", "effective.example")
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	source := `# document comment
@@ -132,7 +131,7 @@ rules:
   - id: first
     name: First
     sources:
-      - url: "https://${RULE_HOST}/first.list"
+      - url: "https://rules.example/first.list"
     outputs: [surge]
   - id: second
     name: Second
@@ -163,7 +162,7 @@ rules:
 	text := string(written)
 	for _, want := range []string{
 		"# document comment", "name: 'Surge Styled' # scalar comment",
-		`url: "https://${RULE_HOST}/first.list"`, "outputs: [surge]",
+		`url: "https://rules.example/first.list"`, "outputs: [surge]",
 		"id: first", "id: second", "name: Second Updated",
 	} {
 		if !strings.Contains(text, want) {

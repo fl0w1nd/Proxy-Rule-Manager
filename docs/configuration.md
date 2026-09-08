@@ -206,15 +206,6 @@ geosite:
 
 可信代理接受单 IP 或 CIDR。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。`PRM_DEV` 为 `1`、`true`、`yes` 或 `on` 时进入开发模式：管理令牌可不设，`/admin` 与 `/api/v1` 不鉴权。仅用于本地开发。
 
-## 环境变量插值
-
-任何字符串字段都能用 `${ENV_NAME}` 插入环境变量值，适合放访问令牌或内网地址：
-
-```yaml
-sources:
-  - url: ${PRIVATE_RULES_URL}    # 需要导出 PRIVATE_RULES_URL
-```
-
 ## 常见问题
 
 - **报了错但不知道在哪**：`prm validate` 的错误都带 YAML 行号和配置路径，直接看行号。

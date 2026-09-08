@@ -37,17 +37,6 @@
 
 完成后在 **Actions** 页面手动运行一次 *Publish Rules to GitHub Pages* 工作流，确认站点能构建和发布。
 
-## 敏感配置
-
-配置文件可用 `${ENV_NAME}` 引用环境变量。在仓库 Secret 里新建 `PRM_ENV`，每行一个变量：
-
-```dotenv
-SOURCE_TOKEN=example-token
-PRIVATE_URL=https://example.com/rules
-```
-
-变量名需符合 shell 环境变量格式。工作流在构建前把这些值写入任务环境，`config.yaml` 里对应的 `${SOURCE_TOKEN}` 会被替换。
-
 ## 运行与维护
 
 - **自动运行**：每天 `03:17 UTC`。

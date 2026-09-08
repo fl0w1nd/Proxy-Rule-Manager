@@ -160,36 +160,6 @@ func TestValidateHistoryBounds(t *testing.T) {
 	}
 }
 
-func TestLoadEnvInterpolation(t *testing.T) {
-	t.Setenv("TEST_USER_AGENT", "custom-agent")
-	dir := t.TempDir()
-	cfgPath := filepath.Join(dir, "config.yaml")
-	content := `
-clients:
-  - id: c
-    template: t
-rules:
-  - id: R
-    name: R
-    sources:
-      - content: example.com
-    outputs: [c]
-update:
-  fetch:
-    user_agent: ${TEST_USER_AGENT}
-`
-	if err := os.WriteFile(cfgPath, []byte(content), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	cfg, err := Load(cfgPath, t.TempDir())
-	if err != nil {
-		t.Fatal(err)
-	}
-	if cfg.Update.Fetch.UserAgent != "custom-agent" {
-		t.Fatalf("user agent: %q", cfg.Update.Fetch.UserAgent)
-	}
-}
-
 func TestDefaultsBoundPerHostConcurrencyWhenOmitted(t *testing.T) {
 	cfg := Config{Update: UpdateConfig{Fetch: FetchConfig{Concurrency: 1}}}
 	cfg.Defaults()

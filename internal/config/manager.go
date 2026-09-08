@@ -91,7 +91,7 @@ func (m *Manager) Snapshot() (*Config, int64) {
 	return m.cfg.DeepCopy(), m.version
 }
 
-// SourceSnapshot returns the unexpanded YAML document as JSON-compatible data.
+// SourceSnapshot returns the YAML document as JSON-compatible data.
 func (m *Manager) SourceSnapshot() (any, int64, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()

@@ -61,21 +61,6 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-prm-data-${{ github.repository_id }}-
 
-      - name: Load secret environment
-        shell: bash
-        env:
-          PRM_ENV: ${{ secrets.PRM_ENV }}
-        run: |
-          while IFS= read -r entry || [[ -n "$entry" ]]; do
-            [[ -z "$entry" || "$entry" == \#* ]] && continue
-            name="${entry%%=*}"
-            if [[ "$entry" != *=* || ! "$name" =~ ^[A-Za-z_][A-Za-z0-9_]*$ ]]; then
-              echo "PRM_ENV contains an invalid environment entry" >&2
-              exit 1
-            fi
-            printf '%s\n' "$entry" >> "$GITHUB_ENV"
-          done <<< "$PRM_ENV"
-
       - name: Build static site
         working-directory: user
         run: ${{ steps.prm.outputs.path }} --config config.yaml --data-dir data build --output dist

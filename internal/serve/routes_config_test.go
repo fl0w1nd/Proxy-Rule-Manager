@@ -37,7 +37,6 @@ func (r *blockingConfigRunner) PartialUpdate(ctx context.Context, _ []string) en
 }
 
 func TestConfigPatchAPIUpdatesSourceAndRuntime(t *testing.T) {
-	t.Setenv("RULE_HOST", "private.example")
 	s, path := fileBackedConfigServer(t, nil)
 	handler := s.Handler()
 
@@ -53,11 +52,11 @@ func TestConfigPatchAPIUpdatesSourceAndRuntime(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &snapshot); err != nil {
 		t.Fatal(err)
 	}
-	if snapshot.Version != 1 || !strings.Contains(rec.Body.String(), `${RULE_HOST}`) {
+	if snapshot.Version != 1 || !strings.Contains(rec.Body.String(), "https://rules.example/rules.list") {
 		t.Fatalf("snapshot=%s", rec.Body.String())
 	}
 
-	body := `{"version":1,"ops":[{"op":"update_rule","id":"base","value":{"id":"base","name":"Base Updated","sources":[{"url":"https://${RULE_HOST}/rules.list"}],"outputs":["surge"]}}]}`
+	body := `{"version":1,"ops":[{"op":"update_rule","id":"base","value":{"id":"base","name":"Base Updated","sources":[{"url":"https://rules.example/rules.list"}],"outputs":["surge"]}}]}`
 	rec = patchConfig(handler, body)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("patch=%d %s", rec.Code, rec.Body.String())
@@ -73,7 +72,7 @@ func TestConfigPatchAPIUpdatesSourceAndRuntime(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(written), `${RULE_HOST}`) || !strings.Contains(string(written), "name: Base Updated") {
+	if !strings.Contains(string(written), "https://rules.example/rules.list") || !strings.Contains(string(written), "name: Base Updated") {
 		t.Fatalf("written config:\n%s", written)
 	}
 	if got := s.config().Rules[0].Name; got != "Base Updated" {
@@ -241,7 +240,7 @@ rules:
   - id: base
     name: Base
     sources:
-      - url: https://${RULE_HOST}/rules.list
+      - url: https://rules.example/rules.list
     outputs: [surge]
 `
 	if err := os.WriteFile(path, []byte(source), 0o644); err != nil {
