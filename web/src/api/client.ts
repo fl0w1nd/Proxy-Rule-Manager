@@ -104,6 +104,12 @@ export interface ConfigSnapshot {
   config: ConfigDocument;
 }
 
+export interface ConfigRawSnapshot {
+  yaml: string;
+  path: string;
+  version: number;
+}
+
 export interface ConfigMutationResult {
   status?: string;
   version: number;
@@ -245,6 +251,24 @@ export const api = {
 
   getConfig(): Promise<ConfigSnapshot> {
     return request<ConfigSnapshot>('/config');
+  },
+
+  getConfigRaw(): Promise<ConfigRawSnapshot> {
+    return request('/config/raw');
+  },
+
+  validateConfig(yaml: string): Promise<{ valid: boolean; errors: ConfigValidationIssue[] }> {
+    return request('/config/validate', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml }),
+    });
+  },
+
+  saveConfigRaw(yaml: string, version: number): Promise<ConfigMutationResult> {
+    return request('/config/raw', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ yaml, version }),
+    });
   },
 
   patchConfig(version: number, ops: ConfigPatchOp[]): Promise<ConfigMutationResult> {

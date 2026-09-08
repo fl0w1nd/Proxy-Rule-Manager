@@ -24,7 +24,7 @@ export interface SettingField {
 
 export const settingTabs = [
   { value: 'runtime', label: '运行设置' },
-  { value: 'config', label: '配置文件', disabled: true },
+  { value: 'config', label: '配置文件' },
   { value: 'backup', label: '备份与恢复', disabled: true },
 ];
 

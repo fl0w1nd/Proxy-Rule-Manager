@@ -185,7 +185,7 @@
 
 <PixelToast bind:this={toastRef} />
 
-<PixelDialog bind:open={leaveDialog} title="离开运行设置？" confirmLabel="放弃修改并离开" cancelLabel="继续编辑" danger
+<PixelDialog bind:open={leaveDialog} title="离开系统设置？" confirmLabel="放弃修改并离开" cancelLabel="继续编辑" danger
   oncancel={() => { pendingTab = null; }}
   onconfirm={() => {
     const tab = pendingTab;

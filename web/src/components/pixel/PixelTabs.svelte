@@ -9,8 +9,8 @@
   let { id, label, items, value = $bindable(), onchange }: Props = $props();
 
   function select(next: string) {
-    value = next;
-    onchange?.(next);
+    if (onchange) onchange(next);
+    else value = next;
   }
 
   function navigate(event: KeyboardEvent, index: number) {
