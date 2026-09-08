@@ -11,12 +11,13 @@
   import iconRules from '../assets/icons/nav/rules.svg';
   import iconChanges from '../assets/icons/nav/changes.svg';
   import iconUpdates from '../assets/icons/nav/updates.svg';
+  import iconSettings from '../assets/icons/nav/settings.svg';
   import iconGeosite from '../assets/icons/nav/geosite.svg';
   import prmBrandIcon from '../assets/icons/brand/prm.svg';
 
   interface Props {
-    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite';
-    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite') => void;
+    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings';
+    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings') => void;
     onStartUpdate: (scope: 'all' | 'rules', ruleIds?: string[]) => void;
     activeJob: string | null;
     isUpdating: boolean;
@@ -115,6 +116,7 @@
     { id: 'changes', label: 'Diff', icon: iconChanges },
     { id: 'updates', label: '更新日志', icon: iconUpdates },
     { id: 'geosite', label: 'Geosite', icon: iconGeosite },
+    { id: 'settings', label: '系统设置', icon: iconSettings },
   ] as const;
 
   const currentTitle = $derived(

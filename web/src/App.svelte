@@ -6,13 +6,19 @@
   import RulesView from './views/RulesView.svelte';
   import ChangesView from './views/ChangesView.svelte';
   import UpdatesView from './views/UpdatesView.svelte';
+  import SettingsView from './views/SettingsView.svelte';
+  import PixelDialog from './components/pixel/PixelDialog.svelte';
   import GeositeView from './views/GeositeView.svelte';
   import PixelToast from './components/pixel/PixelToast.svelte';
   import { finishSummary } from './updateLabels';
 
-  type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite';
+  type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings';
 
   let currentTab = $state<TabType>('dashboard');
+  let settingsDirty = $state(false);
+  let settingsSaving = $state(false);
+  let leaveDialog = $state(false);
+  let pendingTab = $state<TabType | null>(null);
   let activeJob = $state<string | null>(null);
   let isUpdating = $derived(!!activeJob);
   let activeRuleId = $state<string | null>(null);
@@ -29,7 +35,7 @@
   function getTabFromHash(): TabType | null {
     try {
       const hash = location.hash.replace(/^#\/?/, '').trim() as TabType;
-      if (['dashboard', 'rules', 'changes', 'updates', 'geosite'].includes(hash)) {
+      if (['dashboard', 'rules', 'changes', 'updates', 'geosite', 'settings'].includes(hash)) {
         return hash;
       }
     } catch {}
@@ -44,7 +50,7 @@
     } else {
       try {
         const saved = sessionStorage.getItem('prm-admin-tab') as TabType | null;
-        if (saved && ['dashboard', 'rules', 'changes', 'updates', 'geosite'].includes(saved)) {
+        if (saved && ['dashboard', 'rules', 'changes', 'updates', 'geosite', 'settings'].includes(saved)) {
           currentTab = saved;
         }
       } catch {}
@@ -53,7 +59,10 @@
     const onHashChange = () => {
       const t = getTabFromHash();
       if (t && t !== currentTab) {
-        currentTab = t;
+        if (currentTab === 'settings' && (settingsDirty || settingsSaving)) {
+          history.replaceState(null, '', '#settings');
+        }
+        handleTabChange(t);
       }
     };
     window.addEventListener('hashchange', onHashChange);
@@ -71,7 +80,18 @@
   });
 
   function handleTabChange(tab: TabType) {
+    if (tab === currentTab) return;
+    if (settingsSaving) {
+      toastRef?.show('正在保存设置，请稍候', 'info');
+      return;
+    }
+    if (currentTab === 'settings' && settingsDirty) {
+      pendingTab = tab;
+      leaveDialog = true;
+      return;
+    }
     currentTab = tab;
+    settingsDirty = false;
     try {
       location.hash = tab;
       sessionStorage.setItem('prm-admin-tab', tab);
@@ -156,9 +176,22 @@
     <ChangesView bind:this={changesRef} />
   {:else if currentTab === 'updates'}
     <UpdatesView bind:this={updatesRef} />
+  {:else if currentTab === 'settings'}
+    <SettingsView onstatechange={(dirty, saving) => { settingsDirty = dirty; settingsSaving = saving; }} />
   {:else if currentTab === 'geosite'}
     <GeositeView bind:this={geositeRef} />
   {/if}
 </AdminLayout>
 
 <PixelToast bind:this={toastRef} />
+
+<PixelDialog bind:open={leaveDialog} title="离开运行设置？" confirmLabel="放弃修改并离开" cancelLabel="继续编辑" danger
+  oncancel={() => { pendingTab = null; }}
+  onconfirm={() => {
+    const tab = pendingTab;
+    pendingTab = null;
+    settingsDirty = false;
+    if (tab) handleTabChange(tab);
+  }}>
+  当前修改尚未保存，离开后将丢弃这些修改。
+</PixelDialog>
