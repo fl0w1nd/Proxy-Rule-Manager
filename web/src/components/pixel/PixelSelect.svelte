@@ -5,9 +5,11 @@
     options: { value: string; label: string }[];
     value: string;
     disabled?: boolean;
+    size?: 'sm' | 'md';
+    class?: string;
     onchange?: (value: string) => void;
   }
-  let { id, label, options, value = $bindable(), disabled = false, onchange }: Props = $props();
+  let { id, label, options, value = $bindable(), disabled = false, size = 'md', class: className = '', onchange }: Props = $props();
   let root: HTMLDivElement;
   let open = $state(false);
   let highlighted = $state(0);
@@ -44,7 +46,7 @@
 </script>
 
 <svelte:window onpointerdown={(event) => { if (!root?.contains(event.target as Node)) open = false; }} />
-<div class="pixel-select" bind:this={root} onfocusout={(event) => { if (!root.contains(event.relatedTarget as Node)) open = false; }}>
+<div class="pixel-select {size} {className}" class:open bind:this={root} onfocusout={(event) => { if (!root.contains(event.relatedTarget as Node)) open = false; }}>
   <button {id} type="button" role="combobox" aria-label={label} aria-haspopup="listbox"
     aria-expanded={open} aria-controls="{id}-options"
     aria-activedescendant={open ? `${id}-option-${highlighted}` : undefined}
@@ -67,13 +69,16 @@
 
 <style>
   .pixel-select { position: relative; min-width: 0; }
-  button { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface-2); color: var(--text); box-shadow: var(--edge-raised); font: 400 12px/20px var(--font-ui); text-align: left; cursor: pointer; transition: background-color 80ms linear; }
-  button span { overflow: hidden; text-overflow: ellipsis; }
+  .pixel-select.open { z-index: 30; }
+  button { display: flex; align-items: center; justify-content: space-between; gap: 8px; width: 100%; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface-2); color: var(--text); box-shadow: var(--edge-raised); font: 400 12px/20px var(--font-ui); text-align: left; cursor: pointer; transition: background-color 80ms linear; }
+  .pixel-select.sm button { min-height: 28px; padding: 2px 8px; font: 400 11px/18px var(--font-ui); }
+  button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   svg { flex-shrink: 0; }
   button:hover:not(:disabled) { background: var(--surface); }
   button[aria-expanded='true'] { box-shadow: var(--edge-pressed); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  .options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20; max-height: 240px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-popup); animation: pixel-fade 120ms linear; }
-  [role='option'] { padding: 6px 8px; font: 400 12px/20px var(--font-ui); cursor: pointer; overflow-wrap: anywhere; }
+  .options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40; max-height: 240px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-popup); animation: pixel-fade 120ms linear; }
+  [role='option'] { padding: 4px 8px; font: 400 12px/20px var(--font-ui); cursor: pointer; overflow-wrap: anywhere; border-radius: 2px; }
+  .pixel-select.sm [role='option'] { padding: 3px 6px; font: 400 11px/18px var(--font-ui); }
   .highlighted { background: var(--selected); color: var(--selected-text); }
 </style>

@@ -83,7 +83,8 @@
             '.cm-lineNumbers .cm-gutterElement': { minWidth: '52px', padding: '0 12px 0 8px' },
             '.cm-gutters': { backgroundColor: 'var(--terminal-bg)', color: 'var(--terminal-muted)', borderRight: '1px solid var(--border)' },
             '.cm-activeLine, .cm-activeLineGutter': { backgroundColor: 'var(--surface-2)' },
-            '&.cm-focused .cm-selectionBackground, .cm-selectionBackground, .cm-content ::selection': { backgroundColor: '#58765388' },
+            '&.cm-focused .cm-selectionBackground, .cm-selectionBackground': { backgroundColor: 'var(--selected)' },
+            '.cm-content ::selection, .cm-line ::selection, .cm-line span::selection': { backgroundColor: 'var(--selected) !important', color: 'var(--selected-text) !important' },
             '.cm-cursor, .cm-dropCursor': { borderLeftColor: 'var(--terminal-text)' },
             '&.cm-focused, .cm-content:focus, .cm-content:focus-visible': { outline: 'none' },
             '.cm-tooltip': { backgroundColor: 'var(--surface)', color: 'var(--text)', border: '1px solid var(--border-vis)', fontFamily: 'var(--font-code)' },
@@ -153,4 +154,9 @@
   .code-editor :global(.cm-editor.cm-focused),
   .code-editor :global(.cm-content:focus),
   .code-editor :global(.cm-content:focus-visible) { outline: none; }
+  .code-editor :global(.cm-selectionBackground),
+  .code-editor :global(.cm-focused .cm-selectionBackground) { background-color: var(--selected) !important; }
+  .code-editor :global(.cm-content ::selection),
+  .code-editor :global(.cm-line ::selection),
+  .code-editor :global(.cm-line span::selection) { background-color: var(--selected) !important; color: var(--selected-text) !important; }
 </style>

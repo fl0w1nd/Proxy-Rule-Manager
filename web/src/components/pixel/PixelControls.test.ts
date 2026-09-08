@@ -1,6 +1,7 @@
 import { fireEvent, render, screen } from '@testing-library/svelte';
 import userEvent from '@testing-library/user-event';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
+import PixelCheckbox from './PixelCheckbox.svelte';
 import PixelDialog from './PixelDialog.svelte';
 import PixelQuantity from './PixelQuantity.svelte';
 import PixelSelect from './PixelSelect.svelte';
@@ -105,5 +106,26 @@ describe('pixel controls', () => {
     expect(onconfirm).toHaveBeenCalled();
     expect(trigger).toHaveFocus();
     trigger.remove();
+  });
+
+  it('toggles a pixel checkbox via click and keyboard', async () => {
+    const user = userEvent.setup();
+    const onchange = vi.fn();
+    render(PixelCheckbox, { label: 'no-resolve', size: 'sm', onchange });
+    const checkbox = screen.getByRole('checkbox', { name: 'no-resolve' });
+    expect(checkbox).not.toBeChecked();
+    await user.click(checkbox);
+    expect(checkbox).toBeChecked();
+    expect(onchange).toHaveBeenLastCalledWith(true);
+    await user.keyboard(' ');
+    expect(checkbox).not.toBeChecked();
+    expect(onchange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('supports sm size and custom class on PixelSelect', () => {
+    render(PixelSelect, { id: 'size-test', label: '尺寸测试', options, value: 'manual', size: 'sm', class: 'custom-select' });
+    const root = document.querySelector('.pixel-select');
+    expect(root).toHaveClass('sm');
+    expect(root).toHaveClass('custom-select');
   });
 });

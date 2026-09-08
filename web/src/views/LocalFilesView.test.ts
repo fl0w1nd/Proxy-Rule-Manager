@@ -28,14 +28,14 @@ describe('LocalFilesView', () => {
     await fireEvent.click(screen.getByRole('button', { name: '保存' }));
     expect(create).not.toHaveBeenCalled();
     expect(screen.getByText('文件名无效')).toBeInTheDocument();
-    await fireEvent.input(screen.getByLabelText('文件名'), { target: { value: 'my-direct.list' } });
+    await fireEvent.input(screen.getByRole('textbox', { name: /^文件名/ }), { target: { value: 'my-direct.list' } });
     const box = await screen.findByRole('textbox', { name: '文件内容' });
     EditorView.findFromDOM(box)!.dispatch({ changes: { from: 0, insert: 'example.com\nexample.org\n' } });
     await fireEvent.click(screen.getByRole('button', { name: '保存' }));
     await screen.findByText('已保存 my-direct.list');
     expect(create).toHaveBeenCalledWith('my-direct.list', 'example.com\nexample.org\n');
-    expect(screen.getByText('my-direct.list')).toBeInTheDocument();
-    expect(screen.getByText('2')).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: 'my-direct.list' })).toBeInTheDocument();
+    expect(screen.getByRole('cell', { name: '2' })).toBeInTheDocument();
   });
 
   it('keeps a referenced file when delete is rejected', async () => {
