@@ -139,6 +139,11 @@ export interface ConfigBackupList {
   items: ConfigBackupItem[];
 }
 
+export interface IconItem {
+  id: string;
+  file: string;
+}
+
 export interface LocalFileItem {
   name: string;
   size: number;
@@ -148,6 +153,27 @@ export interface LocalFileItem {
 
 export interface LocalFileDetail extends LocalFileItem {
   content: string;
+}
+
+export interface TemplateItem {
+  id: string;
+  name: string;
+  codec: string;
+  extension: string;
+  builtin: boolean;
+}
+export interface TemplateDetail extends TemplateItem { yaml: string; version: string }
+export interface IREntry {
+  kind: string;
+  value: string;
+  flags?: string[];
+}
+export interface TemplatePreview {
+  valid: boolean;
+  errors: ConfigValidationIssue[];
+  output: string;
+  extension: string;
+  sample: IREntry[];
 }
 
 export interface ConfigValidationIssue {
@@ -238,6 +264,16 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  listTemplates(): Promise<{ items: TemplateItem[] }> { return request('/templates'); },
+  getTemplate(id: string): Promise<TemplateDetail> { return request(`/templates/${encodeURIComponent(id)}`); },
+  validateTemplate(yaml: string, sample?: IREntry[]): Promise<TemplatePreview> {
+    return request('/templates/validate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yaml, sample }) });
+  },
+  saveTemplate(yaml: string, id?: string, version?: string): Promise<TemplateDetail> {
+    return request(id ? `/templates/${encodeURIComponent(id)}` : '/templates', {
+      method: id ? 'PUT' : 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ yaml, version }),
+    });
+  },
   getStatus(): Promise<SystemStatus> {
     return request<SystemStatus>('/status');
   },
@@ -334,6 +370,10 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ version }),
     });
+  },
+
+  listIcons(): Promise<{ items: IconItem[] }> {
+    return request<{ items: IconItem[] }>('/icons');
   },
 
   listLocalFiles(): Promise<{ items: LocalFileItem[] }> {

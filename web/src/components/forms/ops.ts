@@ -1,0 +1,3 @@
+export interface FilterOp { type: string; kinds?: string[]; mode?: string; pattern?: string }
+
+export const ruleKinds = ['domain', 'domain_suffix', 'domain_keyword', 'domain_wildcard', 'domain_regex', 'geosite', 'ip_cidr', 'ip_suffix', 'ip_asn', 'geoip', 'src_ip_cidr', 'src_ip_suffix', 'src_ip_asn', 'src_geoip', 'dst_port', 'src_port', 'in_port', 'in_type', 'in_user', 'in_name', 'process_name', 'process_name_wildcard', 'process_name_regex', 'process_path', 'process_path_wildcard', 'process_path_regex', 'uid', 'network', 'dscp', 'user_agent', 'url_regex', 'protocol', 'subnet', 'cellular_radio', 'device_name', 'mac_address', 'hostname_type', 'script', 'and', 'or', 'not'];

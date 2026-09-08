@@ -108,6 +108,11 @@
   });
   $effect(() => {
     if (!view) return;
+    if (view.state.sliceDoc() === value) return;
+    view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: value } });
+  });
+  $effect(() => {
+    if (!view) return;
     view.dispatch({ effects: editable.reconfigure([EditorState.readOnly.of(isReadonly), EditorView.editable.of(!isReadonly)]) });
   });
   $effect(() => {

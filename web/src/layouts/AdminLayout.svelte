@@ -8,6 +8,7 @@
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
   import UpdateConsole from '../components/UpdateConsole.svelte';
   import iconDashboard from '../assets/icons/nav/dashboard.svg';
+  import iconClients from '../assets/icons/nav/clients.svg';
   import iconRules from '../assets/icons/nav/rules.svg';
   import iconChanges from '../assets/icons/nav/changes.svg';
   import iconUpdates from '../assets/icons/nav/updates.svg';
@@ -16,8 +17,8 @@
   import prmBrandIcon from '../assets/icons/brand/prm.svg';
 
   interface Props {
-    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings';
-    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings') => void;
+    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings' | 'clients';
+    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings' | 'clients') => void;
     onStartUpdate: (scope: 'all' | 'rules', ruleIds?: string[]) => void;
     activeJob: string | null;
     isUpdating: boolean;
@@ -113,6 +114,7 @@
   const navItems = [
     { id: 'dashboard', label: '仪表盘', icon: iconDashboard },
     { id: 'rules', label: '规则管理', icon: iconRules },
+    { id: 'clients', label: '客户端', icon: iconClients },
     { id: 'changes', label: 'Diff', icon: iconChanges },
     { id: 'updates', label: '更新日志', icon: iconUpdates },
     { id: 'geosite', label: 'Geosite', icon: iconGeosite },
