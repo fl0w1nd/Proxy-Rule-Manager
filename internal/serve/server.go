@@ -139,6 +139,7 @@ func (s *Server) Handler() http.Handler {
 		r.Post("/templates", s.sameOriginMutation(s.handleTemplateSave))
 		r.Get("/templates/{id}", s.handleTemplate)
 		r.Put("/templates/{id}", s.sameOriginMutation(s.handleTemplateSave))
+		r.Get("/icons", s.handleIcons)
 		r.Get("/local-files", s.handleLocalFiles)
 		r.Post("/local-files", s.sameOriginMutation(s.handleLocalFileCreate))
 		r.Get("/local-files/{name}", s.handleLocalFile)
