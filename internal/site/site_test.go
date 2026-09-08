@@ -244,7 +244,7 @@ func TestUpdateBuiltinAssets(t *testing.T) {
 		t.Fatalf("first run should change assets and fingerprint: %+v", res)
 	}
 	iconsDir := filepath.Join(staticDir, "icons")
-	for _, name := range []string{"mihomo.svg", "singbox.svg", "shadowrocket.svg", "surge.svg", "prm.svg"} {
+	for _, name := range []string{"mihomo.svg", "singbox.svg", "shadowrocket.svg", "surge.svg", "client.svg"} {
 		if _, err := os.Stat(filepath.Join(iconsDir, name)); err != nil {
 			t.Errorf("icon %s not written: %v", name, err)
 		}
@@ -372,5 +372,8 @@ func TestResolveClientIcon(t *testing.T) {
 	}
 	if got := ResolveClientIcon("", "Surge"); got != "surge" {
 		t.Errorf("default for Surge: got %q", got)
+	}
+	if got := ResolveClientIcon("", "custom"); got != "client" {
+		t.Errorf("generic default: got %q", got)
 	}
 }

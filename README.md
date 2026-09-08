@@ -1,7 +1,7 @@
 # Proxy Rule Manager
 
 <p align="center">
-  <img src="internal/site/assets/icons/prm.svg" width="96" alt="prm 标志">
+  <img src="web/src/assets/icons/brand/prm.svg" width="96" alt="prm 标志">
 </p>
 
 <p align="center"><em>把多个上游来源的代理规则，编译成各个客户端专用格式。</em></p>

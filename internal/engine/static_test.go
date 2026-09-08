@@ -48,7 +48,7 @@ func TestExportStaticWritesPublicWhitelistAndReplacesOldOutput(t *testing.T) {
 		t.Fatalf("published top-level paths = %q, want %q", got, want)
 	}
 
-	for _, name := range []string{"index.html", ".nojekyll", "rules/surge/rule.list", "static/icons/prm.svg", "static/assets/public.js", "static/assets/public.css"} {
+	for _, name := range []string{"index.html", ".nojekyll", "rules/surge/rule.list", "static/icons/surge.svg", "static/assets/public.js", "static/assets/public.css", "static/assets/prm.svg"} {
 		if info, err := os.Stat(filepath.Join(output, filepath.FromSlash(name))); err != nil || info.IsDir() {
 			t.Errorf("published file %s: info=%v err=%v", name, info, err)
 		}
@@ -62,7 +62,7 @@ func TestExportStaticWritesPublicWhitelistAndReplacesOldOutput(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`id="public-app"`, `id="prm-data"`, "Rule", "rules/surge/rule.list", "static/icons/prm.svg", "static/assets/public.js?v="} {
+	for _, want := range []string{`id="public-app"`, `id="prm-data"`, "Rule", "rules/surge/rule.list", "static/assets/prm.svg", "static/assets/public.js?v="} {
 		if !strings.Contains(string(page), want) {
 			t.Errorf("static index missing %q", want)
 		}

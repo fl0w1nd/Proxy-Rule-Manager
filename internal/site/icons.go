@@ -6,6 +6,7 @@ import (
 	"html/template"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -14,7 +15,7 @@ var iconAssets embed.FS
 
 // fileIconSet is the set of names that resolve to static files.
 var fileIconSet = map[string]string{
-	"prm":          "prm.svg",
+	"client":       "client.svg",
 	"mihomo":       "mihomo.svg",
 	"singbox":      "singbox.svg",
 	"shadowrocket": "shadowrocket.svg",
@@ -35,7 +36,7 @@ func DefaultIconForClient(id string) string {
 	case strings.Contains(s, "clash"), strings.Contains(s, "mihomo"), strings.Contains(s, "meta"):
 		return "mihomo"
 	default:
-		return "singbox"
+		return "client"
 	}
 }
 
@@ -45,6 +46,38 @@ func ResolveClientIcon(configIcon, clientID string) string {
 		return configIcon
 	}
 	return DefaultIconForClient(clientID)
+}
+
+// RootIcon is one SVG at the icons directory root — the client-icon namespace.
+type RootIcon struct {
+	ID   string `json:"id"`
+	File string `json:"file"`
+}
+
+// ListRootIcons lists SVG files at staticDir/icons/ that are not in a subdirectory.
+func ListRootIcons(staticDir string) []RootIcon {
+	entries, err := os.ReadDir(filepath.Join(staticDir, "icons"))
+	if err != nil {
+		return []RootIcon{}
+	}
+	out := []RootIcon{}
+	for _, e := range entries {
+		if e.IsDir() {
+			continue
+		}
+		name := e.Name()
+		ext := filepath.Ext(name)
+		if !strings.EqualFold(ext, ".svg") {
+			continue
+		}
+		id := strings.TrimSuffix(name, ext)
+		if !validIconName(id) {
+			continue
+		}
+		out = append(out, RootIcon{ID: id, File: name})
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+	return out
 }
 
 // validIconName reports whether name is safe to resolve under icons/ and to
@@ -204,7 +237,7 @@ func pixelCharColor(ch byte) string {
 	}
 }
 
-// pixelIcon renders a file-based <img> for client/brand icons, or an inline
+// pixelIcon renders a file-based <img> for client icons, or an inline
 // SVG for utility grid icons (globe, check, etc.). Names outside the builtin
 // sets resolve to user-provided files under {staticDir}/icons/ when present.
 func pixelIcon(staticDir, name string, px int) template.HTML {

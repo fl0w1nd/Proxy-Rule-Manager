@@ -87,7 +87,7 @@ PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 | `surge` | Surge | 行列表 | `.list` |
 | `shadowrocket` | Shadowrocket | 行列表 | `.list` |
 
-`icon` 可选值：`prm`、`mihomo`、`singbox`、`shadowrocket`、`surge`；不写则按客户端 id 推断。自定义模板放在 `data/templates/`，同名时覆盖内置模板。
+`icon` 可选值：`mihomo`、`singbox`、`shadowrocket`、`surge`；不写则按客户端 id 推断，无法识别时使用通用图标。自定义模板放在 `data/templates/`，同名时覆盖内置模板。
 
 ## rules：一条规则 = 一次编译
 

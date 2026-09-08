@@ -16,7 +16,7 @@ func TestBuildCommandCreatesStandaloneStaticSite(t *testing.T) {
 	if err := buildCmd.RunE(buildCmd, nil); err != nil {
 		t.Fatalf("build command: %v", err)
 	}
-	for _, name := range []string{"index.html", ".nojekyll", "rules/surge/rule.list", "static/icons/prm.svg"} {
+	for _, name := range []string{"index.html", ".nojekyll", "rules/surge/rule.list", "static/assets/prm.svg"} {
 		if _, err := os.Stat(filepath.Join(output, filepath.FromSlash(name))); err != nil {
 			t.Errorf("published file %s: %v", name, err)
 		}

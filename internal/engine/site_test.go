@@ -79,13 +79,10 @@ func TestEnsureSiteFirstRun(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(string(index), "prm.svg") {
-		t.Error("index should reference the builtin prm.svg icon")
+	if !strings.Contains(string(index), "static/assets/prm.svg") {
+		t.Error("index should reference the brand favicon")
 	}
-	if _, err := os.Stat(filepath.Join(staticDir, "icons", "prm.svg")); err != nil {
-		t.Error("prm.svg not written to icons dir")
-	}
-	for _, name := range []string{"public.js", "public.css"} {
+	for _, name := range []string{"public.js", "public.css", "prm.svg"} {
 		if _, err := os.Stat(filepath.Join(staticDir, "assets", name)); err != nil {
 			t.Errorf("%s not written to assets dir", name)
 		}
