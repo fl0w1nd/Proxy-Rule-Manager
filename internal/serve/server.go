@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -35,6 +36,7 @@ type Server struct {
 	trustedProxies []netip.Prefix
 	devMode        bool
 
+	templateMu sync.Mutex
 	configFile string
 }
 
@@ -132,6 +134,11 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/config/backups", s.handleConfigBackups)
 		r.Get("/config/backups/{backupID}", s.handleConfigBackup)
 		r.Post("/config/backups/{backupID}/restore", s.sameOriginMutation(s.handleConfigBackupRestore))
+		r.Get("/templates", s.handleTemplates)
+		r.Post("/templates/validate", s.sameOriginMutation(s.handleTemplateValidate))
+		r.Post("/templates", s.sameOriginMutation(s.handleTemplateSave))
+		r.Get("/templates/{id}", s.handleTemplate)
+		r.Put("/templates/{id}", s.sameOriginMutation(s.handleTemplateSave))
 		r.Get("/local-files", s.handleLocalFiles)
 		r.Post("/local-files", s.sameOriginMutation(s.handleLocalFileCreate))
 		r.Get("/local-files/{name}", s.handleLocalFile)

@@ -6,10 +6,12 @@ package render
 import (
 	"bytes"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v3"
 )
@@ -57,10 +59,13 @@ type KindHint struct {
 // UnmarshalYAML allows KindMapping to be specified as either a simple string
 // (just the type/field name) or a full object.
 func (km *KindMapping) UnmarshalYAML(value *yaml.Node) error {
-	if value.Kind == yaml.ScalarNode {
+	if value.Kind == yaml.ScalarNode && value.Tag == "!!str" {
 		km.TypeName = value.Value
 		km.FieldName = value.Value
 		return nil
+	}
+	if value.Kind != yaml.MappingNode {
+		return fmt.Errorf("kind mapping must be a string or object")
 	}
 	allowed := map[string]struct{}{
 		"type_name": {}, "field_name": {}, "aliases": {},
@@ -77,7 +82,25 @@ func (km *KindMapping) UnmarshalYAML(value *yaml.Node) error {
 func decodeTemplate(data []byte, target *Template) error {
 	decoder := yaml.NewDecoder(bytes.NewReader(data))
 	decoder.KnownFields(true)
-	return decoder.Decode(target)
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
+		return fmt.Errorf("template must contain exactly one YAML document")
+	}
+	return nil
+}
+
+// ParseTemplate decodes and validates one template document.
+func ParseTemplate(data []byte) (*Template, error) {
+	var t Template
+	if err := decodeTemplate(data, &t); err != nil {
+		return nil, err
+	}
+	if err := t.Validate(); err != nil {
+		return nil, err
+	}
+	return &t, nil
 }
 
 // Validate checks the template for structural correctness.
@@ -99,11 +122,13 @@ func (t *Template) Validate() error {
 	if len(t.KindMap) == 0 {
 		return fmt.Errorf("template %q: kind_map is required", t.ID)
 	}
+
 	return nil
 }
 
 // Registry holds all loaded templates indexed by ID.
 type Registry struct {
+	mu        sync.RWMutex
 	templates map[string]*Template
 }
 
@@ -114,12 +139,16 @@ func NewRegistry() *Registry {
 
 // Get returns the template with the given ID.
 func (r *Registry) Get(id string) (*Template, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	t, ok := r.templates[id]
 	return t, ok
 }
 
 // IDs returns all registered template IDs.
 func (r *Registry) IDs() []string {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
 	ids := make([]string, 0, len(r.templates))
 	for id := range r.templates {
 		ids = append(ids, id)
@@ -132,6 +161,8 @@ func (r *Registry) Register(t *Template) error {
 	if err := t.Validate(); err != nil {
 		return err
 	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.templates[t.ID] = t
 	return nil
 }
