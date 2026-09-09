@@ -2,7 +2,7 @@
   interface Props {
     id: string;
     label: string;
-    items: { value: string; label: string; disabled?: boolean }[];
+    items: { value: string; label: string; disabled?: boolean; alert?: boolean }[];
     value: string;
     onchange?: (value: string) => void;
   }
@@ -32,6 +32,7 @@
       aria-controls="{id}-panel-{item.value}" aria-selected={value === item.value}
       tabindex={value === item.value ? 0 : -1} disabled={item.disabled}
       onclick={() => select(item.value)} onkeydown={(event) => navigate(event, index)}>
+      {#if item.alert}<span class="tab-alert" aria-hidden="true"></span>{/if}
       {item.label}
     </button>
   {/each}
@@ -39,7 +40,8 @@
 
 <style>
   .pixel-tabs { display: flex; width: fit-content; max-width: 100%; }
-  button { min-height: 32px; padding: 4px 14px; border: 1px solid var(--border-vis); background: var(--surface-2); color: var(--text); box-shadow: var(--edge-raised); font: 400 12px/20px var(--font-ui); cursor: pointer; }
+  button { display: inline-flex; align-items: center; min-height: 32px; padding: 4px 14px; border: 1px solid var(--border-vis); background: var(--surface-2); color: var(--text); box-shadow: var(--edge-raised); font: 400 12px/20px var(--font-ui); cursor: pointer; }
+  .tab-alert { width: 6px; height: 6px; margin-right: 6px; background: var(--error-border); }
   button + button { border-left: 0; }
   button:first-child { border-radius: 4px 0 0 4px; }
   button:last-child { border-radius: 0 4px 4px 0; }
