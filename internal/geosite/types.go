@@ -1,6 +1,8 @@
 // Package geosite ports src/lib/geosite.ts to Go.
 package geosite
 
+import "github.com/fl0w1nd/proxy-rule-manager/internal/geodata"
+
 // EntryType matches GeositeEntryType in TS.
 type EntryType string
 
@@ -19,22 +21,8 @@ type Entry struct {
 }
 
 // ProviderCache matches GeositeProviderCache in TS.
-type ProviderCache struct {
-	Provider        string             `json:"provider"`
-	ResolvedVersion string             `json:"resolvedVersion"`
-	FetchedAt       string             `json:"fetchedAt"`
-	Catalog         []string           `json:"catalog"`
-	Entries         map[string][]Entry `json:"entries"`
-}
-
-// ProviderStatus matches GeositeProviderStatus in TS.
-type ProviderStatus struct {
-	Provider        string  `json:"provider"`
-	Ready           bool    `json:"ready"`
-	FetchedAt       *string `json:"fetchedAt"`
-	ResolvedVersion *string `json:"resolvedVersion"`
-	CatalogCount    int     `json:"catalogCount"`
-}
+type ProviderCache = geodata.Cache[Entry]
+type ProviderStatus = geodata.Status
 
 // CatalogSummary matches GeositeCatalogSummary in TS.
 type CatalogSummary struct {

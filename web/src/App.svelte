@@ -9,19 +9,19 @@
   import ClientsView from './views/ClientsView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import PixelDialog from './components/pixel/PixelDialog.svelte';
-  import GeositeView from './views/GeositeView.svelte';
+  import GeoDataView from './views/GeoDataView.svelte';
   import PixelToast from './components/pixel/PixelToast.svelte';
   import { finishSummary } from './updateLabels';
 
-  type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings' | 'clients';
+  type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'geoip' | 'settings' | 'clients';
 
   let currentTab = $state<TabType>('dashboard');
   let settingsDirty = $state(false);
   let settingsSaving = $state(false);
   let clientsDirty = $state(false);
   let clientsSaving = $state(false);
-  let geositeDirty = $state(false);
-  let geositeSaving = $state(false);
+  let geoDirty = $state(false);
+  let geoSaving = $state(false);
   let rulesDirty = $state(false);
   let rulesSaving = $state(false);
   let leaveDialog = $state(false);
@@ -37,12 +37,12 @@
   let rulesRef = $state<any>(null);
   let changesRef = $state<any>(null);
   let updatesRef = $state<any>(null);
-  let geositeRef = $state<any>(null);
+  let geoRef = $state<any>(null);
 
   function getTabFromHash(): TabType | null {
     try {
       const hash = location.hash.replace(/^#\/?/, '').trim() as TabType;
-      if (['dashboard', 'rules', 'changes', 'updates', 'geosite', 'settings', 'clients'].includes(hash)) {
+      if (['dashboard', 'rules', 'changes', 'updates', 'geosite', 'geoip', 'settings', 'clients'].includes(hash)) {
         return hash;
       }
     } catch {}
@@ -57,7 +57,7 @@
     } else {
       try {
         const saved = sessionStorage.getItem('prm-admin-tab') as TabType | null;
-        if (saved && ['dashboard', 'rules', 'changes', 'updates', 'geosite', 'settings', 'clients'].includes(saved)) {
+        if (saved && ['dashboard', 'rules', 'changes', 'updates', 'geosite', 'geoip', 'settings', 'clients'].includes(saved)) {
           currentTab = saved;
         }
       } catch {}
@@ -73,7 +73,7 @@
           history.replaceState(null, '', '#rules');
         }
         if (currentTab === 'clients' && (clientsDirty || clientsSaving)) history.replaceState(null, '', '#clients');
-        if (currentTab === 'geosite' && (geositeDirty || geositeSaving)) history.replaceState(null, '', '#geosite');
+        if ((currentTab === 'geosite' || currentTab === 'geoip') && (geoDirty || geoSaving)) history.replaceState(null, '', `#${currentTab}`);
         handleTabChange(t);
       }
     };
@@ -93,7 +93,7 @@
 
   function handleTabChange(tab: TabType) {
     if (tab === currentTab) return;
-    if (settingsSaving || rulesSaving || clientsSaving || geositeSaving) {
+    if (settingsSaving || rulesSaving || clientsSaving || geoSaving) {
       toastRef?.show('正在保存，请稍候', 'info');
       return;
     }
@@ -110,14 +110,14 @@
     if (currentTab === 'clients' && clientsDirty) {
       pendingTab = tab; leaveDialog = true; return;
     }
-    if (currentTab === 'geosite' && geositeDirty) {
+    if ((currentTab === 'geosite' || currentTab === 'geoip') && geoDirty) {
       pendingTab = tab; leaveDialog = true; return;
     }
     currentTab = tab;
     settingsDirty = false;
     rulesDirty = false;
     clientsDirty = false;
-    geositeDirty = false;
+    geoDirty = false;
     try {
       location.hash = tab;
       sessionStorage.setItem('prm-admin-tab', tab);
@@ -171,7 +171,7 @@
     rulesRef?.loadRules();
     changesRef?.loadChanges();
     updatesRef?.loadUpdates();
-    geositeRef?.loadGeosite();
+    geoRef?.loadProviders();
   }
 </script>
 
@@ -207,14 +207,16 @@
     <UpdatesView bind:this={updatesRef} />
   {:else if currentTab === 'settings'}
     <SettingsView onstatechange={(dirty, saving) => { settingsDirty = dirty; settingsSaving = saving; }} />
-  {:else if currentTab === 'geosite'}
-    <GeositeView bind:this={geositeRef} onstatechange={(dirty, saving) => { geositeDirty = dirty; geositeSaving = saving; }} />
+  {:else if currentTab === 'geosite' || currentTab === 'geoip'}
+    {#key currentTab}
+    <GeoDataView kind={currentTab} bind:this={geoRef} onstatechange={(dirty, saving) => { geoDirty = dirty; geoSaving = saving; }} />
+    {/key}
   {/if}
 </AdminLayout>
 
 <PixelToast bind:this={toastRef} />
 
-<PixelDialog bind:open={leaveDialog} title={currentTab === 'clients' ? '离开客户端管理？' : currentTab === 'geosite' ? '离开 Geosite？' : currentTab === 'rules' ? '离开规则管理？' : '离开系统设置？'}
+<PixelDialog bind:open={leaveDialog} title={currentTab === 'clients' ? '离开客户端管理？' : (currentTab === 'geosite' || currentTab === 'geoip') ? `离开 ${currentTab === 'geoip' ? 'GeoIP' : 'Geosite'}？` : currentTab === 'rules' ? '离开规则管理？' : '离开系统设置？'}
   confirmLabel="放弃修改并离开" cancelLabel="继续编辑" danger
   oncancel={() => { pendingTab = null; }}
   onconfirm={() => {
@@ -223,7 +225,7 @@
     settingsDirty = false;
     rulesDirty = false;
     clientsDirty = false;
-    geositeDirty = false;
+    geoDirty = false;
     if (tab) handleTabChange(tab);
   }}>
   {currentTab === 'rules' ? '当前文件尚未保存，离开后将丢弃这些修改。' : '当前修改尚未保存，离开后将丢弃这些修改。'}

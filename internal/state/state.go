@@ -21,7 +21,9 @@ type UpdateState struct {
 	Artifacts      map[string]map[string]string `json:"artifacts,omitempty"` // rule ID -> client ID -> hash
 	RuleUpdates    map[string]UpdateRecord      `json:"rule_updates,omitempty"`
 	GeositeUpdates map[string]string            `json:"geosite_updates,omitempty"`
+	GeoIPUpdates   map[string]string            `json:"geoip_updates,omitempty"`
 	GeositeChecks  map[string]string            `json:"geosite_checks,omitempty"`
+	GeoIPChecks    map[string]string            `json:"geoip_checks,omitempty"`
 	UpdateHistory  []UpdateHistoryRecord        `json:"update_history,omitempty"`
 }
 
@@ -76,9 +78,9 @@ const (
 	RuleFailed    = "failed"
 	RuleCancelled = "cancelled"
 
-	GeositeUpdated   = "updated"
-	GeositeUnchanged = "unchanged"
-	GeositeFailed    = "failed"
+	ProviderUpdated   = "updated"
+	ProviderUnchanged = "unchanged"
+	ProviderFailed    = "failed"
 )
 
 // Store manages state persistence under dataDir/.state/.
@@ -118,12 +120,12 @@ func Open(dataDir string) (*Store, error) {
 	if s.state.RuleUpdates == nil {
 		s.state.RuleUpdates = make(map[string]UpdateRecord)
 	}
-	if s.state.GeositeUpdates == nil {
-		s.state.GeositeUpdates = make(map[string]string)
+	for _, target := range []*map[string]string{&s.state.GeositeUpdates, &s.state.GeositeChecks, &s.state.GeoIPUpdates, &s.state.GeoIPChecks} {
+		if *target == nil {
+			*target = make(map[string]string)
+		}
 	}
-	if s.state.GeositeChecks == nil {
-		s.state.GeositeChecks = make(map[string]string)
-	}
+
 	if legacyErrorHistory {
 		if err := s.Save(); err != nil {
 			return nil, fmt.Errorf("clear legacy error history: %w", err)
@@ -304,7 +306,7 @@ func (s *Store) GeositeUpdate(provider string) (string, time.Time, bool) {
 	}
 	// Preserve state written before geosite gained updated/unchanged outcomes.
 	if result == "success" {
-		result = GeositeUpdated
+		result = ProviderUpdated
 	}
 	checkedAtValue := s.state.GeositeChecks[provider]
 	if checkedAtValue == "" {
@@ -543,4 +545,24 @@ func (s *Store) Reconcile(expectedArtifacts map[string]map[string]struct{}, expe
 		}
 	}
 	return nil
+}
+
+func (s *Store) SetGeoIPUpdate(provider, result string, checkedAt time.Time) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.state.GeoIPUpdates[provider] = result
+	s.state.GeoIPChecks[provider] = util.FormatISO(checkedAt)
+}
+
+// GeoIPUpdate returns the latest version-fetch outcome for one provider.
+func (s *Store) GeoIPUpdate(provider string) (string, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result, ok := s.state.GeoIPUpdates[provider]
+	if !ok {
+		return "", time.Time{}, false
+	}
+	checkedAtValue := s.state.GeoIPChecks[provider]
+	checkedAt, _ := time.Parse(time.RFC3339, checkedAtValue)
+	return result, checkedAt, true
 }

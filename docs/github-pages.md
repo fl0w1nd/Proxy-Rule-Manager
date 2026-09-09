@@ -42,7 +42,7 @@
 - **自动运行**：每天 `03:17 UTC`。
 - **手动运行**：Actions 页面 → *Publish Rules to GitHub Pages* → Run workflow。
 - **检查结果**：运行日志和构建错误保留在 Actions 运行记录里。更新错误会终止发布，线上站点不受影响。
-- **数据缓存**：`data/.state`、`data/geosite`、`data/rules` 会缓存以加速后续构建。如配置变化后出现异常，可在 Actions 缓存管理中清除缓存再跑。
+- **数据缓存**：`data/.state`、`data/geosite`、`data/geoip`、`data/rules` 会缓存以加速后续构建。如配置变化后出现异常，可在 Actions 缓存管理中清除缓存再跑。
 
 ## 同步上游
 

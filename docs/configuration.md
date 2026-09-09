@@ -102,6 +102,7 @@ PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 | 本地文件 | `file: custom.list` | 自维护规则，放在 `data/local/` 下 |
 | 引用 | `ref: base_rules` | 复用别的规则，如"常见网站"汇总多条规则 |
 | geosite | `geosite: v2fly/google@cn` | 直接用域名库列表 |
+| geoip | `geoip: loyalsoldier/cn` | 展开 IP 库列表为 IPv4/IPv6 CIDR |
 
 要点：
 
@@ -150,7 +151,7 @@ preprocess: |-
   }
 ```
 
-预处理只作用于该规则的 `url`、`content`、`file` 来源；`ref` 和 `geosite` 来源不经过它。
+预处理只作用于该规则的 `url`、`content`、`file` 来源；`ref`、`geosite` 和 `geoip` 来源由各自的解析器处理。
 
 ### outputs
 
@@ -171,6 +172,27 @@ geosite:
 ```
 
 产物路径形如 `rules/<客户端>/geosite/v2fly/google.list`。
+
+## geoip IP 地址库
+
+支持 `loyalsoldier`（[Loyalsoldier/geoip](https://github.com/Loyalsoldier/geoip)）和 `v2fly`（[v2fly/geoip](https://github.com/v2fly/geoip)）。两者均下载完整 `geoip.dat` 并校验 SHA256。
+
+规则来源写作 `geoip: loyalsoldier/cn` 或 `geoip: loyalsoldier/telegram`，分类内的网段会展开为 `ip_cidr` 条目，参与合并、过滤和客户端渲染。分类以各提供商目录为准，同名分类的内容可能不同。
+
+自动发布全部分类：
+
+```yaml
+geoip:
+  providers:
+    - name: loyalsoldier
+      clients: [mihomo, sing-box]
+    - name: v2fly
+      clients: [mihomo]
+```
+
+客户端 ID 引用 `clients` 中的配置，每个客户端会展开自己的格式和变体。产物路径为 `rules/<输出 ID>/geoip/<provider>/<分类><扩展名>`，例如 `rules/mihomo-yaml/geoip/loyalsoldier/cn.yaml`。sing-box 通过现有 JSON rule-set 输出 `ip_cidr` 列表。
+
+管理页的 GeoIP 目录支持按分类名称、IP 地址或 CIDR 检索，并分页预览网段。完整更新刷新上游和自动发布；指定规则更新复用本地缓存。上游刷新失败时继续使用已有缓存，并在更新记录中报告错误。
 
 ## update：调度与限制
 

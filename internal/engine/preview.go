@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
@@ -39,6 +40,7 @@ func Preview(
 	fetcher *Fetcher,
 	preprocessor *PreprocessRunner,
 	geositeMgr *geosite.Manager,
+	geoipMgr *geoip.Manager,
 	logger *slog.Logger,
 ) (*PreviewReport, error) {
 	var rule *config.RuleConfig
@@ -57,6 +59,8 @@ func Preview(
 	if geositeMgr != nil {
 		geositeProviders, _, _ = refreshGeositeProviders(ctx, cfg, geositeMgr, logger)
 	}
+
+	geoipProviders, _, _ := refreshGeoIPProviders(ctx, cfg, geoipMgr, logger)
 
 	selected := collectPreviewDependencies(cfg.Rules, rule.ID)
 	sorted, err := TopologicalSort(selected, false)
@@ -78,6 +82,7 @@ func Preview(
 			preprocessor,
 			registry,
 			geositeProviders,
+			geoipProviders,
 			refResults,
 			config.NewLocalFileResolver(dataDir),
 			logger,

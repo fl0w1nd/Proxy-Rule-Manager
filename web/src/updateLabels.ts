@@ -58,15 +58,13 @@ export function finishSummary(detail: UpdateDetail): string {
   return label;
 }
 
-// A prepare-stage issue in a full update means the update aborted before the
-// Geosite refresh ran (topological sort failure or rejected update), so the
-// digest must not claim Geosite succeeded.
-function hasGeositeBlocker(detail: UpdateDetail): boolean {
-  return (detail.issues || []).some((issue) => issue.stage === 'prepare');
+function hasGeoBlocker(detail: UpdateDetail): boolean {
+  return ['cancelled', 'interrupted', 'running', 'cancelling'].includes(detail.status)
+    || (detail.issues || []).some((issue) => issue.stage === 'prepare');
 }
 
-function hasGeositeIssue(detail: UpdateDetail): boolean {
-  return (detail.issues || []).some((issue) => (issue.stage || '').startsWith('geosite'));
+function hasGeoIssue(detail: UpdateDetail, kind: string): boolean {
+  return (detail.issues || []).some((issue) => (issue.stage || '').startsWith(kind));
 }
 
 export function updateDigest(detail: UpdateDetail): string {
@@ -77,12 +75,14 @@ export function updateDigest(detail: UpdateDetail): string {
   const parts: string[] = [];
   if (detail.scope === 'all') {
     parts.push(`规则 ${checked}`, `变更 ${changed}`);
-    if (hasGeositeIssue(detail)) {
-      parts.push('Geosite 更新失败');
-    } else if (hasGeositeBlocker(detail)) {
-      parts.push('Geosite 未更新');
-    } else {
-      parts.push('Geosite 已更新');
+    const geositeFailed = hasGeoIssue(detail, 'geosite');
+    const geoipFailed = hasGeoIssue(detail, 'geoip');
+    if (geositeFailed) parts.push('Geosite 更新失败');
+    if (geoipFailed) parts.push('GeoIP 更新失败');
+    if (hasGeoBlocker(detail)) {
+      parts.push('Geo 数据未完成');
+    } else if (!geositeFailed && !geoipFailed) {
+      parts.push('Geo 数据已更新');
     }
   } else {
     parts.push(`指定 ${requested.length}`, `含依赖 ${checked}`, `变更 ${changed}`);

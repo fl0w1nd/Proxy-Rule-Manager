@@ -39,6 +39,13 @@ func (c *Config) DeepCopy() *Config {
 			out.Geosite.Providers[i].Clients = append([]string(nil), c.Geosite.Providers[i].Clients...)
 		}
 	}
+	if c.GeoIP != nil {
+		out.GeoIP = &GeoIPConfig{Providers: make([]GeoIPProvider, len(c.GeoIP.Providers))}
+		for i := range c.GeoIP.Providers {
+			out.GeoIP.Providers[i] = c.GeoIP.Providers[i]
+			out.GeoIP.Providers[i].Clients = append([]string(nil), c.GeoIP.Providers[i].Clients...)
+		}
+	}
 	if c.positions != nil {
 		out.positions = &PositionIndex{entries: make(map[string]Position, len(c.positions.entries))}
 		for path, position := range c.positions.entries {

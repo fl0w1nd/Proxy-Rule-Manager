@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
@@ -47,6 +48,7 @@ func CompileRule(
 	preprocessor *PreprocessRunner,
 	registry *render.Registry,
 	geositeProviders map[string]*geosite.ProviderCache,
+	geoipProviders map[string]*geoip.ProviderCache,
 	refResults map[string][]ir.Entry,
 	localFiles config.LocalFileResolver,
 	logger *slog.Logger,
@@ -70,7 +72,7 @@ func CompileRule(
 			if label == "" {
 				label = fmt.Sprintf("source[%d]", i)
 			}
-			outcome := fetchSource(ctx, src, fetcher, preprocessor, rule.Preprocess, geositeProviders, refResults, localFiles, log)
+			outcome := fetchSource(ctx, src, fetcher, preprocessor, rule.Preprocess, geositeProviders, geoipProviders, refResults, localFiles, log)
 			outcome.Label = label
 			outcomes[i] = outcome
 		}()
@@ -150,6 +152,7 @@ func fetchSource(
 	preprocessor *PreprocessRunner,
 	preprocessScript string,
 	geositeProviders map[string]*geosite.ProviderCache,
+	geoipProviders map[string]*geoip.ProviderCache,
 	refResults map[string][]ir.Entry,
 	localFiles config.LocalFileResolver,
 	log *slog.Logger,
@@ -226,6 +229,23 @@ func fetchSource(
 		}
 		outcome.Entries = cloneEntries(entries)
 
+	case "geoip":
+		ref, err := src.ResolveGeoIPRef()
+		if err != nil {
+			outcome.Error = err.Error()
+			return outcome
+		}
+		cache, ok := geoipProviders[ref.Provider]
+		if !ok {
+			outcome.Error = fmt.Sprintf("geoip provider %q not loaded", ref.Provider)
+			return outcome
+		}
+		entries, err := geoip.ResolveIR(cache, ref.List)
+		if err != nil {
+			outcome.Error = err.Error()
+			return outcome
+		}
+		outcome.Entries = entries
 	case "geosite":
 		ref, err := src.ResolveGeositeRef()
 		if err != nil {

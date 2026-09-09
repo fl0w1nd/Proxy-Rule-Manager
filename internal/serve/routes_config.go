@@ -303,7 +303,7 @@ func buildPatchOperations(items []configPatchOperation) ([]config.PatchOp, error
 func unexpectedPatchField(item configPatchOperation) string {
 	allowed := map[string]bool{"op": true}
 	switch item.Op {
-	case "add_client", "add_rule", "update_schedule", "update_fetch", "update_preprocess", "update_history", "update_geosite":
+	case "add_client", "add_rule", "update_schedule", "update_fetch", "update_preprocess", "update_history", "update_geosite", "update_geoip":
 		allowed["value"] = true
 	case "update_client", "update_rule":
 		allowed["id"], allowed["value"] = true, true

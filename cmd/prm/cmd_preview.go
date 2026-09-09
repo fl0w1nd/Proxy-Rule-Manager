@@ -37,6 +37,7 @@ var previewCmd = &cobra.Command{
 			app.Engine.Fetcher,
 			app.Engine.Preprocessor,
 			app.Engine.Geosite,
+			app.Engine.GeoIP,
 			app.Logger,
 		)
 		if err != nil {

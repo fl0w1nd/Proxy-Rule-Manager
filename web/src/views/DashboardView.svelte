@@ -23,6 +23,7 @@
   let status = $state<SystemStatus | null>(null);
   let recentUpdates = $state<UpdateItem[]>([]);
   let ruleCount = $state<number | null>(null);
+  let geoipCount = $state<number | null>(null);
   let geositeCount = $state<number | null>(null);
   let loading = $state(true);
   let error = $state<string | null>(null);
@@ -37,16 +38,18 @@
     loading = true;
     error = null;
     try {
-      const [s, u, rules, geosite] = await Promise.all([
+      const [s, u, rules, geosite, geoip] = await Promise.all([
         api.getStatus(),
         api.getUpdates(5),
         api.getRules(),
-        api.getGeositeProviders(),
+        api.getGeoProviders(),
+        api.getGeoProviders('geoip'),
       ]);
       status = s;
       recentUpdates = u.items || [];
       ruleCount = (rules.items || []).length;
       geositeCount = (geosite.items || []).length;
+      geoipCount = (geoip.items || []).length;
     } catch (e: any) {
       error = e.message;
     } finally {
@@ -72,6 +75,10 @@
     <PixelCard class="fact-card">
       <div class="fact-label">Geosite 源</div>
       <div class="fact-val font-metric">{geositeCount === null ? '—' : geositeCount.toLocaleString()}</div>
+    </PixelCard>
+    <PixelCard class="fact-card">
+      <div class="fact-label">GeoIP 源</div>
+      <div class="fact-val font-metric">{geoipCount === null ? '—' : geoipCount.toLocaleString()}</div>
     </PixelCard>
     <PixelCard class="fact-card">
       <div class="fact-label">规则文件</div>
@@ -132,7 +139,7 @@
 
   .facts-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 16px;
   }
 

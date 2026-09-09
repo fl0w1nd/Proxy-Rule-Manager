@@ -1,0 +1,15 @@
+syntax = "proto3";
+package geoip;
+option go_package = "github.com/fl0w1nd/proxy-rule-manager/internal/geoip;geoip";
+message CIDR {
+  bytes ip = 1;
+  uint32 prefix = 2;
+}
+message GeoIP {
+  string country_code = 1;
+  repeated CIDR cidr = 2;
+  bool reverse_match = 3;
+}
+message GeoIPList {
+  repeated GeoIP entry = 1;
+}

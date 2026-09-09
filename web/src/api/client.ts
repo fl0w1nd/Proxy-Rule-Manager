@@ -1,3 +1,5 @@
+export type GeoKind = 'geosite' | 'geoip';
+
 /**
  * PRM API Client & Type Definitions
  */
@@ -20,7 +22,7 @@ export interface RuleItem {
   };
 }
 
-export interface GeositeProviderItem {
+export interface GeoProviderItem {
   name: string;
   version?: string;
   lists: number;
@@ -32,34 +34,34 @@ export interface GeositeProviderItem {
   clients: string[];
 }
 
-export interface GeositeListVariant {
+export interface GeoListVariant {
   attr: string;
   entries: number;
 }
 
-export interface GeositeListOverview {
+export interface GeoListOverview {
   name: string;
   entries: number;
-  variants: GeositeListVariant[];
+  variants?: GeoListVariant[];
 }
 
-export interface GeositeCatalog {
+export interface GeoCatalog {
   provider: string;
   version?: string;
   fetched_at?: string;
   query?: string;
   match?: string;
-  lists: GeositeListOverview[];
+  lists: GeoListOverview[];
   total: number;
 }
 
-export interface GeositeEntry {
+export interface GeoEntry {
   type: string;
   value: string;
   attrs?: string[];
 }
 
-export interface GeositeListDetail {
+export interface GeoListDetail {
   provider: string;
   list: string;
   attr?: string;
@@ -67,7 +69,7 @@ export interface GeositeListDetail {
   total: number;
   offset: number;
   limit: number;
-  items: GeositeEntry[];
+  items: GeoEntry[];
 }
 
 export interface ChangeItem {
@@ -268,7 +270,7 @@ export type ConfigPatchOp =
   | { op: 'batch_add_output' | 'batch_remove_output'; rule_ids: string[]; output_ids: string[] }
   | { op: 'reorder_rules'; order: string[] }
   | { op: 'update_schedule' | 'update_fetch' | 'update_preprocess' | 'update_history'; value: ConfigValue }
-  | { op: 'update_geosite'; value: ConfigValue | null };
+  | { op: 'update_geosite' | 'update_geoip'; value: ConfigValue | null };
 
 const API_BASE = '/api/v1';
 
@@ -321,26 +323,26 @@ export const api = {
     return request<{ items: RuleItem[] }>('/rules');
   },
 
-  getGeositeProviders(): Promise<{ items: GeositeProviderItem[]; supported: string[] }> {
-    return request<{ items: GeositeProviderItem[]; supported: string[] }>('/geosite/providers');
+  getGeoProviders(kind: GeoKind = 'geosite'): Promise<{ items: GeoProviderItem[]; supported: string[] }> {
+    return request<{ items: GeoProviderItem[]; supported: string[] }>(`/${kind}/providers`);
   },
 
-  getGeositeCatalog(provider: string, query = '', match: 'name' | 'content' = 'name'): Promise<GeositeCatalog> {
+  getGeoCatalog(provider: string, query = '', match: 'name' | 'content' = 'name', kind: GeoKind = 'geosite'): Promise<GeoCatalog> {
     const params = new URLSearchParams();
     if (query) params.set('q', query);
     if (match) params.set('match', match);
     const qs = params.toString();
-    return request<GeositeCatalog>(`/geosite/providers/${encodeURIComponent(provider)}/catalog${qs ? `?${qs}` : ''}`);
+    return request<GeoCatalog>(`/${kind}/providers/${encodeURIComponent(provider)}/catalog${qs ? `?${qs}` : ''}`);
   },
 
-  getGeositeList(provider: string, list: string, opts?: { attr?: string; q?: string; offset?: number; limit?: number }): Promise<GeositeListDetail> {
+  getGeoList(provider: string, list: string, opts?: { attr?: string; q?: string; offset?: number; limit?: number }, kind: GeoKind = 'geosite'): Promise<GeoListDetail> {
     const params = new URLSearchParams();
     if (opts?.attr) params.set('attr', opts.attr);
     if (opts?.q) params.set('q', opts.q);
     if (opts?.offset) params.set('offset', String(opts.offset));
     if (opts?.limit) params.set('limit', String(opts.limit));
     const qs = params.toString();
-    return request<GeositeListDetail>(`/geosite/providers/${encodeURIComponent(provider)}/lists/${encodeURIComponent(list)}${qs ? `?${qs}` : ''}`);
+    return request<GeoListDetail>(`/${kind}/providers/${encodeURIComponent(provider)}/lists/${encodeURIComponent(list)}${qs ? `?${qs}` : ''}`);
   },
 
   getChanges(limit = 100): Promise<{ items: ChangeItem[] }> {

@@ -25,6 +25,7 @@
 .geo-provider > header,
 .geo-row,
 .geo-toggle,
+.geo-name,
 .row-actions,
 .geo-file-row {
   display: flex;
@@ -336,15 +337,16 @@
   align-items: center;
 }
 .geo-row:hover { background: var(--surface-2); }
-.geo-toggle {
+.geo-toggle,
+.geo-name {
   gap: 8px;
   border: 0;
   background: transparent;
   color: var(--display);
-  cursor: pointer;
   text-align: left;
   font: 400 20px/24px var(--font-display);
 }
+.geo-toggle { cursor: pointer; }
 .geo-row > span:nth-child(2) { color: var(--sec); }
 .geo-tags { display: flex; flex-wrap: wrap; gap: 4px; }
 .row-actions { justify-content: flex-end; gap: 6px; }

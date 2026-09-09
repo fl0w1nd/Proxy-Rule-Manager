@@ -153,6 +153,8 @@ describe('PublicApp', () => {
     expect(screen.queryByText('list-100')).not.toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: '显示全部 101 个' }));
     expect(screen.getByText('list-100')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'category/ai' })).toHaveAttribute('aria-expanded');
+    expect(screen.queryByRole('button', { name: 'list-1' })).not.toBeInTheDocument();
     await user.click(screen.getAllByRole('button', { name: '预览' })[0]);
     await screen.findByText('1 LINES');
     expect(screen.getByRole('link', { name: '打开文件' })).toHaveAttribute(
@@ -187,4 +189,46 @@ describe('PublicApp', () => {
     await user.click(screen.getByRole('button', { name: /加载更多/ }));
     expect(screen.getAllByRole('article')).toHaveLength(61);
   });
+});
+
+
+it('uses GeoIP catalogs and updates preview paths for the selected format', async () => {
+  const data = fixture();
+  data.clients[0].geoip = true;
+  data.clients[0].options.forEach((option) => { option.geoip = true; });
+  data.geoip = [{ provider: 'loyalsoldier', lists: [{ name: 'cn', entries: 2, variants: [], targets: ['clash-yaml', 'clash-mrs'] }] }];
+  const fetchMock = vi.fn().mockImplementation(async () => new Response('IP-CIDR,1.2.3.0/24', { status: 200 }));
+  vi.stubGlobal('fetch', fetchMock);
+  render(PublicApp, { data });
+  await fireEvent.click(screen.getByRole('button', { name: 'GeoIP' }));
+  expect(screen.getByRole('heading', { name: 'GeoIP 列表' })).toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'cn' })).not.toBeInTheDocument();
+  expect(screen.getByRole('link', { name: '打开' })).toHaveAttribute('href', 'rules/clash-yaml/geoip/loyalsoldier/cn.yaml');
+  await fireEvent.click(screen.getByRole('button', { name: '预览' }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('rules/clash-yaml/geoip/loyalsoldier/cn.yaml', expect.anything()));
+  await fireEvent.click(screen.getByRole('button', { name: /Clash/ }));
+  await fireEvent.click(screen.getByRole('radio', { name: /MRS/ }));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('rules/clash-mrs/geoip/loyalsoldier/cn.mrs', expect.anything()));
+});
+
+it('hides unpublished GeoIP lists and dims formats without files', async () => {
+  const data = fixture();
+  data.clients[0].geoip = true;
+  data.clients[0].options[0].geoip = true;
+  data.clients[0].options[1].geoip = false;
+  data.clients[1].geoip = false;
+  data.geoip = [{
+    provider: 'loyalsoldier',
+    lists: [
+      { name: 'cn', entries: 2, variants: [], targets: ['clash-yaml'] },
+      { name: 'private', entries: 1, variants: [], targets: ['clash-mrs'] },
+    ],
+  }];
+  render(PublicApp, { data });
+  await fireEvent.click(screen.getByRole('button', { name: 'GeoIP' }));
+  expect(screen.getByText('cn')).toBeInTheDocument();
+  expect(screen.queryByText('private')).not.toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: /Clash/ }));
+  expect(screen.getByRole('radio', { name: /MRS/ })).toBeDisabled();
+  expect(screen.getByRole('button', { name: /Surge/ })).toBeDisabled();
 });

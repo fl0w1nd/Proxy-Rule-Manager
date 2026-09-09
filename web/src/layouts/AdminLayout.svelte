@@ -14,11 +14,12 @@
   import iconUpdates from '../assets/icons/nav/updates.svg';
   import iconSettings from '../assets/icons/nav/settings.svg';
   import iconGeosite from '../assets/icons/nav/geosite.svg';
+  import iconGeoIP from '../assets/icons/nav/geoip.svg';
   import prmBrandIcon from '../assets/icons/brand/prm.svg';
 
   interface Props {
-    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings' | 'clients';
-    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'settings' | 'clients') => void;
+    activeTab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'geoip' | 'settings' | 'clients';
+    onTabChange: (tab: 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'geoip' | 'settings' | 'clients') => void;
     onStartUpdate: (scope: 'all' | 'rules', ruleIds?: string[]) => void;
     activeJob: string | null;
     isUpdating: boolean;
@@ -118,6 +119,7 @@
     { id: 'changes', label: 'Diff', icon: iconChanges },
     { id: 'updates', label: '更新日志', icon: iconUpdates },
     { id: 'geosite', label: 'Geosite', icon: iconGeosite },
+    { id: 'geoip', label: 'GeoIP', icon: iconGeoIP },
     { id: 'settings', label: '系统设置', icon: iconSettings },
   ] as const;
 

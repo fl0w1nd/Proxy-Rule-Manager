@@ -12,9 +12,9 @@ import (
 )
 
 const (
-	geositeQueryMaxLen  = 256
-	geositeListLimitMax = 500
-	geositeListLimitDef = 200
+	geoQueryMaxLen  = 256
+	geoListLimitMax = 500
+	geoListLimitDef = 200
 )
 
 type geositeCatalogResponse struct {
@@ -44,7 +44,7 @@ func (s *Server) handleGeositeCatalog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if !validGeositeQuery(w, query) {
+	if !validGeoQuery(w, query) {
 		return
 	}
 	match := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("match")))
@@ -88,7 +88,7 @@ func (s *Server) handleGeositeList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
-	if !validGeositeQuery(w, query) {
+	if !validGeoQuery(w, query) {
 		return
 	}
 	attr := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("attr")))
@@ -100,7 +100,7 @@ func (s *Server) handleGeositeList(w http.ResponseWriter, r *http.Request) {
 		}
 		attrs = []string{attr}
 	}
-	offset, limit, ok := geositeListPage(w, r)
+	offset, limit, ok := geoListPage(w, r)
 	if !ok {
 		return
 	}
@@ -135,34 +135,17 @@ func (s *Server) handleGeositeList(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) geositeProviderCache(w http.ResponseWriter, rawName string) (*geosite.ProviderCache, string, bool) {
-	name := strings.ToLower(strings.TrimSpace(rawName))
-	if err := util.EnsureSafeSegment(name, "geosite provider"); err != nil {
-		writeAPIError(w, http.StatusBadRequest, "invalid_provider", "提供商名称无效", map[string]any{})
-		return nil, "", false
-	}
-	supported := false
-	for _, item := range geosite.SupportedProviders {
-		if item == name {
-			supported = true
-			break
-		}
-	}
-	if !supported {
-		writeAPIError(w, http.StatusBadRequest, "unsupported_provider", "不支持该 Geosite 提供商", map[string]any{"name": name})
-		return nil, "", false
-	}
-	cfg := s.config()
 	configured := false
-	if cfg.Geosite != nil {
+	if cfg := s.config(); cfg.Geosite != nil {
 		for _, provider := range cfg.Geosite.Providers {
-			if provider.Name == name {
+			if strings.EqualFold(provider.Name, strings.TrimSpace(rawName)) {
 				configured = true
 				break
 			}
 		}
 	}
-	if !configured {
-		writeAPIError(w, http.StatusNotFound, "provider_not_found", "未配置该 Geosite 提供商", map[string]any{"name": name})
+	name, ok := s.resolveConfiguredProvider(w, rawName, "geosite", "Geosite", geosite.SupportedProviders, configured)
+	if !ok {
 		return nil, "", false
 	}
 	if s.Engine.Geosite == nil {
@@ -181,19 +164,43 @@ func (s *Server) geositeProviderCache(w http.ResponseWriter, rawName string) (*g
 	return cache, name, true
 }
 
-func validGeositeQuery(w http.ResponseWriter, query string) bool {
-	if len(query) > geositeQueryMaxLen {
+func (s *Server) resolveConfiguredProvider(w http.ResponseWriter, rawName, kind, label string, supported []string, configured bool) (string, bool) {
+	name := strings.ToLower(strings.TrimSpace(rawName))
+	if err := util.EnsureSafeSegment(name, kind+" provider"); err != nil {
+		writeAPIError(w, http.StatusBadRequest, "invalid_provider", "提供商名称无效", map[string]any{})
+		return "", false
+	}
+	found := false
+	for _, item := range supported {
+		if item == name {
+			found = true
+			break
+		}
+	}
+	if !found {
+		writeAPIError(w, http.StatusBadRequest, "unsupported_provider", "不支持该 "+label+" 提供商", map[string]any{"name": name})
+		return "", false
+	}
+	if !configured {
+		writeAPIError(w, http.StatusNotFound, "provider_not_found", "未配置该 "+label+" 提供商", map[string]any{"name": name})
+		return "", false
+	}
+	return name, true
+}
+
+func validGeoQuery(w http.ResponseWriter, query string) bool {
+	if len(query) > geoQueryMaxLen {
 		writeAPIError(w, http.StatusBadRequest, "invalid_query", "查询字符串过长", map[string]any{})
 		return false
 	}
 	return true
 }
 
-func geositeListPage(w http.ResponseWriter, r *http.Request) (offset, limit int, ok bool) {
-	limit = geositeListLimitDef
+func geoListPage(w http.ResponseWriter, r *http.Request) (offset, limit int, ok bool) {
+	limit = geoListLimitDef
 	if raw := r.URL.Query().Get("limit"); raw != "" {
 		parsed, err := strconv.Atoi(raw)
-		if err != nil || parsed < 1 || parsed > geositeListLimitMax {
+		if err != nil || parsed < 1 || parsed > geoListLimitMax {
 			writeAPIError(w, http.StatusBadRequest, "invalid_limit", "limit 必须在 1 到 500 之间", map[string]any{})
 			return 0, 0, false
 		}

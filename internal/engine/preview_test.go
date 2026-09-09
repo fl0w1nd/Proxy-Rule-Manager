@@ -18,7 +18,7 @@ func TestPreviewResolvesRuleReferences(t *testing.T) {
 	}
 	report, err := Preview(
 		context.Background(), cfg, t.TempDir(), "derived", "", testRegistry(t), NewFetcher(),
-		NewPreprocessRunner(), nil, testLogger(),
+		NewPreprocessRunner(), nil, nil, testLogger(),
 	)
 	if err != nil {
 		t.Fatal(err)
@@ -45,7 +45,7 @@ func TestPreviewUsesExplicitOutputTarget(t *testing.T) {
 		}},
 	}
 
-	report, err := Preview(context.Background(), cfg, t.TempDir(), "rule", "mihomo-yaml", testRegistry(t), NewFetcher(), NewPreprocessRunner(), nil, testLogger())
+	report, err := Preview(context.Background(), cfg, t.TempDir(), "rule", "mihomo-yaml", testRegistry(t), NewFetcher(), NewPreprocessRunner(), nil, nil, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -53,7 +53,7 @@ func TestPreviewUsesExplicitOutputTarget(t *testing.T) {
 		t.Fatalf("report=%+v output=%s", report, report.RenderedOutput)
 	}
 
-	report, err = Preview(context.Background(), cfg, t.TempDir(), "rule", "mihomo", testRegistry(t), NewFetcher(), NewPreprocessRunner(), nil, testLogger())
+	report, err = Preview(context.Background(), cfg, t.TempDir(), "rule", "mihomo", testRegistry(t), NewFetcher(), NewPreprocessRunner(), nil, nil, testLogger())
 	if err != nil {
 		t.Fatal(err)
 	}

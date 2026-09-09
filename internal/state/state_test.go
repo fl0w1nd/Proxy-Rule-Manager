@@ -21,7 +21,7 @@ func TestOpenAndSave(t *testing.T) {
 	updatedAt := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	s.SetLastCheck(updatedAt)
 	s.SetRuleCheck("rule1", RuleUpdated, updatedAt, true)
-	s.SetGeositeUpdate("v2fly", GeositeFailed, updatedAt)
+	s.SetGeositeUpdate("v2fly", ProviderFailed, updatedAt)
 
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -41,7 +41,7 @@ func TestOpenAndSave(t *testing.T) {
 	if !ok || result != RuleUpdated || !checkedAt.Equal(updatedAt) || !versionAt.Equal(updatedAt) {
 		t.Fatalf("rule update = %q, checked %v, version %v, %t", result, checkedAt, versionAt, ok)
 	}
-	if result, checkedAt, ok := s2.GeositeUpdate("v2fly"); !ok || result != GeositeFailed || !checkedAt.Equal(updatedAt) {
+	if result, checkedAt, ok := s2.GeositeUpdate("v2fly"); !ok || result != ProviderFailed || !checkedAt.Equal(updatedAt) {
 		t.Fatalf("geosite update = %q, %v, %t", result, checkedAt, ok)
 	}
 }

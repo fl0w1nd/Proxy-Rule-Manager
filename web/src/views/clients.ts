@@ -35,8 +35,10 @@ export function defaultClientIcon(id: string): string {
 export function clientReferences(config: ConfigDocument, id: string): string[] {
   const rules = (config.rules ?? []) as { id: string; name?: string; outputs?: string[] }[];
   const providers = (config.geosite as { providers?: { name: string; clients?: string[] }[] } | undefined)?.providers ?? [];
+  const ipProviders = (config.geoip as { providers?: { name: string; clients?: string[] }[] } | undefined)?.providers ?? [];
   return [
     ...rules.filter(r => r.outputs?.includes(id)).map(r => `规则 ${r.name || r.id}`),
+    ...ipProviders.filter(p => p.clients?.includes(id)).map(p => `GeoIP ${p.name}`),
     ...providers.filter(p => p.clients?.includes(id)).map(p => `Geosite ${p.name}`),
   ];
 }

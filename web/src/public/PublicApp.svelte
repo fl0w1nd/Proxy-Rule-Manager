@@ -4,11 +4,11 @@
   import prmLogo from '../assets/icons/brand/prm.svg';
   import ClientPicker from './components/ClientPicker.svelte';
   import FilePreviewModal from './components/FilePreviewModal.svelte';
-  import GeositeCatalog from './components/GeositeCatalog.svelte';
+  import GeoCatalog from './components/GeoCatalog.svelte';
   import IconGallery from './components/IconGallery.svelte';
   import RuleCatalog from './components/RuleCatalog.svelte';
   import type { PreviewItem, PublicPageData, PublicRule, PublicView } from './types';
-  import { clientUsable, formatUpdatedAt, geositePath, selectedOption } from './utils';
+  import { clientUsable, formatUpdatedAt, geoPath, selectedOption } from './utils';
 
   interface Props { data: PublicPageData; }
   let { data }: Props = $props();
@@ -82,12 +82,12 @@
       const source = previewItem.source;
       const rule = data.rules.find((item) => item.id === source.rule_id);
       if (rule) previewItem = rulePreview(rule, target);
-    } else if (previewItem?.source.kind === 'geosite') {
+    } else if (previewItem?.source.kind === 'geosite' || previewItem?.source.kind === 'geoip') {
       const source = previewItem.source;
       previewItem = {
         ...previewItem,
-        key: `geosite:${source.provider}/${source.name}@${source.attr || ''}:${target.id}`,
-        path: geositePath(target, source.provider, source.name, source.attr),
+        key: `${source.kind}:${source.provider}/${source.name}@${source.attr || ''}:${target.id}`,
+        path: geoPath(target, source.provider, source.name, source.attr, source.kind),
       };
     }
   }
@@ -134,6 +134,7 @@
   <nav class="view-switch" aria-label="内容视图">
     <button class:on={view === 'rules'} type="button" onclick={() => setView('rules')}>规则</button>
     <button class:on={view === 'geosite'} type="button" onclick={() => setView('geosite')}>Geosite</button>
+    <button class:on={view === 'geoip'} type="button" onclick={() => setView('geoip')}>GeoIP</button>
     <button class:on={view === 'icons'} type="button" onclick={() => setView('icons')}>图标</button>
   </nav>
 
@@ -150,8 +151,10 @@
 
   {#if view === 'rules' && activeClient && activeTarget}
     <RuleCatalog rules={data.rules} tags={data.tags} target={activeTarget} onpreview={openRule} />
-  {:else if view === 'geosite' && activeClient && activeTarget}
-    <GeositeCatalog catalogs={data.geosite} client={activeClient} target={activeTarget} onpreview={(item) => { previewItem = item; }} />
+  {:else if (view === 'geosite' || view === 'geoip') && activeClient && activeTarget}
+    {#key view}
+    <GeoCatalog kind={view} catalogs={data[view] ?? []} client={activeClient} target={activeTarget} onpreview={(item) => { previewItem = item; }} />
+  {/key}
   {:else if view === 'icons'}
     <IconGallery sets={data.icon_sets} />
   {/if}

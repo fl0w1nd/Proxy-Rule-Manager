@@ -81,7 +81,7 @@
         {#if client.options.length > 1 && openIndex === index}
           <div class="client-menu" role="radiogroup" aria-label={`${client.name} 格式`}>
             {#each client.options as option (option.id)}
-              {@const optionEnabled = view === 'geosite' ? option.geosite : option.rules}
+              {@const optionEnabled = view === 'geoip' ? !!option.geoip : view === 'geosite' ? option.geosite : option.rules}
               <button
                 type="button"
                 role="radio"

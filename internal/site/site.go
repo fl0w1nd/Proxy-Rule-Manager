@@ -40,7 +40,8 @@ type Client struct {
 	Name    string         `json:"name"`
 	Icon    string         `json:"icon"`
 	Options []ClientOption `json:"options"`
-	Rules   bool           `json:"rules"`   // at least one option has rule output
+	Rules   bool           `json:"rules"` // at least one option has rule output
+	GeoIP   bool           `json:"geoip"`
 	Geosite bool           `json:"geosite"` // at least one option has geosite output
 }
 
@@ -50,6 +51,7 @@ type ClientOption struct {
 	Name    string `json:"name"`
 	Ext     string `json:"ext"`
 	Rules   bool   `json:"rules"`
+	GeoIP   bool   `json:"geoip"`
 	Geosite bool   `json:"geosite"`
 }
 
@@ -71,23 +73,25 @@ type PublicRule struct {
 	Files       []RuleFile `json:"files"`
 }
 
-// GeositeVariant is one @attr variant of a geosite list.
-type GeositeVariant struct {
-	Attr    string `json:"attr"`
-	Entries int    `json:"entries"`
+// GeoVariant is one @attr variant of a geosite list.
+type GeoVariant struct {
+	Attr    string   `json:"attr"`
+	Entries int      `json:"entries"`
+	Targets []string `json:"targets,omitempty"`
 }
 
-// GeositeList is one published geosite list with its variants.
-type GeositeList struct {
-	Name     string           `json:"name"`
-	Entries  int              `json:"entries"`
-	Variants []GeositeVariant `json:"variants"`
+// GeoList is a published IP or domain list, with optional domain attributes.
+type GeoList struct {
+	Name     string       `json:"name"`
+	Entries  int          `json:"entries"`
+	Variants []GeoVariant `json:"variants"`
+	Targets  []string     `json:"targets,omitempty"`
 }
 
-// GeositeCatalog is the full published catalog of one provider.
-type GeositeCatalog struct {
-	Provider string        `json:"provider"`
-	Lists    []GeositeList `json:"lists"`
+// GeoCatalog is the full published catalog of one provider.
+type GeoCatalog struct {
+	Provider string    `json:"provider"`
+	Lists    []GeoList `json:"lists"`
 }
 
 // IconSet describes one icon collection directory for the gallery.
@@ -99,13 +103,14 @@ type IconSet struct {
 
 // IndexData is the view model for the public page.
 type IndexData struct {
-	UpdatedAt time.Time        `json:"updated_at"`
-	AdminURL  string           `json:"admin_url,omitempty"`
-	Clients   []Client         `json:"clients"`
-	Rules     []PublicRule     `json:"rules"`
-	Tags      []string         `json:"tags"`
-	Geosite   []GeositeCatalog `json:"geosite"`
-	IconSets  []IconSet        `json:"icon_sets"`
+	UpdatedAt time.Time    `json:"updated_at"`
+	AdminURL  string       `json:"admin_url,omitempty"`
+	Clients   []Client     `json:"clients"`
+	Rules     []PublicRule `json:"rules"`
+	Tags      []string     `json:"tags"`
+	Geosite   []GeoCatalog `json:"geosite"`
+	GeoIP     []GeoCatalog `json:"geoip"`
+	IconSets  []IconSet    `json:"icon_sets"`
 }
 
 var funcMap = template.FuncMap{
@@ -200,15 +205,8 @@ func publicDataJSON(index *IndexData) (template.JS, error) {
 			payload.Rules[i].Files[j].Path = escapePath(file.Path)
 		}
 	}
-	payload.Geosite = make([]GeositeCatalog, len(index.Geosite))
-	for i, catalog := range index.Geosite {
-		payload.Geosite[i] = catalog
-		payload.Geosite[i].Lists = make([]GeositeList, len(catalog.Lists))
-		for j, list := range catalog.Lists {
-			payload.Geosite[i].Lists[j] = list
-			payload.Geosite[i].Lists[j].Variants = append([]GeositeVariant{}, list.Variants...)
-		}
-	}
+	payload.Geosite = cloneGeoCatalogs(index.Geosite)
+	payload.GeoIP = cloneGeoCatalogs(index.GeoIP)
 	payload.IconSets = make([]IconSet, len(index.IconSets))
 	for i, set := range index.IconSets {
 		payload.IconSets[i] = set
@@ -219,6 +217,24 @@ func publicDataJSON(index *IndexData) (template.JS, error) {
 		return "", fmt.Errorf("marshal public page data: %w", err)
 	}
 	return template.JS(data), nil //nolint:gosec // json.Marshal escapes HTML-sensitive characters
+}
+
+func cloneGeoCatalogs(catalogs []GeoCatalog) []GeoCatalog {
+	out := make([]GeoCatalog, len(catalogs))
+	for i, catalog := range catalogs {
+		out[i] = catalog
+		out[i].Lists = make([]GeoList, len(catalog.Lists))
+		for j, list := range catalog.Lists {
+			out[i].Lists[j] = list
+			out[i].Lists[j].Targets = append([]string{}, list.Targets...)
+			out[i].Lists[j].Variants = make([]GeoVariant, len(list.Variants))
+			for k, variant := range list.Variants {
+				out[i].Lists[j].Variants[k] = variant
+				out[i].Lists[j].Variants[k].Targets = append([]string{}, variant.Targets...)
+			}
+		}
+	}
+	return out
 }
 
 // escapePath URL-escapes each path segment (client IDs may contain spaces).

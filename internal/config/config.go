@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
@@ -66,6 +67,7 @@ type Config struct {
 	Rules   []RuleConfig   `yaml:"rules"`
 
 	Geosite *GeositeConfig `yaml:"geosite,omitempty"`
+	GeoIP   *GeoIPConfig   `yaml:"geoip,omitempty"`
 	Update  UpdateConfig   `yaml:"update"`
 
 	// positions is populated by Load() from the raw YAML node tree;
@@ -125,6 +127,7 @@ type SourceConfig struct {
 	// Geosite compact ref: "provider/list" or "provider/list@attr1,attr2"
 	// Preferred over separate Provider/List/Attrs fields.
 	Geosite  string   `yaml:"geosite,omitempty"`
+	GeoIP    string   `yaml:"geoip,omitempty"`
 	Provider string   `yaml:"provider,omitempty"`
 	List     string   `yaml:"list,omitempty"`
 	Attrs    []string `yaml:"attrs,omitempty"`
@@ -140,6 +143,9 @@ func (s *SourceConfig) SourceType() string {
 	}
 	if s.Ref != "" {
 		return "ref"
+	}
+	if s.GeoIP != "" {
+		return "geoip"
 	}
 	if s.Geosite != "" || s.Provider != "" {
 		return "geosite"
@@ -165,6 +171,26 @@ func (s *SourceConfig) ResolveGeositeRef() (geosite.GeositeRef, error) {
 		return geosite.GeositeRef{}, err
 	}
 	return ref, nil
+}
+
+// ResolveGeoIPRef returns a provider/list reference.
+func (s *SourceConfig) ResolveGeoIPRef() (geoip.Ref, error) {
+	if len(s.Attrs) > 0 {
+		return geoip.Ref{}, fmt.Errorf("geoip sources do not support attributes")
+	}
+	if s.GeoIP != "" {
+		return geoip.ParseRef(s.GeoIP)
+	}
+	return geoip.ParseRef(s.Provider + "/" + s.List)
+}
+
+// GeoIPConfig publishes all IP lists to the selected clients.
+type GeoIPConfig struct {
+	Providers []GeoIPProvider `yaml:"providers"`
+}
+type GeoIPProvider struct {
+	Name    string   `yaml:"name"`
+	Clients []string `yaml:"clients"`
 }
 
 // OpConfig defines one structured operation on parsed entries.
@@ -433,9 +459,9 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 			sp := fmt.Sprintf("%s.sources[%d]", base, j)
 			sourceType := s.SourceType()
 			switch sourceType {
-			case "url", "ref", "geosite", "local":
+			case "url", "ref", "geosite", "geoip", "local":
 			case "":
-				addErr(sp, "no recognized source type (need url, ref, geosite, or content)")
+				addErr(sp, "no recognized source type (need url, ref, geosite, geoip, or content)")
 				continue
 			default:
 				addErr(sp+".type", fmt.Sprintf("unknown source type %q", sourceType))
@@ -443,6 +469,9 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 			}
 
 			selectors := 0
+			if s.GeoIP != "" {
+				selectors++
+			}
 			if s.URL != "" {
 				selectors++
 			}
@@ -459,7 +488,7 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 				selectors++
 			}
 			if selectors > 1 {
-				addErr(sp, "source must configure exactly one of url, ref, geosite, content, or file")
+				addErr(sp, "source must configure exactly one of url, ref, geosite, geoip, content, or file")
 			}
 			if s.Format != "" {
 				if sourceType != "url" && sourceType != "local" {
@@ -486,6 +515,10 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 					if _, err := NewLocalFileResolver(dataDir)(s.File); err != nil {
 						addErr(sp+".file", err.Error())
 					}
+				}
+			case "geoip":
+				if _, err := s.ResolveGeoIPRef(); err != nil {
+					addErr(sp+".geoip", err.Error())
 				}
 			case "geosite":
 				if s.Geosite != "" {
@@ -615,6 +648,34 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 			}
 		}
 	}
+	if c.GeoIP != nil {
+		providerNames := map[string]bool{}
+		for i, p := range c.GeoIP.Providers {
+			base := fmt.Sprintf("geoip.providers[%d]", i)
+			if p.Name == "" {
+				addErr(base+".name", "required")
+				continue
+			}
+			if !isSupportedGeoIPProvider(p.Name) {
+				addErr(base+".name", fmt.Sprintf("unsupported geoip provider %q", p.Name))
+			}
+			if err := util.EnsureSafeSegment(p.Name, "geoip provider"); err != nil {
+				addErr(base+".name", err.Error())
+			}
+			if providerNames[p.Name] {
+				addErr(base+".name", fmt.Sprintf("duplicate provider name %q", p.Name))
+			}
+			providerNames[p.Name] = true
+			if len(p.Clients) == 0 {
+				addErr(base+".clients", "at least one client is required")
+			}
+			for k, cl := range p.Clients {
+				if !clientIDs[cl] {
+					addErr(fmt.Sprintf("%s.clients[%d]", base, k), fmt.Sprintf("unknown client %q", cl))
+				}
+			}
+		}
+	}
 
 	return errs
 }
@@ -708,4 +769,13 @@ func ParseSize(s string) (int64, error) {
 		}
 	}
 	return 0, fmt.Errorf("invalid size %q (use B, KB, MB, or GB suffix)", s)
+}
+
+func isSupportedGeoIPProvider(name string) bool {
+	for _, supported := range geoip.SupportedProviders {
+		if name == supported {
+			return true
+		}
+	}
+	return false
 }

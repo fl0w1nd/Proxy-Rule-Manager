@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/version"
 )
@@ -35,13 +36,13 @@ type ruleCheckInfo struct {
 	CheckedAt string `json:"checked_at"`
 }
 
-type geositeProvidersResponse struct {
-	Items     []geositeProviderInfo `json:"items"`
-	Total     int                   `json:"total"`
-	Supported []string              `json:"supported"`
+type geoProvidersResponse struct {
+	Items     []geoProviderInfo `json:"items"`
+	Total     int               `json:"total"`
+	Supported []string          `json:"supported"`
 }
 
-type geositeProviderInfo struct {
+type geoProviderInfo struct {
 	Name      string   `json:"name"`
 	Version   string   `json:"version,omitempty"`
 	Result    string   `json:"result"`
@@ -91,13 +92,43 @@ func (s *Server) handleGeositeProviders(w http.ResponseWriter, _ *http.Request) 
 		}
 	}
 	summaries := s.Engine.GeositeProviderSummaries()
-	resp := geositeProvidersResponse{
-		Items:     make([]geositeProviderInfo, 0, len(summaries)),
+	resp := geoProvidersResponse{
+		Items:     make([]geoProviderInfo, 0, len(summaries)),
 		Total:     len(summaries),
 		Supported: append([]string(nil), geosite.SupportedProviders...),
 	}
 	for _, summary := range summaries {
-		item := geositeProviderInfo{
+		item := geoProviderInfo{
+			Name: summary.Name, Version: summary.Version, Result: summary.Result,
+			Clients: clientsByProvider[summary.Name],
+			Lists:   summary.Lists, Variants: summary.Variants, Entries: summary.Entries, Files: summary.Files,
+		}
+		if item.Clients == nil {
+			item.Clients = []string{}
+		}
+		if !summary.CheckedAt.IsZero() {
+			item.CheckedAt = apiTime(summary.CheckedAt)
+		}
+		resp.Items = append(resp.Items, item)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleGeoIPProviders(w http.ResponseWriter, _ *http.Request) {
+	clientsByProvider := map[string][]string{}
+	if cfg := s.config(); cfg.GeoIP != nil {
+		for _, provider := range cfg.GeoIP.Providers {
+			clientsByProvider[provider.Name] = append([]string(nil), provider.Clients...)
+		}
+	}
+	summaries := s.Engine.GeoIPProviderSummaries()
+	resp := geoProvidersResponse{
+		Items:     make([]geoProviderInfo, 0, len(summaries)),
+		Total:     len(summaries),
+		Supported: append([]string(nil), geoip.SupportedProviders...),
+	}
+	for _, summary := range summaries {
+		item := geoProviderInfo{
 			Name: summary.Name, Version: summary.Version, Result: summary.Result,
 			Clients: clientsByProvider[summary.Name],
 			Lists:   summary.Lists, Variants: summary.Variants, Entries: summary.Entries, Files: summary.Files,

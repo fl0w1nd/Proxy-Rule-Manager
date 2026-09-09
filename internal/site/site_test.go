@@ -34,11 +34,11 @@ func sampleIndex() *IndexData {
 			},
 		},
 		Tags: []string{"AI"},
-		Geosite: []GeositeCatalog{
+		Geosite: []GeoCatalog{
 			{
 				Provider: "v2fly",
-				Lists: []GeositeList{
-					{Name: "google", Entries: 1000, Variants: []GeositeVariant{{Attr: "cn", Entries: 120}}},
+				Lists: []GeoList{
+					{Name: "google", Entries: 1000, Variants: []GeoVariant{{Attr: "cn", Entries: 120}}},
 				},
 			},
 		},
@@ -166,7 +166,7 @@ func TestPublicDataJSONEscapesHTML(t *testing.T) {
 }
 
 func TestPublicDataJSONUsesArraysForEmptyCollections(t *testing.T) {
-	idx := &IndexData{UpdatedAt: time.Now(), Clients: []Client{{ID: "empty"}}, Rules: []PublicRule{{ID: "empty"}}, Geosite: []GeositeCatalog{{Provider: "empty", Lists: []GeositeList{{Name: "empty"}}}}, IconSets: []IconSet{{Name: "empty"}}}
+	idx := &IndexData{UpdatedAt: time.Now(), Clients: []Client{{ID: "empty"}}, Rules: []PublicRule{{ID: "empty"}}, Geosite: []GeoCatalog{{Provider: "empty", Lists: []GeoList{{Name: "empty"}}}}, IconSets: []IconSet{{Name: "empty"}}}
 	got, err := publicDataJSON(idx)
 	if err != nil {
 		t.Fatal(err)

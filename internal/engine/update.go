@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geodata"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
@@ -28,6 +30,7 @@ type UpdateEngine struct {
 	Preprocessor *PreprocessRunner
 	State        *state.Store
 	Geosite      *geosite.Manager
+	GeoIP        *geoip.Manager
 	Logger       *slog.Logger
 	configValue  atomic.Pointer[config.Config]
 }
@@ -113,7 +116,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	log := e.Logger
 	expectedPaths := make(map[string]struct{})
 	ruleInfos := make(map[string]*ruleSiteInfo)
-	gstats := newGeositeStats()
+	gstats := newGeoStats()
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "prepare", Status: "running", Message: "正在准备更新"})
 
 	sorted, err := TopologicalSort(rules, partial)
@@ -173,6 +176,8 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 		}
 	}
 
+	geoipProviders := e.loadGeoIP(ctx, sorted, partial, &result)
+
 	refResults := make(map[string][]ir.Entry)
 	if partial {
 		e.preloadReferenceSnapshots(sorted, refResults, &result)
@@ -194,7 +199,7 @@ ruleLoop:
 		}
 
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rule", Status: "running", Current: ruleIndex + 1, Total: len(sorted), RuleID: rule.ID, RuleName: rule.Name, Message: fmt.Sprintf("正在更新 %s · %d / %d", rule.Name, ruleIndex+1, len(sorted))})
-		outcome := e.compileAndWriteRule(ctx, rule, geositeProviders, refResults)
+		outcome := e.compileAndWriteRule(ctx, rule, geositeProviders, geoipProviders, refResults)
 		processed[rule.ID] = true
 		if outcome.info != nil {
 			ruleInfos[rule.ID] = outcome.info
@@ -256,6 +261,10 @@ ruleLoop:
 	// Handle geosite publications
 	if !partial && e.currentConfig().Geosite != nil {
 		e.updateGeositePublications(ctx, geositeProviders, &result, expectedPaths, gstats)
+	}
+
+	if !partial && e.currentConfig().GeoIP != nil {
+		e.updateGeoIPPublications(ctx, geoipProviders, &result, expectedPaths)
 	}
 
 	if ctx.Err() != nil {
@@ -376,12 +385,13 @@ func (e *UpdateEngine) compileAndWriteRule(
 	ctx context.Context,
 	rule config.RuleConfig,
 	geositeProviders map[string]*geosite.ProviderCache,
+	geoipProviders map[string]*geoip.ProviderCache,
 	refResults map[string][]ir.Entry,
 ) ruleOutcome {
 	var outcome ruleOutcome
 	log := e.Logger.With("rule_id", rule.ID, "rule_name", rule.Name)
 
-	cr := CompileRule(ctx, rule, e.currentConfig().Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, refResults, config.NewLocalFileResolver(e.DataDir), e.Logger)
+	cr := CompileRule(ctx, rule, e.currentConfig().Clients, e.Fetcher, e.Preprocessor, e.Registry, geositeProviders, geoipProviders, refResults, config.NewLocalFileResolver(e.DataDir), e.Logger)
 
 	info := newRuleSiteInfo(rule, cr)
 
@@ -583,21 +593,24 @@ func (e *UpdateEngine) readCachedGeositeProviders(rules []config.RuleConfig) map
 
 func geositeFetchResult(previous, current *geosite.ProviderCache, failed bool) string {
 	if failed {
-		return state.GeositeFailed
+		return state.ProviderFailed
 	}
 	if previous != nil && current != nil && previous.ResolvedVersion == current.ResolvedVersion {
-		return state.GeositeUnchanged
+		return state.ProviderUnchanged
 	}
-	return state.GeositeUpdated
+	return state.ProviderUpdated
 }
 
 // refreshGeositeProviders fetches the latest provider data. A failed fetch
 // falls back to the current cache so published rules remain available.
 func refreshGeositeProviders(ctx context.Context, cfg *config.Config, mgr *geosite.Manager, logger *slog.Logger) (map[string]*geosite.ProviderCache, map[string]bool, map[string]string) {
-	caches := make(map[string]*geosite.ProviderCache)
+	return refreshGeoProviders(ctx, cfg, mgr, logger, "geosite", "Geosite", collectProviderNames(cfg))
+}
+
+func refreshGeoProviders[E any](ctx context.Context, cfg *config.Config, mgr *geodata.Manager[E], logger *slog.Logger, kind, label string, providers []string) (map[string]*geodata.Cache[E], map[string]bool, map[string]string) {
+	caches := make(map[string]*geodata.Cache[E])
 	failed := make(map[string]bool)
 	fetchErrors := make(map[string]string)
-	providers := collectProviderNames(cfg)
 	if mgr == nil {
 		for _, name := range providers {
 			failed[name] = true
@@ -612,12 +625,12 @@ func refreshGeositeProviders(ctx context.Context, cfg *config.Config, mgr *geosi
 			cfg.Update.Fetch.Retries,
 			time.Duration(cfg.Update.Fetch.RetryDelay),
 			func(attempt, total int, delay time.Duration, retryErr error) {
-				message := fmt.Sprintf("Geosite %s 刷新失败 · %v · 正在重试 %d / %d", name, retryErr, attempt, total)
+				message := fmt.Sprintf("%s %s 刷新失败 · %v · 正在重试 %d / %d", label, name, retryErr, attempt, total)
 				reportProgress(ctx, ProgressEvent{
-					Kind: ProgressWarning, Stage: "geosite_refresh", Status: "retrying",
+					Kind: ProgressWarning, Stage: kind + "_refresh", Status: "retrying",
 					Current: attempt, Total: total, Subject: name, Message: message,
 				})
-				logger.Warn("geosite provider refresh retrying",
+				logger.Warn(kind+" provider refresh retrying",
 					"provider", name, "attempt", attempt, "retries", total,
 					"delay", delay, "error", retryErr,
 				)
@@ -630,10 +643,10 @@ func refreshGeositeProviders(ctx context.Context, cfg *config.Config, mgr *geosi
 			} else {
 				fetchErrors[name] = "refresh returned no data"
 			}
-			logger.Warn("geosite provider refresh failed", "provider", name, "error", err)
+			logger.Warn(kind+" provider refresh failed", "provider", name, "error", err)
 			cached, readErr := mgr.Read(name)
 			if readErr != nil {
-				logger.Warn("geosite provider cache read failed", "provider", name, "error", readErr)
+				logger.Warn(kind+" provider cache read failed", "provider", name, "error", readErr)
 				fetchErrors[name] += "; cache read: " + readErr.Error()
 			}
 			if cached != nil {
@@ -715,7 +728,7 @@ func (e *UpdateEngine) updateGeositePublications(
 	providers map[string]*geosite.ProviderCache,
 	result *UpdateResult,
 	expectedPaths map[string]struct{},
-	gstats *geositeStats,
+	gstats *geoStats,
 ) {
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_publish", Status: "running", Message: "正在更新 Geosite 规则文件"})
 	for _, prov := range e.currentConfig().Geosite.Providers {
@@ -774,7 +787,7 @@ func (e *UpdateEngine) publishGeositeVariant(
 	clientIDs []string,
 	result *UpdateResult,
 	expectedPaths map[string]struct{},
-	gstats *geositeStats,
+	gstats *geoStats,
 ) {
 	irEntries, err := resolveGeositeIR(cache, ref)
 	if err != nil {
@@ -786,44 +799,50 @@ func (e *UpdateEngine) publishGeositeVariant(
 	}
 	gstats.recordVariant(ref.Provider, ref.List, ref.Attrs, len(irEntries))
 
-	artifactName := "geosite/" + ref.ArtifactName()
+	e.publishGeoEntries("geosite", ref.FormatRef(), ref.Provider, irEntries, clientIDs, result, expectedPaths, gstats)
+}
+
+func (e *UpdateEngine) publishGeoEntries(kind, reference, provider string, irEntries []ir.Entry, clientIDs []string, result *UpdateResult, expectedPaths map[string]struct{}, gstats *geoStats) {
+	artifactName := kind + "/" + reference
 
 	for _, target := range config.ExpandSelectedTargets(e.currentConfig().Clients, clientIDs) {
 		tmpl, ok := e.Registry.Get(target.Template)
 		if !ok {
-			result.addError("geosite_publish", target.ID, fmt.Sprintf("geosite template %q not found for output %q", target.Template, target.ID))
+			result.addError(kind+"_publish", target.ID, fmt.Sprintf("template %q not found for output %q", target.Template, target.ID))
 			continue
 		}
 		targetEntries := cloneEntries(irEntries)
 		targetEntries, rerr := applyOps(targetEntries, target.Ops)
 		if rerr != nil {
-			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("geosite variant ops %s for %s: %v", ref.FormatRef(), target.ID, rerr))
+			result.addError(kind+"_publish", reference, fmt.Sprintf("output ops %s for %s: %v", reference, target.ID, rerr))
 			continue
 		}
 		rendered, rerr := render.Render(tmpl, targetEntries)
 		if rerr != nil {
-			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("geosite render %s for %s: %v", ref.FormatRef(), target.ID, rerr))
+			result.addError(kind+"_publish", reference, fmt.Sprintf("render %s for %s: %v", reference, target.ID, rerr))
 			continue
 		}
-		// data/rules/{client}/geosite/{provider}/{list}{ext} or {list}@{attr}{ext}
+		// Each target controls its own output extension and filtering.
 		artifactPath, err := ArtifactPath(e.DataDir, target.ID, artifactName+tmpl.Extension)
 		if err != nil {
-			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("resolve geosite artifact path %s: %v", ref.FormatRef(), err))
+			result.addError(kind+"_publish", reference, fmt.Sprintf("resolve artifact path %s: %v", reference, err))
 			continue
 		}
 		if len(rendered) == 0 {
 			if err := os.Remove(artifactPath); err != nil && !os.IsNotExist(err) {
-				result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("remove empty geosite artifact: %v", err))
+				result.addError(kind+"_publish", reference, fmt.Sprintf("remove empty artifact: %v", err))
 			}
 			continue
 		}
 		if err := util.AtomicWriteFile(artifactPath, rendered); err != nil {
-			result.addError("geosite_publish", ref.FormatRef(), fmt.Sprintf("write geosite artifact: %v", err))
+			result.addError(kind+"_publish", reference, fmt.Sprintf("write artifact: %v", err))
 			continue
 		}
 		expectedPaths[filepath.Clean(artifactPath)] = struct{}{}
 		result.Artifacts++
-		gstats.recordFile(ref.Provider)
+		if gstats != nil {
+			gstats.recordFile(provider)
+		}
 	}
 }
 

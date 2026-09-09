@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geodata"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 )
 
@@ -23,7 +24,7 @@ func ValidateGeositeRefs(
 	}
 
 	var errs []config.ConfigError
-	caches := loadAllProviderCaches(ctx, cfg, mgr, logger, &errs)
+	caches := loadGeoCaches(ctx, mgr, collectProviderNames(cfg), logger, "geosite")
 
 	for i, rule := range cfg.Rules {
 		for j, src := range rule.Sources {
@@ -70,20 +71,21 @@ func ValidateGeositeRefs(
 	return errs
 }
 
-func loadAllProviderCaches(
+func loadGeoCaches[E any](
 	ctx context.Context,
-	cfg *config.Config,
-	mgr *geosite.Manager,
+	mgr *geodata.Manager[E],
+	names []string,
 	logger *slog.Logger,
-	errs *[]config.ConfigError,
-) map[string]*geosite.ProviderCache {
-	caches := make(map[string]*geosite.ProviderCache)
-	providers := collectProviderNames(cfg)
-	for _, name := range providers {
+	kind string,
+) map[string]*geodata.Cache[E] {
+	caches := make(map[string]*geodata.Cache[E])
+	if mgr == nil {
+		return caches
+	}
+	for _, name := range names {
 		cache, err := mgr.Ensure(ctx, name)
 		if err != nil {
-			logger.Warn("geosite provider unavailable for validation", "provider", name, "error", err)
-			continue
+			logger.Warn(kind+" provider unavailable for validation", "provider", name, "error", err)
 		}
 		if cache != nil {
 			caches[name] = cache

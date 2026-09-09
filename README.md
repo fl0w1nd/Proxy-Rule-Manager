@@ -37,14 +37,14 @@ Proxy Rule Manager（prm）把来自多个上游来源的代理规则，编译�
 
 ## 功能特性
 
-- **多种来源**：远程规则列表、本地文件、内联文本、引用其他规则、geosite 域名库（v2fly、loyalsoldier）。
+- **多种来源**：远程规则列表、本地文件、内联文本、引用其他规则、geosite 域名库、geoip IP 库（v2fly、loyalsoldier）。
 - **输入解析**：经典行列表和 Mihomo YAML 格式，自动识别。
 - **中间表示（IR）**：40 多种规则类型，外加 AND、OR、NOT 逻辑组合。
 - **合并策略**：并集（默认）、交集、差集，自动去重。
 - **过滤操作（ops）**：按类型保留或移除，按关键词/后缀/前缀/精确/正则过滤值。
 - **输出客户端**：Mihomo（Classical、YAML）、sing-box JSON、Surge、Shadowrocket，支持自定义模板。
 - **变体**：同一客户端额外产出，渲染前再做一次过滤。
-- **geosite 自动发布**：把 provider 的全部列表和属性变体同步到目标客户端。
+- **Geo 数据自动发布**：把 geosite 列表及属性变体、geoip 分类网段同步到目标客户端。
 - **JavaScript 预处理**：解析前可先用脚本改写原始内容。
 - **更新历史**：记录每次更新的新增/删除条目样例。
 - **调度**：手动、固定间隔或 cron；同一时间只跑一次更新，可取消。
@@ -60,14 +60,14 @@ flowchart LR
     URL[URL 规则列表] --> PARSE
     FILE[本地文件或内联文本] --> PARSE
     REF[引用其他规则] --> PARSE
-    GEO[geosite 列表] --> PARSE
+    GEO[geosite / geoip] --> PARSE
     PARSE[预处理、抓取、解析] --> MERGE[合并来源]
     MERGE --> OPS[应用过滤操作]
     OPS --> RENDER[按输出目标渲染]
     RENDER --> OUT[产物写入 data/rules]
 ```
 
-1. **读取来源**。每个来源是远程 URL、本地文件、内联文本、其他规则的引用或 geosite 列表。被引用的规则先编译。可选 JavaScript 脚本能在解析前改写原文。
+1. **读取来源**。每个来源是远程 URL、本地文件、内联文本、其他规则的引用或 geosite/geoip 列表。被引用的规则先编译。可选 JavaScript 脚本能在解析前改写原文。
 2. **解析**。解析器把经典行列表和 Mihomo YAML 格式转成中间表示。解析不了的文本会作为诊断信息展示，不会静默丢弃。
 3. **合并**。多来源按策略合并：并集（默认）、交集、差集。重复条目消失。
 4. **应用过滤**。规则级操作保留或移除条目、过滤值。变体操作在合并结果上再执行一次。
@@ -112,7 +112,7 @@ rules:
 | 命令 | 作用 |
 | --- | --- |
 | `prm init` | 写出示例 `config.yaml` |
-| `prm validate` | 校验配置、模板和 geosite 引用 |
+| `prm validate` | 校验配置、模板和 geosite/geoip 引用 |
 | `prm update [rule-ids...]` | 全量更新，或只编译列出的规则及其依赖 |
 | `prm preview <rule-id> [--target <id>]` | 查看单条规则各阶段结果，可指定渲染某个输出目标 |
 | `prm build` | 全量更新后，把静态站点导出到 `dist/` |
@@ -144,7 +144,8 @@ data/
 ├── static/
 │   ├── assets/         # 应用管理的公开页 JS 与 CSS
 │   └── icons/          # 内置及用户自定义图标
-├── geosite/            # provider 缓存
+├── geosite/            # 域名库缓存
+├── geoip/              # IP 库缓存
 └── .state/             # 快照和更新历史
 ```
 
@@ -161,12 +162,12 @@ data/
 
 示例：`PRM_ADMIN_TOKEN=secret prm --data-dir ./data serve --host 127.0.0.1 --port 3001`。
 
-- 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite 目录。
+- 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite/geoip 目录。
 - 规则产物在 `/rules/`。
 - 图标在 `/static/icons/`。
 - 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
 - 管理看板在 `/admin`，管理 API 在 `/api/v1`。
-- API 端点：`status`、`rules`、`geosite/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
+- API 端点：`status`、`rules`、`geosite/providers`、`geoip/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
 
 写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
 
@@ -195,7 +196,7 @@ data/
 | `make test-race` | 带竞态检测运行测试 |
 | `make lint` | 运行 gofmt、go vet、golangci-lint |
 | `make ci` | 本地质量门禁（lint + 竞态测试） |
-| `make proto` | 重新生成 geosite 的 protobuf 代码（需要 protoc） |
+| `make proto` | 重新生成 geosite/geoip 的 protobuf 代码（需要 protoc） |
 | `make docker-build` | 构建容器镜像 |
 | `make docker-run` | 用 `./data` 和 `config.yaml` 运行容器 |
 | `make clean` | 清理 `bin/` 和 `tmp/` |

@@ -1,8 +1,9 @@
-import type { ConfigDocument } from '../api/client';
+import type { ConfigDocument, GeoKind } from '../api/client';
 
-export const defaultGeositeProviders = ['v2fly', 'loyalsoldier'] as const;
+export const defaultGeoProviders: Record<GeoKind, string[]> = { geosite: ['v2fly', 'loyalsoldier'], geoip: ['loyalsoldier', 'v2fly'] };
+export function geoLabel(kind: GeoKind) { return kind === 'geoip' ? 'GeoIP' : 'Geosite'; }
 
-export interface GeositeProviderDraft {
+export interface GeoProviderDraft {
   name: string;
   clients: string[];
 }
@@ -14,6 +15,8 @@ export function providerLabel(name: string): string {
 
 export function entryTypeLabel(type: string): string {
   switch (type) {
+    case 'ipv4': return 'IPv4';
+    case 'ipv6': return 'IPv6';
     case 'full': return '完整';
     case 'domain': return '后缀';
     case 'keyword': return '关键词';
@@ -22,16 +25,16 @@ export function entryTypeLabel(type: string): string {
   }
 }
 
-export function geositeProviderConfigs(config?: ConfigDocument): GeositeProviderDraft[] {
-  const providers = (config?.geosite as { providers?: { name?: string; clients?: string[] }[] } | undefined)?.providers ?? [];
+export function geoProviderConfigs(config?: ConfigDocument, kind: GeoKind = 'geosite'): GeoProviderDraft[] {
+  const providers = (config?.[kind] as { providers?: { name?: string; clients?: string[] }[] } | undefined)?.providers ?? [];
   return providers.map((provider) => ({
     name: provider.name ?? '',
     clients: [...(provider.clients ?? [])],
   }));
 }
 
-export function validateGeositeProvider(
-  draft: GeositeProviderDraft,
+export function validateGeoProvider(
+  draft: GeoProviderDraft,
   existing: string[],
   editing: string,
   clientIDs: string[],
@@ -43,6 +46,6 @@ export function validateGeositeProvider(
   return '';
 }
 
-export function geositePatchValue(providers: GeositeProviderDraft[]): { providers: GeositeProviderDraft[] } | null {
+export function geoPatchValue(providers: GeoProviderDraft[]): { providers: GeoProviderDraft[] } | null {
   return providers.length ? { providers } : null;
 }

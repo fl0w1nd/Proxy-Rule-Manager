@@ -15,7 +15,7 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-15s\033[0m %s\n", $$1, $$2}'
 
 proto: ## Regenerate protobuf Go code from .proto (requires protoc + protoc-gen-go)
-	protoc --go_out=. --go_opt=paths=source_relative internal/geosite/geosite.proto
+	protoc --go_out=. --go_opt=paths=source_relative internal/geosite/geosite.proto internal/geoip/geoip.proto
 
 build-web: ## Build Svelte 5 admin and public web assets
 	cd web && pnpm build

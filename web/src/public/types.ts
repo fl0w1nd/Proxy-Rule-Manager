@@ -1,4 +1,4 @@
-export type PublicView = 'rules' | 'geosite' | 'icons';
+export type PublicView = 'rules' | 'geosite' | 'geoip' | 'icons';
 
 export interface PublicClientOption {
   id: string;
@@ -6,6 +6,7 @@ export interface PublicClientOption {
   ext: string;
   rules: boolean;
   geosite: boolean;
+  geoip?: boolean;
 }
 
 export interface PublicClient {
@@ -14,6 +15,7 @@ export interface PublicClient {
   icon: string;
   rules: boolean;
   geosite: boolean;
+  geoip?: boolean;
   options: PublicClientOption[];
 }
 
@@ -35,15 +37,17 @@ export interface PublicRule {
 export interface PublicGeositeVariant {
   attr: string;
   entries: number;
+  targets?: string[];
 }
 
 export interface PublicGeositeList {
   name: string;
   entries: number;
   variants: PublicGeositeVariant[];
+  targets?: string[];
 }
 
-export interface PublicGeositeCatalog {
+export interface PublicGeoCatalog {
   provider: string;
   lists: PublicGeositeList[];
 }
@@ -60,7 +64,8 @@ export interface PublicPageData {
   clients: PublicClient[];
   rules: PublicRule[];
   tags: string[];
-  geosite: PublicGeositeCatalog[];
+  geosite: PublicGeoCatalog[];
+  geoip?: PublicGeoCatalog[];
   icon_sets: PublicIconSet[];
 }
 
@@ -74,5 +79,5 @@ export interface PreviewItem {
   entries: number;
   source:
     | { kind: 'rule'; rule_id: string }
-    | { kind: 'geosite'; provider: string; name: string; attr?: string };
+    | { kind: 'geosite' | 'geoip'; provider: string; name: string; attr?: string };
 }

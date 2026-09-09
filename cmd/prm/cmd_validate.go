@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"errors"
 	"fmt"
 	"os"
@@ -13,13 +12,13 @@ import (
 
 var validateCmd = &cobra.Command{
 	Use:   "validate",
-	Short: "Validate config, templates, and geosite references",
+	Short: "Validate config, templates, and geo references",
 	Long: `Validate checks the config file for structural correctness, verifies
-all client templates exist, and loads geosite provider caches to validate
-list and attr references.
+all client templates exist, and loads geosite and geoip provider caches to validate
+list references.
 
 Every error is reported with its YAML line number and config path.
-Geosite validation issues are reported individually without blocking
+Geo validation issues are reported individually without blocking
 other rules from working.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		dataDir, err := resolveDataDir(cmd)
@@ -41,20 +40,22 @@ other rules from working.`,
 
 		// Deep geosite reference validation
 		diags := engine.ValidateGeositeRefs(
-			context.Background(),
+			cmd.Context(),
 			app.Config,
 			app.Engine.Geosite,
 			app.Logger,
 		)
 
+		diags = append(diags, engine.ValidateGeoIPRefs(cmd.Context(), app.Config, app.Engine.GeoIP, app.Logger)...)
+
 		if len(diags) == 0 {
-			fmt.Println("Geosite references: all valid.")
+			fmt.Println("Geo references: all valid.")
 			return nil
 		}
 
-		fmt.Fprintf(os.Stderr, "\nGeosite validation issues:\n")
+		fmt.Fprintf(os.Stderr, "\nGeo validation issues:\n")
 		printConfigErrors(diags)
-		return fmt.Errorf("geosite validation found %d issue(s)", len(diags))
+		return fmt.Errorf("geo validation found %d issue(s)", len(diags))
 	},
 }
 

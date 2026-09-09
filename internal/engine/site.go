@@ -90,24 +90,9 @@ func (e *UpdateEngine) ruleFileRelPath(ruleID, clientID string) (string, error) 
 }
 
 // siteClients describes every configured output client for the pages, marking
-// which views each client actually has content for: rules it is an output of,
-// and geosite providers that publish to it.
+// which views each option actually has files for.
 func (e *UpdateEngine) siteClients() []site.Client {
-	ruleClients := make(map[string]bool)
 	cfg := e.currentConfig()
-	for _, rule := range cfg.Rules {
-		for _, target := range config.ExpandSelectedTargets(cfg.Clients, rule.Outputs) {
-			ruleClients[target.ID] = true
-		}
-	}
-	geoClients := make(map[string]bool)
-	if cfg.Geosite != nil {
-		for _, p := range cfg.Geosite.Providers {
-			for _, target := range config.ExpandSelectedTargets(cfg.Clients, p.Clients) {
-				geoClients[target.ID] = true
-			}
-		}
-	}
 	out := make([]site.Client, 0, len(cfg.Clients))
 	for _, c := range cfg.Clients {
 		name := c.Name
@@ -123,39 +108,44 @@ func (e *UpdateEngine) siteClients() []site.Client {
 				ext = tmpl.Extension
 			}
 			option := site.ClientOption{
-				ID: target.ID, Name: target.OptionName, Ext: ext,
-				Rules: ruleClients[target.ID], Geosite: geoClients[target.ID],
+				ID:      target.ID,
+				Name:    target.OptionName,
+				Ext:     ext,
+				Rules:   targetHasRuleArtifacts(e.DataDir, target.ID),
+				Geosite: targetHasGeoArtifacts(e.DataDir, target.ID, "geosite"),
+				GeoIP:   targetHasGeoArtifacts(e.DataDir, target.ID, "geoip"),
 			}
 			client.Options = append(client.Options, option)
 			client.Rules = client.Rules || option.Rules
 			client.Geosite = client.Geosite || option.Geosite
+			client.GeoIP = client.GeoIP || option.GeoIP
 		}
 		out = append(out, client)
 	}
 	return out
 }
 
-// geositeStats accumulates the full published geosite catalog during an update,
+// geoStats accumulates the full published geosite catalog during an update,
 // plus per-provider metadata for the admin board.
-type geositeStats struct {
-	providers map[string]map[string]*geositeListStat
-	meta      map[string]*geositeProviderMeta
+type geoStats struct {
+	providers map[string]map[string]*geoListStat
+	meta      map[string]*geoProviderMeta
 }
 
-type geositeListStat struct {
+type geoListStat struct {
 	entries  int
 	variants map[string]int // attr -> entries
 }
 
-type geositeProviderMeta struct {
+type geoProviderMeta struct {
 	version   string
 	result    string
 	checkedAt time.Time
 	files     int
 }
 
-// GeositeProviderSummary is the management API view of one configured provider.
-type GeositeProviderSummary struct {
+// GeoProviderSummary is the management API view of one configured provider.
+type GeoProviderSummary struct {
 	Name      string
 	Version   string
 	Result    string
@@ -166,22 +156,22 @@ type GeositeProviderSummary struct {
 	Files     int
 }
 
-func newGeositeStats() *geositeStats {
-	return &geositeStats{
-		providers: make(map[string]map[string]*geositeListStat),
-		meta:      make(map[string]*geositeProviderMeta),
+func newGeoStats() *geoStats {
+	return &geoStats{
+		providers: make(map[string]map[string]*geoListStat),
+		meta:      make(map[string]*geoProviderMeta),
 	}
 }
 
 // setMeta records provider version and the latest fetch result.
-func (s *geositeStats) setMeta(provider, version, result string, checkedAt time.Time) {
-	s.meta[provider] = &geositeProviderMeta{version: version, result: result, checkedAt: checkedAt}
+func (s *geoStats) setMeta(provider, version, result string, checkedAt time.Time) {
+	s.meta[provider] = &geoProviderMeta{version: version, result: result, checkedAt: checkedAt}
 }
 
-func (s *geositeStats) recordFile(provider string) {
+func (s *geoStats) recordFile(provider string) {
 	m, ok := s.meta[provider]
 	if !ok {
-		m = &geositeProviderMeta{}
+		m = &geoProviderMeta{}
 		s.meta[provider] = m
 	}
 	m.files++
@@ -189,15 +179,15 @@ func (s *geositeStats) recordFile(provider string) {
 
 // recordVariant records one published variant. An empty attrs slice is the
 // full list; otherwise the joined attrs key identifies the variant.
-func (s *geositeStats) recordVariant(provider, list string, attrs []string, entries int) {
+func (s *geoStats) recordVariant(provider, list string, attrs []string, entries int) {
 	lists, ok := s.providers[provider]
 	if !ok {
-		lists = make(map[string]*geositeListStat)
+		lists = make(map[string]*geoListStat)
 		s.providers[provider] = lists
 	}
 	st, ok := lists[list]
 	if !ok {
-		st = &geositeListStat{variants: make(map[string]int)}
+		st = &geoListStat{variants: make(map[string]int)}
 		lists[list] = st
 	}
 	if len(attrs) == 0 {
@@ -207,14 +197,14 @@ func (s *geositeStats) recordVariant(provider, list string, attrs []string, entr
 	st.variants[strings.Join(attrs, ",")] = entries
 }
 
-func (s *geositeStats) catalog() []site.GeositeCatalog {
-	out := make([]site.GeositeCatalog, 0, len(s.providers))
+func (s *geoStats) catalog() []site.GeoCatalog {
+	out := make([]site.GeoCatalog, 0, len(s.providers))
 	for provider, lists := range s.providers {
-		cat := site.GeositeCatalog{Provider: provider}
+		cat := site.GeoCatalog{Provider: provider}
 		for name, st := range lists {
-			gl := site.GeositeList{Name: name, Entries: st.entries}
+			gl := site.GeoList{Name: name, Entries: st.entries}
 			for attr, entries := range st.variants {
-				gl.Variants = append(gl.Variants, site.GeositeVariant{Attr: attr, Entries: entries})
+				gl.Variants = append(gl.Variants, site.GeoVariant{Attr: attr, Entries: entries})
 			}
 			sort.Slice(gl.Variants, func(i, j int) bool { return gl.Variants[i].Attr < gl.Variants[j].Attr })
 			cat.Lists = append(cat.Lists, gl)
@@ -227,7 +217,7 @@ func (s *geositeStats) catalog() []site.GeositeCatalog {
 }
 
 // summaries builds per-provider API summaries, merging publication stats with cache metadata.
-func (s *geositeStats) summaries() []GeositeProviderSummary {
+func (s *geoStats) summaries() []GeoProviderSummary {
 	names := make(map[string]bool)
 	for name := range s.providers {
 		names[name] = true
@@ -241,9 +231,9 @@ func (s *geositeStats) summaries() []GeositeProviderSummary {
 	}
 	sort.Strings(sorted)
 
-	out := make([]GeositeProviderSummary, 0, len(sorted))
+	out := make([]GeoProviderSummary, 0, len(sorted))
 	for _, name := range sorted {
-		p := GeositeProviderSummary{Name: name}
+		p := GeoProviderSummary{Name: name}
 		if m, ok := s.meta[name]; ok {
 			p.Version = m.version
 			p.Result = m.result
@@ -323,7 +313,7 @@ func (e *UpdateEngine) publicIndexData(
 	staticDir string,
 	adminURL string,
 	infos map[string]*ruleSiteInfo,
-	gstats *geositeStats,
+	gstats *geoStats,
 ) *site.IndexData {
 	idx := &site.IndexData{
 		UpdatedAt: updatedAt,
@@ -356,20 +346,21 @@ func (e *UpdateEngine) publicIndexData(
 	if gstats == nil {
 		gstats = e.rebuildGeositeStats()
 	}
-	idx.Geosite = gstats.catalog()
+	idx.Geosite = e.publishedGeoCatalog("geosite", gstats.catalog())
+	idx.GeoIP = e.publishedGeoCatalog("geoip", e.rebuildGeoIPStats().catalog())
 	return idx
 }
 
 // GeositeProviderSummaries reconstructs current provider summaries for the API.
-func (e *UpdateEngine) GeositeProviderSummaries() []GeositeProviderSummary {
+func (e *UpdateEngine) GeositeProviderSummaries() []GeoProviderSummary {
 	return e.rebuildGeositeStats().summaries()
 }
 
 // rebuildGeositeStats reconstructs the published geosite catalog from the
 // on-disk provider caches, mirroring what an update would publish, and counts
 // the artifacts present on disk per provider.
-func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
-	gstats := newGeositeStats()
+func (e *UpdateEngine) rebuildGeositeStats() *geoStats {
+	gstats := newGeoStats()
 	cfg := e.currentConfig()
 	if cfg.Geosite == nil || e.Geosite == nil {
 		return gstats
@@ -379,13 +370,13 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 		result, checkedAt, recorded := e.State.GeositeUpdate(prov.Name)
 		if err != nil || cache == nil {
 			if !recorded {
-				result = state.GeositeUnchanged
+				result = state.ProviderUnchanged
 			}
 			gstats.setMeta(prov.Name, "", result, checkedAt)
 			continue
 		}
 		if !recorded {
-			result = state.GeositeUpdated
+			result = state.ProviderUpdated
 			checkedAt, _ = time.Parse(time.RFC3339, cache.FetchedAt)
 		}
 		gstats.setMeta(prov.Name, cache.ResolvedVersion, result, checkedAt)
@@ -402,7 +393,7 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 			}
 		}
 		targets := config.ExpandSelectedTargets(cfg.Clients, prov.Clients)
-		for range countGeositeArtifacts(e.DataDir, prov.Name, targets) {
+		for range countGeoArtifacts(e.DataDir, "geosite", prov.Name, targets) {
 			gstats.recordFile(prov.Name)
 		}
 	}
@@ -411,10 +402,10 @@ func (e *UpdateEngine) rebuildGeositeStats() *geositeStats {
 
 // countGeositeArtifacts counts published geosite artifact files on disk:
 // dataDir/rules/<client>/geosite/<provider>/*.
-func countGeositeArtifacts(dataDir, provider string, targets []config.OutputTarget) int {
+func countGeoArtifacts(dataDir, kind, provider string, targets []config.OutputTarget) int {
 	n := 0
 	for _, target := range targets {
-		entries, err := os.ReadDir(filepath.Join(dataDir, "rules", target.ID, "geosite", provider))
+		entries, err := os.ReadDir(filepath.Join(dataDir, "rules", target.ID, kind, provider))
 		if err != nil {
 			continue
 		}
@@ -427,8 +418,113 @@ func countGeositeArtifacts(dataDir, provider string, targets []config.OutputTarg
 	return n
 }
 
+func targetHasRuleArtifacts(dataDir, targetID string) bool {
+	entries, err := os.ReadDir(filepath.Join(dataDir, "rules", targetID))
+	if err != nil {
+		return false
+	}
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+func targetHasGeoArtifacts(dataDir, targetID, kind string) bool {
+	providers, err := os.ReadDir(filepath.Join(dataDir, "rules", targetID, kind))
+	if err != nil {
+		return false
+	}
+	for _, provider := range providers {
+		if !provider.IsDir() {
+			continue
+		}
+		entries, err := os.ReadDir(filepath.Join(dataDir, "rules", targetID, kind, provider.Name()))
+		if err != nil {
+			continue
+		}
+		for _, entry := range entries {
+			if !entry.IsDir() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func (e *UpdateEngine) publishedGeoCatalog(kind string, catalogs []site.GeoCatalog) []site.GeoCatalog {
+	files := e.geoArtifactTargets(kind)
+	out := make([]site.GeoCatalog, 0, len(catalogs))
+	for _, catalog := range catalogs {
+		published := files[catalog.Provider]
+		lists := make([]site.GeoList, 0, len(catalog.Lists))
+		for _, list := range catalog.Lists {
+			next := list
+			next.Targets = append([]string{}, published[list.Name]...)
+			variants := make([]site.GeoVariant, 0, len(list.Variants))
+			for _, variant := range list.Variants {
+				ids := published[list.Name+"@"+variant.Attr]
+				if len(ids) == 0 {
+					continue
+				}
+				variant.Targets = ids
+				variants = append(variants, variant)
+			}
+			next.Variants = variants
+			if len(next.Targets) == 0 && len(next.Variants) == 0 {
+				continue
+			}
+			lists = append(lists, next)
+		}
+		if len(lists) == 0 {
+			continue
+		}
+		catalog.Lists = lists
+		out = append(out, catalog)
+	}
+	return out
+}
+
+func (e *UpdateEngine) geoArtifactTargets(kind string) map[string]map[string][]string {
+	out := make(map[string]map[string][]string)
+	for _, client := range e.currentConfig().Clients {
+		for _, target := range config.ExpandClientTargets(client) {
+			providers, err := os.ReadDir(filepath.Join(e.DataDir, "rules", target.ID, kind))
+			if err != nil {
+				continue
+			}
+			for _, provider := range providers {
+				if !provider.IsDir() {
+					continue
+				}
+				entries, err := os.ReadDir(filepath.Join(e.DataDir, "rules", target.ID, kind, provider.Name()))
+				if err != nil {
+					continue
+				}
+				byName, ok := out[provider.Name()]
+				if !ok {
+					byName = map[string][]string{}
+					out[provider.Name()] = byName
+				}
+				for _, entry := range entries {
+					if entry.IsDir() {
+						continue
+					}
+					base := strings.TrimSuffix(entry.Name(), filepath.Ext(entry.Name()))
+					if base == "" {
+						continue
+					}
+					byName[base] = append(byName[base], target.ID)
+				}
+			}
+		}
+	}
+	return out
+}
+
 // writeSite assembles and writes the public index.
-func (e *UpdateEngine) writeSite(result *UpdateResult, infos map[string]*ruleSiteInfo, gstats *geositeStats) error {
+func (e *UpdateEngine) writeSite(result *UpdateResult, infos map[string]*ruleSiteInfo, gstats *geoStats) error {
 	now := time.Now()
 
 	staticDir := filepath.Join(e.DataDir, site.StaticDir)

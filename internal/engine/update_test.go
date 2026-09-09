@@ -55,9 +55,9 @@ func TestGeositeFetchResult(t *testing.T) {
 		failed  bool
 		want    string
 	}{
-		{name: "updated", current: &geosite.ProviderCache{ResolvedVersion: "v2"}, want: state.GeositeUpdated},
-		{name: "unchanged", current: &geosite.ProviderCache{ResolvedVersion: "v1"}, want: state.GeositeUnchanged},
-		{name: "failed", current: old, failed: true, want: state.GeositeFailed},
+		{name: "updated", current: &geosite.ProviderCache{ResolvedVersion: "v2"}, want: state.ProviderUpdated},
+		{name: "unchanged", current: &geosite.ProviderCache{ResolvedVersion: "v1"}, want: state.ProviderUnchanged},
+		{name: "failed", current: old, failed: true, want: state.ProviderFailed},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := geositeFetchResult(old, tt.current, tt.failed); got != tt.want {
@@ -480,13 +480,13 @@ func TestPartialGeositeUsesCacheAndPreservesProviderState(t *testing.T) {
 	})})
 	eng.Geosite = manager
 	checkedAt := time.Now().Add(-time.Hour).UTC()
-	eng.State.SetGeositeUpdate("v2fly", state.GeositeUpdated, checkedAt)
+	eng.State.SetGeositeUpdate("v2fly", state.ProviderUpdated, checkedAt)
 	result := eng.PartialUpdate(context.Background(), []string{"geo"})
 	if len(result.Errors) != 0 || result.RulesSucceeded != 1 || requests != 0 {
 		t.Fatalf("result=%+v requests=%d", result, requests)
 	}
 	providerResult, providerCheckedAt, ok := eng.State.GeositeUpdate("v2fly")
-	if !ok || providerResult != state.GeositeUpdated || !providerCheckedAt.Equal(checkedAt.Truncate(time.Millisecond)) {
+	if !ok || providerResult != state.ProviderUpdated || !providerCheckedAt.Equal(checkedAt.Truncate(time.Millisecond)) {
 		t.Fatalf("provider state=%q %v %t", providerResult, providerCheckedAt, ok)
 	}
 	if content := readArtifact(t, dataDir, "surge", "geo.list"); !strings.Contains(content, "DOMAIN-SUFFIX,google.example") {
@@ -509,7 +509,7 @@ func TestGeositePublicationWritesFullListAndVariants(t *testing.T) {
 	}}}
 	result := UpdateResult{}
 	expected := make(map[string]struct{})
-	stats := newGeositeStats()
+	stats := newGeoStats()
 	eng.updateGeositePublications(context.Background(), map[string]*geosite.ProviderCache{"v2fly": cache}, &result, expected, stats)
 	if len(result.Errors) != 0 || result.Artifacts != 2 || len(expected) != 2 {
 		t.Fatalf("result=%+v expected=%v", result, expected)

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { api, APIRequestError, type ConfigSnapshot, type GeositeProviderItem } from '../api/client';
+  import { api, APIRequestError, type ConfigSnapshot, type GeoKind, type GeoProviderItem } from '../api/client';
   import PixelCard from '../components/pixel/PixelCard.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
@@ -8,54 +8,55 @@
   import PixelDialog from '../components/pixel/PixelDialog.svelte';
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
   import PixelCheckbox from '../components/pixel/PixelCheckbox.svelte';
-  import GeositeCatalogDrawer from './GeositeCatalogDrawer.svelte';
+  import GeoCatalogDrawer from './GeoCatalogDrawer.svelte';
   import {
-    defaultGeositeProviders,
-    geositePatchValue,
-    geositeProviderConfigs,
+    defaultGeoProviders, geoLabel,
+    geoPatchValue,
+    geoProviderConfigs,
     providerLabel,
-    validateGeositeProvider,
-    type GeositeProviderDraft,
-  } from './geosite';
+    validateGeoProvider,
+    type GeoProviderDraft,
+  } from './geodata';
   import geositeIcon from '../assets/icons/nav/geosite.svg';
+  import geoipIcon from '../assets/icons/nav/geoip.svg';
 
-  let { onstatechange }: { onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
+  let { kind = 'geosite', onstatechange }: { kind?: GeoKind; onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
 
   let snapshot = $state<ConfigSnapshot>();
-  let providers = $state<GeositeProviderItem[]>([]);
-  let supported = $state<string[]>([...defaultGeositeProviders]);
+  let providers = $state<GeoProviderItem[]>([]);
+  let supported = $state<string[]>([]);
   let loading = $state(true);
   let busy = $state(false);
   let message = $state('');
   let error = $state(false);
   let open = $state(false);
   let editing = $state('');
-  let draft = $state<GeositeProviderDraft>({ name: '', clients: [] });
+  let draft = $state<GeoProviderDraft>({ name: '', clients: [] });
   let baseline = $state('');
   let discard = $state(false);
   let deleteOpen = $state(false);
-  let deleting = $state<GeositeProviderItem>();
+  let deleting = $state<GeoProviderItem>();
   let catalogOpen = $state(false);
   let catalogProvider = $state('');
 
-  const configured = $derived(geositeProviderConfigs(snapshot?.config));
+  const configured = $derived(geoProviderConfigs(snapshot?.config, kind));
   const clients = $derived(((snapshot?.config.clients ?? []) as { id: string; name?: string }[]));
   const dirty = $derived(open && JSON.stringify(draft) !== baseline);
   const remaining = $derived(supported.filter((name) => !configured.some((provider) => provider.name === name)));
   const providerOptions = $derived(remaining.map((name) => ({ value: name, label: providerLabel(name) })));
 
   $effect(() => { onstatechange?.(dirty, busy); });
-  onMount(() => { void loadGeosite(); });
+  onMount(() => { void loadProviders(); });
   onDestroy(() => { onstatechange?.(false, false); });
 
-  export async function loadGeosite() {
+  export async function loadProviders() {
     loading = true;
     error = false;
     try {
-      const [cfg, res] = await Promise.all([api.getConfig(), api.getGeositeProviders()]);
+      const [cfg, res] = await Promise.all([api.getConfig(), api.getGeoProviders(kind)]);
       snapshot = cfg;
       providers = res.items || [];
-      supported = res.supported?.length ? res.supported : [...defaultGeositeProviders];
+      supported = res.supported?.length ? res.supported : [...defaultGeoProviders[kind]];
     } catch (e: unknown) {
       fail(e);
     } finally {
@@ -96,12 +97,12 @@
     return clients.find((client) => client.id === id)?.name || id;
   }
 
-  function clientSummary(item: GeositeProviderItem) {
+  function clientSummary(item: GeoProviderItem) {
     const names = (item.clients ?? []).map(clientName);
     return names.length ? names.join(' · ') : '—';
   }
 
-  function edit(item?: GeositeProviderItem) {
+  function edit(item?: GeoProviderItem) {
     const current = item ? configured.find((provider) => provider.name === item.name) : undefined;
     editing = current?.name ?? '';
     draft = current
@@ -127,7 +128,7 @@
 
   async function save() {
     if (!snapshot || busy) return;
-    const validation = validateGeositeProvider(draft, configured.map((item) => item.name), editing, clients.map((item) => item.id));
+    const validation = validateGeoProvider(draft, configured.map((item) => item.name), editing, clients.map((item) => item.id));
     if (validation) {
       message = validation;
       error = true;
@@ -139,13 +140,13 @@
     busy = true;
     message = '';
     try {
-      const result = await api.patchConfig(snapshot.version, [{ op: 'update_geosite', value: geositePatchValue(next) }]);
-      snapshot = { version: result.version, config: { ...snapshot.config, geosite: geositePatchValue(next) ?? undefined } };
+      const result = await api.patchConfig(snapshot.version, [{ op: kind === 'geoip' ? 'update_geoip' : 'update_geosite', value: geoPatchValue(next) }]);
+      snapshot = { version: result.version, config: { ...snapshot.config, [kind]: geoPatchValue(next) ?? undefined } };
       editing = draft.name;
       baseline = JSON.stringify(draft);
       error = false;
       message = result.warnings?.length ? `已保存。${result.warnings.join('；')}` : '提供商已保存';
-      const res = await api.getGeositeProviders();
+      const res = await api.getGeoProviders(kind);
       providers = res.items || [];
     } catch (e) {
       fail(e);
@@ -154,7 +155,7 @@
     }
   }
 
-  function askDelete(item: GeositeProviderItem) {
+  function askDelete(item: GeoProviderItem) {
     deleting = item;
     deleteOpen = true;
   }
@@ -164,12 +165,12 @@
     busy = true;
     try {
       const next = configured.filter((item) => item.name !== deleting?.name);
-      const value = geositePatchValue(next);
-      const result = await api.patchConfig(snapshot.version, [{ op: 'update_geosite', value }]);
-      snapshot = { version: result.version, config: { ...snapshot.config, geosite: value ?? undefined } };
+      const value = geoPatchValue(next);
+      const result = await api.patchConfig(snapshot.version, [{ op: kind === 'geoip' ? 'update_geoip' : 'update_geosite', value }]);
+      snapshot = { version: result.version, config: { ...snapshot.config, [kind]: value ?? undefined } };
       error = false;
       message = '提供商已删除';
-      const res = await api.getGeositeProviders();
+      const res = await api.getGeoProviders(kind);
       providers = res.items || [];
     } catch (e) {
       fail(e);
@@ -179,18 +180,18 @@
     }
   }
 
-  function openCatalog(item: GeositeProviderItem) {
+  function openCatalog(item: GeoProviderItem) {
     catalogProvider = item.name;
     catalogOpen = true;
   }
 </script>
 
 <svelte:window onbeforeunload={(event) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } }} />
-<div class="geosite-view">
+<div class="geo-data-view">
   <div class="toolbar">
     <span>共 {providers.length} 个提供商</span>
     <div class="actions">
-      <PixelButton disabled={loading || busy} onclick={loadGeosite}>刷新</PixelButton>
+      <PixelButton disabled={loading || busy} onclick={loadProviders}>刷新</PixelButton>
       <PixelButton variant="primary" disabled={loading || busy || !snapshot || remaining.length === 0 || clients.length === 0} onclick={() => edit()}>添加提供商</PixelButton>
     </div>
   </div>
@@ -200,13 +201,13 @@
   {/if}
 
   {#if !loading && clients.length === 0}
-    <div class="notice">请先在客户端管理中添加客户端，再配置 Geosite 输出目标。</div>
+    <div class="notice">请先在客户端管理中添加客户端，再配置 {geoLabel(kind)} 输出目标。</div>
   {/if}
 
   {#if loading && providers.length === 0}
-    <div class="notice">读取 Geosite 状态…</div>
+    <div class="notice">读取 {geoLabel(kind)} 状态…</div>
   {:else if providers.length === 0}
-    <div class="notice">没有配置 Geosite 提供商</div>
+    <div class="notice">没有配置 {geoLabel(kind)} 提供商</div>
   {:else}
     <div class="cards">
       {#each providers as p (p.name)}
@@ -235,9 +236,9 @@
               <code>{p.version || '—'}</code>
             </div>
           </div>
-          <div class="stats">
+          <div class="stats" class:ip-stats={kind === 'geoip'}>
             <div class="stat"><span>列表</span><strong>{p.lists.toLocaleString()}</strong></div>
-            <div class="stat"><span>变体</span><strong>{p.variants.toLocaleString()}</strong></div>
+            {#if kind === 'geosite'}<div class="stat"><span>变体</span><strong>{p.variants.toLocaleString()}</strong></div>{/if}
             <div class="stat"><span>条目</span><strong>{p.entries.toLocaleString()}</strong></div>
             <div class="stat"><span>文件</span><strong>{p.files.toLocaleString()}</strong></div>
           </div>
@@ -254,7 +255,7 @@
   {/if}
 </div>
 
-<PixelDrawer bind:open title={editing ? `编辑 ${providerLabel(editing)}` : '添加提供商'} icon={geositeIcon} width="520px" onrequestclose={requestClose}>
+<PixelDrawer bind:open title={editing ? `编辑 ${providerLabel(editing)}` : '添加提供商'} icon={kind === 'geoip' ? geoipIcon : geositeIcon} width="520px" onrequestclose={requestClose}>
   <div class="editor-form">
     {#if message && open}
       <div class="notice" class:error role={error ? 'alert' : 'status'}>{message}</div>
@@ -264,7 +265,7 @@
       {#if editing}
         <p class="field-hint">{providerLabel(editing)}</p>
       {:else}
-        <PixelSelect id="geosite-provider" label="提供商" options={[{ value: '', label: '请选择提供商' }, ...providerOptions]} bind:value={draft.name} disabled={busy} />
+        <PixelSelect id={`${kind}-provider`} label="提供商" options={[{ value: '', label: '请选择提供商' }, ...providerOptions]} bind:value={draft.name} disabled={busy} />
       {/if}
     </fieldset>
     <fieldset disabled={busy}>
@@ -288,7 +289,7 @@
   {/snippet}
 </PixelDrawer>
 
-<GeositeCatalogDrawer bind:open={catalogOpen} provider={catalogProvider} />
+<GeoCatalogDrawer {kind} bind:open={catalogOpen} provider={catalogProvider} />
 
 <PixelDialog bind:open={discard} title="放弃未保存的修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" danger onconfirm={() => { open = false; }}>
   当前修改尚未保存，关闭后将丢弃这些修改。
@@ -298,7 +299,7 @@
 </PixelDialog>
 
 <style>
-  .geosite-view { display: grid; gap: 18px; }
+  .geo-data-view { display: grid; gap: 18px; }
   .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--sec); }
   .actions, .client-picks { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .notice { padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; overflow-wrap: anywhere; }
@@ -316,6 +317,7 @@
   .meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font: 12px/20px var(--font-ui); color: var(--sec); }
   .meta-row span:last-child { color: var(--text); text-align: right; overflow-wrap: anywhere; }
   .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .stats.ip-stats { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .stat { display: grid; gap: 2px; }
   .stat span { color: var(--sec); font: 12px/18px var(--font-ui); }
   .stat strong { font: 400 20px/24px var(--font-display); color: var(--display); font-variant-numeric: tabular-nums; }

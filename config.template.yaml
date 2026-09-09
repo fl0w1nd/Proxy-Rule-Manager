@@ -100,6 +100,12 @@ rules:
       #   type: geosite
       #   geosite: v2fly/google@cn
 
+      # 6) geoip 列表：provider/list，展开为 IPv4/IPv6 CIDR。
+      #    可用 provider：loyalsoldier、v2fly。
+      # - label: geoip-list
+      #   type: geoip
+      #   geoip: loyalsoldier/cn
+
     # --- 过滤 ops（可选，按声明顺序执行）---
     # include_kinds：只保留指定类型；exclude_kinds：移除指定类型。
     # 常用类型：domain、domain_suffix、domain_keyword、domain_regex、
@@ -133,6 +139,18 @@ rules:
 #     # provider 名称：v2fly 或 loyalsoldier，同一名称只声明一次
 #     - name: v2fly
 #       clients: [mihomo, sing-box]
+
+# ============================================================
+# geoip 自动发布（可选）
+# ============================================================
+# 全部 IP 列表按客户端格式和变体输出。
+# 输出形如 rules/<输出 ID>/geoip/loyalsoldier/cn.list。
+# geoip:
+#   providers:
+#     - name: loyalsoldier
+#       clients: [mihomo, sing-box]
+#     - name: v2fly
+#       clients: [mihomo]
 
 # ============================================================
 # update —— 更新历史、调度与资源限制

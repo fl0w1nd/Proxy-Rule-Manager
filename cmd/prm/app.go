@@ -8,6 +8,7 @@ import (
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/logging"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
@@ -113,6 +114,7 @@ func buildApp(dataDir string) (*App, error) {
 		Preprocessor: preprocessor,
 		State:        st,
 		Geosite:      geositeManager,
+		GeoIP:        geoip.NewManager(filepath.Join(dataDir, "geoip")),
 		Logger:       logger,
 	}
 	eng.SetConfig(cfg)

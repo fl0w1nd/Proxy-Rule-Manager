@@ -168,7 +168,9 @@ func applyPatchOperation(doc *yaml.Node, op PatchOp) (bool, string, error) {
 	case "update_history":
 		return updateHistory(doc, op.Value)
 	case "update_geosite":
-		return updateGeosite(doc, op.Value)
+		return updateGeoData(doc, "geosite", op.Value)
+	case "update_geoip":
+		return updateGeoData(doc, "geoip", op.Value)
 	default:
 		return false, "op", fmt.Errorf("unknown operation %q", op.Type)
 	}
@@ -360,7 +362,7 @@ func updateHistory(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
 	return true, "", nil
 }
 
-func updateGeosite(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
+func updateGeoData(doc *yaml.Node, key string, value *yaml.Node) (bool, string, error) {
 	value = normalizeNode(value)
 	if value == nil {
 		return false, "value", fmt.Errorf("required")
@@ -370,12 +372,12 @@ func updateGeosite(doc *yaml.Node, value *yaml.Node) (bool, string, error) {
 		return false, "value", err
 	}
 	if value.Tag == "!!null" {
-		return deleteMappingValue(root, "geosite"), "", nil
+		return deleteMappingValue(root, key), "", nil
 	}
 	if value.Kind != yaml.MappingNode {
 		return false, "value", fmt.Errorf("must be an object or null")
 	}
-	setMappingValue(root, "geosite", cloneYAMLNode(value))
+	setMappingValue(root, key, cloneYAMLNode(value))
 	return true, "", nil
 }
 

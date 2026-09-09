@@ -9,11 +9,11 @@ export function readPublicData(): PublicPageData {
 }
 
 export function optionUsable(option: PublicClientOption, view: PublicView): boolean {
-  return view === 'geosite' ? option.geosite : option.rules;
+  return view === 'geoip' ? !!option.geoip : view === 'geosite' ? option.geosite : option.rules;
 }
 
 export function clientUsable(client: PublicClient, view: PublicView): boolean {
-  return view === 'geosite' ? client.geosite : client.rules;
+  return view === 'geoip' ? !!client.geoip : view === 'geosite' ? client.geosite : client.rules;
 }
 
 export function selectedOption(
@@ -30,14 +30,19 @@ export function encodedPath(...segments: string[]): string {
   return segments.map((segment) => encodeURIComponent(segment)).join('/');
 }
 
-export function geositePath(
+export function geoPublished(ids: string[] | undefined, targetID: string): boolean {
+  return !ids || ids.includes(targetID);
+}
+
+export function geoPath(
   target: PublicClientOption,
   provider: string,
   list: string,
-  attr?: string
+  attr?: string,
+  kind: 'geosite' | 'geoip' = 'geosite'
 ): string {
   const name = attr ? `${list}@${attr}` : list;
-  return `rules/${encodedPath(target.id, 'geosite', provider, name)}${target.ext}`;
+  return `rules/${encodedPath(target.id, kind, provider, name)}${target.ext}`;
 }
 
 export function iconPath(setName: string, fileName: string): string {
