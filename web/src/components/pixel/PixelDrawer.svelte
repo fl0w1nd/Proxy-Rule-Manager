@@ -153,7 +153,7 @@
     flex: 1;
     min-height: 0;
     overflow-y: auto;
-    padding: 16px 18px;
+    padding: 16px 36px 16px 18px;
     background: var(--surface);
     scrollbar-color: var(--bevel-dark) var(--surface-2);
     overscroll-behavior: contain;
@@ -163,6 +163,7 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    padding: 16px 18px;
   }
 
   .drawer-footer {
