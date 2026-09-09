@@ -223,7 +223,7 @@ func (s *Server) localFileRefs(name string) []localFileRef {
 	refs := make([]localFileRef, 0)
 	seen := map[string]bool{}
 	for _, rule := range cfg.Rules {
-		for _, source := range rule.Sources {
+		for _, source := range config.WalkSources(rule.Sources) {
 			if source.File == "" || seen[rule.ID] {
 				continue
 			}

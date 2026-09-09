@@ -26,11 +26,11 @@ func ValidateGeoIPRefs(
 	caches := loadGeoCaches(ctx, mgr, collectGeoIPProviderNames(cfg), logger, "geoip")
 
 	for i, rule := range cfg.Rules {
-		for j, src := range rule.Sources {
+		for sourcePath, src := range config.WalkSources(rule.Sources) {
 			if src.SourceType() != "geoip" {
 				continue
 			}
-			path := fmt.Sprintf("rules[%d].sources[%d]", i, j)
+			path := fmt.Sprintf("rules[%d].%s", i, sourcePath)
 			if src.GeoIP != "" {
 				path += ".geoip"
 			}

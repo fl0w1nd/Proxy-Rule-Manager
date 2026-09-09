@@ -67,7 +67,7 @@ rules:
     tags: [ai, service]
 
     # --- 来源 sources ---
-    # 支持五种来源，每个来源只选一种写法；label 可选，用于日志和报错定位。
+    # 支持六种来源及来源分组；label 可选，用于日志和报错定位。
     sources:
       # 1) 远程规则列表（最常见）：直接给 URL。
       - label: blackmatrix7-openai
@@ -106,7 +106,19 @@ rules:
       #   type: geoip
       #   geoip: loyalsoldier/cn
 
-    # --- 过滤 ops（可选，按声明顺序执行）---
+      # 来源组：各来源分别预处理、解析，组内取并集后执行组内过滤。
+      # - group:
+      #     - url: https://example.com/a.list
+      #     - url: https://example.com/b.list
+      #   preprocess: |-
+      #     function process(content) { return content.trim(); }
+      #   ops:
+      #     - type: include_kinds
+      #       kinds: [domain, domain_suffix]
+      # 普通来源也支持 preprocess / ops；组内成员的处理统一配置在组上。
+      # preprocess 省略时继承规则级脚本，设为 "" 时关闭预处理。
+
+    # --- 全局过滤 ops（可选，按声明顺序执行）---
     # include_kinds：只保留指定类型；exclude_kinds：移除指定类型。
     # 常用类型：domain、domain_suffix、domain_keyword、domain_regex、
     #           ip_cidr、ip_asn、geoip、process_name、user_agent 等。

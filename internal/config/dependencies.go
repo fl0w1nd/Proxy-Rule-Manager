@@ -10,7 +10,7 @@ func DetectCircularDependency(rules []RuleConfig) []string {
 	for _, rule := range rules {
 		known[rule.ID] = struct{}{}
 		seen := make(map[string]struct{})
-		for _, source := range rule.Sources {
+		for _, source := range WalkSources(rule.Sources) {
 			if source.SourceType() == "ref" && source.Ref != "" {
 				seen[source.Ref] = struct{}{}
 			}

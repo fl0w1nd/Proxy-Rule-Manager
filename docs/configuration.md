@@ -153,6 +153,30 @@ preprocess: |-
 
 预处理只作用于该规则的 `url`、`content`、`file` 来源；`ref`、`geosite` 和 `geoip` 来源由各自的解析器处理。
 
+### 来源组与局部处理
+
+`sources` 支持普通来源和 `group` 分组项混排。分组支持一层，组内来源共享组上的 `preprocess` 和 `ops`。
+
+```yaml
+sources:
+  - group:
+      - url: https://example.com/a.list
+      - url: https://example.com/b.list
+    preprocess: |-
+      function process(content) {
+        return content.trim();
+      }
+    ops:
+      - type: include_kinds
+        kinds: [domain, domain_suffix]
+  - content: DOMAIN,custom.example
+    preprocess: ""
+```
+
+普通来源也可配置 `preprocess` 和 `ops`。规则级 `preprocess` 继续作为默认脚本；来源或组省略该字段时继承，配置字符串时覆盖，显式空字符串表示关闭。脚本可以定义辅助函数，通过 `process(content)` 入口调用。
+
+每个文本来源分别预处理、解析，组内结果取并集并去重后执行组内 `ops`；各顶层来源或组再按规则级 `merge` 合并，最后执行规则级 `ops`。组内任一来源失败时，该组会报告来源错误并跳过合并。管理界面在来源区域编辑统一预处理，在来源组内编辑组内脚本和过滤链。平级来源以普通表单编辑并按原有 YAML 结构保存；通过“转为来源组”或拖动合组可创建显式分组，单个来源也可成组。显式来源组展示脚本和过滤链编辑区。
+
 ### outputs
 
 `outputs` 引用 `clients` 里声明的 id。客户端会自动展开：一个多格式客户端会为这条规则生成多个产物文件。

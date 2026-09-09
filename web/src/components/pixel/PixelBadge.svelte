@@ -38,6 +38,9 @@
     letter-spacing: 0;
     text-shadow: none;
     white-space: nowrap;
+    width: fit-content;
+    max-width: 100%;
+    box-sizing: border-box;
   }
 
   .indicator {

@@ -20,11 +20,7 @@ func (c *Config) DeepCopy() *Config {
 	for i := range c.Rules {
 		out.Rules[i] = c.Rules[i]
 		out.Rules[i].Tags = append([]string(nil), c.Rules[i].Tags...)
-		out.Rules[i].Sources = make([]SourceConfig, len(c.Rules[i].Sources))
-		for j := range c.Rules[i].Sources {
-			out.Rules[i].Sources[j] = c.Rules[i].Sources[j]
-			out.Rules[i].Sources[j].Attrs = append([]string(nil), c.Rules[i].Sources[j].Attrs...)
-		}
+		out.Rules[i].Sources = copySources(c.Rules[i].Sources)
 		out.Rules[i].Ops = copyOps(c.Rules[i].Ops)
 		out.Rules[i].Outputs = append([]string(nil), c.Rules[i].Outputs...)
 		if c.Rules[i].Merge != nil {

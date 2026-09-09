@@ -572,7 +572,7 @@ func (e *UpdateEngine) readCachedGeositeProviders(rules []config.RuleConfig) map
 	}
 	names := make(map[string]struct{})
 	for i := range rules {
-		for _, source := range rules[i].Sources {
+		for _, source := range config.WalkSources(rules[i].Sources) {
 			if source.SourceType() != "geosite" {
 				continue
 			}
@@ -701,7 +701,7 @@ func collectProviderNames(cfg *config.Config) []string {
 	}
 
 	for _, rule := range cfg.Rules {
-		for _, src := range rule.Sources {
+		for _, src := range config.WalkSources(rule.Sources) {
 			if src.SourceType() != "geosite" {
 				continue
 			}

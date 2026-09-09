@@ -285,3 +285,46 @@ func stringsEqual(got, want []string) bool {
 	}
 	return true
 }
+
+func TestSourceGroupsAndPreprocessInheritance(t *testing.T) {
+	const document = `
+id: grouped
+name: Grouped
+preprocess: |
+  function process(content) { return 'DOMAIN,' + content; }
+sources:
+  - content: inherited.example
+  - content: DOMAIN,disabled.example
+    preprocess: ""
+  - group:
+      - content: shared.example
+      - content: shared.example
+      - content: removed.example
+    preprocess: |
+      function suffix(content) { return 'DOMAIN-SUFFIX,' + content; }
+      function process(content) { return suffix(content); }
+    ops:
+      - type: filter_values
+        mode: keyword
+        pattern: removed
+ops:
+  - type: include_kinds
+    kinds: [domain_suffix]
+`
+	var rule config.RuleConfig
+	if err := yaml.Unmarshal([]byte(document), &rule); err != nil {
+		t.Fatal(err)
+	}
+	got := CompileRule(context.Background(), rule, nil, NewFetcher(), NewPreprocessRunner(), testRegistry(t), nil, nil, nil, nil, testLogger())
+	for _, source := range got.Sources {
+		if source.Error != "" {
+			t.Fatal(source.Error)
+		}
+	}
+	if len(got.PreOps) != 3 || len(got.Merged) != 1 || got.Merged[0].Value != "shared.example" || got.Merged[0].Kind != ir.KindDomainSuffix {
+		t.Fatalf("unexpected pipeline: pre=%+v final=%+v", got.PreOps, got.Merged)
+	}
+	if len(got.Sources[2].Entries) != 1 {
+		t.Fatalf("group was not deduplicated and filtered: %+v", got.Sources[2])
+	}
+}

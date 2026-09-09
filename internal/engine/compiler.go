@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
@@ -21,6 +22,7 @@ type SourceOutcome struct {
 	Entries     []ir.Entry
 	Diagnostics []ir.Diagnostic
 	Error       string
+	DurationMs  int64
 }
 
 // CompileResult is the full result of compiling one rule.
@@ -72,8 +74,10 @@ func CompileRule(
 			if label == "" {
 				label = fmt.Sprintf("source[%d]", i)
 			}
+			started := time.Now()
 			outcome := fetchSource(ctx, src, fetcher, preprocessor, rule.Preprocess, geositeProviders, geoipProviders, refResults, localFiles, log)
 			outcome.Label = label
+			outcome.DurationMs = time.Since(started).Milliseconds()
 			outcomes[i] = outcome
 		}()
 	}
@@ -156,11 +160,34 @@ func fetchSource(
 	refResults map[string][]ir.Entry,
 	localFiles config.LocalFileResolver,
 	log *slog.Logger,
-) SourceOutcome {
+) (outcome SourceOutcome) {
+	if src.Preprocess != nil {
+		preprocessScript = *src.Preprocess
+	}
+	defer func() {
+		if outcome.Error == "" && len(src.Ops) > 0 {
+			var err error
+			outcome.Entries, err = applyOps(ir.Dedupe(outcome.Entries), src.Ops)
+			if err != nil {
+				outcome.Error = fmt.Sprintf("source ops: %v", err)
+			}
+		}
+	}()
 	srcType := src.SourceType()
-	outcome := SourceOutcome{Type: srcType}
+	outcome = SourceOutcome{Type: srcType}
 
 	switch srcType {
+	case "group":
+		for i, child := range src.Group {
+			result := fetchSource(ctx, child, fetcher, preprocessor, preprocessScript, geositeProviders, geoipProviders, refResults, localFiles, log)
+			if result.Error != "" {
+				outcome.Error = fmt.Sprintf("group[%d]: %s", i, result.Error)
+				return outcome
+			}
+			outcome.Entries = append(outcome.Entries, result.Entries...)
+			outcome.Diagnostics = append(outcome.Diagnostics, result.Diagnostics...)
+		}
+		outcome.Entries = ir.Dedupe(outcome.Entries)
 	case "url":
 		res := fetcher.Fetch(ctx, src.URL)
 		if res.Error != "" {

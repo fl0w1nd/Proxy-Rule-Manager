@@ -116,13 +116,16 @@ type RuleConfig struct {
 
 // SourceConfig defines one rule source.
 type SourceConfig struct {
-	URL     string `yaml:"url,omitempty"`
-	Type    string `yaml:"type,omitempty"`
-	Format  string `yaml:"format,omitempty"`
-	Ref     string `yaml:"ref,omitempty"` // referenced rule ID
-	Content string `yaml:"content,omitempty"`
-	File    string `yaml:"file,omitempty"`
-	Label   string `yaml:"label,omitempty"`
+	Group      []SourceConfig `yaml:"group,omitempty"`
+	Preprocess *string        `yaml:"preprocess,omitempty"`
+	Ops        []OpConfig     `yaml:"ops,omitempty"`
+	URL        string         `yaml:"url,omitempty"`
+	Type       string         `yaml:"type,omitempty"`
+	Format     string         `yaml:"format,omitempty"`
+	Ref        string         `yaml:"ref,omitempty"` // referenced rule ID
+	Content    string         `yaml:"content,omitempty"`
+	File       string         `yaml:"file,omitempty"`
+	Label      string         `yaml:"label,omitempty"`
 
 	// Geosite compact ref: "provider/list" or "provider/list@attr1,attr2"
 	// Preferred over separate Provider/List/Attrs fields.
@@ -135,6 +138,9 @@ type SourceConfig struct {
 
 // SourceType returns the canonical source type.
 func (s *SourceConfig) SourceType() string {
+	if s.Group != nil {
+		return "group"
+	}
 	if s.Type != "" {
 		return s.Type
 	}
@@ -455,8 +461,29 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 		if len(r.Sources) == 0 {
 			addErr(base+".sources", "at least one source is required")
 		}
-		for j, s := range r.Sources {
-			sp := fmt.Sprintf("%s.sources[%d]", base, j)
+		for path, s := range WalkSources(r.Sources) {
+			sp := base + "." + path
+			validateOps(sp+".ops", s.Ops, addErr)
+			if s.Group != nil {
+				if strings.Contains(path, ".group[") {
+					addErr(sp, "source groups cannot be nested")
+				}
+				if len(s.Group) == 0 {
+					addErr(sp+".group", "at least one source is required")
+				}
+				if s.URL != "" || s.File != "" || s.Content != "" || s.Ref != "" || s.Geosite != "" || s.GeoIP != "" || s.Provider != "" || s.List != "" || len(s.Attrs) > 0 || s.Type != "" || s.Format != "" {
+					addErr(sp, "group cannot configure a source selector, type, or format")
+				}
+				for k, child := range s.Group {
+					if child.Preprocess != nil || len(child.Ops) > 0 {
+						addErr(fmt.Sprintf("%s.group[%d]", sp, k), "configure preprocessing and ops on the group")
+					}
+				}
+				continue
+			}
+			if s.Preprocess != nil && *s.Preprocess != "" && s.SourceType() != "url" && s.SourceType() != "local" {
+				addErr(sp+".preprocess", "preprocessing requires a url or local source")
+			}
 			sourceType := s.SourceType()
 			switch sourceType {
 			case "url", "ref", "geosite", "geoip", "local":
@@ -560,9 +587,9 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 	}
 
 	for i, r := range c.Rules {
-		for j, s := range r.Sources {
+		for path, s := range WalkSources(r.Sources) {
 			if s.SourceType() == "ref" && s.Ref != "" && !ruleIDs[s.Ref] {
-				addErr(fmt.Sprintf("rules[%d].sources[%d].ref", i, j), fmt.Sprintf("unknown rule ID %q", s.Ref))
+				addErr(fmt.Sprintf("rules[%d].%s.ref", i, path), fmt.Sprintf("unknown rule ID %q", s.Ref))
 			}
 		}
 	}

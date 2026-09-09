@@ -22,6 +22,57 @@ export interface RuleItem {
   };
 }
 
+export interface RulePreviewSource {
+  details?: string[];
+  label: string;
+  type: string;
+  entries: number;
+  diagnostics: number;
+  error?: string;
+  duration_ms: number;
+}
+
+export interface RulePreviewKindCount {
+  kind: string;
+  count: number;
+}
+
+export interface RulePreviewDiffGroup {
+  kind: string;
+  added?: string[];
+  removed?: string[];
+}
+
+export interface RulePreviewDiff {
+  added: number;
+  removed: number;
+  groups?: RulePreviewDiffGroup[];
+}
+
+export interface RulePreviewArtifact {
+  client_id: string;
+  client_name: string;
+  id: string;
+  name: string;
+  output?: string;
+  truncated?: boolean;
+  error?: string;
+}
+
+export interface RulePreview {
+  rule_id: string;
+  rule_name: string;
+  elapsed_ms: number;
+  sources: RulePreviewSource[];
+  pre_ops: number;
+  post_ops: number;
+  merged: number;
+  merged_kinds?: RulePreviewKindCount[];
+  ops_error?: string;
+  ops_diff: RulePreviewDiff;
+  outputs: RulePreviewArtifact[];
+}
+
 export interface GeoProviderItem {
   name: string;
   version?: string;
@@ -321,6 +372,14 @@ export const api = {
 
   getRules(): Promise<{ items: RuleItem[] }> {
     return request<{ items: RuleItem[] }>('/rules');
+  },
+
+  previewRule(rule: ConfigValue): Promise<RulePreview> {
+    return request<RulePreview>('/rules/preview', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rule }),
+    });
   },
 
   getGeoProviders(kind: GeoKind = 'geosite'): Promise<{ items: GeoProviderItem[]; supported: string[] }> {

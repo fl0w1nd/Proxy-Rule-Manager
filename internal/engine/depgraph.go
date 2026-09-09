@@ -14,7 +14,7 @@ func ExtractDependencies(rule *config.RuleConfig) map[string]struct{} {
 	if rule == nil {
 		return deps
 	}
-	for _, src := range rule.Sources {
+	for _, src := range config.WalkSources(rule.Sources) {
 		if src.SourceType() == "ref" && src.Ref != "" {
 			deps[src.Ref] = struct{}{}
 		}
@@ -88,7 +88,7 @@ func TopologicalSort(rules []config.RuleConfig, skipMissingDepsCheck bool) ([]co
 func CollectAffectedRules(rules []config.RuleConfig, seedIDs []string) map[string]struct{} {
 	dependents := map[string][]string{}
 	for _, r := range rules {
-		for _, src := range r.Sources {
+		for _, src := range config.WalkSources(r.Sources) {
 			if src.SourceType() == "ref" && src.Ref != "" {
 				dependents[src.Ref] = append(dependents[src.Ref], r.ID)
 			}

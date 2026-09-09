@@ -21,6 +21,11 @@ type PreviewReport struct {
 	PostOps  []ir.Entry
 	Merged   []ir.Entry
 	OpsError string
+	OpsDiff  ir.EntryDiff
+
+	// Artifacts are rendered outputs for every configured client target.
+	Artifacts      map[string][]byte
+	ArtifactErrors map[string]string
 
 	// Rendered output for an explicit format or variant target.
 	RenderedTarget string
@@ -96,13 +101,16 @@ func Preview(
 	}
 
 	report := &PreviewReport{
-		RuleID:   rule.ID,
-		RuleName: rule.Name,
-		Sources:  cr.Sources,
-		PreOps:   cr.PreOps,
-		PostOps:  cr.PostOps,
-		Merged:   cr.Merged,
-		OpsError: cr.OpsError,
+		RuleID:         rule.ID,
+		RuleName:       rule.Name,
+		Sources:        cr.Sources,
+		PreOps:         cr.PreOps,
+		PostOps:        cr.PostOps,
+		Merged:         cr.Merged,
+		OpsError:       cr.OpsError,
+		OpsDiff:        ir.Diff(cr.PreOps, cr.PostOps),
+		Artifacts:      cr.Rendered,
+		ArtifactErrors: cr.RenderErrors,
 	}
 
 	if targetID != "" {

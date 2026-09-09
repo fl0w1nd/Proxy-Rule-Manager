@@ -27,11 +27,11 @@ func ValidateGeositeRefs(
 	caches := loadGeoCaches(ctx, mgr, collectProviderNames(cfg), logger, "geosite")
 
 	for i, rule := range cfg.Rules {
-		for j, src := range rule.Sources {
+		for sourcePath, src := range config.WalkSources(rule.Sources) {
 			if src.SourceType() != "geosite" {
 				continue
 			}
-			path := fmt.Sprintf("rules[%d].sources[%d]", i, j)
+			path := fmt.Sprintf("rules[%d].%s", i, sourcePath)
 			if src.Geosite != "" {
 				path += ".geosite"
 			}

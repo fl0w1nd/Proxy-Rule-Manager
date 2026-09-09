@@ -131,7 +131,7 @@ func collectGeoIPProviderNames(cfg *config.Config) []string {
 	}
 
 	for _, rule := range cfg.Rules {
-		for _, src := range rule.Sources {
+		for _, src := range config.WalkSources(rule.Sources) {
 			if src.SourceType() != "geoip" {
 				continue
 			}

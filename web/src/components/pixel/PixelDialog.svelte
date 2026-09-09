@@ -9,11 +9,12 @@
     cancelLabel?: string;
     danger?: boolean;
     showCancel?: boolean;
+    width?: string;
     onconfirm?: () => void;
     oncancel?: () => void;
     children?: Snippet;
   }
-  let { open = $bindable(false), title, confirmLabel = '确认', cancelLabel = '取消', danger = false, showCancel = true, onconfirm, oncancel, children }: Props = $props();
+  let { open = $bindable(false), title, confirmLabel = '确认', cancelLabel = '取消', danger = false, showCancel = true, width = '440px', onconfirm, oncancel, children }: Props = $props();
   const id = $props.id();
   let dialog: HTMLDialogElement;
 
@@ -32,7 +33,7 @@
   });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="{id}-title" oncancel={(event) => { event.preventDefault(); cancel(); }}>
+<dialog bind:this={dialog} aria-labelledby="{id}-title" style="width: min({width}, calc(100vw - 32px));" oncancel={(event) => { event.preventDefault(); cancel(); }}>
   <header><h2 id="{id}-title">{title}</h2></header>
   <div class="body">{#if children}{@render children()}{/if}</div>
   <footer>
