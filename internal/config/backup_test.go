@@ -2,6 +2,7 @@ package config
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -56,11 +57,8 @@ func TestSaveBackupWritesRollingSnapshots(t *testing.T) {
 	if items[0].CreatedAt != "2026-09-08T12:18:00.000Z" {
 		t.Fatalf("created_at=%s", items[0].CreatedAt)
 	}
-	if items[1].Added+items[1].Removed == 0 {
-		t.Fatal("original snapshot should differ from the current source")
-	}
 	detail, err := manager.BackupDetail(items[1].ID)
-	if err != nil || detail.YAML != backupTestSource || len(detail.Lines) == 0 {
+	if err != nil || detail.YAML != backupTestSource {
 		t.Fatalf("detail=%+v err=%v", detail, err)
 	}
 
@@ -70,11 +68,36 @@ func TestSaveBackupWritesRollingSnapshots(t *testing.T) {
 	}
 }
 
+func TestSaveBackupSkipsIdenticalSnapshot(t *testing.T) {
+	manager, _ := backupTestManager(t)
+	first := time.Date(2026, 9, 8, 12, 18, 0, 0, time.UTC)
+	if err := manager.SaveBackup(first); err != nil {
+		t.Fatal(err)
+	}
+	if err := manager.SaveBackup(first.Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	items, err := manager.ListBackups()
+	if err != nil || len(items) != 1 || items[0].ID != "config-20260908-121800.yaml" {
+		t.Fatalf("items=%+v err=%v", items, err)
+	}
+}
+
 func TestSaveBackupPrunesOldestBeyondLimit(t *testing.T) {
 	manager, dir := backupTestManager(t)
 	start := time.Date(2026, 9, 8, 12, 0, 0, 0, time.UTC)
 	for i := 0; i < maxConfigBackups+3; i++ {
 		if err := manager.SaveBackup(start.Add(time.Duration(i) * time.Second)); err != nil {
+			t.Fatal(err)
+		}
+		candidate, err := manager.Prepare(int64(i+1), []PatchOp{{
+			Type: "update_rule", ID: "base",
+			Value: patchValue(t, fmt.Sprintf(`{"id":"base","name":"V%d","sources":[{"url":"https://rules.example/rules.list"}],"outputs":["surge"]}`, i)),
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, _, err := manager.Commit(candidate); err != nil {
 			t.Fatal(err)
 		}
 	}

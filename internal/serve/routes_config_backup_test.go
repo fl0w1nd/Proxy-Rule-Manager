@@ -42,7 +42,7 @@ func TestConfigBackupCreatedOnSaveAndRestoredWithVersion(t *testing.T) {
 		t.Fatalf("list after save: %d %s", rec.Code, rec.Body.String())
 	}
 	backup := listed.Items[0]
-	if backup.ID == "" || backup.Size == 0 || backup.CreatedAt == "" || backup.Added+backup.Removed == 0 {
+	if backup.ID == "" || backup.Size == 0 || backup.CreatedAt == "" {
 		t.Fatalf("backup=%+v", backup)
 	}
 	rec = httptest.NewRecorder()
@@ -51,7 +51,7 @@ func TestConfigBackupCreatedOnSaveAndRestoredWithVersion(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &detail); err != nil {
 		t.Fatal(err)
 	}
-	if rec.Code != 200 || detail.YAML != string(original) || len(detail.Lines) == 0 {
+	if rec.Code != 200 || detail.YAML != string(original) {
 		t.Fatalf("detail: %d %s", rec.Code, rec.Body.String())
 	}
 	stored, err := os.ReadFile(filepath.Join(s.DataDir, ".state", "backups", backup.ID))

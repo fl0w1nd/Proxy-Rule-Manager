@@ -26,9 +26,9 @@ Config Patch API 为管理界面提供带版本检查的配置事务。所有端
 
 ## 备份与回滚
 
-每次配置成功提交前，当前源 YAML 会写入 `data/.state/backups/config-YYYYMMDD-HHmmss.yaml`。同一秒内的后续快照会追加序号。目录最多保留 20 份，超出时删除最旧的文件。无变化的提交不写快照。
+每次配置成功提交前，当前源 YAML 会写入 `data/.state/backups/config-YYYYMMDD-HHmmss.yaml`。与最新一份快照字节相同则跳过。同一秒内的后续快照会追加序号。目录最多保留 20 份，超出时删除最旧的文件。无变化的提交不写快照。
 
-`GET /config/backups` 返回当前 `version` 与快照列表，按时间从新到旧。`added` / `removed` 是该快照相对当前配置将增加 / 删除的行数：
+`GET /config/backups` 返回当前 `version` 与快照列表，按时间从新到旧：
 
 ```json
 {
@@ -37,15 +37,13 @@ Config Patch API 为管理界面提供带版本检查的配置事务。所有端
     {
       "id": "config-20260908-121800.yaml",
       "created_at": "2026-09-08T12:18:00.000Z",
-      "size": 2048,
-      "added": 1,
-      "removed": 1
+      "size": 2048
     }
   ]
 }
 ```
 
-`GET /config/backups/{id}` 返回快照原文，以及把它应用到当前配置时的行差异（`lines[].kind` 为 `add` 或 `del`）。
+`GET /config/backups/{id}` 返回该快照的源 YAML。
 
 `POST /config/backups/{id}/restore` 用指定快照替换当前配置，请求体为 `{ "version": 3 }`。回滚走与 Raw 保存相同的校验、乐观锁、脏检查和热重载路径。
 

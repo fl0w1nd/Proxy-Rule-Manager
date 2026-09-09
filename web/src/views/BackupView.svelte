@@ -130,7 +130,7 @@
     <header>
       <div>
         <h2 id="backup-history-title">历史快照</h2>
-        <p>每次成功保存前会留下一份。+/− 是相对当前配置将增加 / 删除的行。</p>
+        <p>每次成功保存前会留下一份，可查看当时的完整配置并回滚。</p>
       </div>
       <PixelButton size="sm" disabled={busy} onclick={load}>
         <PixelIcon name="refresh" size={12} />
@@ -147,36 +147,17 @@
           <article class="backup-card" class:open={openID === item.id}>
             <div class="backup-summary">
               <span class="font-timestamp">{formatTime(item.created_at)}</span>
-              <span class="summary-diff num">
-                {#if item.added === 0 && item.removed === 0}
-                  无差异
-                {:else}
-                  <span class="diff-add">+{item.added}</span>
-                  <span class="diff-sep">/</span>
-                  <span class="diff-del">-{item.removed}</span>
-                {/if}
-              </span>
-              <PixelButton size="sm" disabled={busy} onclick={() => toggle(item)}>{openID === item.id ? '收起' : '查看差异'}</PixelButton>
+              <PixelButton size="sm" disabled={busy} onclick={() => toggle(item)}>{openID === item.id ? '收起' : '查看配置'}</PixelButton>
             </div>
             {#if openID === item.id}
               <div class="backup-detail">
                 {#if detailLoading || !detail || detail.id !== item.id}
-                  <div class="status" role="status">正在读取差异…</div>
-                {:else if detail.added === 0 && detail.removed === 0}
-                  <p>与当前配置相同。</p>
+                  <div class="status" role="status">正在读取快照…</div>
                 {:else}
-                  <div class="pixel-code-block" use:retroScroll role="region" aria-label="相对当前配置的差异">
-                    {#each detail.lines as line}
-                      <div class:add-line={line.kind === 'add'} class:del-line={line.kind === 'del'}>
-                        {line.kind === 'add' ? '+' : '-'} {line.text}
-                      </div>
-                    {/each}
-                  </div>
-                {/if}
-                {#if detail && detail.id === item.id}
+                  <div class="pixel-code-block" use:retroScroll role="region" aria-label="快照配置">{detail.yaml}</div>
                   <div class="detail-actions">
                     <PixelButton size="sm" disabled={busy} onclick={() => { if (detail) onimport?.(detail.yaml); }}>导入此快照</PixelButton>
-                    <PixelButton size="sm" variant="danger" disabled={busy || (detail.added === 0 && detail.removed === 0)}
+                    <PixelButton size="sm" variant="danger" disabled={busy}
                       onclick={() => { pending = item; confirmOpen = true; }}>回滚</PixelButton>
                   </div>
                 {/if}
@@ -228,12 +209,7 @@
   }
   .backup-card.open .backup-summary { border-bottom: 1px solid var(--border-vis); background: var(--surface-2); }
   .font-timestamp { flex: 1; min-width: 0; }
-  .summary-diff { font-variant-numeric: tabular-nums; }
-  .diff-add { color: var(--diff-add); }
-  .diff-del { color: var(--diff-remove); }
-  .diff-sep { color: var(--dim); margin: 0 2px; }
   .backup-detail { padding: 14px 16px; display: flex; flex-direction: column; gap: 12px; }
-  .backup-detail p { margin: 0; }
   .pixel-code-block {
     background: var(--terminal-bg);
     border: 1px solid var(--border-vis);
@@ -246,7 +222,5 @@
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
-  .add-line { color: var(--diff-add); }
-  .del-line { color: var(--diff-remove); }
   .detail-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; }
 </style>

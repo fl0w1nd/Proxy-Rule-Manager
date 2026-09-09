@@ -3,15 +3,11 @@ import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 import { api, APIRequestError } from '../api/client';
 import BackupView from './BackupView.svelte';
 
-const item = { id: 'config-20260908-121800.yaml', created_at: '2026-09-08T12:18:00.000Z', size: 2048, added: 1, removed: 1 };
+const item = { id: 'config-20260908-121800.yaml', created_at: '2026-09-08T12:18:00.000Z', size: 2048 };
 const backups = { version: 4, items: [item] };
 const detail = {
   ...item,
   yaml: 'name: Base\n',
-  lines: [
-    { kind: 'del' as const, text: 'name: Updated' },
-    { kind: 'add' as const, text: 'name: Base' },
-  ],
 };
 
 beforeAll(() => {
@@ -24,7 +20,7 @@ afterEach(() => {
 });
 
 describe('BackupView', () => {
-  it('shows the restore diff against current config before rolling back', async () => {
+  it('shows the snapshot source and restores it', async () => {
     vi.spyOn(api, 'listConfigBackups').mockResolvedValue(backups);
     vi.spyOn(api, 'getConfigBackup').mockResolvedValue(detail);
     vi.spyOn(api, 'getConfigRaw').mockResolvedValue({ yaml: 'clients: []\n', path: '/data/config.yaml', version: 4 });
@@ -33,14 +29,13 @@ describe('BackupView', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(BackupView);
-    await screen.findByText('+1');
+    await screen.findByRole('button', { name: '查看配置' });
     await fireEvent.click(screen.getByRole('button', { name: '下载当前配置' }));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled());
     expect(click).toHaveBeenCalled();
-    await fireEvent.click(screen.getByRole('button', { name: '查看差异' }));
-    await screen.findByRole('region', { name: '相对当前配置的差异' });
-    expect(screen.getByText('+ name: Base')).toBeInTheDocument();
-    expect(screen.getByText('- name: Updated')).toBeInTheDocument();
+    await fireEvent.click(screen.getByRole('button', { name: '查看配置' }));
+    await screen.findByRole('region', { name: '快照配置' });
+    expect(screen.getByRole('region', { name: '快照配置' })).toHaveTextContent('name: Base');
     await fireEvent.click(screen.getByRole('button', { name: '回滚' }));
     await fireEvent.click(screen.getByRole('button', { name: '确认回滚' }));
     await screen.findByText('已回滚到所选快照');
@@ -65,7 +60,7 @@ describe('BackupView', () => {
       error: { code: 'config_version_conflict', message: '配置版本已经变化', details: { current_version: 5 } },
     }));
     render(BackupView);
-    await fireEvent.click(await screen.findByRole('button', { name: '查看差异' }));
+    await fireEvent.click(await screen.findByRole('button', { name: '查看配置' }));
     await fireEvent.click(await screen.findByRole('button', { name: '回滚' }));
     await fireEvent.click(screen.getByRole('button', { name: '确认回滚' }));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('请刷新快照列表后重试'));

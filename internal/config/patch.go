@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
 
 	"gopkg.in/yaml.v3"
@@ -73,6 +74,12 @@ func (m *Manager) Prepare(version int64, ops []PatchOp) (*Candidate, error) {
 	raw, err := encodeDocument(doc)
 	if err != nil {
 		return nil, err
+	}
+	if bytes.Equal(raw, baseRaw) {
+		return &Candidate{
+			baseVersion: baseVersion, baseDigest: baseDigest, raw: baseRaw,
+			doc: doc, cfg: cfg, changed: false,
+		}, nil
 	}
 	effective, parsed, err := decodeDocument(raw, m.dataDir)
 	if err != nil {

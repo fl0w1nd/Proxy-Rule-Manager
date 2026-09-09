@@ -212,18 +212,10 @@ export interface ConfigBackupItem {
   id: string;
   created_at: string;
   size: number;
-  added: number;
-  removed: number;
-}
-
-export interface ConfigBackupLine {
-  kind: 'eq' | 'add' | 'del';
-  text: string;
 }
 
 export interface ConfigBackupDetail extends ConfigBackupItem {
   yaml: string;
-  lines: ConfigBackupLine[];
 }
 
 export interface ConfigBackupList {

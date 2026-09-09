@@ -1,6 +1,7 @@
 package config
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"os"
@@ -29,15 +30,12 @@ type Backup struct {
 	ID        string `json:"id"`
 	CreatedAt string `json:"created_at"`
 	Size      int64  `json:"size"`
-	Added     int    `json:"added"`
-	Removed   int    `json:"removed"`
 }
 
-// BackupDetail is one snapshot plus its line diff against the current source.
+// BackupDetail is one snapshot and its source YAML.
 type BackupDetail struct {
 	Backup
-	YAML  string            `json:"yaml"`
-	Lines []util.LineChange `json:"lines"`
+	YAML string `json:"yaml"`
 }
 
 type backupFile struct {
@@ -54,6 +52,7 @@ func (m *Manager) backupDir() (string, bool) {
 }
 
 // SaveBackup writes the current managed source to the rolling backup directory.
+// A snapshot that matches the newest retained copy is skipped.
 func (m *Manager) SaveBackup(now time.Time) error {
 	m.mu.RLock()
 	raw := append([]byte(nil), m.raw...)
@@ -83,6 +82,16 @@ func (m *Manager) SaveBackup(now time.Time) error {
 			continue
 		}
 		backups = append(backups, backupFile{name: name, created: created, seq: seq})
+	}
+	sortBackupFiles(backups)
+	if len(backups) > 0 {
+		prev, err := os.ReadFile(filepath.Join(dir, backups[len(backups)-1].name))
+		if err != nil {
+			return fmt.Errorf("read latest config backup: %w", err)
+		}
+		if bytes.Equal(prev, raw) {
+			return nil
+		}
 	}
 	name := uniqueBackupName(now, used)
 	created, seq, ok := parseBackupName(name)
@@ -117,9 +126,6 @@ func (m *Manager) ListBackups() ([]Backup, error) {
 	if err != nil {
 		return nil, fmt.Errorf("read config backups dir: %w", err)
 	}
-	m.mu.RLock()
-	current := string(m.raw)
-	m.mu.RUnlock()
 	files := make([]backupFile, 0, len(entries))
 	details := make(map[string]Backup, len(entries))
 	for _, entry := range entries {
@@ -131,16 +137,12 @@ func (m *Manager) ListBackups() ([]Backup, error) {
 		if !ok {
 			continue
 		}
-		raw, err := os.ReadFile(filepath.Join(dir, name))
+		info, err := entry.Info()
 		if err != nil {
-			return nil, fmt.Errorf("read config backup %s: %w", name, err)
+			return nil, fmt.Errorf("stat config backup %s: %w", name, err)
 		}
-		diff := util.DiffLines(current, string(raw))
 		files = append(files, backupFile{name: name, created: created, seq: seq})
-		details[name] = Backup{
-			ID: name, CreatedAt: util.FormatISO(created), Size: int64(len(raw)),
-			Added: diff.Added, Removed: diff.Removed,
-		}
+		details[name] = Backup{ID: name, CreatedAt: util.FormatISO(created), Size: info.Size()}
 	}
 	sortBackupFiles(files)
 	items := make([]Backup, 0, len(files))
@@ -150,7 +152,7 @@ func (m *Manager) ListBackups() ([]Backup, error) {
 	return items, nil
 }
 
-// BackupDetail returns one snapshot and the line diff that restore would apply.
+// BackupDetail returns one snapshot and its source YAML.
 func (m *Manager) BackupDetail(id string) (*BackupDetail, error) {
 	raw, err := m.ReadBackup(id)
 	if err != nil {
@@ -160,19 +162,9 @@ func (m *Manager) BackupDetail(id string) (*BackupDetail, error) {
 	if !ok {
 		return nil, ErrBackupNotFound
 	}
-	m.mu.RLock()
-	current := string(m.raw)
-	m.mu.RUnlock()
-	diff := util.DiffLines(current, string(raw))
-	if diff.Lines == nil {
-		diff.Lines = []util.LineChange{}
-	}
 	return &BackupDetail{
-		Backup: Backup{
-			ID: id, CreatedAt: util.FormatISO(created), Size: int64(len(raw)),
-			Added: diff.Added, Removed: diff.Removed,
-		},
-		YAML: string(raw), Lines: diff.Lines,
+		Backup: Backup{ID: id, CreatedAt: util.FormatISO(created), Size: int64(len(raw))},
+		YAML:   string(raw),
 	}, nil
 }
 

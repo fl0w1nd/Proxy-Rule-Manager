@@ -253,3 +253,25 @@ func TestUpdateHistoryWritesStableFieldOrder(t *testing.T) {
 		t.Fatalf("history fields have unstable order:\n%s", text)
 	}
 }
+
+func TestPrepareRepeatedReplacementIsUnchanged(t *testing.T) {
+	manager, _ := backupTestManager(t)
+	value := `{"id":"base","name":"Base","sources":[{"url":"https://rules.example/rules.list"}],"outputs":["surge"]}`
+	first, err := manager.Prepare(1, []PatchOp{{Type: "update_rule", ID: "base", Value: patchValue(t, value)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !first.Changed() {
+		t.Fatal("first replacement should rewrite the source document")
+	}
+	if _, version, err := manager.Commit(first); err != nil || version != 2 {
+		t.Fatalf("version=%d err=%v", version, err)
+	}
+	second, err := manager.Prepare(2, []PatchOp{{Type: "update_rule", ID: "base", Value: patchValue(t, value)}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.Changed() {
+		t.Fatal("identical replacement reported a change")
+	}
+}
