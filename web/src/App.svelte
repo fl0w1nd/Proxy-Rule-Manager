@@ -20,6 +20,8 @@
   let settingsSaving = $state(false);
   let clientsDirty = $state(false);
   let clientsSaving = $state(false);
+  let geositeDirty = $state(false);
+  let geositeSaving = $state(false);
   let rulesDirty = $state(false);
   let rulesSaving = $state(false);
   let leaveDialog = $state(false);
@@ -71,6 +73,7 @@
           history.replaceState(null, '', '#rules');
         }
         if (currentTab === 'clients' && (clientsDirty || clientsSaving)) history.replaceState(null, '', '#clients');
+        if (currentTab === 'geosite' && (geositeDirty || geositeSaving)) history.replaceState(null, '', '#geosite');
         handleTabChange(t);
       }
     };
@@ -90,7 +93,7 @@
 
   function handleTabChange(tab: TabType) {
     if (tab === currentTab) return;
-    if (settingsSaving || rulesSaving || clientsSaving) {
+    if (settingsSaving || rulesSaving || clientsSaving || geositeSaving) {
       toastRef?.show('正在保存，请稍候', 'info');
       return;
     }
@@ -107,10 +110,14 @@
     if (currentTab === 'clients' && clientsDirty) {
       pendingTab = tab; leaveDialog = true; return;
     }
+    if (currentTab === 'geosite' && geositeDirty) {
+      pendingTab = tab; leaveDialog = true; return;
+    }
     currentTab = tab;
     settingsDirty = false;
     rulesDirty = false;
     clientsDirty = false;
+    geositeDirty = false;
     try {
       location.hash = tab;
       sessionStorage.setItem('prm-admin-tab', tab);
@@ -201,13 +208,13 @@
   {:else if currentTab === 'settings'}
     <SettingsView onstatechange={(dirty, saving) => { settingsDirty = dirty; settingsSaving = saving; }} />
   {:else if currentTab === 'geosite'}
-    <GeositeView bind:this={geositeRef} />
+    <GeositeView bind:this={geositeRef} onstatechange={(dirty, saving) => { geositeDirty = dirty; geositeSaving = saving; }} />
   {/if}
 </AdminLayout>
 
 <PixelToast bind:this={toastRef} />
 
-<PixelDialog bind:open={leaveDialog} title={currentTab === 'clients' ? '离开客户端管理？' : currentTab === 'rules' ? '离开规则管理？' : '离开系统设置？'}
+<PixelDialog bind:open={leaveDialog} title={currentTab === 'clients' ? '离开客户端管理？' : currentTab === 'geosite' ? '离开 Geosite？' : currentTab === 'rules' ? '离开规则管理？' : '离开系统设置？'}
   confirmLabel="放弃修改并离开" cancelLabel="继续编辑" danger
   oncancel={() => { pendingTab = null; }}
   onconfirm={() => {
@@ -216,6 +223,7 @@
     settingsDirty = false;
     rulesDirty = false;
     clientsDirty = false;
+    geositeDirty = false;
     if (tab) handleTabChange(tab);
   }}>
   {currentTab === 'rules' ? '当前文件尚未保存，离开后将丢弃这些修改。' : '当前修改尚未保存，离开后将丢弃这些修改。'}

@@ -1,29 +1,76 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
-  import { api, type GeositeProviderItem } from '../api/client';
-  import PixelTable from '../components/pixel/PixelTable.svelte';
+  import { onMount, onDestroy } from 'svelte';
+  import { api, APIRequestError, type ConfigSnapshot, type GeositeProviderItem } from '../api/client';
+  import PixelCard from '../components/pixel/PixelCard.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
-  import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
+  import PixelDialog from '../components/pixel/PixelDialog.svelte';
+  import PixelSelect from '../components/pixel/PixelSelect.svelte';
+  import PixelCheckbox from '../components/pixel/PixelCheckbox.svelte';
+  import GeositeCatalogDrawer from './GeositeCatalogDrawer.svelte';
+  import {
+    defaultGeositeProviders,
+    geositePatchValue,
+    geositeProviderConfigs,
+    providerLabel,
+    validateGeositeProvider,
+    type GeositeProviderDraft,
+  } from './geosite';
+  import geositeIcon from '../assets/icons/nav/geosite.svg';
 
+  let { onstatechange }: { onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
+
+  let snapshot = $state<ConfigSnapshot>();
   let providers = $state<GeositeProviderItem[]>([]);
+  let supported = $state<string[]>([...defaultGeositeProviders]);
   let loading = $state(true);
-  let error = $state<string | null>(null);
+  let busy = $state(false);
+  let message = $state('');
+  let error = $state(false);
+  let open = $state(false);
+  let editing = $state('');
+  let draft = $state<GeositeProviderDraft>({ name: '', clients: [] });
+  let baseline = $state('');
+  let discard = $state(false);
+  let deleteOpen = $state(false);
+  let deleting = $state<GeositeProviderItem>();
+  let catalogOpen = $state(false);
+  let catalogProvider = $state('');
 
-  onMount(() => {
-    loadGeosite();
-  });
+  const configured = $derived(geositeProviderConfigs(snapshot?.config));
+  const clients = $derived(((snapshot?.config.clients ?? []) as { id: string; name?: string }[]));
+  const dirty = $derived(open && JSON.stringify(draft) !== baseline);
+  const remaining = $derived(supported.filter((name) => !configured.some((provider) => provider.name === name)));
+  const providerOptions = $derived(remaining.map((name) => ({ value: name, label: providerLabel(name) })));
+
+  $effect(() => { onstatechange?.(dirty, busy); });
+  onMount(() => { void loadGeosite(); });
+  onDestroy(() => { onstatechange?.(false, false); });
 
   export async function loadGeosite() {
     loading = true;
-    error = null;
+    error = false;
     try {
-      const res = await api.getGeositeProviders();
+      const [cfg, res] = await Promise.all([api.getConfig(), api.getGeositeProviders()]);
+      snapshot = cfg;
       providers = res.items || [];
-    } catch (e: any) {
-      error = e.message;
+      supported = res.supported?.length ? res.supported : [...defaultGeositeProviders];
+    } catch (e: unknown) {
+      fail(e);
     } finally {
       loading = false;
+    }
+  }
+
+  function fail(e: unknown) {
+    error = true;
+    message = (e as Error).message;
+    if (e instanceof APIRequestError && e.details.errors?.length) {
+      message += '：' + e.details.errors.map((item) => `${item.path} ${item.message}`).join('；');
+    }
+    if (e instanceof APIRequestError && e.status === 409) {
+      message += '。请关闭编辑器后刷新配置再重试。';
     }
   }
 
@@ -37,146 +84,246 @@
     if (res === 'failed') return 'error';
     return 'neutral';
   }
+
+  function statusLabel(res?: string) {
+    if (res === 'updated') return '已更新';
+    if (res === 'unchanged') return '无变化';
+    if (res === 'failed') return '失败';
+    return '未检查';
+  }
+
+  function clientName(id: string) {
+    return clients.find((client) => client.id === id)?.name || id;
+  }
+
+  function clientSummary(item: GeositeProviderItem) {
+    const names = (item.clients ?? []).map(clientName);
+    return names.length ? names.join(' · ') : '—';
+  }
+
+  function edit(item?: GeositeProviderItem) {
+    const current = item ? configured.find((provider) => provider.name === item.name) : undefined;
+    editing = current?.name ?? '';
+    draft = current
+      ? { name: current.name, clients: [...current.clients] }
+      : { name: remaining[0] ?? '', clients: [] };
+    baseline = JSON.stringify(draft);
+    message = '';
+    open = true;
+  }
+
+  function toggleClient(id: string, checked: boolean) {
+    draft.clients = checked ? [...draft.clients, id] : draft.clients.filter((item) => item !== id);
+  }
+
+  function requestClose() {
+    if (busy) return false;
+    if (dirty) {
+      discard = true;
+      return false;
+    }
+    return true;
+  }
+
+  async function save() {
+    if (!snapshot || busy) return;
+    const validation = validateGeositeProvider(draft, configured.map((item) => item.name), editing, clients.map((item) => item.id));
+    if (validation) {
+      message = validation;
+      error = true;
+      return;
+    }
+    const next = editing
+      ? configured.map((item) => item.name === editing ? { name: draft.name, clients: [...draft.clients] } : item)
+      : [...configured, { name: draft.name, clients: [...draft.clients] }];
+    busy = true;
+    message = '';
+    try {
+      const result = await api.patchConfig(snapshot.version, [{ op: 'update_geosite', value: geositePatchValue(next) }]);
+      snapshot = { version: result.version, config: { ...snapshot.config, geosite: geositePatchValue(next) ?? undefined } };
+      editing = draft.name;
+      baseline = JSON.stringify(draft);
+      error = false;
+      message = result.warnings?.length ? `已保存。${result.warnings.join('；')}` : '提供商已保存';
+      const res = await api.getGeositeProviders();
+      providers = res.items || [];
+    } catch (e) {
+      fail(e);
+    } finally {
+      busy = false;
+    }
+  }
+
+  function askDelete(item: GeositeProviderItem) {
+    deleting = item;
+    deleteOpen = true;
+  }
+
+  async function remove() {
+    if (!snapshot || !deleting || busy) return;
+    busy = true;
+    try {
+      const next = configured.filter((item) => item.name !== deleting?.name);
+      const value = geositePatchValue(next);
+      const result = await api.patchConfig(snapshot.version, [{ op: 'update_geosite', value }]);
+      snapshot = { version: result.version, config: { ...snapshot.config, geosite: value ?? undefined } };
+      error = false;
+      message = '提供商已删除';
+      const res = await api.getGeositeProviders();
+      providers = res.items || [];
+    } catch (e) {
+      fail(e);
+    } finally {
+      busy = false;
+      deleting = undefined;
+    }
+  }
+
+  function openCatalog(item: GeositeProviderItem) {
+    catalogProvider = item.name;
+    catalogOpen = true;
+  }
 </script>
 
+<svelte:window onbeforeunload={(event) => { if (dirty || busy) { event.preventDefault(); event.returnValue = ''; } }} />
 <div class="geosite-view">
-  <div class="geosite-toolbar">
-    <div class="toolbar-left">
-      <span class="count-badge">共 {providers.length} 个 Provider 源</span>
-    </div>
-    <div class="toolbar-right">
-      <PixelButton size="sm" onclick={loadGeosite}>
-        <PixelIcon name="refresh" size={12} />
-        刷新
-      </PixelButton>
+  <div class="toolbar">
+    <span>共 {providers.length} 个提供商</span>
+    <div class="actions">
+      <PixelButton disabled={loading || busy} onclick={loadGeosite}>刷新</PixelButton>
+      <PixelButton variant="primary" disabled={loading || busy || !snapshot || remaining.length === 0 || clients.length === 0} onclick={() => edit()}>添加提供商</PixelButton>
     </div>
   </div>
 
-  {#if error}
-    <div class="geosite-error">
-      <PixelIcon name="warn" size={16} />
-      <span>读取 Geosite 状态失败：{error}</span>
-      <PixelButton size="sm" onclick={loadGeosite}>重试</PixelButton>
-    </div>
+  {#if message && !open}
+    <div class="notice" class:error role={error ? 'alert' : 'status'}>{message}</div>
   {/if}
 
-  <PixelTable minWidth="880px">
-    <thead>
-      <tr>
-        <th style="width: 22%;">Provider 名称</th>
-        <th style="width: 20%;">检查状态 · 时间</th>
-        <th style="width: 18%;">数据版本</th>
-        <th style="width: 10%;" class="num">列表数</th>
-        <th style="width: 10%;" class="num">变体数</th>
-        <th style="width: 10%;" class="num">条目总量</th>
-        <th style="width: 10%;" class="num">规则文件</th>
-      </tr>
-    </thead>
-    <tbody>
-      {#if loading && providers.length === 0}
-        <tr>
-          <td colspan="7" class="table-empty">加载 Geosite 状态中…</td>
-        </tr>
-      {:else if providers.length === 0}
-        <tr>
-          <td colspan="7" class="table-empty">没有配置 Geosite Provider</td>
-        </tr>
-      {:else}
-        {#each providers as p}
-          <tr>
-            <td>
-              <div class="p-name">
-                <span class="font-name">{p.name}</span>
-              </div>
-            </td>
-            <td>
-              <div class="status-cell">
-                <PixelBadge status={getStatusType(p.result)}>
-                  {p.result === 'updated' ? '已更新' : p.result === 'unchanged' ? '无变化' : p.result === 'failed' ? '失败' : '未检查'}
-                </PixelBadge>
-                {#if p.checked_at}
-                  <span class="check-time">{formatTime(p.checked_at)}</span>
-                {/if}
-              </div>
-            </td>
-            <td class="text-dim">{p.version || '—'}</td>
-            <td class="num">{p.lists.toLocaleString()}</td>
-            <td class="num">{p.variants.toLocaleString()}</td>
-            <td class="num text-display">{p.entries.toLocaleString()}</td>
-            <td class="num">{p.files.toLocaleString()}</td>
-          </tr>
-        {/each}
-      {/if}
-    </tbody>
-  </PixelTable>
+  {#if !loading && clients.length === 0}
+    <div class="notice">请先在客户端管理中添加客户端，再配置 Geosite 输出目标。</div>
+  {/if}
+
+  {#if loading && providers.length === 0}
+    <div class="notice">读取 Geosite 状态…</div>
+  {:else if providers.length === 0}
+    <div class="notice">没有配置 Geosite 提供商</div>
+  {:else}
+    <div class="cards">
+      {#each providers as p (p.name)}
+        <PixelCard class="provider-card">
+          <div class="card-heading">
+            <div class="card-identity">
+              <h2>{providerLabel(p.name)}</h2>
+              {#if providerLabel(p.name) !== p.name}
+                <code>{p.name}</code>
+              {/if}
+            </div>
+            <div class="status-cell">
+              <PixelBadge status={getStatusType(p.result)}>{statusLabel(p.result)}</PixelBadge>
+              {#if p.checked_at}
+                <span class="check-time">{formatTime(p.checked_at)}</span>
+              {/if}
+            </div>
+          </div>
+          <div class="card-meta">
+            <div class="meta-row">
+              <span>输出客户端</span>
+              <span>{clientSummary(p)}</span>
+            </div>
+            <div class="meta-row">
+              <span>数据版本</span>
+              <code>{p.version || '—'}</code>
+            </div>
+          </div>
+          <div class="stats">
+            <div class="stat"><span>列表</span><strong>{p.lists.toLocaleString()}</strong></div>
+            <div class="stat"><span>变体</span><strong>{p.variants.toLocaleString()}</strong></div>
+            <div class="stat"><span>条目</span><strong>{p.entries.toLocaleString()}</strong></div>
+            <div class="stat"><span>文件</span><strong>{p.files.toLocaleString()}</strong></div>
+          </div>
+          <div class="card-footer">
+            <div class="actions">
+              <PixelButton size="sm" disabled={busy} onclick={() => openCatalog(p)}>目录</PixelButton>
+              <PixelButton size="sm" disabled={busy} onclick={() => edit(p)}>编辑</PixelButton>
+              <PixelButton size="sm" variant="danger" disabled={busy} onclick={() => askDelete(p)}>删除</PixelButton>
+            </div>
+          </div>
+        </PixelCard>
+      {/each}
+    </div>
+  {/if}
 </div>
 
+<PixelDrawer bind:open title={editing ? `编辑 ${providerLabel(editing)}` : '添加提供商'} icon={geositeIcon} width="520px" onrequestclose={requestClose}>
+  <div class="editor-form">
+    {#if message && open}
+      <div class="notice" class:error role={error ? 'alert' : 'status'}>{message}</div>
+    {/if}
+    <fieldset disabled={busy}>
+      <legend>提供商</legend>
+      {#if editing}
+        <p class="field-hint">{providerLabel(editing)}</p>
+      {:else}
+        <PixelSelect id="geosite-provider" label="提供商" options={[{ value: '', label: '请选择提供商' }, ...providerOptions]} bind:value={draft.name} disabled={busy} />
+      {/if}
+    </fieldset>
+    <fieldset disabled={busy}>
+      <legend>输出客户端</legend>
+      {#if clients.length === 0}
+        <p class="field-hint">没有可选择的客户端</p>
+      {:else}
+        <div class="client-picks">
+          {#each clients as client (client.id)}
+            <PixelCheckbox checked={draft.clients.includes(client.id)} disabled={busy} onchange={(checked) => toggleClient(client.id, checked)}>
+              {client.name || client.id}
+            </PixelCheckbox>
+          {/each}
+        </div>
+      {/if}
+    </fieldset>
+  </div>
+  {#snippet footer()}
+    <PixelButton disabled={busy} onclick={() => { if (requestClose()) open = false; }}>关闭</PixelButton>
+    <PixelButton variant="primary" disabled={busy || (!dirty && !!editing)} onclick={save}>{busy ? '保存中…' : '保存'}</PixelButton>
+  {/snippet}
+</PixelDrawer>
+
+<GeositeCatalogDrawer bind:open={catalogOpen} provider={catalogProvider} />
+
+<PixelDialog bind:open={discard} title="放弃未保存的修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" danger onconfirm={() => { open = false; }}>
+  当前修改尚未保存，关闭后将丢弃这些修改。
+</PixelDialog>
+<PixelDialog bind:open={deleteOpen} title="删除提供商？" confirmLabel="确认删除" danger onconfirm={remove}>
+  删除 {providerLabel(deleting?.name || '')} 后将停止自动发布其全部列表。
+</PixelDialog>
+
 <style>
-  .geosite-view {
-    display: flex;
-    flex-direction: column;
-    gap: 16px;
-  }
-
-  .geosite-toolbar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 14px;
-    flex-wrap: wrap;
-  }
-
-  .toolbar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .toolbar-right {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .geosite-error {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 10px 14px;
-    background: var(--status-error);
-    border: 1px solid var(--border-vis);
-    border-radius: 4px;
-    color: var(--text);
-  }
-
-  .p-name {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    color: var(--display);
-  }
-
-  .status-cell {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .check-time {
-    color: var(--dim);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .text-dim {
-    color: var(--dim);
-  }
-  .text-display {
-    color: var(--display);
-  }
-
-  .table-empty {
-    text-align: center;
-    color: var(--dim);
-    padding: 36px 0;
-  }
+  .geosite-view { display: grid; gap: 18px; }
+  .toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; color: var(--sec); }
+  .actions, .client-picks { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .notice { padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; overflow-wrap: anywhere; }
+  .notice.error { background: var(--status-error); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; }
+  :global(.provider-card) { display: flex; flex-direction: column; }
+  :global(.provider-card > .pixel-card-body) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+  .card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .card-identity { display: grid; gap: 2px; min-width: 0; }
+  h2 { margin: 0; font: 400 24px/28px var(--font-display); color: var(--display); }
+  code { font: 12px/20px var(--font-code); color: var(--sec); overflow-wrap: anywhere; }
+  .status-cell { display: grid; gap: 2px; justify-items: end; }
+  .check-time { color: var(--dim); font-variant-numeric: tabular-nums; }
+  .card-meta { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--border); display: grid; gap: 8px; }
+  .meta-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; font: 12px/20px var(--font-ui); color: var(--sec); }
+  .meta-row span:last-child { color: var(--text); text-align: right; overflow-wrap: anywhere; }
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 14px; }
+  .stat { display: grid; gap: 2px; }
+  .stat span { color: var(--sec); font: 12px/18px var(--font-ui); }
+  .stat strong { font: 400 20px/24px var(--font-display); color: var(--display); font-variant-numeric: tabular-nums; }
+  .card-footer { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--border); }
+  .card-footer .actions { margin: 0; }
+  .editor-form { display: grid; gap: 16px; }
+  fieldset { min-width: 0; margin: 0; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; display: grid; gap: 12px; }
+  legend { font: 400 12px/20px var(--font-ui); color: var(--display); }
+  .field-hint { margin: 0; font: 12px/18px var(--font-ui); color: var(--sec); }
+  @media (max-width: 520px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 </style>

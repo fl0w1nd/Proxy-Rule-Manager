@@ -42,3 +42,16 @@ type CatalogSummary struct {
 	Attrs      []string `json:"attrs"`
 	EntryCount int      `json:"entryCount"`
 }
+
+// VariantOverview is one attribute variant in a list catalog.
+type VariantOverview struct {
+	Attr    string `json:"attr"`
+	Entries int    `json:"entries"`
+}
+
+// ListOverview is one geosite list with variant counts for the catalog API.
+type ListOverview struct {
+	Name     string            `json:"name"`
+	Entries  int               `json:"entries"`
+	Variants []VariantOverview `json:"variants"`
+}

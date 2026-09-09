@@ -12,6 +12,12 @@ type lookupIndex struct {
 	suffix  []suffixHit
 	keyword []keywordHit
 	regex   []regexHit
+	values  []contentValue
+}
+
+type contentValue struct {
+	value string
+	lists []string
 }
 
 type suffixHit struct {
@@ -43,20 +49,27 @@ func providerCacheKey(c *ProviderCache) string {
 
 func buildLookupIndex(entries map[string][]Entry) *lookupIndex {
 	idx := &lookupIndex{exact: map[string]map[string]struct{}{}}
+	valueLists := map[string]map[string]struct{}{}
 	for listName, list := range entries {
 		for _, e := range list {
 			value := strings.TrimSpace(strings.ToLower(e.Value))
 			if value == "" {
 				continue
 			}
+			set, ok := valueLists[value]
+			if !ok {
+				set = map[string]struct{}{}
+				valueLists[value] = set
+			}
+			set[listName] = struct{}{}
 			switch e.Type {
 			case EntryFull:
-				set, ok := idx.exact[value]
+				exact, ok := idx.exact[value]
 				if !ok {
-					set = map[string]struct{}{}
-					idx.exact[value] = set
+					exact = map[string]struct{}{}
+					idx.exact[value] = exact
 				}
-				set[listName] = struct{}{}
+				exact[listName] = struct{}{}
 			case EntryDomain:
 				idx.suffix = append(idx.suffix, suffixHit{listName, value})
 			case EntryKeyword:
@@ -68,30 +81,43 @@ func buildLookupIndex(entries map[string][]Entry) *lookupIndex {
 			}
 		}
 	}
+	idx.values = make([]contentValue, 0, len(valueLists))
+	for value, lists := range valueLists {
+		names := make([]string, 0, len(lists))
+		for name := range lists {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		idx.values = append(idx.values, contentValue{value: value, lists: names})
+	}
 	return idx
 }
 
-// LookupListsInEntries mirrors lookupGeositeListsInEntries.
-func LookupListsInEntries(cache *ProviderCache, domain string) []string {
+func lookupIndexFor(cache *ProviderCache) *lookupIndex {
 	if cache == nil {
-		return nil
-	}
-	normalizedDomain := strings.TrimRight(strings.ToLower(strings.TrimSpace(domain)), ".")
-	if normalizedDomain == "" {
 		return nil
 	}
 	key := providerCacheKey(cache)
 	lookupMu.RLock()
 	idx, ok := lookupCache[key]
 	lookupMu.RUnlock()
-	if !ok {
-		built := buildLookupIndex(cache.Entries)
-		lookupMu.Lock()
-		lookupCache[key] = built
-		lookupMu.Unlock()
-		idx = built
+	if ok {
+		return idx
 	}
+	built := buildLookupIndex(cache.Entries)
+	lookupMu.Lock()
+	lookupCache[key] = built
+	lookupMu.Unlock()
+	return built
+}
 
+// LookupListsInEntries mirrors lookupGeositeListsInEntries.
+func LookupListsInEntries(cache *ProviderCache, domain string) []string {
+	normalizedDomain := strings.TrimRight(strings.ToLower(strings.TrimSpace(domain)), ".")
+	if cache == nil || normalizedDomain == "" {
+		return nil
+	}
+	idx := lookupIndexFor(cache)
 	matches := map[string]struct{}{}
 	if set, ok := idx.exact[normalizedDomain]; ok {
 		for k := range set {
@@ -113,9 +139,35 @@ func LookupListsInEntries(cache *ProviderCache, domain string) []string {
 			matches[hit.listName] = struct{}{}
 		}
 	}
+	return sortedKeys(matches)
+}
 
-	out := make([]string, 0, len(matches))
-	for k := range matches {
+// SearchListsByContent returns lists whose entries match query by domain
+// membership or by substring on entry values.
+func SearchListsByContent(cache *ProviderCache, query string) []string {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if cache == nil || q == "" {
+		return nil
+	}
+	idx := lookupIndexFor(cache)
+	matches := map[string]struct{}{}
+	for _, name := range LookupListsInEntries(cache, q) {
+		matches[name] = struct{}{}
+	}
+	for _, item := range idx.values {
+		if !strings.Contains(item.value, q) {
+			continue
+		}
+		for _, name := range item.lists {
+			matches[name] = struct{}{}
+		}
+	}
+	return sortedKeys(matches)
+}
+
+func sortedKeys(set map[string]struct{}) []string {
+	out := make([]string, 0, len(set))
+	for k := range set {
 		out = append(out, k)
 	}
 	sort.Strings(out)

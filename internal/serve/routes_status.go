@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/version"
 )
 
@@ -35,19 +36,21 @@ type ruleCheckInfo struct {
 }
 
 type geositeProvidersResponse struct {
-	Items []geositeProviderInfo `json:"items"`
-	Total int                   `json:"total"`
+	Items     []geositeProviderInfo `json:"items"`
+	Total     int                   `json:"total"`
+	Supported []string              `json:"supported"`
 }
 
 type geositeProviderInfo struct {
-	Name      string `json:"name"`
-	Version   string `json:"version,omitempty"`
-	Result    string `json:"result"`
-	CheckedAt string `json:"checked_at,omitempty"`
-	Lists     int    `json:"lists"`
-	Variants  int    `json:"variants"`
-	Entries   int    `json:"entries"`
-	Files     int    `json:"files"`
+	Name      string   `json:"name"`
+	Version   string   `json:"version,omitempty"`
+	Result    string   `json:"result"`
+	CheckedAt string   `json:"checked_at,omitempty"`
+	Clients   []string `json:"clients"`
+	Lists     int      `json:"lists"`
+	Variants  int      `json:"variants"`
+	Entries   int      `json:"entries"`
+	Files     int      `json:"files"`
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
@@ -81,12 +84,26 @@ func (s *Server) handleRules(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleGeositeProviders(w http.ResponseWriter, _ *http.Request) {
+	clientsByProvider := map[string][]string{}
+	if cfg := s.config(); cfg.Geosite != nil {
+		for _, provider := range cfg.Geosite.Providers {
+			clientsByProvider[provider.Name] = append([]string(nil), provider.Clients...)
+		}
+	}
 	summaries := s.Engine.GeositeProviderSummaries()
-	resp := geositeProvidersResponse{Items: make([]geositeProviderInfo, 0, len(summaries)), Total: len(summaries)}
+	resp := geositeProvidersResponse{
+		Items:     make([]geositeProviderInfo, 0, len(summaries)),
+		Total:     len(summaries),
+		Supported: append([]string(nil), geosite.SupportedProviders...),
+	}
 	for _, summary := range summaries {
 		item := geositeProviderInfo{
 			Name: summary.Name, Version: summary.Version, Result: summary.Result,
-			Lists: summary.Lists, Variants: summary.Variants, Entries: summary.Entries, Files: summary.Files,
+			Clients: clientsByProvider[summary.Name],
+			Lists:   summary.Lists, Variants: summary.Variants, Entries: summary.Entries, Files: summary.Files,
+		}
+		if item.Clients == nil {
+			item.Clients = []string{}
 		}
 		if !summary.CheckedAt.IsZero() {
 			item.CheckedAt = apiTime(summary.CheckedAt)

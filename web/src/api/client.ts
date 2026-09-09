@@ -29,6 +29,45 @@ export interface GeositeProviderItem {
   files: number;
   result: string;
   checked_at?: string;
+  clients: string[];
+}
+
+export interface GeositeListVariant {
+  attr: string;
+  entries: number;
+}
+
+export interface GeositeListOverview {
+  name: string;
+  entries: number;
+  variants: GeositeListVariant[];
+}
+
+export interface GeositeCatalog {
+  provider: string;
+  version?: string;
+  fetched_at?: string;
+  query?: string;
+  match?: string;
+  lists: GeositeListOverview[];
+  total: number;
+}
+
+export interface GeositeEntry {
+  type: string;
+  value: string;
+  attrs?: string[];
+}
+
+export interface GeositeListDetail {
+  provider: string;
+  list: string;
+  attr?: string;
+  query?: string;
+  total: number;
+  offset: number;
+  limit: number;
+  items: GeositeEntry[];
 }
 
 export interface ChangeItem {
@@ -282,8 +321,26 @@ export const api = {
     return request<{ items: RuleItem[] }>('/rules');
   },
 
-  getGeositeProviders(): Promise<{ items: GeositeProviderItem[] }> {
-    return request<{ items: GeositeProviderItem[] }>('/geosite/providers');
+  getGeositeProviders(): Promise<{ items: GeositeProviderItem[]; supported: string[] }> {
+    return request<{ items: GeositeProviderItem[]; supported: string[] }>('/geosite/providers');
+  },
+
+  getGeositeCatalog(provider: string, query = '', match: 'name' | 'content' = 'name'): Promise<GeositeCatalog> {
+    const params = new URLSearchParams();
+    if (query) params.set('q', query);
+    if (match) params.set('match', match);
+    const qs = params.toString();
+    return request<GeositeCatalog>(`/geosite/providers/${encodeURIComponent(provider)}/catalog${qs ? `?${qs}` : ''}`);
+  },
+
+  getGeositeList(provider: string, list: string, opts?: { attr?: string; q?: string; offset?: number; limit?: number }): Promise<GeositeListDetail> {
+    const params = new URLSearchParams();
+    if (opts?.attr) params.set('attr', opts.attr);
+    if (opts?.q) params.set('q', opts.q);
+    if (opts?.offset) params.set('offset', String(opts.offset));
+    if (opts?.limit) params.set('limit', String(opts.limit));
+    const qs = params.toString();
+    return request<GeositeListDetail>(`/geosite/providers/${encodeURIComponent(provider)}/lists/${encodeURIComponent(list)}${qs ? `?${qs}` : ''}`);
   },
 
   getChanges(limit = 100): Promise<{ items: ChangeItem[] }> {

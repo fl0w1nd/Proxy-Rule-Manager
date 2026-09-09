@@ -117,6 +117,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/status", s.handleStatus)
 		r.Get("/rules", s.handleRules)
 		r.Get("/geosite/providers", s.handleGeositeProviders)
+		r.Get("/geosite/providers/{provider}/catalog", s.handleGeositeCatalog)
+		r.Get("/geosite/providers/{provider}/lists/{list}", s.handleGeositeList)
 		r.Get("/changes", s.handleChanges)
 		r.Get("/updates", s.handleUpdates)
 		r.Post("/updates", s.sameOriginMutation(s.handleCreateUpdate))
