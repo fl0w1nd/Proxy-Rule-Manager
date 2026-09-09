@@ -145,9 +145,47 @@
   .member { border-bottom: 1px solid var(--border); }
   .processing { border: 1px solid var(--border); border-radius: 3px; min-width: 0; }
   label { display: grid; gap: 6px; font-size: 13px; }
-  input, textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); padding: 8px; }
-  textarea { max-height: 280px; overflow: auto; font: 12px/1.6 var(--font-code); tab-size: 2; }
-  textarea { min-height: 130px; resize: vertical; }
+  input {
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    box-shadow: var(--edge-inset);
+    background: var(--surface);
+    color: var(--text);
+    font: 13px/20px var(--font-code);
+    outline: none;
+    transition: background-color 80ms linear;
+  }
+  input:focus-visible {
+    outline: 1px solid var(--selected);
+    border-color: var(--selected);
+  }
+  textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-width: 0;
+    min-height: 130px;
+    max-height: 280px;
+    padding: 8px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    box-shadow: var(--edge-inset);
+    background: var(--surface);
+    color: var(--text);
+    overflow: auto;
+    font: 12px/1.6 var(--font-code);
+    tab-size: 2;
+    resize: vertical;
+    outline: none;
+  }
+  textarea:focus-visible {
+    outline: 1px solid var(--selected);
+    border-color: var(--selected);
+  }
   .move-control { display: flex; align-items: center; gap: 6px; }
   select { max-width: 180px; padding: 5px; background: var(--surface); color: var(--text); border: 1px solid var(--border-vis); border-radius: 3px; }
   .handle { cursor: grab; color: var(--sec); background: var(--surface); border: 1px solid var(--border-vis); border-radius: 3px; padding: 5px 8px; }

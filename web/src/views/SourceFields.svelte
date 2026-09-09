@@ -45,7 +45,45 @@
   .fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   label, .stack { display: grid; gap: 6px; font-size: 13px; }
   .full { grid-column: 1 / -1; }
-  input, textarea { width: 100%; box-sizing: border-box; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); padding: 8px; }
-  textarea { min-height: 100px; max-height: 260px; overflow: auto; resize: vertical; font-family: var(--font-code); }
+  input {
+    width: 100%;
+    min-width: 0;
+    min-height: 32px;
+    box-sizing: border-box;
+    padding: 4px 8px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    box-shadow: var(--edge-inset);
+    background: var(--surface);
+    color: var(--text);
+    font: 13px/20px var(--font-code);
+    outline: none;
+    transition: background-color 80ms linear;
+  }
+  input:focus-visible {
+    outline: 1px solid var(--selected);
+    border-color: var(--selected);
+  }
+  textarea {
+    width: 100%;
+    min-width: 0;
+    min-height: 100px;
+    max-height: 260px;
+    box-sizing: border-box;
+    padding: 8px;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    box-shadow: var(--edge-inset);
+    background: var(--surface);
+    color: var(--text);
+    font: 13px/20px var(--font-code);
+    overflow: auto;
+    resize: vertical;
+    outline: none;
+  }
+  textarea:focus-visible {
+    outline: 1px solid var(--selected);
+    border-color: var(--selected);
+  }
   @media (max-width: 520px) { .fields { grid-template-columns: 1fr; } }
 </style>

@@ -62,6 +62,15 @@
   summary { cursor: pointer; color: var(--sec); }
   .kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px; padding-top: 10px; }
   :global(.kinds .pixel-checkbox) { font-family: var(--font-code); }
-  .selection { margin: 0; color: var(--sec); overflow-wrap: anywhere; font: 12px/20px var(--font-code); }
-  input { min-height: 32px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); box-shadow: var(--edge-inset); padding: 4px 8px; }
+  input {
+    min-height: 32px;
+    box-sizing: border-box;
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    background: var(--surface);
+    color: var(--text);
+    box-shadow: var(--edge-inset);
+    padding: 4px 8px;
+    font: 13px/20px var(--font-code);
+  }
 </style>
