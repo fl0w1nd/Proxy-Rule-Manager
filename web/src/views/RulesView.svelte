@@ -1,10 +1,11 @@
 <script lang="ts">
   import { onDestroy, onMount } from 'svelte';
-  import { api, APIRequestError, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview } from '../api/client';
+  import { api, APIRequestError, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
   import PixelTable from '../components/pixel/PixelTable.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import RefsIcon from '../components/pixel/RefsIcon.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
   import PixelDialog from '../components/pixel/PixelDialog.svelte';
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
@@ -15,7 +16,7 @@
   import CodePanel from '../components/CodePanel.svelte';
   import SourceEditor from './SourceEditor.svelte';
   import LocalFilesView from './LocalFilesView.svelte';
-  import { type ClientConfig } from './clients';
+  import { clientIconID, clientIconSrc, defaultClientIcon, type ClientConfig } from './clients';
   import {
     emptyRule,
     mergeStrategies,
@@ -81,8 +82,9 @@
   let previewing = $state(false);
   let preview = $state<RulePreview | null>(null);
   let previewTab = $state('');
-  let refsHint = $state<{ id: string; top: number; left: number; above: boolean } | null>(null);
-  let refsTimer = 0;
+  let hint = $state<{ kind: 'refs' | 'outputs'; id: string; top: number; left: number; above: boolean } | null>(null);
+  let hintTimer = 0;
+  let templates = $state<TemplateItem[]>([]);
 
   const tabs = [
     { value: 'compile', label: '编译规则' },
@@ -105,16 +107,16 @@
   const nameColumnWidth = $derived.by(() => {
     let maxTextWidth = measureVisualTextWidth('名称 / ID');
     for (const rule of rows) {
-      if (rule.name) {
-        const nw = measureVisualTextWidth(rule.name);
-        if (nw > maxTextWidth) maxTextWidth = nw;
-      }
-      if (rule.id) {
-        const iw = measureVisualTextWidth(rule.id);
-        if (iw > maxTextWidth) maxTextWidth = iw;
-      }
+      const refs = topologies.get(rule.id);
+      const hasRefs = !!refs && (refs.upstream.length > 0 || refs.downstream.length > 0);
+      const outs = ruleOutputs(rule.raw);
+      const nameW = measureVisualTextWidth(rule.name) + (hasRefs ? 30 : 0);
+      const iconsW = outs.length ? 6 + Math.min(outs.length, 4) * 14 + (outs.length > 4 ? 30 : 0) : 0;
+      const idW = measureVisualTextWidth(rule.id) + iconsW;
+      const w = Math.max(nameW, idW);
+      if (w > maxTextWidth) maxTextWidth = w;
     }
-    return Math.max(160, Math.ceil(maxTextWidth + 92));
+    return Math.max(160, Math.ceil(maxTextWidth + 48));
   });
   const filteredRules = $derived(rows.filter((rule) => {
     if (!searchQuery) return true;
@@ -137,24 +139,49 @@
   $effect(() => { onstatechange?.(dirty || filesDirty, busy || filesBusy || previewing); });
   onMount(() => { void load(); });
   onDestroy(() => {
-    clearTimeout(refsTimer);
+    clearTimeout(hintTimer);
     onstatechange?.(false, false);
   });
 
-  function showRefs(id: string, el: HTMLElement, immediate = false) {
-    clearTimeout(refsTimer);
+  function showHint(kind: 'refs' | 'outputs', id: string, el: HTMLElement, immediate = false) {
+    clearTimeout(hintTimer);
     const place = () => {
       const box = el.getBoundingClientRect();
       const below = box.bottom + 7;
-      const above = below + 168 > window.innerHeight;
-      refsHint = { id, top: above ? box.top - 7 : below, left: box.left + box.width / 2, above };
+      const above = below + 200 > window.innerHeight;
+      hint = { kind, id, top: above ? box.top - 7 : below, left: box.left + box.width / 2, above };
     };
     if (immediate) place();
-    else refsTimer = window.setTimeout(place, 160);
+    else hintTimer = window.setTimeout(place, 160);
   }
-  function hideRefs() {
-    clearTimeout(refsTimer);
-    refsHint = null;
+  function hideHint() {
+    clearTimeout(hintTimer);
+    hint = null;
+  }
+  function ruleClientIcon(client: ClientConfig): string {
+    if (client.icon && clientIconID(client.icon)) return clientIconSrc(client.icon);
+    return `/static/icons/${encodeURIComponent(defaultClientIcon(client.id))}.svg`;
+  }
+  function formatLabel(templateID?: string): string {
+    if (!templateID) return '';
+    const tpl = templates.find((item) => item.id === templateID);
+    return tpl ? `${tpl.name || tpl.id} · ${tpl.extension}` : templateID;
+  }
+  interface RuleOutputInfo { id: string; name: string; icon: string; formats: string[] }
+  function ruleOutputs(raw: Record<string, unknown>): RuleOutputInfo[] {
+    const outputIDs = Array.isArray(raw.outputs) ? raw.outputs.map(String) : [];
+    return outputIDs.map((id) => {
+      const client = clients.find((item) => item.id === id);
+      const formats = client?.formats?.length
+        ? client.formats.map((format) => formatLabel(format.template))
+        : [formatLabel(client?.template)];
+      return {
+        id,
+        name: client?.name || id,
+        icon: client ? ruleClientIcon(client) : `/static/icons/${encodeURIComponent(defaultClientIcon(id))}.svg`,
+        formats: formats.filter(Boolean),
+      };
+    });
   }
 
   function filesState(nextDirty: boolean, nextBusy: boolean) {
@@ -181,6 +208,7 @@
       snapshot = cfg;
       statuses = list.items || [];
       files = local.items || [];
+      void api.listTemplates().then((res) => { templates = res.items || []; }).catch(() => { templates = []; });
     } catch (e) { fail(e); }
     finally { loading = false; }
   }
@@ -350,7 +378,7 @@
 
 <svelte:window
   onbeforeunload={event => { if (dirty || filesDirty || busy || filesBusy || previewing) { event.preventDefault(); event.returnValue = ''; } }}
-  onscroll={hideRefs} />
+  onscroll={hideHint} />
 <div class="rules-page">
   <PixelTabs id="rules" label="规则管理" items={tabs.map(item => ({ ...item, disabled: filesBusy || busy || previewing }))}
     value={tab} onchange={switchTab} />
@@ -444,6 +472,7 @@
               {@const refs = topologies.get(rule.id) ?? { upstream: [], downstream: [] }}
               {@const hasOut = refs.upstream.length > 0}
               {@const hasIn = refs.downstream.length > 0}
+              {@const outs = ruleOutputs(rule.raw)}
               <tr class:selected={selecting && selectedSet.has(rule.id)} class:drop-target={dropTarget === rule.id}
                 ondragover={(event) => { if (!canReorder || !dragging) return; event.preventDefault(); dropTarget = rule.id; }}
                 ondrop={(event) => { event.preventDefault(); dropRule(rule.id); }}>
@@ -462,35 +491,61 @@
                 {/if}
                 <td class="col-name">
                   <div class="rule-identity">
-                    <button class="rule-open" type="button" onclick={() => edit(rule.raw)}>
-                      <div class="rule-name font-name">{rule.name}</div>
-                      <div class="rule-id">{rule.id}</div>
-                    </button>
-                    <button
-                      type="button"
-                      class="refs-mark"
-                      aria-label={hasOut || hasIn
-                        ? `引用关系，引用 ${refs.upstream.length}，被引用 ${refs.downstream.length}`
-                        : '没有引用关系'}
-                      aria-expanded={refsHint?.id === rule.id}
-                      onpointerenter={(event) => showRefs(rule.id, event.currentTarget)}
-                      onpointerleave={hideRefs}
-                      onfocus={(event) => showRefs(rule.id, event.currentTarget, true)}
-                      onblur={hideRefs}
-                      onclick={(event) => {
-                        event.stopPropagation();
-                        if (refsHint?.id === rule.id) hideRefs();
-                        else showRefs(rule.id, event.currentTarget, true);
-                      }}
-                      onkeydown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); hideRefs(); } }}
-                    >
-                      <span class="ref-dir" class:on={hasOut}>
-                        <PixelIcon name="ref-out" size={16} />
-                      </span>
-                      <span class="ref-dir" class:on={hasIn}>
-                        <PixelIcon name="ref-in" size={16} />
-                      </span>
-                    </button>
+                    <div class="rule-text">
+                      <button class="rule-open" type="button" onclick={() => edit(rule.raw)}>
+                        <div class="rule-name font-name">{rule.name}</div>
+                      </button>
+                      <div class="rule-sub">
+                        <button class="rule-open rule-id-open" type="button" aria-label="编辑规则 {rule.name}" onclick={() => edit(rule.raw)}>
+                          <span class="rule-id text-dim">{rule.id}</span>
+                        </button>
+                        {#if outs.length}
+                          <button
+                            type="button"
+                            class="outputs-mark"
+                            aria-label={`输出客户端 ${outs.length} 个：${outs.map((out) => out.name).join('、')}`}
+                            aria-expanded={hint?.kind === 'outputs' && hint.id === rule.id}
+                            onpointerenter={(event) => showHint('outputs', rule.id, event.currentTarget)}
+                            onpointerleave={hideHint}
+                            onfocus={(event) => showHint('outputs', rule.id, event.currentTarget, true)}
+                            onblur={hideHint}
+                            onclick={(event) => {
+                              event.stopPropagation();
+                              if (hint?.kind === 'outputs' && hint.id === rule.id) hideHint();
+                              else showHint('outputs', rule.id, event.currentTarget, true);
+                            }}
+                            onkeydown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); hideHint(); } }}
+                          >
+                            {#each outs.slice(0, 4) as out (out.id)}
+                              <img src={out.icon} width="12" height="12" alt="" />
+                            {/each}
+                            {#if outs.length > 4}
+                              <span class="outputs-more text-dim">+{outs.length - 4}</span>
+                            {/if}
+                          </button>
+                        {/if}
+                      </div>
+                    </div>
+                    {#if hasOut || hasIn}
+                      <button
+                        type="button"
+                        class="refs-mark"
+                        aria-label={`引用关系，引用 ${refs.upstream.length}，被引用 ${refs.downstream.length}`}
+                        aria-expanded={hint?.kind === 'refs' && hint.id === rule.id}
+                        onpointerenter={(event) => showHint('refs', rule.id, event.currentTarget)}
+                        onpointerleave={hideHint}
+                        onfocus={(event) => showHint('refs', rule.id, event.currentTarget, true)}
+                        onblur={hideHint}
+                        onclick={(event) => {
+                          event.stopPropagation();
+                          if (hint?.kind === 'refs' && hint.id === rule.id) hideHint();
+                          else showHint('refs', rule.id, event.currentTarget, true);
+                        }}
+                        onkeydown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); hideHint(); } }}
+                      >
+                        <RefsIcon direction={hasOut && hasIn ? 'both' : hasOut ? 'left' : 'right'} size={16} />
+                      </button>
+                    {/if}
                   </div>
                 </td>
                 <td class="num">{rule.entries.toLocaleString()}</td>
@@ -519,26 +574,47 @@
           {/if}
         </tbody>
       </PixelTable>
-      {#if refsHint}
-        {@const refs = topologies.get(refsHint.id) ?? { upstream: [], downstream: [] }}
-        <div class="refs-bubble" class:above={refsHint.above} role="tooltip" style="top: {refsHint.top}px; left: {refsHint.left}px">
-          <div>
-            <strong>引用</strong>
-            {#if refs.upstream.length}
-              <ul>{#each refs.upstream as item}<li>{item.name || item.id}</li>{/each}</ul>
-            {:else}
-              <p>没有引用其他规则</p>
-            {/if}
+      {#if hint}
+        {@const current = hint}
+        {#if current.kind === 'refs'}
+          {@const refs = topologies.get(current.id) ?? { upstream: [], downstream: [] }}
+          <div class="refs-bubble" class:above={current.above} role="tooltip" style="top: {current.top}px; left: {current.left}px">
+            <div>
+              <strong>引用</strong>
+              {#if refs.upstream.length}
+                <ul>{#each refs.upstream as item}<li>{item.name || item.id}</li>{/each}</ul>
+              {:else}
+                <p>没有引用其他规则</p>
+              {/if}
+            </div>
+            <div>
+              <strong>被引用</strong>
+              {#if refs.downstream.length}
+                <ul>{#each refs.downstream as item}<li>{item.name || item.id}</li>{/each}</ul>
+              {:else}
+                <p>没有被其他规则引用</p>
+              {/if}
+            </div>
           </div>
-          <div>
-            <strong>被引用</strong>
-            {#if refs.downstream.length}
-              <ul>{#each refs.downstream as item}<li>{item.name || item.id}</li>{/each}</ul>
-            {:else}
-              <p>没有被其他规则引用</p>
-            {/if}
-          </div>
-        </div>
+        {:else}
+          {@const rule = rows.find((item) => item.id === current.id)}
+          {#if rule}
+            <div class="refs-bubble outputs-bubble" class:above={current.above} role="tooltip" style="top: {current.top}px; left: {current.left}px">
+              <strong>输出客户端</strong>
+              <ul class="out-list">
+                {#each ruleOutputs(rule.raw) as out (out.id)}
+                  <li>
+                    <img src={out.icon} width="16" height="16" alt="" />
+                    <span class="out-meta">
+                      <span class="out-name">{out.name}</span>
+                      {#each out.formats as fmt}<span class="out-format">{fmt}</span>{/each}
+                    </span>
+                  </li>
+                {/each}
+              </ul>
+            </div>
+          {/if}
+        {/if}
       {/if}
     </div>
   {:else if tab === 'files'}
@@ -692,7 +768,7 @@
   .rules-error, .notice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--status-error); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--text); overflow-wrap: anywhere; }
   .notice { background: var(--surface-2); }
   .notice.error, .rules-error:not(.notice) { background: var(--status-error); }
-  .rule-id { margin-top: 4px; color: var(--dim); font: 400 13px/20px var(--font-code); }
+  .rule-id { color: var(--dim); font: 400 13px/20px var(--font-code); }
   .text-sec { color: var(--sec); font-variant-numeric: tabular-nums; white-space: nowrap; }
   .status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
   .status-cell :global(.pixel-badge) { align-self: flex-start; max-width: 100%; width: fit-content; }
@@ -718,31 +794,36 @@
   .drag-handle { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--dim); cursor: grab; }
   .drag-handle:disabled { opacity: .35; cursor: not-allowed; }
   .rule-identity { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
-  .rule-open { display: block; flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
+  .rule-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .rule-open { display: block; width: fit-content; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
   .rule-name, .rule-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .refs-mark {
+  .rule-sub { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-width: 0; }
+  .rule-id-open { flex-shrink: 1; min-width: 0; }
+  .refs-mark, .outputs-mark {
     display: inline-flex;
     align-items: center;
     justify-content: center;
     flex-shrink: 0;
-    gap: 2px;
-    margin-top: 0;
     padding: 2px;
     border: 1px solid transparent;
     border-radius: 3px;
     background: transparent;
     cursor: default;
   }
-  .ref-dir { display: inline-flex; color: var(--dim); opacity: .38; }
-  .ref-dir.on { color: var(--display); opacity: 1; }
+  .refs-mark { width: 24px; height: 24px; color: var(--display); }
+  .outputs-mark { gap: 2px; padding: 2px 3px; }
+  .outputs-mark img { width: 12px; height: 12px; image-rendering: pixelated; }
+  .outputs-more { color: var(--sec); font: 400 12px/18px var(--font-display); padding-left: 2px; }
   .refs-mark:hover,
   .refs-mark:focus-visible,
-  .refs-mark[aria-expanded='true'] {
+  .refs-mark[aria-expanded='true'],
+  .outputs-mark:hover,
+  .outputs-mark:focus-visible,
+  .outputs-mark[aria-expanded='true'] {
     background: var(--surface-2);
     border-color: var(--border-vis);
   }
-  :global(.pixel-table tbody tr.selected) .ref-dir { color: var(--selected-text); opacity: .35; }
-  :global(.pixel-table tbody tr.selected) .ref-dir.on { opacity: 1; }
+  :global(.pixel-table tbody tr.selected) .refs-mark { color: var(--selected-text); }
   .refs-bubble {
     position: fixed;
     z-index: 40;
@@ -781,6 +862,13 @@
   .refs-bubble.above::after { top: auto; bottom: -4px; border-bottom: 0; border-top: 4px solid var(--surface-2); }
   .refs-bubble strong { font: 400 11px/17px var(--font-ui); color: var(--sec); }
   .refs-bubble p, .refs-bubble ul { margin: 2px 0 0; padding: 0; list-style: none; color: var(--text); }
+  .outputs-bubble { max-width: 280px; }
+  .out-list { display: grid; gap: 6px; }
+  .out-list li { display: flex; align-items: flex-start; gap: 8px; }
+  .out-list img { width: 16px; height: 16px; margin-top: 1px; image-rendering: pixelated; }
+  .out-meta { display: grid; gap: 1px; min-width: 0; }
+  .out-name { color: var(--text); overflow-wrap: anywhere; }
+  .out-format { color: var(--sec); font: 400 11px/17px var(--font-code); overflow-wrap: anywhere; }
   .rule-actions { display: inline-flex; flex-wrap: nowrap; gap: 6px; }
   :global(.pixel-table tbody tr.drop-target) { background: var(--status-info); }
   h3, legend { font: 400 12px/20px var(--font-ui); color: var(--display); margin: 0; }

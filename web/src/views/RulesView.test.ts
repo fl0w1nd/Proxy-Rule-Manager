@@ -25,6 +25,9 @@ beforeEach(() => {
   vi.spyOn(api, 'getConfig').mockResolvedValue({ version: 4, config: { clients, rules: [existing] } });
   vi.spyOn(api, 'getRules').mockResolvedValue({ items: [{ id: 'base', name: 'Base', entries: 12, version_at: '2026-09-08T12:00:00.000Z' }] });
   vi.spyOn(api, 'listLocalFiles').mockResolvedValue({ items: files });
+  vi.spyOn(api, 'listTemplates').mockResolvedValue({ items: [
+    { id: 'mihomo-classical', name: 'Classical', codec: 'text', extension: '.list', builtin: true },
+  ] });
 });
 afterEach(() => vi.restoreAllMocks());
 
@@ -101,6 +104,32 @@ describe('RulesView', () => {
     await fireEvent.click(screen.getAllByRole('button', { name: '删除' })[0]);
     expect(screen.getByRole('status')).toHaveTextContent('Child');
     expect(save).toHaveBeenCalledTimes(1);
+  });
+
+  it('shows output client icons and hides the refs connector when a rule has no references', async () => {
+    render(RulesView, { onStartUpdate: vi.fn() });
+    await screen.findByText('Base');
+    const outputs = screen.getByRole('button', { name: /输出客户端 1 个：Mihomo/ });
+    expect(outputs.querySelectorAll('img')).toHaveLength(1);
+    expect(outputs.querySelector('img')?.getAttribute('src')).toBe('/static/icons/mihomo.svg');
+    expect(screen.queryByRole('button', { name: /引用关系/ })).toBeNull();
+  });
+
+  it('renders a single connector glyph per reference direction and lists formats in the outputs bubble', async () => {
+    vi.mocked(api.getConfig).mockResolvedValue({
+      version: 4,
+      config: {
+        clients,
+        rules: [existing, { id: 'child', name: 'Child', sources: [{ ref: 'base' }], outputs: ['mihomo'] }],
+      },
+    });
+    render(RulesView, { onStartUpdate: vi.fn() });
+    await screen.findByText('Child');
+    expect(screen.getByRole('button', { name: '引用关系，引用 1，被引用 0' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '引用关系，引用 0，被引用 1' })).toBeInTheDocument();
+    const outputs = screen.getAllByRole('button', { name: /输出客户端 1 个：Mihomo/ })[0];
+    await fireEvent.focus(outputs);
+    expect(await screen.findByText('Classical · .list')).toBeInTheDocument();
   });
 
   it('previews a draft without saving', async () => {
