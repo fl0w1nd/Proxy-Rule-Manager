@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onDestroy, onMount } from 'svelte';
+  import { onDestroy, onMount, tick } from 'svelte';
   import { api, APIRequestError, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
   import PixelTable from '../components/pixel/PixelTable.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
@@ -13,7 +13,7 @@
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
   import PixelSwitch from '../components/pixel/PixelSwitch.svelte';
   import OpsEditor from '../components/forms/OpsEditor.svelte';
-  import CodePanel from '../components/CodePanel.svelte';
+  import RulePreviewPanel from '../components/RulePreviewPanel.svelte';
   import SourceEditor from './SourceEditor.svelte';
   import LocalFilesView from './LocalFilesView.svelte';
   import { clientIconID, clientIconSrc, defaultClientIcon, type ClientConfig } from './clients';
@@ -29,6 +29,7 @@
     splitCSV,
     validateRule,
     type RuleConfig,
+    type RuleIssue,
   } from './rules';
   import { retroScroll } from '../utils/scrollbars';
   import rulesIcon from '../assets/icons/nav/rules.svg';
@@ -62,6 +63,7 @@
   let busy = $state(false);
   let message = $state('');
   let error = $state(false);
+  let fieldError = $state<RuleIssue | null>(null);
   let open = $state(false);
   let editing = $state('');
   let draft = $state<RuleConfig>(emptyRule());
@@ -77,11 +79,15 @@
   let batchClient = $state('');
   let dragging = $state('');
   let dropTarget = $state('');
-  let editorTab = $state('edit');
-  let previewClient = $state('');
+  let editorTab = $state('props');
+  let drawerView = $state<'edit' | 'preview'>('edit');
   let previewing = $state(false);
   let preview = $state<RulePreview | null>(null);
-  let previewTab = $state('');
+  let rowPreviewOpen = $state(false);
+  let rowPreviewing = $state(false);
+  let rowPreview = $state<RulePreview | null>(null);
+  let rowPreviewError = $state('');
+  let rowPreviewName = $state('');
   let hint = $state<{ kind: 'refs' | 'outputs'; id: string; top: number; left: number; above: boolean } | null>(null);
   let hintTimer = 0;
   let templates = $state<TemplateItem[]>([]);
@@ -132,9 +138,23 @@
   const selectedSet = $derived(new Set(selected));
   const filteredSelected = $derived(filteredRules.filter((rule) => selectedSet.has(rule.id)).length);
   const canReorder = $derived(!searchQuery && !busy && !isUpdating);
-  const previewOutputs = $derived(preview?.outputs ?? []);
-  const previewClients = $derived([...new Map(previewOutputs.map(item => [item.client_id, { value: item.client_id, label: item.client_name }])).values()]);
-  const previewFormats = $derived(previewOutputs.filter(item => item.client_id === previewClient));
+  const issueTab: Record<string, string> = { id: 'props', name: 'props', sources: 'sources', merge: 'pipeline', ops: 'pipeline', outputs: 'outputs' };
+  const editorTabs = $derived([
+    { value: 'props', label: '属性', alert: fieldError?.path === 'id' || fieldError?.path === 'name' },
+    { value: 'sources', label: '来源', alert: fieldError?.path === 'sources' },
+    { value: 'pipeline', label: '处理', alert: fieldError?.path === 'merge' || fieldError?.path === 'ops' },
+    { value: 'outputs', label: '输出', alert: fieldError?.path === 'outputs' },
+  ].map((item) => ({ ...item, disabled: busy || previewing })));
+  const groupProcessingCount = $derived(draft.sources.filter((source) => source.group && (source.preprocess !== undefined || (source.ops?.length ?? 0) > 0)).length);
+  const preprocessStats = $derived.by(() => {
+    let inherit = 0, override = 0, off = 0;
+    for (const source of draft.sources) {
+      if (source.preprocess === undefined) inherit++;
+      else if (source.preprocess) override++;
+      else off++;
+    }
+    return { inherit, override, off };
+  });
 
   $effect(() => { onstatechange?.(dirty || filesDirty, busy || filesBusy || previewing); });
   onMount(() => { void load(); });
@@ -239,12 +259,14 @@
     const next = raw ? readRule(raw) : emptyRule();
     editing = raw ? next.id : '';
     draft = next;
-    editorTab = 'edit';
+    editorTab = 'props';
+    drawerView = 'edit';
     preview = null;
     tagText = (next.tags ?? []).join(', ');
     baseline = JSON.stringify({ ...next, tags: splitCSV(tagText) });
     message = '';
     error = false;
+    fieldError = null;
     open = true;
     void api.listLocalFiles().then((res) => { files = res.items || []; }).catch(fail);
   }
@@ -254,12 +276,30 @@
     return true;
   }
   function applyTags() { draft = { ...draft, tags: splitCSV(tagText) }; }
+  function clearFieldError(path: string) {
+    if (fieldError?.path === path) fieldError = null;
+  }
+  async function scrollToIssue(path: string) {
+    await tick();
+    const el = document.querySelector(`.editor-form [data-field="${path}"]`);
+    el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
+    if (path === 'id' || path === 'name') (el?.querySelector('input') as HTMLElement | null)?.focus({ preventScroll: true });
+  }
+  function reject(issue: RuleIssue) {
+    fieldError = issue;
+    message = issue.message;
+    error = true;
+    drawerView = 'edit';
+    editorTab = issueTab[issue.path] ?? 'props';
+    void scrollToIssue(issue.path);
+  }
   async function save() {
     if (!snapshot || busy) return;
     applyTags();
-    const validation = validateRule(draft, identities, clients, files, editing);
-    if (validation) { message = validation; error = true; return; }
+    const issue = validateRule(draft, identities, clients, files, editing);
+    if (issue) { reject(issue); return; }
     busy = true; message = '';
+    fieldError = null;
     try {
       const value = serializeRule(draft);
       const result = await api.patchConfig(snapshot.version, [editing ? { op: 'update_rule', id: editing, value } : { op: 'add_rule', value }]);
@@ -273,20 +313,35 @@
     } catch (e) { fail(e); }
     finally { busy = false; }
   }
+  function openDraftPreview() {
+    drawerView = 'preview';
+    void runPreview();
+  }
   async function runPreview() {
     if (previewing) return;
     preview = null;
     applyTags();
-    const validation = validateRule(draft, identities, clients, files, editing);
-    if (validation) { message = validation; error = true; return; }
+    const issue = validateRule(draft, identities, clients, files, editing);
+    if (issue) { reject(issue); return; }
     previewing = true; message = '';
+    fieldError = null;
     try {
       preview = await api.previewRule(serializeRule(draft));
-      previewTab = preview.outputs[0]?.id ?? '';
-      previewClient = preview.outputs[0]?.client_id ?? '';
       error = false;
     } catch (e) { fail(e); }
     finally { previewing = false; }
+  }
+  async function openRulePreview(raw: Record<string, unknown>) {
+    if (rowPreviewing) return;
+    rowPreviewName = String(raw.name || raw.id || '');
+    rowPreview = null;
+    rowPreviewError = '';
+    rowPreviewOpen = true;
+    rowPreviewing = true;
+    try {
+      rowPreview = await api.previewRule(serializeRule(readRule(raw)));
+    } catch (e) { rowPreviewError = (e as Error).message; }
+    finally { rowPreviewing = false; }
   }
   function askDelete(raw: Record<string, unknown>) {
     const id = String(raw.id ?? '');
@@ -370,10 +425,6 @@
     } catch (e) { fail(e); await load(); }
     finally { busy = false; }
   }
-  function durationLabel(ms: number) {
-    if (ms < 1000) return `${ms} ms`;
-    return `${(ms / 1000).toFixed(2)} s`;
-  }
 </script>
 
 <svelte:window
@@ -435,7 +486,7 @@
         </div>
       {/if}
 
-      <PixelTable class="rules-table" minWidth="760px">
+      <PixelTable class="rules-table" minWidth="820px">
         <colgroup>
           <col class="c-lead" />
           {#if selecting}<col class="c-lead" />{/if}
@@ -563,6 +614,7 @@
                 <td class="col-actions">
                   <div class="rule-actions">
                     <PixelButton size="sm" disabled={busy} onclick={() => edit(rule.raw)}>编辑</PixelButton>
+                    <PixelButton size="sm" disabled={busy} onclick={() => openRulePreview(rule.raw)}>预览</PixelButton>
                     <PixelButton size="sm" variant="secondary" disabled={isUpdating || isRuleActive || busy}
                       title={isUpdating ? '当前有更新任务正在进行中' : '更新此规则'}
                       onclick={() => onStartUpdate('rules', [rule.id])}>更新</PixelButton>
@@ -624,114 +676,127 @@
   {/if}
 </div>
 
-<PixelDrawer bind:open title={editing ? '编辑规则' : '新建规则'} icon={rulesIcon} width="760px" onrequestclose={requestClose}>
+<PixelDrawer bind:open title={drawerView === 'preview' ? `预览 · ${draft.name || draft.id || '未命名'}` : editing ? '编辑规则' : '新建规则'} icon={rulesIcon} width="760px" onrequestclose={requestClose}>
   <div class="editor-form">
     {#if message}<div class="notice" class:error role="status">{message}</div>{/if}
-    <PixelTabs id="rule-editor" label="规则编辑" items={[{ value: 'edit', label: '编辑', disabled: busy || previewing }, { value: 'preview', label: '调试预览', disabled: busy || previewing }]} value={editorTab} onchange={value => { if (value === editorTab) return; editorTab = value; if (value === 'preview') void runPreview(); }} />
-    {#if editorTab === 'edit'}
-    <div role="tabpanel" id="rule-editor-panel-edit" aria-labelledby="rule-editor-tab-edit" class="editor-fields">
-    <fieldset disabled={busy || previewing}>
-      <legend>基本属性</legend>
-      <div class="fields">
-        <label>规则 ID<input bind:value={draft.id} disabled={!!editing} placeholder="例如：google" /></label>
-        <label>名称<input bind:value={draft.name} placeholder="显示名称" /></label>
-        <label class="full">说明<textarea bind:value={draft.description} rows="2" placeholder="可选说明"></textarea></label>
-        <label class="full">标签<input bind:value={tagText} placeholder="用逗号分隔" /></label>
-      </div>
-    </fieldset>
-
-    <SourceEditor bind:sources={draft.sources} bind:preprocess={draft.preprocess} disabled={busy || previewing} {fileOptions} {refOptions} />
-
-    <section>
-      <div class="section-head"><h3>合并策略</h3></div>
-      <div class="format-single">
-        <PixelSelect id="rule-merge" label="合并策略" options={[...mergeStrategies]} value={draft.merge?.strategy || 'union'} disabled={busy || previewing}
-          onchange={(value) => { draft.merge = { strategy: value }; }} />
-      </div>
-    </section>
-
-    <section aria-label="全局过滤链">
-      <div class="section-head"><h3>全局过滤链</h3></div>
-      <div class="format-single"><OpsEditor bind:value={draft.ops!} disabled={busy || previewing} /></div>
-    </section>
-
-    <section>
-      <div class="section-head"><h3>输出客户端</h3></div>
-      {#if !clients.length}
-        <p class="empty-hint">还没有客户端。请先在客户端管理中创建。</p>
-      {:else}
-        <div class="outputs">
-          {#each clients as client (client.id)}
-            <PixelCheckbox
-              label={client.name || client.id}
-              checked={draft.outputs.includes(client.id)}
-              disabled={busy || previewing}
-              onchange={(checked) => {
-                draft.outputs = checked ? [...draft.outputs, client.id] : draft.outputs.filter((id) => id !== client.id);
-              }}
-            />
-          {/each}
+    {#if drawerView === 'edit'}
+      <PixelTabs id="rule-editor" label="规则编辑" items={editorTabs} value={editorTab} onchange={value => { editorTab = value; }} />
+      {#if editorTab === 'props'}
+      <div role="tabpanel" id="rule-editor-panel-props" aria-labelledby="rule-editor-tab-props" class="editor-fields">
+      <fieldset disabled={busy || previewing}>
+        <legend>基本属性</legend>
+        <div class="fields">
+          <label data-field="id">规则 ID<input class:error={fieldError?.path === 'id'} aria-invalid={fieldError?.path === 'id' || undefined} bind:value={draft.id} disabled={!!editing} placeholder="例如：google" oninput={() => clearFieldError('id')} />
+            {#if fieldError?.path === 'id'}<span class="field-error">{fieldError.message}</span>{/if}
+          </label>
+          <label data-field="name">名称<input class:error={fieldError?.path === 'name'} aria-invalid={fieldError?.path === 'name' || undefined} bind:value={draft.name} placeholder="显示名称" oninput={() => clearFieldError('name')} />
+            {#if fieldError?.path === 'name'}<span class="field-error">{fieldError.message}</span>{/if}
+          </label>
+          <label class="full">说明<textarea bind:value={draft.description} rows="2" placeholder="可选说明"></textarea></label>
+          <label class="full">标签<input bind:value={tagText} placeholder="用逗号分隔" /></label>
         </div>
+      </fieldset>
+      </div>
+      {:else if editorTab === 'sources'}
+      <div role="tabpanel" id="rule-editor-panel-sources" aria-labelledby="rule-editor-tab-sources" class="editor-fields">
+      <section aria-label="统一预处理" class="unified-preprocess">
+        <h3>统一预处理 <span class="optional-tag">可选</span></h3>
+        <p class="unified-hint">应用于所有未单独配置的来源 · 继承 {preprocessStats.inherit} · 覆盖 {preprocessStats.override} · 禁用 {preprocessStats.off}</p>
+        <label>JavaScript<textarea bind:value={draft.preprocess} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"} disabled={busy || previewing}></textarea></label>
+      </section>
+      <div class="field-zone" data-field="sources" oninput={() => clearFieldError('sources')} onchange={() => clearFieldError('sources')}>
+        {#if fieldError?.path === 'sources'}<p class="field-error">{fieldError.message}</p>{/if}
+        <SourceEditor bind:sources={draft.sources} preprocess={draft.preprocess} disabled={busy || previewing} {fileOptions} {refOptions} />
+      </div>
+      </div>
+      {:else if editorTab === 'pipeline'}
+      <div role="tabpanel" id="rule-editor-panel-pipeline" aria-labelledby="rule-editor-tab-pipeline" class="editor-fields">
+      {#if groupProcessingCount}
+        <p class="pipeline-hint">
+          {groupProcessingCount} 个来源组配置了独立预处理/过滤
+          <button type="button" class="pipeline-link" onclick={() => { editorTab = 'sources'; }}>查看来源</button>
+        </p>
       {/if}
-    </section>
-    </div>
-    {:else}
-    <div role="tabpanel" id="rule-editor-panel-preview" aria-labelledby="rule-editor-tab-preview">
-  {#if previewing}<p role="status" class="preview-meta">正在抓取来源并编译…</p>{/if}
-  {#if preview}
-    <div class="preview-report">
-      <p class="preview-meta">{preview.rule_name} · {preview.elapsed_ms} ms · 合并 {preview.merged} 条</p>
-      <div class="preview-sources">
-        {#each preview.sources as source}
-          <div class="preview-source">
-            <strong>{source.label}</strong>
-            {#each source.details ?? [] as detail}<span class="source-detail">{detail}</span>{/each}
-            <span>{source.type} · {source.entries} 条 · {durationLabel(source.duration_ms)}</span>
-            {#if source.error}<em>{source.error}</em>{/if}
+      <section data-field="merge" oninput={() => clearFieldError('merge')} onchange={() => clearFieldError('merge')}>
+        <div class="section-head"><h3>合并策略</h3></div>
+        {#if fieldError?.path === 'merge'}<p class="field-error section-error">{fieldError.message}</p>{/if}
+        <div class="format-single">
+          <PixelSelect id="rule-merge" label="合并策略" options={[...mergeStrategies]} value={draft.merge?.strategy || 'union'} disabled={busy || previewing}
+            onchange={(value) => { draft.merge = { strategy: value }; }} />
+        </div>
+      </section>
+      <section aria-label="全局过滤链" data-field="ops" oninput={() => clearFieldError('ops')} onchange={() => clearFieldError('ops')}>
+        <div class="section-head"><h3>全局过滤链</h3></div>
+        {#if fieldError?.path === 'ops'}<p class="field-error section-error">{fieldError.message}</p>{/if}
+        <div class="format-single"><OpsEditor bind:value={draft.ops!} disabled={busy || previewing} /></div>
+      </section>
+      </div>
+      {:else}
+      <div role="tabpanel" id="rule-editor-panel-outputs" aria-labelledby="rule-editor-tab-outputs" class="editor-fields">
+      <section data-field="outputs" oninput={() => clearFieldError('outputs')} onchange={() => clearFieldError('outputs')}>
+        <div class="section-head"><h3>输出客户端</h3></div>
+        {#if fieldError?.path === 'outputs'}<p class="field-error section-error">{fieldError.message}</p>{/if}
+        {#if !clients.length}
+          <p class="empty-hint">还没有客户端。请先在客户端管理中创建。</p>
+        {:else}
+          <div class="outputs">
+            {#each clients as client (client.id)}
+              {@const formats = (client.formats?.length ? client.formats.map((format) => formatLabel(format.template)) : [formatLabel(client.template)]).filter(Boolean)}
+              {@const on = draft.outputs.includes(client.id)}
+              <div class="output-item" class:on>
+                <div class="output-head">
+                  <img src={ruleClientIcon(client)} width="16" height="16" alt="" />
+                  <PixelCheckbox
+                    label={client.name || client.id}
+                    checked={on}
+                    disabled={busy || previewing}
+                    onchange={(checked) => {
+                      draft.outputs = checked ? [...draft.outputs, client.id] : draft.outputs.filter((id) => id !== client.id);
+                    }}
+                  />
+                </div>
+                {#if formats.length}
+                  <div class="output-formats">
+                    {#each formats as fmt}<span>{fmt}</span>{/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
           </div>
-        {/each}
+        {/if}
+      </section>
       </div>
-      {#if preview.ops_error}
-        <div class="notice error">{preview.ops_error}</div>
       {/if}
-      <p class="preview-diff">过滤 {preview.pre_ops} → {preview.post_ops}，新增 {preview.ops_diff.added}，移除 {preview.ops_diff.removed}</p>
-      {#if preview.ops_diff.groups?.length}
-        <ul class="diff-samples">
-          {#each preview.ops_diff.groups as group}
-            {#each group.added ?? [] as item}<li class="add">+ {item}</li>{/each}
-            {#each group.removed ?? [] as item}<li class="del">− {item}</li>{/each}
-          {/each}
-        </ul>
-      {/if}
-      {#if previewOutputs.length}
-        <PixelTabs id="rule-preview-clients" label="输出客户端" items={previewClients} value={previewClient} onchange={value => { previewClient = value; previewTab = previewOutputs.find(item => item.client_id === value)?.id ?? ''; }} />
-        <div role="tabpanel" id="rule-preview-clients-panel-{previewClient}" aria-labelledby="rule-preview-clients-tab-{previewClient}" class="preview-formats">
-        <PixelTabs id="rule-preview-outputs" label="客户端格式" items={previewFormats.map((item) => ({ value: item.id, label: item.name || item.id }))} bind:value={previewTab} />
-        {#each previewFormats as item (item.id)}
-          {#if previewTab === item.id}
-            <div role="tabpanel" id="rule-preview-outputs-panel-{item.id}" aria-labelledby="rule-preview-outputs-tab-{item.id}">
-            {#if item.error}
-              <div class="notice error">{item.error}</div>
-            {:else}
-              <CodePanel filename={item.id} stat={`${item.output?.split('\n').length ?? 0} LINES`}>
-                <pre use:retroScroll>{item.output}{item.truncated ? '\n… 内容已截断' : ''}</pre>
-              </CodePanel>
-            {/if}
-            </div>
-          {/if}
-        {/each}
-        </div>
-      {:else}
-        <p class="empty-hint">未选择输出客户端，因此没有产物预览。</p>
-      {/if}
-    </div>
-  {/if}
-    </div>
+    {:else}
+      <div class="editor-fields">
+        {#if previewing}<p role="status" class="preview-meta">正在抓取来源并编译…</p>{/if}
+        {#if preview}
+          {#key preview}<RulePreviewPanel {preview} />{/key}
+        {/if}
+      </div>
     {/if}
   </div>
   {#snippet footer()}
-    <PixelButton disabled={busy || previewing} onclick={() => { if (requestClose()) open = false; }}>关闭</PixelButton>
+    {#if drawerView === 'edit'}
+      <PixelButton disabled={busy || previewing} onclick={() => { if (requestClose()) open = false; }}>关闭</PixelButton>
+      <PixelButton disabled={busy || previewing} onclick={openDraftPreview}>预览当前修改</PixelButton>
+    {:else}
+      <PixelButton disabled={busy || previewing} onclick={() => { drawerView = 'edit'; }}>返回编辑</PixelButton>
+    {/if}
     <PixelButton variant="primary" disabled={busy || previewing || (!dirty && !!editing)} onclick={save}>{busy ? '保存中…' : '保存规则'}</PixelButton>
+  {/snippet}
+</PixelDrawer>
+
+<PixelDrawer bind:open={rowPreviewOpen} title={`预览 · ${rowPreviewName}`} icon={rulesIcon} width="760px">
+  <div class="editor-form">
+    {#if rowPreviewing}<p role="status" class="preview-meta">正在抓取来源并编译…</p>{/if}
+    {#if rowPreviewError}<div class="notice error" role="status">{rowPreviewError}</div>{/if}
+    {#if rowPreview}
+      {#key rowPreview}<RulePreviewPanel preview={rowPreview} />{/key}
+    {/if}
+  </div>
+  {#snippet footer()}
+    <PixelButton onclick={() => { rowPreviewOpen = false; }}>关闭</PixelButton>
   {/snippet}
 </PixelDrawer>
 
@@ -779,7 +844,7 @@
   :global(.rules-table .c-num) { width: 96px; }
   :global(.rules-table .c-time) { width: 170px; }
   :global(.rules-table .c-status) { width: 180px; }
-  :global(.rules-table .c-actions) { width: 180px; }
+  :global(.rules-table .c-actions) { width: 240px; }
   :global(.rules-table .pixel-table .lead-col) { padding-left: 8px; padding-right: 8px; }
   :global(.rules-table .pixel-table .col-name),
   :global(.rules-table .pixel-table .col-actions) { overflow: hidden; }
@@ -881,24 +946,29 @@
   input { min-height: 32px; }
   textarea { min-height: 72px; resize: vertical; }
   input:focus-visible, textarea:focus-visible { outline: 1px solid var(--selected); border-color: var(--selected); }
+  input.error { border-color: var(--error-border); }
+  .field-error { margin: 0; color: var(--error-border); font: 12px/18px var(--font-ui); }
+  .section-error { margin: 8px 16px 0; }
+  .field-zone { display: grid; gap: 8px; min-width: 0; }
   .format-single { margin: 12px 16px 0; display: grid; gap: 8px; }
   .empty-hint { margin: 12px 16px 0; padding: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 4px; font: 12px/18px var(--font-ui); color: var(--sec); }
-  .outputs { margin: 12px 16px 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 8px; }
+  .outputs { margin: 12px 16px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+  .output-item { display: grid; gap: 4px; align-content: start; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
+  .output-item.on { border-color: var(--border-vis); background: var(--surface-2); }
+  .output-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .output-head img { width: 16px; height: 16px; flex-shrink: 0; image-rendering: pixelated; }
+  .output-formats { display: grid; gap: 1px; padding-left: 48px; color: var(--sec); font: 11px/17px var(--font-code); }
+  .output-formats span { overflow-wrap: anywhere; }
   .ref-conflict-content { display: grid; gap: 12px; }
   .ref-conflict-list { max-height: 240px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 3px; padding: 8px 12px; display: grid; gap: 4px; }
   .ref-conflict-item { padding: 3px 0; border-bottom: 1px dashed var(--border); }
   .ref-conflict-item:last-child { border-bottom: none; }
-  .editor-fields, .preview-formats { display: grid; gap: 18px; min-width: 0; }
-  .source-detail, .preview-source strong { overflow-wrap: anywhere; }
-  .preview-formats { border: 1px solid var(--border); padding: 12px; border-radius: 3px; }
-  .preview-report { display: grid; gap: 12px; }
-  .preview-meta, .preview-diff { margin: 0; color: var(--sec); }
-  .preview-sources { display: grid; gap: 6px; }
-  .preview-source { display: grid; gap: 2px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; }
-  .preview-source em { color: var(--text); }
-  .diff-samples { margin: 0; padding: 0; list-style: none; font: 12px/20px var(--font-code); }
-  .diff-samples .add { color: var(--text); }
-  .diff-samples .del { color: var(--sec); }
-  .preview-report :global(.code-panel pre) { margin: 0; max-height: 280px; overflow: auto; padding: 10px 12px; color: var(--terminal-text); font: 13px/20px var(--font-code); white-space: pre-wrap; }
+  .editor-fields { display: grid; gap: 18px; min-width: 0; }
+  .preview-meta { margin: 0; color: var(--sec); }
+  .pipeline-hint { margin: 0; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; color: var(--sec); font: 12px/18px var(--font-ui); }
+  .pipeline-link { padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
+  .unified-preprocess { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-vis); border-radius: 4px; background: var(--surface); }
+  .optional-tag { color: var(--dim); }
+  .unified-hint { margin: 0; color: var(--sec); font: 12px/18px var(--font-ui); }
   @media (max-width: 600px) { .fields { grid-template-columns: 1fr; } }
 </style>

@@ -63,13 +63,15 @@ describe('rule editor helpers', () => {
   });
 
   it('rejects missing sources, unknown files and cyclic refs', () => {
-    expect(validateRule({ id: 'child', name: 'Child', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'child')).toBe('来源 1 不能引用自身');
-    expect(validateRule({ id: 'base', name: 'Base', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'base')).toContain('循环');
-    expect(validateRule({ id: 'custom', name: 'Custom', sources: [{ kind: 'file', file: 'missing.list' }], outputs: ['mihomo'] }, rules, clients, files, '')).toContain('不存在的本地文件');
+    expect(validateRule({ id: 'child', name: 'Child', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'child')).toEqual({ path: 'sources', message: '来源 1 不能引用自身' });
+    expect(validateRule({ id: 'base', name: 'Base', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'base')?.message).toContain('循环');
+    expect(validateRule({ id: 'custom', name: 'Custom', sources: [{ kind: 'file', file: 'missing.list' }], outputs: ['mihomo'] }, rules, clients, files, '')?.message).toContain('不存在的本地文件');
     expect(validateRule({
       id: 'custom', name: 'Custom', sources: [{ kind: 'file', file: 'direct.list' }],
       ops: [{ type: 'include_kinds', kinds: ['domain'] }], outputs: ['mihomo', 'sing-box'],
-    }, rules, clients, files, '')).toBe('');
+    }, rules, clients, files, '')).toBeNull();
+    expect(validateRule({ id: '', name: 'X', sources: [{ kind: 'url', url: 'https://a' }], outputs: [] }, rules, clients, files, '')?.path).toBe('id');
+    expect(validateRule({ id: 'x', name: '', sources: [{ kind: 'url', url: 'https://a' }], outputs: [] }, rules, clients, files, '')?.path).toBe('name');
   });
 });
 
@@ -89,5 +91,5 @@ it('round-trips grouped sources, overrides and explicit preprocessing opt-out', 
 
 it('validates files and refs inside source groups', () => {
   const draft = readRule({ id: 'grouped', name: 'Grouped', outputs: [], sources: [{ group: [{ file: 'missing.list' }] }] });
-  expect(validateRule(draft, rules, clients, files, '')).toContain('不存在的本地文件');
+  expect(validateRule(draft, rules, clients, files, '')?.message).toContain('不存在的本地文件');
 });

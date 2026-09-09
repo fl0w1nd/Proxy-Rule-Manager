@@ -3,7 +3,7 @@
   import OpsEditor from '../components/forms/OpsEditor.svelte';
   import SourceFields from './SourceFields.svelte';
   import { emptySource, type RuleSource } from './rules';
-  let { sources = $bindable(), preprocess = $bindable(), disabled = false, fileOptions, refOptions }: {
+  let { sources = $bindable(), preprocess, disabled = false, fileOptions, refOptions }: {
     sources: RuleSource[]; preprocess?: string; disabled?: boolean;
     fileOptions: { value: string; label: string }[]; refOptions: { value: string; label: string }[];
   } = $props();
@@ -15,7 +15,9 @@
     const source = sources[index];
     if (source.group) return;
     const member = { ...source }; delete member.preprocess; delete member.ops;
-    sources[index] = { kind: 'group', label: source.label, group: [member], preprocess: source.preprocess ?? preprocess ?? '', ops: source.ops ?? [] };
+    // 保留三态语义：undefined 继承统一预处理、'' 显式禁用、脚本是独立覆盖，
+    // 不能把统一预处理物化进组，否则继承关系在保存时被静默改写。
+    sources[index] = { kind: 'group', label: source.label, group: [member], preprocess: source.preprocess, ops: source.ops ?? [] };
   }
   function move(target: number | null) {
     if (disabled || !dragging) return;
@@ -47,7 +49,7 @@
     } else if (destination.group) destination.group = [...destination.group, source];
     else {
       const member = { ...destination }; delete member.preprocess; delete member.ops;
-      const group: RuleSource = { kind: 'group', label: destination.label, group: [member, source], preprocess: destination.preprocess ?? preprocess ?? '', ops: destination.ops ?? [] };
+      const group: RuleSource = { kind: 'group', label: destination.label, group: [member, source], preprocess: destination.preprocess, ops: destination.ops ?? [] };
       sources = sources.map(item => item === destination ? group : item);
     }
     sources = sources.filter(item => !item.group || item.group.length > 0);
@@ -63,6 +65,27 @@
       {/each}
     </select>
   </label>
+{/snippet}
+
+{#snippet processing(source: RuleSource, opsLabel: string)}
+  <details class="processing">
+    <summary>预处理 · {source.preprocess === undefined ? '继承统一' : source.preprocess ? '已配置' : '已禁用'}</summary>
+    <div class="body">
+      <p class="inherit-hint">
+        {#if source.preprocess === undefined}
+          留空则继承统一预处理
+        {:else}
+          已覆盖统一预处理{source.preprocess === '' ? '（当前为禁用）' : ''}
+          <button type="button" class="inherit-reset" {disabled} onclick={() => source.preprocess = undefined}>恢复继承</button>
+        {/if}
+      </p>
+      <label>JavaScript<textarea value={source.preprocess ?? ''} oninput={event => source.preprocess = event.currentTarget.value} {disabled} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"}></textarea></label>
+    </div>
+  </details>
+  <details class="processing">
+    <summary>{opsLabel} · {source.ops?.length ?? 0} 项</summary>
+    <div class="body"><OpsEditor bind:value={source.ops!} {disabled} /></div>
+  </details>
 {/snippet}
 
 <section class="source-editor">
@@ -95,36 +118,22 @@
               </div>
             {/each}
             <PixelButton size="sm" {disabled} onclick={() => source.group = [...source.group!, emptySource()]}>添加组内来源</PixelButton>
-            <details class="processing">
-              <summary>预处理 · {(source.preprocess ?? preprocess) ? '已配置' : '未配置'}</summary>
-              <div class="body">
-                <label>JavaScript<textarea value={source.preprocess ?? preprocess} oninput={event => source.preprocess = event.currentTarget.value} {disabled} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"}></textarea></label>
-              </div>
-            </details>
-          <details class="processing">
-            <summary>组内过滤链 · {source.ops?.length ?? 0} 项</summary>
-            <div class="body"><OpsEditor bind:value={source.ops!} {disabled} /></div>
-          </details>
+            {@render processing(source, '组内过滤链')}
         </div>
       </details>
       {:else}
         <div class="actions">
           <strong>来源 {i + 1}</strong>
           <button type="button" class="handle" draggable={!disabled} {disabled} aria-label="拖动来源 {i + 1}" ondragstart={event => { dragging = { index: i }; event.dataTransfer?.setData('text/plain', String(i)); }} ondragend={() => { dragging = null; over = null; }}>⠿</button>
-          <PixelButton size="sm" {disabled} onclick={() => convertToGroup(i)}>转为来源组</PixelButton>
+          <PixelButton size="sm" {disabled} title="多个来源共用一个组，共享同一份预处理和过滤链" onclick={() => convertToGroup(i)}>转为来源组</PixelButton>
           {#if sources.length > 1}{@render moveControl(i)}{/if}
           <PixelButton size="sm" disabled={disabled || sources.length === 1} onclick={() => sources = sources.filter((_, j) => i !== j)}>删除来源</PixelButton>
         </div>
         <SourceFields bind:source={sources[i]} label={String(i + 1)} {disabled} {fileOptions} {refOptions} />
+        {@render processing(source, '过滤链')}
       {/if}
     </section>
   {/each}
-  <details class="processing">
-    <summary>统一预处理 · {preprocess ? '已配置' : '未配置'}</summary>
-    <div class="body">
-      <label>JavaScript<textarea bind:value={preprocess} {disabled} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"}></textarea></label>
-    </div>
-  </details>
   {#if dragging?.child !== undefined}
     <div class="drop-out" role="region" aria-label="移出来源组" ondragover={event => event.preventDefault()} ondrop={event => { event.preventDefault(); move(null); }}>拖到此处作为独立来源</div>
   {/if}
@@ -144,6 +153,9 @@
   .member-title { padding: 10px 12px; font-size: 13px; }
   .member { border-bottom: 1px solid var(--border); }
   .processing { border: 1px solid var(--border); border-radius: 3px; min-width: 0; }
+  .inherit-hint { margin: 0; color: var(--sec); font-size: 12px; }
+  .inherit-reset { padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
+  .inherit-reset:disabled { opacity: .45; cursor: not-allowed; }
   label { display: grid; gap: 6px; font-size: 13px; }
   input {
     width: 100%;
