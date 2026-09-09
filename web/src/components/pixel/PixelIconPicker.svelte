@@ -32,6 +32,8 @@
     oncancel,
   }: Props = $props();
 
+  import { lockScroll } from '../../utils/scrollLock';
+
   const headingId = $props.id();
   let dialog = $state<HTMLDialogElement>();
   let picked = $state('');
@@ -44,12 +46,11 @@
     if (!open || !dialog) return;
     const element = dialog;
     const previousFocus = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
     if (!element.open) element.showModal();
-    document.body.style.overflow = 'hidden';
+    const unlock = lockScroll(element);
     return () => {
+      unlock();
       if (element.open) element.close();
-      document.body.style.overflow = overflow;
       previousFocus?.focus();
     };
   });

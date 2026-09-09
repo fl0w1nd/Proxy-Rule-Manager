@@ -125,6 +125,14 @@ html, body {
   scrollbar-width: thin;
 }
 
+html.scroll-locked,
+body.scroll-locked,
+html:has(dialog[open]),
+body:has(dialog[open]) {
+  overflow: hidden !important;
+  overscroll-behavior: none !important;
+}
+
 ::selection {
   background: var(--selected);
   color: var(--selected-text);

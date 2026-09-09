@@ -4,6 +4,7 @@
   import PixelIcon from './PixelIcon.svelte';
   import terminalIcon from '../../assets/icons/ui/terminal.svg';
   import { retroScroll } from '../../utils/scrollbars';
+  import { lockScroll } from '../../utils/scrollLock';
 
   interface Props {
     open: boolean;
@@ -47,7 +48,9 @@
       const previousFocus = document.activeElement as HTMLElement | null;
       const element = dialog;
       element.showModal();
+      const unlock = lockScroll(element);
       return () => {
+        unlock();
         element.close();
         previousFocus?.focus();
       };
@@ -89,7 +92,13 @@
 {/if}
 
 <style>
-  :global(body:has(.drawer-panel[open])) { overflow: hidden; }
+  :global(html.scroll-locked),
+  :global(body.scroll-locked),
+  :global(html:has(.drawer-panel[open])),
+  :global(body:has(.drawer-panel[open])) {
+    overflow: hidden !important;
+    overscroll-behavior: none !important;
+  }
   .drawer-panel::backdrop { background: var(--backdrop); }
 
   .drawer-panel {
@@ -107,6 +116,7 @@
     box-shadow: var(--shadow-dialog);
     flex-direction: column;
     animation: pixel-drawer 140ms cubic-bezier(.2, .8, .2, 1) both;
+    overscroll-behavior: contain;
   }
 
   .drawer-panel[open] { display: flex; }

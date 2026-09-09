@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import PixelButton from './PixelButton.svelte';
+  import { lockScroll } from '../../utils/scrollLock';
 
   interface Props {
     open: boolean;
@@ -22,12 +23,11 @@
   $effect(() => {
     if (!open || !dialog) return;
     const previousFocus = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
     dialog.showModal();
-    document.body.style.overflow = 'hidden';
+    const unlock = lockScroll(dialog);
     return () => {
+      unlock();
       dialog.close();
-      document.body.style.overflow = overflow;
       previousFocus?.focus();
     };
   });
