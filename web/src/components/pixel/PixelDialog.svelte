@@ -8,11 +8,12 @@
     confirmLabel?: string;
     cancelLabel?: string;
     danger?: boolean;
+    showCancel?: boolean;
     onconfirm?: () => void;
     oncancel?: () => void;
     children?: Snippet;
   }
-  let { open = $bindable(false), title, confirmLabel = '确认', cancelLabel = '取消', danger = false, onconfirm, oncancel, children }: Props = $props();
+  let { open = $bindable(false), title, confirmLabel = '确认', cancelLabel = '取消', danger = false, showCancel = true, onconfirm, oncancel, children }: Props = $props();
   const id = $props.id();
   let dialog: HTMLDialogElement;
 
@@ -35,7 +36,9 @@
   <header><h2 id="{id}-title">{title}</h2></header>
   <div class="body">{#if children}{@render children()}{/if}</div>
   <footer>
-    <PixelButton onclick={cancel}>{cancelLabel}</PixelButton>
+    {#if showCancel}
+      <PixelButton onclick={cancel}>{cancelLabel}</PixelButton>
+    {/if}
     <PixelButton variant={danger ? 'danger' : 'primary'} onclick={() => { open = false; onconfirm?.(); }}>{confirmLabel}</PixelButton>
   </footer>
 </dialog>

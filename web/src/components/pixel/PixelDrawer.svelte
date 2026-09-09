@@ -9,6 +9,7 @@
     open: boolean;
     title?: string;
     width?: string;
+    scrollable?: boolean;
     onclose?: () => void;
     onrequestclose?: () => boolean;
     icon?: string;
@@ -20,6 +21,7 @@
     open = $bindable(false),
     title = '终端控制台',
     width = '520px',
+    scrollable = true,
     onclose,
     onrequestclose,
     icon = terminalIcon,
@@ -33,6 +35,11 @@
     if (onrequestclose?.() === false) return;
     open = false;
     onclose?.();
+  }
+
+  function drawerScroll(node: HTMLElement) {
+    if (!scrollable) return;
+    return retroScroll(node);
   }
 
   $effect(() => {
@@ -52,7 +59,7 @@
     <dialog
       bind:this={dialog}
       class="drawer-panel"
-      style="max-width: {width};"
+      style="max-width: min({width}, 100vw);"
       oncancel={(event) => { event.preventDefault(); close(); }}
       onclick={(event) => { if (dialog && event.target === dialog) { const box = dialog.getBoundingClientRect(); if (event.clientX < box.left || event.clientX > box.right || event.clientY < box.top || event.clientY > box.bottom) close(); } }}
       aria-label={title}
@@ -67,7 +74,7 @@
         </PixelButton>
       </div>
 
-      <div class="drawer-body" use:retroScroll>
+      <div class="drawer-body" class:no-scroll={!scrollable} use:drawerScroll>
         {#if children}
           {@render children()}
         {/if}
@@ -142,6 +149,12 @@
     overscroll-behavior: contain;
   }
 
+  .drawer-body.no-scroll {
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
   .drawer-footer {
     padding: 12px 18px;
     background: var(--surface-2);
@@ -152,7 +165,7 @@
     gap: 10px;
   }
 
-  @media (max-width: 600px) {
+  @media (max-width: 768px) {
     .drawer-panel {
       max-width: 100% !important;
       border-left: none;

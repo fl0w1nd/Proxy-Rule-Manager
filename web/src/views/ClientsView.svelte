@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
   import { api, APIRequestError, type ConfigSnapshot, type IconItem, type TemplateItem } from '../api/client';
+  import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelCard from '../components/pixel/PixelCard.svelte';
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
@@ -11,6 +12,7 @@
   import OpsEditor from '../components/forms/OpsEditor.svelte';
   import TemplatesView from './TemplatesView.svelte';
   import { clientIconID, clientIconSrc, clientReferences, defaultClientIcon, validateClient, type ClientConfig } from './clients';
+  import { retroScroll } from '../utils/scrollbars';
   import clientIcon from '../assets/icons/nav/clients.svg';
 
   let { onstatechange }: { onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
@@ -31,6 +33,9 @@
   let pendingTab = $state('');
   let deleteOpen = $state(false);
   let deleting = $state<ClientConfig>();
+  let refConflictOpen = $state(false);
+  let refConflictClient = $state<ClientConfig>();
+  let refConflictList = $state<string[]>([]);
   let iconPickerOpen = $state(false);
   let iconPickerLoading = $state(false);
   let iconItems = $state<IconItem[]>([]);
@@ -42,6 +47,13 @@
   const iconChosen = $derived(!!clientIconID(draft.icon));
   const iconPreviewID = $derived(iconChosen ? clientIconID(draft.icon) : defaultClientIcon(draft.id));
   const iconPreviewSrc = $derived(iconChosen ? clientIconSrc(draft.icon) : `/static/icons/${encodeURIComponent(iconPreviewID)}.svg`);
+
+  function getClientIconSrc(client: ClientConfig): string {
+    const icon = client.icon;
+    if (icon && clientIconID(icon)) return clientIconSrc(icon);
+    const id = defaultClientIcon(client.id);
+    return `/static/icons/${encodeURIComponent(id)}.svg`;
+  }
   $effect(() => { onstatechange?.(dirty || templateDirty, busy || templateBusy); });
   onMount(() => { void load(); });
   onDestroy(() => { onstatechange?.(false, false); });
@@ -111,7 +123,17 @@
   }
   function askDelete(client: ClientConfig) {
     const refs = clientReferences(snapshot!.config, client.id);
-    if (refs.length) { error = true; message = `客户端正被 ${refs.join('、')} 引用，无法删除`; return; }
+    if (refs.length) {
+      error = true;
+      refConflictClient = client;
+      refConflictList = refs;
+      if (refs.length > 3) {
+        message = `客户端「${client.name || client.id}」正被 ${refs.length} 项配置（如 ${refs.slice(0, 2).join('、')} 等）引用，无法直接删除`;
+      } else {
+        message = `客户端正被 ${refs.join('、')} 引用，无法删除`;
+      }
+      return;
+    }
     deleting = client; deleteOpen = true;
   }
   async function remove() {
@@ -133,17 +155,54 @@
     <TemplatesView onstatechange={(dirty, busy) => { templateDirty = dirty; templateBusy = busy; }} />
   {:else}
     <div class="toolbar"><span>{clients.length} 个客户端</span><div class="actions"><PixelButton disabled={loading || busy} onclick={load}>刷新</PixelButton><PixelButton variant="primary" disabled={loading || busy || !snapshot} onclick={() => edit()}>新建客户端</PixelButton></div></div>
-    {#if message && !open}<div class="notice" class:error role="status">{message}</div>{/if}
+    {#if message && !open}
+      <div class="notice" class:error role="status">
+        <div class="notice-inner">
+          <span class="notice-msg">{message}</span>
+          {#if refConflictList.length > 3}
+            <PixelButton size="sm" variant="ghost" onclick={() => { refConflictOpen = true; }}>查看引用清单 ({refConflictList.length})</PixelButton>
+          {/if}
+        </div>
+      </div>
+    {/if}
     {#if loading}<div class="notice">读取客户端…</div>
     {:else if clients.length === 0}<div class="notice">暂无客户端</div>
     {:else}<div class="cards">
       {#each clients as client (client.id)}
         <PixelCard class="client-card">
-          <div class="client-heading"><h2>{client.name || client.id}</h2><code>{client.id}</code></div>
+          <div class="client-heading">
+            <div class="client-identity">
+              <img src={getClientIconSrc(client)} class="client-avatar" width="32" height="32" alt="" />
+              <div class="client-meta">
+                <h2>{client.name || client.id}</h2>
+                <code>{client.id}</code>
+              </div>
+            </div>
+          </div>
           <div class="targets">
-            {#if !client.formats?.length}<div><span>默认格式</span><code>{client.template}</code></div>{/if}
-            {#each client.formats ?? [] as format}<div><span>{format.name || format.id}</span><code>{format.template}</code></div>{/each}
-            {#each client.variants ?? [] as variant}<div><span>{variant.name || variant.id}</span><span>{variant.ops?.length ?? 0} 项过滤</span></div>{/each}
+            {#if !client.formats?.length}
+              <div class="target-row">
+                <span class="target-name">默认格式</span>
+                <code>{client.template}</code>
+              </div>
+            {/if}
+            {#each client.formats ?? [] as format}
+              <div class="target-row">
+                <span class="target-name">{format.name || format.id}</span>
+                <code>{format.template}</code>
+              </div>
+            {/each}
+            {#each client.variants ?? [] as variant}
+              <div class="target-row variant-row">
+                <span class="target-name variant-name">
+                  <span class="variant-tag">变体</span>
+                  {variant.name || variant.id}
+                </span>
+                <PixelBadge status={variant.ops?.length ? 'info' : 'neutral'}>
+                  {variant.ops?.length ?? 0} 项过滤
+                </PixelBadge>
+              </div>
+            {/each}
           </div>
           <div class="card-footer">
             <div class="actions">
@@ -236,10 +295,30 @@
   onconfirm={applyIcon}
   onclear={clearIcon}
 />
+<PixelDialog
+  bind:open={refConflictOpen}
+  title="客户端引用详情"
+  confirmLabel="知道了"
+  showCancel={false}
+  onconfirm={() => { refConflictOpen = false; }}
+>
+  <div class="ref-conflict-content">
+    <p class="ref-conflict-hint">客户端「{refConflictClient?.name || refConflictClient?.id}」正被以下 <strong>{refConflictList.length}</strong> 项配置引用，请先在对应规则中解除输出关联后再尝试删除：</p>
+    <div class="ref-conflict-list" use:retroScroll>
+      {#each refConflictList as refItem}
+        <div class="ref-conflict-item"><code>{refItem}</code></div>
+      {/each}
+    </div>
+  </div>
+</PixelDialog>
 <style>
   .clients-page, .editor-form { display: grid; gap: 18px; }
   .editor-form { padding-bottom: 36px; }
   .toolbar, .section-head, .client-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .client-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
+  .client-avatar { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; flex-shrink: 0; }
+  .client-meta { display: grid; gap: 2px; min-width: 0; }
+  .client-meta h2 { margin: 0; }
   .section-head { padding: 0 16px; }
   .toolbar { color: var(--sec); }
   .actions { display: flex; gap: 8px; }
@@ -252,8 +331,18 @@
   h3, legend { font: 400 12px/20px var(--font-ui); color: var(--display); margin: 0; }
   code { font: 12px/20px var(--font-code); color: var(--sec); overflow-wrap: anywhere; }
   .targets { margin: 14px 0 0; border-top: 1px solid var(--border); padding-top: 12px; display: grid; gap: 8px; flex: 1; }
-  .targets > div { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-  .targets span { color: var(--sec); }
+  .target-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .target-name { color: var(--sec); font: 12px/20px var(--font-ui); }
+  .variant-name { display: flex; align-items: center; gap: 4px; }
+  .variant-tag {
+    display: inline-block;
+    font: 400 10px/14px var(--font-ui);
+    padding: 1px 4px;
+    border: 1px solid var(--border-vis);
+    border-radius: 2px;
+    background: var(--surface-3);
+    color: var(--dim);
+  }
   fieldset { min-width: 0; margin: 12px 0 0; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; display: grid; gap: 12px; }
   .item-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
@@ -267,8 +356,24 @@
   input:focus-visible { outline: 1px solid var(--selected); border-color: var(--selected); }
   .notice { padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; overflow-wrap: anywhere; }
   .notice.error { background: var(--status-error); }
+  .notice-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+  .notice-msg { flex: 1; min-width: 0; }
   .format-single { margin: 12px 16px 0; display: grid; gap: 8px; }
   .field-hint, .empty-hint { margin: 0; font: 12px/18px var(--font-ui); color: var(--sec); }
   .empty-hint { margin-top: 12px; padding: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 4px; }
+  .ref-conflict-content { display: grid; gap: 12px; }
+  .ref-conflict-hint { margin: 0; font: 400 13px/20px var(--font-reading); color: var(--text); }
+  .ref-conflict-list {
+    max-height: 240px;
+    overflow-y: auto;
+    background: var(--surface-2);
+    border: 1px solid var(--border-vis);
+    border-radius: 3px;
+    padding: 8px 12px;
+    display: grid;
+    gap: 4px;
+  }
+  .ref-conflict-item { padding: 3px 0; border-bottom: 1px dashed var(--border); }
+  .ref-conflict-item:last-child { border-bottom: none; }
   @media(max-width: 600px) { .fields { grid-template-columns: 1fr; } }
 </style>

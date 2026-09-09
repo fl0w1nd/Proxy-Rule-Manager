@@ -200,6 +200,21 @@ body > .os-scrollbar {
   z-index: 9999;
 }
 
+/* Suppress native and webkit scrollbars when OverlayScrollbars manages document/body */
+html[data-overlayscrollbars-initialize]::-webkit-scrollbar,
+html[data-overlayscrollbars-initialize] body::-webkit-scrollbar,
+body[data-overlayscrollbars-initialize]::-webkit-scrollbar {
+  display: none !important;
+  width: 0 !important;
+  height: 0 !important;
+}
+
+html[data-overlayscrollbars-initialize],
+html[data-overlayscrollbars-initialize] body,
+body[data-overlayscrollbars-initialize] {
+  scrollbar-width: none !important;
+}
+
 .os-theme-retro.os-scrollbar-vertical {
   border-left: 1px solid var(--border-vis);
 }

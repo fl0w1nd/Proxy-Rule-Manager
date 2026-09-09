@@ -6,6 +6,8 @@
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelDialog from '../components/pixel/PixelDialog.svelte';
+  import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
+  import rulesIcon from '../assets/icons/nav/rules.svg';
   import { formatFileSize, localFileLanguage, referencedRuleLabel, validateLocalFileName } from './localFiles';
 
   let { onstatechange }: { onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
@@ -19,7 +21,6 @@
   let fileInput = $state<HTMLInputElement>();
 
   let editorOpen = $state(false);
-  let editorDialog: HTMLDialogElement;
   let creating = $state(false);
   let draftName = $state('');
   let draftContent = $state('');
@@ -27,7 +28,6 @@
   let nameError = $state('');
   let editorLoading = $state(false);
   let editorRequestId = 0;
-  const editorTitleId = $props.id();
 
   let pendingDelete = $state<LocalFileItem | null>(null);
   let deleteOpen = $state(false);
@@ -41,18 +41,6 @@
   const editorLanguage = $derived(localFileLanguage(draftName));
   const dirty = $derived(editorOpen && (creating ? draftName.trim() !== '' || draftContent !== '' : draftContent !== savedContent));
   $effect(() => { onstatechange?.(dirty, busy || editorLoading); });
-  $effect(() => {
-    if (!editorOpen || !editorDialog) return;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    editorDialog.showModal();
-    document.body.style.overflow = 'hidden';
-    return () => {
-      editorDialog.close();
-      document.body.style.overflow = overflow;
-      previousFocus?.focus();
-    };
-  });
   onMount(() => { void load(); });
   onDestroy(() => { editorRequestId++; onstatechange?.(false, false); });
 
@@ -291,14 +279,16 @@
   </PixelTable>
 </div>
 
-<dialog bind:this={editorDialog} class="file-dialog" aria-labelledby="{editorTitleId}-title"
-  oncancel={(event) => { event.preventDefault(); if (requestClose()) closeEditor(); }}>
-  <header>
-    <h2 id="{editorTitleId}-title">{creating ? '新建本地文件' : draftName || '本地文件'}</h2>
-    <button type="button" class="modal-close" aria-label="关闭" disabled={busy}
-      onclick={() => { if (requestClose()) closeEditor(); }}><PixelIcon name="cross" size={12} /></button>
-  </header>
-  <div class="body">
+<PixelDrawer
+  bind:open={editorOpen}
+  title={creating ? '新建本地文件' : draftName || '本地文件'}
+  icon={rulesIcon}
+  width="760px"
+  scrollable={false}
+  onrequestclose={requestClose}
+  onclose={closeEditor}
+>
+  <div class="drawer-editor-form">
     {#if editorLoading}
       <p class="editor-status" role="status">正在读取文件…</p>
     {:else}
@@ -316,17 +306,17 @@
         </div>
       {/if}
     {/if}
+    {#if message && editorOpen}
+      <div class="files-message editor-message" class:success role={success ? 'status' : 'alert'}>{message}</div>
+    {/if}
   </div>
-  {#if message && editorOpen}
-    <div class="files-message editor-message" class:success role={success ? 'status' : 'alert'}>{message}</div>
-  {/if}
-  <footer>
+  {#snippet footer()}
     <PixelButton disabled={busy} onclick={() => { if (requestClose()) closeEditor(); }}>取消</PixelButton>
     <PixelButton variant="primary" disabled={busy || editorLoading || (!creating && !dirty)} onclick={save}>
       {busy ? '保存中…' : '保存'}
     </PixelButton>
-  </footer>
-</dialog>
+  {/snippet}
+</PixelDrawer>
 
 <PixelDialog bind:open={deleteOpen} title="删除此文件？" confirmLabel="确认删除" cancelLabel="取消" danger
   oncancel={() => { pendingDelete = null; }} onconfirm={remove}>
@@ -361,80 +351,27 @@
     overflow-wrap: anywhere;
   }
   .files-message.success { background: var(--status-success); }
-  .editor-message { flex-shrink: 0; margin: 0 20px 12px; max-height: 120px; overflow-y: auto; }
+  .editor-message { flex-shrink: 0; margin: 0; max-height: 120px; overflow-y: auto; }
   .text-sec { color: var(--sec); }
   .table-empty { text-align: center; color: var(--dim); padding: 36px 0; }
   .row-actions { justify-content: flex-end; }
-  .file-dialog {
-    margin: auto;
-    width: min(920px, calc(100vw - 32px));
-    height: min(720px, calc(100dvh - 32px));
-    max-height: calc(100dvh - 32px);
-    padding: 0;
-    overflow: hidden;
-    border: 1px solid var(--border-vis);
-    border-radius: 4px;
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--shadow-dialog);
-  }
-  .file-dialog::backdrop { background: var(--backdrop); }
-  .file-dialog[open] {
+  .drawer-editor-form {
     display: flex;
     flex-direction: column;
-    animation: pixel-fade 120ms linear;
+    flex: 1;
+    min-height: 0;
+    height: 100%;
+    gap: 12px;
   }
-  .file-dialog[open]::backdrop { animation: pixel-fade 120ms linear; }
-  .file-dialog header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-shrink: 0;
-    padding: 16px 20px;
-    border-bottom: 1px solid var(--border-vis);
-    background: var(--surface-2);
-  }
-  .modal-close {
-    flex-shrink: 0;
-    padding: 4px 7px;
-    min-height: 28px;
-    border: 1px solid var(--border-vis);
-    border-radius: 4px;
-    background: var(--surface-2);
-    color: var(--text);
-    box-shadow: var(--edge-raised);
-    cursor: pointer;
-  }
-  .modal-close:hover:not(:disabled) { background: var(--surface); }
-  .modal-close:active:not(:disabled) { box-shadow: var(--edge-pressed); transform: translateY(1px); }
-  .modal-close:disabled { opacity: 0.45; cursor: not-allowed; }
-  .file-dialog h2 {
-    margin: 0;
-    font: 400 24px/28px var(--font-display);
-    color: var(--display);
-    overflow-wrap: anywhere;
-  }
-  .file-dialog .body {
+  .editor-status { margin: 0; color: var(--sec); }
+  .field { display: flex; flex-direction: column; gap: 6px; flex-shrink: 0; }
+  .field span { color: var(--display); font: 400 12px/20px var(--font-ui); }
+  .field-error { color: var(--error-border); }
+  .editor-field {
     flex: 1;
     min-height: 0;
     display: flex;
     flex-direction: column;
-    gap: 16px;
-    padding: 20px;
-    overflow: hidden;
+    gap: 6px;
   }
-  .file-dialog footer {
-    flex-shrink: 0;
-    display: flex;
-    justify-content: flex-end;
-    gap: 10px;
-    padding: 12px 20px 20px;
-    flex-wrap: wrap;
-  }
-  .editor-status { margin: 0; color: var(--sec); }
-  .field { display: flex; flex-direction: column; gap: 6px; }
-  .field span { color: var(--display); font: 400 12px/20px var(--font-ui); }
-  .field-error { color: var(--error-border); }
-  .editor-field { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
 </style>
