@@ -40,6 +40,20 @@
     expanded = { ...expanded, [key]: !expanded[key] };
   }
 
+  function activateRow(provider: string, list: PublicGeositeList & { hasFull: boolean }, key: string) {
+    if (list.variants.length > 0) {
+      toggle(key);
+      return;
+    }
+    if (list.hasFull) preview(provider, list.name, list.entries);
+  }
+
+  function handleRowKey(event: KeyboardEvent, run: () => void) {
+    if (event.key !== 'Enter' && event.key !== ' ') return;
+    event.preventDefault();
+    run();
+  }
+
   async function copy(path: string, button: HTMLButtonElement) {
     const ok = await copyURL(path);
     if (ok) {
@@ -85,18 +99,26 @@
           {@const path = geoPath(target, catalog.provider, list.name, undefined, kind)}
           {@const expandable = list.variants.length > 0}
           <div class="geo-item" class:open={expanded[key]}>
-            <div class="geo-row">
+            <div
+              class="geo-row"
+              role="button"
+              tabindex="0"
+              aria-label={list.name}
+              aria-expanded={expandable ? !!expanded[key] : undefined}
+              onclick={() => activateRow(catalog.provider, list, key)}
+              onkeydown={(event) => handleRowKey(event, () => activateRow(catalog.provider, list, key))}
+            >
               {#if expandable}
-                <button class="geo-toggle" type="button" onclick={() => toggle(key)} aria-expanded={!!expanded[key]}>
+                <span class="geo-toggle">
                   <PixelIcon name={expanded[key] ? 'chevron-down' : 'chevron-right'} size={12} />
                   <strong>{list.name}</strong>
-                </button>
+                </span>
               {:else}
                 <span class="geo-name"><strong>{list.name}</strong></span>
               {/if}
               <span>{formatCount(list.entries)} 条</span>
               <span class="geo-tags">{#each list.variants.slice(0, 6) as variant}<em>@{variant.attr}</em>{/each}</span>
-              <span class="row-actions">
+              <span class="row-actions" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>
                 {#if list.hasFull}
                   <PixelButton size="sm" onclick={() => preview(catalog.provider, list.name, list.entries)}>预览</PixelButton>
                   <button class="pill-btn" type="button" onclick={(event) => copy(path, event.currentTarget)}>复制链接</button>

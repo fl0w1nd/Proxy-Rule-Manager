@@ -154,7 +154,7 @@ describe('PublicApp', () => {
     await user.click(screen.getByRole('button', { name: '显示全部 101 个' }));
     expect(screen.getByText('list-100')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'category/ai' })).toHaveAttribute('aria-expanded');
-    expect(screen.queryByRole('button', { name: 'list-1' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'list-1' })).not.toHaveAttribute('aria-expanded');
     await user.click(screen.getAllByRole('button', { name: '预览' })[0]);
     await screen.findByText('1 LINES');
     expect(screen.getByRole('link', { name: '打开文件' })).toHaveAttribute(
@@ -202,7 +202,7 @@ it('uses GeoIP catalogs and updates preview paths for the selected format', asyn
   render(PublicApp, { data });
   await fireEvent.click(screen.getByRole('button', { name: 'GeoIP' }));
   expect(screen.getByRole('heading', { name: 'GeoIP 列表' })).toBeInTheDocument();
-  expect(screen.queryByRole('button', { name: 'cn' })).not.toBeInTheDocument();
+  expect(screen.getByRole('button', { name: 'cn' })).not.toHaveAttribute('aria-expanded');
   expect(screen.getByRole('link', { name: '打开' })).toHaveAttribute('href', 'rules/clash-yaml/geoip/loyalsoldier/cn.yaml');
   await fireEvent.click(screen.getByRole('button', { name: '预览' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('rules/clash-yaml/geoip/loyalsoldier/cn.yaml', expect.anything()));
