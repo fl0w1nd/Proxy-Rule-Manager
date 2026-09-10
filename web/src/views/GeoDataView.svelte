@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { api, APIRequestError, type ConfigSnapshot, type GeoKind, type GeoProviderItem } from '../api/client';
+  import { api, APIRequestError, conflictHint, type ConfigSnapshot, type GeoKind, type GeoProviderItem } from '../api/client';
   import PixelCard from '../components/pixel/PixelCard.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
@@ -70,9 +70,8 @@
     if (e instanceof APIRequestError && e.details.errors?.length) {
       message += '：' + e.details.errors.map((item) => `${item.path} ${item.message}`).join('；');
     }
-    if (e instanceof APIRequestError && e.status === 409) {
-      message += '。请关闭编辑器后刷新配置再重试。';
-    }
+    const hint = conflictHint(e, '请关闭编辑器后刷新配置再重试。');
+    if (hint) message += '。' + hint;
   }
 
   function formatTime(iso?: string) {

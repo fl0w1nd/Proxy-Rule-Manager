@@ -318,6 +318,24 @@ export type ConfigPatchOp =
   | { op: 'update_schedule' | 'update_fetch' | 'update_preprocess' | 'update_history'; value: ConfigValue }
   | { op: 'update_geosite' | 'update_geoip'; value: ConfigValue | null };
 
+/**
+ * 409 有几种完全不同的原因：版本过期、文件被外部改动、更新占用。
+ * 返回按错误码区分后的提示；调用方给出同一条默认文案以免退化。
+ */
+export function conflictHint(error: unknown, fallback: string): string {
+  if (!(error instanceof APIRequestError) || error.status !== 409) return '';
+  switch (error.code) {
+    case 'update_in_progress':
+      return '有更新任务正在执行，请等它结束后再试。';
+    case 'config_dirty':
+      return '配置文件已被外部修改，请先重新加载再保存。';
+    case 'config_version_conflict':
+      return '配置已在别处修改，请刷新页面后重试。';
+    default:
+      return fallback;
+  }
+}
+
 const API_BASE = '/api/v1';
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

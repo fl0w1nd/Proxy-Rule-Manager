@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
-  import { api, APIRequestError, type ConfigDocument, type ConfigSnapshot } from '../api/client';
+  import { api, APIRequestError, conflictHint, type ConfigDocument, type ConfigSnapshot } from '../api/client';
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
   import PixelQuantity from '../components/pixel/PixelQuantity.svelte';
   import PixelTooltip from '../components/pixel/PixelTooltip.svelte';
@@ -76,7 +76,8 @@
     } catch (error) {
       message = `保存失败：${(error as Error).message}`;
       if (error instanceof APIRequestError) {
-        if (error.status === 409) message += '。请刷新页面后重试。';
+        const hint = conflictHint(error, '请刷新页面后重试。');
+        if (hint) message += '。' + hint;
         for (const issue of error.details.errors ?? []) {
           const path = issue.path.replace(/^update\./, '');
           errors[path.startsWith('history_') ? `history.${path}` : path] = issue.message;

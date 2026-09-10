@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { api, APIRequestError, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
+  import { api, APIRequestError, conflictHint, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
@@ -189,7 +189,8 @@
     error = true;
     message = (e as Error).message;
     if (e instanceof APIRequestError && e.details.errors?.length) message += '：' + e.details.errors.map((item) => `${item.path} ${item.message}`).join('；');
-    if (e instanceof APIRequestError && e.status === 409) message += '。请关闭编辑器后刷新配置再重试。';
+    const hint = conflictHint(e, '请关闭编辑器后刷新配置再重试。');
+    if (hint) message += '。' + hint;
   }
   function edit(raw?: Record<string, unknown>) {
     const next = raw ? readRule(raw) : emptyRule();
