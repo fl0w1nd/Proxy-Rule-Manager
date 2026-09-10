@@ -21,6 +21,7 @@
   let updates = $state<UpdateItem[]>([]);
   let expandedDetails = $state<Record<string, UpdateDetail>>({});
   let loadingDetails = $state<Record<string, boolean>>({});
+  let detailErrors = $state<Record<string, string>>({});
   let loading = $state(true);
   let error = $state<string | null>(null);
 
@@ -42,10 +43,13 @@
   }
 
   async function toggleExpand(id: string) {
-    if (expandedDetails[id]) {
+    if (expandedDetails[id] || detailErrors[id]) {
       const next = { ...expandedDetails };
       delete next[id];
       expandedDetails = next;
+      const errs = { ...detailErrors };
+      delete errs[id];
+      detailErrors = errs;
       return;
     }
 
@@ -54,7 +58,7 @@
       const detail = await api.getUpdateDetail(id);
       expandedDetails = { ...expandedDetails, [id]: detail };
     } catch (e) {
-      console.error('Failed to load update detail', e);
+      detailErrors = { ...detailErrors, [id]: e instanceof Error ? e.message : '读取详情失败' };
     } finally {
       const nextLoading = { ...loadingDetails };
       delete nextLoading[id];
@@ -114,7 +118,7 @@
         </div>
 
         {#each updates as item (item.id)}
-          {@const isExpanded = !!expandedDetails[item.id] || !!loadingDetails[item.id]}
+          {@const isExpanded = !!expandedDetails[item.id] || !!loadingDetails[item.id] || !!detailErrors[item.id]}
           {@const detail = expandedDetails[item.id]}
           <div class="update-card {isExpanded ? 'open' : ''}">
             <button
@@ -140,6 +144,8 @@
               <div class="update-detail-panel">
                 {#if loadingDetails[item.id]}
                   <div class="loading-hint">加载详情…</div>
+                {:else if detailErrors[item.id]}
+                  <div class="detail-error" role="alert">读取详情失败：{detailErrors[item.id]}</div>
                 {:else if detail}
                   <div class="digest">{updateDigest(detail)}</div>
 
@@ -422,5 +428,13 @@
 
   .loading-hint {
     color: var(--dim);
+  }
+
+  .detail-error {
+    padding: 10px 14px;
+    background: var(--status-error);
+    border: 1px solid var(--border-vis);
+    border-radius: 4px;
+    color: var(--text);
   }
 </style>

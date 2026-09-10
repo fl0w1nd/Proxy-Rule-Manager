@@ -11,12 +11,31 @@
   }
   let { id, label, options, value = $bindable(), disabled = false, size = 'md', class: className = '', onchange }: Props = $props();
   let root: HTMLDivElement;
+  let trigger: HTMLButtonElement;
   let open = $state(false);
   let highlighted = $state(0);
+  let panel = $state({ top: 0, left: 0, width: 0, maxHeight: 240, flip: false });
   const selected = $derived(options.find((option) => option.value === value));
+
+  function place() {
+    if (!trigger) return;
+    const box = trigger.getBoundingClientRect();
+    const gap = 4;
+    const below = window.innerHeight - box.bottom - gap;
+    const above = box.top - gap;
+    const flip = below < 96 && above > below;
+    panel = {
+      top: flip ? box.top - gap : box.bottom + gap,
+      left: Math.min(box.left, Math.max(8, window.innerWidth - box.width - 8)),
+      width: box.width,
+      maxHeight: Math.max(80, Math.min(240, flip ? above : below)),
+      flip,
+    };
+  }
 
   function show() {
     highlighted = Math.max(0, options.findIndex((option) => option.value === value));
+    place();
     open = true;
   }
   function choose(index: number) {
@@ -41,13 +60,24 @@
   }
   $effect(() => {
     if (!open) return;
+    place();
+    const onMove = () => place();
+    window.addEventListener('resize', onMove);
+    window.addEventListener('scroll', onMove, true);
+    return () => {
+      window.removeEventListener('resize', onMove);
+      window.removeEventListener('scroll', onMove, true);
+    };
+  });
+  $effect(() => {
+    if (!open) return;
     document.getElementById(`${id}-option-${highlighted}`)?.scrollIntoView?.({ block: 'nearest' });
   });
 </script>
 
 <svelte:window onpointerdown={(event) => { if (!root?.contains(event.target as Node)) open = false; }} />
 <div class="pixel-select {size} {className}" class:open bind:this={root} onfocusout={(event) => { if (!root.contains(event.relatedTarget as Node)) open = false; }}>
-  <button {id} type="button" role="combobox" aria-label={label} aria-haspopup="listbox"
+  <button bind:this={trigger} {id} type="button" role="combobox" aria-label={label} aria-haspopup="listbox"
     aria-expanded={open} aria-controls="{id}-options"
     aria-activedescendant={open ? `${id}-option-${highlighted}` : undefined}
     {disabled} onclick={() => open ? open = false : show()} onkeydown={keydown}>
@@ -55,7 +85,8 @@
     <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true" shape-rendering="crispEdges"><path d="M2 4h8v2H8v2H4V6H2z" fill="currentColor" /></svg>
   </button>
   {#if open && !disabled}
-    <div id="{id}-options" class="options" role="listbox" aria-label={label}>
+    <div id="{id}-options" class="options" class:flip={panel.flip} role="listbox" aria-label={label}
+      style="top: {panel.top}px; left: {panel.left}px; width: {panel.width}px; max-height: {panel.maxHeight}px;">
       {#each options as option, index (option.value)}
         <!-- svelte-ignore a11y_click_events_have_key_events a11y_no_noninteractive_element_interactions -->
         <div id="{id}-option-{index}" role="option" tabindex="-1" aria-selected={value === option.value}
@@ -77,7 +108,8 @@
   button:hover:not(:disabled) { background: var(--surface); }
   button[aria-expanded='true'] { box-shadow: var(--edge-pressed); }
   button:disabled { opacity: .45; cursor: not-allowed; }
-  .options { position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 40; max-height: 240px; overflow-y: auto; padding: 4px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-popup); animation: pixel-fade 120ms linear; }
+  .options { position: fixed; z-index: 40; overflow-y: auto; padding: 4px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); color: var(--text); box-shadow: var(--shadow-popup); animation: pixel-fade 120ms linear; }
+  .options.flip { transform: translateY(-100%); }
   [role='option'] { padding: 4px 8px; font: 400 12px/20px var(--font-ui); cursor: pointer; overflow-wrap: anywhere; border-radius: 2px; }
   .pixel-select.sm [role='option'] { padding: 3px 6px; font: 400 11px/18px var(--font-ui); }
   .highlighted { background: var(--selected); color: var(--selected-text); }

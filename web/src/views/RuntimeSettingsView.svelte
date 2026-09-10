@@ -4,6 +4,7 @@
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
   import PixelQuantity from '../components/pixel/PixelQuantity.svelte';
   import PixelTooltip from '../components/pixel/PixelTooltip.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import { buildSettingsPatch, readSettings, scheduleIntervalUnits, settingsChanged, settingGroups, validateSettings, type RuntimeSettings } from './settings';
@@ -116,7 +117,7 @@
                   <label for="schedule-timezone">时区</label>
                   <PixelTooltip label="时区" text="Cron 按此时区解释。Local 表示本机时区。" />
                 </div>
-                <input id="schedule-timezone" class="pixel-input" bind:value={form.schedule.timezone} aria-invalid={!!errors['schedule.timezone']} aria-describedby="schedule-timezone-help" />
+                <PixelInput id="schedule-timezone" bind:value={form.schedule.timezone} error={!!errors['schedule.timezone']} aria-describedby="schedule-timezone-help" />
                 <span id="schedule-timezone-help" class:error={!!errors['schedule.timezone']}>{errors['schedule.timezone'] || '例如 UTC、Asia/Shanghai'}</span>
               </div>
               {#if form.schedule.mode === 'interval'}
@@ -131,7 +132,7 @@
               {:else if form.schedule.mode === 'cron'}
                 <div class="field">
                   <label for="schedule-cron">Cron 表达式</label>
-                  <input id="schedule-cron" class="pixel-input" bind:value={form.schedule.cron} aria-invalid={!!errors['schedule.cron']} aria-describedby="schedule-cron-help" />
+                  <PixelInput id="schedule-cron" bind:value={form.schedule.cron} error={!!errors['schedule.cron']} aria-describedby="schedule-cron-help" />
                   <span id="schedule-cron-help" class:error={!!errors['schedule.cron']}>{errors['schedule.cron'] || '分 时 日 月 周，例如 0 3 * * *'}</span>
                 </div>
               {/if}
@@ -154,9 +155,9 @@
                         describedby={errors[path] ? `${path}-help` : undefined}
                         onchange={(next) => { form[group.key][field.key] = next; }} />
                     {:else}
-                      <input id={path} class="pixel-input" bind:value={form[group.key][field.key]}
+                      <PixelInput id={path} bind:value={form[group.key][field.key]}
                         inputmode={field.kind === 'number' ? 'numeric' : undefined}
-                        aria-invalid={!!errors[path]} aria-describedby={field.hint || errors[path] ? `${path}-help` : undefined} />
+                        error={!!errors[path]} aria-describedby={field.hint || errors[path] ? `${path}-help` : undefined} />
                     {/if}
                     {#if errors[path] || field.hint}<span id="{path}-help" class:error={!!errors[path]}>{errors[path] || field.hint}</span>{/if}
                   </div>
@@ -201,7 +202,6 @@
   label { font: 400 12px/20px var(--font-ui); color: var(--text); }
   .field span { font: 400 12px/20px var(--font-ui); color: var(--sec); }
   .field .error { color: var(--error-border); }
-  input { width: 100%; min-width: 0; }
   .save-bar { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 12px; padding: 16px 24px; border-top: 1px solid var(--border-vis); background: var(--surface-2); }
   .message { margin: 0; padding: 12px 24px; background: var(--status-error); color: var(--text); font: 400 12px/20px var(--font-ui); overflow-wrap: anywhere; }
   .message.success { background: var(--status-success); }

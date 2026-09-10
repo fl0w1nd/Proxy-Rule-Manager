@@ -184,6 +184,7 @@
   onJobFinish={handleJobFinish}
   onProgressRule={(ruleId) => { currentProcessingRuleId = ruleId; }}
   onErrorToast={(msg) => toastRef?.show(msg, 'error')}
+  hasUnsavedChanges={settingsDirty || rulesDirty || clientsDirty || geoDirty}
 >
   {#if currentTab === 'dashboard'}
     <DashboardView

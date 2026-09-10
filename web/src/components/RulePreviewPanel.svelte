@@ -84,8 +84,8 @@
   .source-detail, .preview-source strong { overflow-wrap: anywhere; }
   .notice { padding: 10px 14px; background: var(--status-error); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--text); overflow-wrap: anywhere; }
   .diff-samples { margin: 0; padding: 0; list-style: none; font: 12px/20px var(--font-code); }
-  .diff-samples .add { color: var(--text); }
-  .diff-samples .del { color: var(--sec); }
+  .diff-samples .add { color: var(--diff-add); }
+  .diff-samples .del { color: var(--diff-remove); }
   .empty-hint { margin: 0; padding: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 4px; font: 12px/18px var(--font-ui); color: var(--sec); }
   .preview-formats { display: grid; gap: 18px; min-width: 0; border: 1px solid var(--border); padding: 12px; border-radius: 3px; }
   .preview-report :global(.code-panel pre) { margin: 0; max-height: 280px; overflow: auto; padding: 10px 12px; color: var(--terminal-text); font: 13px/20px var(--font-code); white-space: pre-wrap; }

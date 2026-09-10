@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
   import PixelButton from './PixelButton.svelte';
-  import { lockScroll } from '../../utils/scrollLock';
+  import { openModal, closeModalWithExit } from '../../utils/modal';
 
   interface Props {
     open: boolean;
@@ -22,13 +22,13 @@
   function cancel() { open = false; oncancel?.(); }
   $effect(() => {
     if (!open || !dialog) return;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    dialog.showModal();
-    const unlock = lockScroll(dialog);
+    const session = openModal(dialog);
     return () => {
-      unlock();
-      dialog.close();
-      previousFocus?.focus();
+      if (dialog.isConnected && dialog.hasAttribute('open')) {
+        closeModalWithExit(dialog, 'modal-closing', () => session.finishClose());
+      } else {
+        session.finishClose();
+      }
     };
   });
 </script>
@@ -64,6 +64,8 @@
     animation: pixel-fade 120ms linear;
   }
   dialog[open]::backdrop { animation: pixel-fade 120ms linear; }
+  dialog:global(.modal-closing),
+  dialog:global(.modal-closing)::backdrop { animation: pixel-fade 120ms linear reverse; }
   header { flex-shrink: 0; padding: 14px 20px; border-bottom: 1px solid var(--border-vis); background: var(--surface-2); }
   h2 { margin: 0; font: 400 24px/32px var(--font-ui); color: var(--display); }
   .body { min-height: 0; overflow-y: auto; padding: 20px; font: 400 14px/22px var(--font-reading); overflow-wrap: anywhere; }

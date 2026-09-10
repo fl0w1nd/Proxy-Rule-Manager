@@ -5,6 +5,7 @@
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import PixelSkeleton from '../components/pixel/PixelSkeleton.svelte';
   import {
     changeCount,
     displayTime,
@@ -93,9 +94,9 @@
       </PixelButton>
     {/snippet}
 
-    {#if recentUpdates.length === 0}
-      <div class="empty-hint">暂无最近更新记录</div>
-    {:else}
+    {#if loading}
+      <PixelSkeleton rows={4} />
+    {:else if recentUpdates.length > 0}
       <div class="recent-list">
         {#each recentUpdates as item}
           <div class="recent-item">
@@ -115,6 +116,8 @@
           </div>
         {/each}
       </div>
+    {:else if !error}
+      <div class="empty-hint">暂无最近更新记录</div>
     {/if}
   </PixelCard>
 </div>

@@ -118,7 +118,8 @@
               {/if}
               <span>{formatCount(list.entries)} 条</span>
               <span class="geo-tags">{#each list.variants.slice(0, 6) as variant}<em>@{variant.attr}</em>{/each}</span>
-              <span class="row-actions" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>
+              <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+              <span class="row-actions" role="group" aria-label="操作" onclick={(event) => event.stopPropagation()} onkeydown={(event) => event.stopPropagation()}>
                 {#if list.hasFull}
                   <PixelButton size="sm" onclick={() => preview(catalog.provider, list.name, list.entries)}>预览</PixelButton>
                   <button class="pill-btn" type="button" onclick={(event) => copy(path, event.currentTarget)}>复制链接</button>

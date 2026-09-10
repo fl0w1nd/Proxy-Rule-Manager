@@ -9,6 +9,7 @@
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
   import PixelCheckbox from '../components/pixel/PixelCheckbox.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import CodeEditor from '../components/CodeEditor.svelte';
   import clientIcon from '../assets/icons/nav/clients.svg';
 
@@ -359,19 +360,18 @@ hints:
                     }}
                   />
                   <div class="rule-actions">
-                    <button type="button" class="rule-btn" disabled={i === 0} onclick={() => moveRule(i, -1)} aria-label="上移">↑</button>
-                    <button type="button" class="rule-btn" disabled={i === testRules.length - 1} onclick={() => moveRule(i, 1)} aria-label="下移">↓</button>
-                    <button type="button" class="rule-btn danger" onclick={() => removeRule(i)} aria-label="删除">✕</button>
+                    <PixelButton size="sm" disabled={i === 0} onclick={() => moveRule(i, -1)} aria-label="上移">↑</PixelButton>
+                    <PixelButton size="sm" disabled={i === testRules.length - 1} onclick={() => moveRule(i, 1)} aria-label="下移">↓</PixelButton>
+                    <PixelButton size="sm" variant="danger" onclick={() => removeRule(i)} aria-label="删除">✕</PixelButton>
                   </div>
                 </div>
 
                 <div class="ir-rule-fields">
-                  <input
-                    class="rule-value-input"
+                  <PixelInput
                     placeholder={kindPlaceholder(entry.kind)}
                     bind:value={entry.value}
                     aria-label="规则 {i + 1} 匹配值"
-                    oninput={scheduleTest}
+                    oninput={() => scheduleTest()}
                   />
                   {#if entry.kind === 'ip_cidr' || entry.kind === 'ip_suffix'}
                     <PixelCheckbox
@@ -463,7 +463,7 @@ hints:
   /* 抽屉内部结构 */
   .editor { display: flex; flex-direction: column; height: 100%; min-height: 560px; gap: 12px; padding-bottom: 24px; }
   .drawer-subnav { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding-bottom: 6px; border-bottom: 1px solid var(--border); }
-  .preview-status-pill { display: inline-flex; align-items: center; gap: 6px; font: 12px/18px var(--font-ui); color: var(--status-ok, #4ade80); }
+  .preview-status-pill { display: inline-flex; align-items: center; gap: 6px; padding: 4px 8px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--status-success); color: var(--text); font: 12px/18px var(--font-ui); }
   .status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   .pane-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
@@ -488,14 +488,9 @@ hints:
   .rule-idx { font: 12px/20px var(--font-code); color: var(--sec); min-width: 18px; }
   :global(.kind-select) { flex: 1; min-width: 0; }
   .rule-actions { display: flex; align-items: center; gap: 4px; }
-  .rule-btn { min-width: 24px; height: 24px; padding: 0 4px; background: var(--surface); color: var(--text); border: 1px solid var(--border-vis); border-radius: 3px; font: 11px/16px var(--font-ui); cursor: pointer; display: inline-flex; align-items: center; justify-content: center; }
-  .rule-btn:hover:not(:disabled) { background: var(--surface-3); }
-  .rule-btn:disabled { opacity: 0.35; cursor: not-allowed; }
-  .rule-btn.danger:hover:not(:disabled) { background: var(--status-error); }
 
   .ir-rule-fields { display: flex; align-items: center; gap: 8px; }
-  .rule-value-input { flex: 1; min-width: 0; height: 28px; padding: 2px 8px; background: var(--surface); color: var(--text); border: 1px solid var(--border-vis); border-radius: 3px; font: 12px/18px var(--font-code); box-shadow: var(--edge-inset); }
-  .rule-value-input:focus-visible { outline: 1px solid var(--selected); border-color: var(--selected); }
+  .ir-rule-fields :global(.pixel-field) { flex: 1; min-width: 0; }
 
   :global(.flag-chip) { display: inline-flex; align-items: center; height: 28px; padding: 0 8px; border: 1px solid var(--border-vis); border-radius: 3px; background: var(--surface); font-family: var(--font-code); color: var(--sec); cursor: pointer; user-select: none; white-space: nowrap; box-shadow: var(--edge-raised); }
   :global(.flag-chip:hover) { background: var(--surface-2); color: var(--text); }

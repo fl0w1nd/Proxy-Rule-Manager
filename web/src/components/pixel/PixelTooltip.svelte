@@ -71,7 +71,7 @@
     border-radius: 3px;
     background: var(--surface-2);
     color: var(--text);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 25%), var(--shadow-popup);
+    box-shadow: var(--shadow-popup);
     font: 400 11px/17px var(--font-ui);
     overflow-wrap: anywhere;
     animation: pixel-fade 100ms linear;

@@ -7,6 +7,7 @@
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelDialog from '../components/pixel/PixelDialog.svelte';
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import rulesIcon from '../assets/icons/nav/rules.svg';
   import { formatFileSize, localFileLanguage, referencedRuleLabel, validateLocalFileName } from './localFiles';
 
@@ -228,7 +229,7 @@
     </div>
     <div class="toolbar-right">
       <div class="search-wrap">
-        <input type="text" class="pixel-input" placeholder="搜索文件名…" bind:value={searchQuery} spellcheck="false" />
+        <PixelInput placeholder="搜索文件名…" bind:value={searchQuery} spellcheck="false" aria-label="搜索文件" />
       </div>
       <PixelButton size="sm" disabled={busy} onclick={() => fileInput?.click()}>上传</PixelButton>
       <PixelButton size="sm" variant="primary" disabled={busy} onclick={openCreate}>新建文件</PixelButton>
@@ -295,8 +296,8 @@
       {#if creating}
         <label class="field" for="local-file-name">
           <span>文件名</span>
-          <input id="local-file-name" class="pixel-input" class:is-error={!!nameError} bind:value={draftName}
-            placeholder="my-direct.list" spellcheck="false" aria-invalid={!!nameError} oninput={() => { nameError = ''; }} />
+          <PixelInput id="local-file-name" error={!!nameError} bind:value={draftName}
+            placeholder="my-direct.list" spellcheck="false" oninput={() => { nameError = ''; }} />
           {#if nameError}<span class="field-error">{nameError}</span>{/if}
         </label>
       {/if}
@@ -341,7 +342,7 @@
   }
   .files-toolbar { justify-content: space-between; gap: 14px; flex-wrap: wrap; }
   .toolbar-right { flex-wrap: wrap; }
-  .search-wrap .pixel-input { width: 220px; }
+  .search-wrap { width: 220px; }
   .files-message {
     padding: 10px 14px;
     border: 1px solid var(--border-vis);

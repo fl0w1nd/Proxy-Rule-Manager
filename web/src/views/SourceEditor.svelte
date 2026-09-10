@@ -1,5 +1,9 @@
 <script lang="ts">
   import PixelButton from '../components/pixel/PixelButton.svelte';
+  import PixelSelect from '../components/pixel/PixelSelect.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
+  import PixelIcon from '../components/pixel/PixelIcon.svelte';
+  import CodeEditor from '../components/CodeEditor.svelte';
   import OpsEditor from '../components/forms/OpsEditor.svelte';
   import SourceFields from './SourceFields.svelte';
   import { emptySource, type RuleSource } from './rules';
@@ -7,6 +11,7 @@
     sources: RuleSource[]; preprocess?: string; disabled?: boolean;
     fileOptions: { value: string; label: string }[]; refOptions: { value: string; label: string }[];
   } = $props();
+  const uid = $props.id();
   let dragging = $state<{ index: number; child?: number } | null>(null);
   let over = $state<number | null>(null);
   let notice = $state('');
@@ -57,14 +62,14 @@
 </script>
 
 {#snippet moveControl(index: number, child?: number)}
-  <label class="move-control">移入来源组
-    <select {disabled} value="" onchange={event => { if (event.currentTarget.value !== '') { dragging = { index, child }; move(Number(event.currentTarget.value)); event.currentTarget.value = ''; } }}>
-      <option value="">选择目标</option>
-      {#each sources as target, targetIndex}
-        {#if targetIndex !== index}<option value={targetIndex}>{target.label || `${target.group ? '来源组' : '来源'} ${targetIndex + 1}`}</option>{/if}
-      {/each}
-    </select>
-  </label>
+  <div class="move-control">
+    <span class="move-label">移入来源组</span>
+    <PixelSelect id="move-{uid}-{index}-{child ?? 'root'}" label="来源 {index + 1} 移入目标"
+      options={[{ value: '', label: '选择目标' },
+        ...sources.map((target, targetIndex) => ({ value: String(targetIndex), label: target.label || `${target.group ? '来源组' : '来源'} ${targetIndex + 1}` })).filter((_, targetIndex) => targetIndex !== index)]}
+      value="" {disabled}
+      onchange={(value) => { if (value !== '') { dragging = { index, child }; move(Number(value)); } }} />
+  </div>
 {/snippet}
 
 {#snippet processing(source: RuleSource, opsLabel: string)}
@@ -79,7 +84,9 @@
           <button type="button" class="inherit-reset" {disabled} onclick={() => source.preprocess = undefined}>恢复继承</button>
         {/if}
       </p>
-      <label>JavaScript<textarea value={source.preprocess ?? ''} oninput={event => source.preprocess = event.currentTarget.value} {disabled} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"}></textarea></label>
+      <CodeEditor value={source.preprocess ?? ''} language="javascript" label="JavaScript" filename="process.js" height="200px"
+        placeholder={"function process(content) { return content; }"} readonly={disabled}
+        onchange={(value) => source.preprocess = value} />
     </div>
   </details>
   <details class="processing">
@@ -92,7 +99,7 @@
   <header><h3>来源</h3><PixelButton size="sm" {disabled} onclick={() => sources = [...sources, emptySource()]}>添加来源</PixelButton></header>
   {#if notice}<p role="status" class="hint">{notice}</p>{/if}
   {#each sources as source, i (source)}
-    <section class:card={!!source.group} class:plain={!source.group} class:over={over === i} aria-label="来源 {i + 1}"
+    <section class:card={!!source.group} class:plain={!source.group} class:over={over === i} class:dimmed={dragging?.index === i && dragging.child === undefined} aria-label="来源 {i + 1}"
       ondragover={event => { if (dragging && !disabled) { event.preventDefault(); over = i; } }}
       ondragleave={() => over = null} ondrop={event => { event.preventDefault(); event.stopPropagation(); move(i); }}>
       {#if source.group}
@@ -102,13 +109,13 @@
           <div class="actions">
             <PixelButton size="sm" disabled={disabled || sources.length === 1} onclick={() => sources = sources.filter((_, j) => i !== j)}>删除{source.group ? '来源组' : '来源'}</PixelButton>
           </div>
-            <label>组名<input bind:value={source.label} {disabled} placeholder="可选" /></label>
+            <label>组名<PixelInput bind:value={source.label} {disabled} placeholder="可选" /></label>
             {#each source.group as member, j (member)}
-              <div class="member">
+              <div class="member" class:dimmed={dragging?.index === i && dragging?.child === j}>
                 <div class="member-title">{member.label || `来源 ${j + 1}`}</div>
                 <div class="body">
                   <div class="actions">
-                    <button type="button" class="handle" draggable={!disabled} {disabled} aria-label="拖动组内来源 {j + 1}" ondragstart={event => { dragging = { index: i, child: j }; event.dataTransfer?.setData('text/plain', `${i}:${j}`); }} ondragend={() => { dragging = null; over = null; }}>⠿ 拖动</button>
+                    <button type="button" class="handle" draggable={!disabled} {disabled} aria-label="拖动组内来源 {j + 1}" ondragstart={event => { dragging = { index: i, child: j }; event.dataTransfer?.setData('text/plain', `${i}:${j}`); }} ondragend={() => { dragging = null; over = null; }}><PixelIcon name="grip" size={12} /> 拖动</button>
                     {@render moveControl(i, j)}
                     <PixelButton size="sm" {disabled} onclick={() => { dragging = { index: i, child: j }; move(null); }}>移出组</PixelButton>
                     <PixelButton size="sm" disabled={disabled || source.group!.length === 1} onclick={() => source.group = source.group!.filter((_, k) => k !== j)}>删除来源</PixelButton>
@@ -124,7 +131,7 @@
       {:else}
         <div class="actions">
           <strong>来源 {i + 1}</strong>
-          <button type="button" class="handle" draggable={!disabled} {disabled} aria-label="拖动来源 {i + 1}" ondragstart={event => { dragging = { index: i }; event.dataTransfer?.setData('text/plain', String(i)); }} ondragend={() => { dragging = null; over = null; }}>⠿</button>
+          <button type="button" class="handle" draggable={!disabled} {disabled} aria-label="拖动来源 {i + 1}" ondragstart={event => { dragging = { index: i }; event.dataTransfer?.setData('text/plain', String(i)); }} ondragend={() => { dragging = null; over = null; }}><PixelIcon name="grip" size={12} /></button>
           <PixelButton size="sm" {disabled} title="多个来源共用一个组，共享同一份预处理和过滤链" onclick={() => convertToGroup(i)}>转为来源组</PixelButton>
           {#if sources.length > 1}{@render moveControl(i)}{/if}
           <PixelButton size="sm" disabled={disabled || sources.length === 1} onclick={() => sources = sources.filter((_, j) => i !== j)}>删除来源</PixelButton>
@@ -145,7 +152,8 @@
   h3 { margin: 0 auto 0 0; font-size: 14px; }
   .hint { margin: 0; color: var(--sec); font-size: 12px; }
   .card { border: 1px solid var(--border-vis); border-radius: 4px; background: var(--surface); }
-  .over, .drop-out { outline: 2px dashed var(--accent); }
+  .over { outline: 2px dashed var(--accent); outline-offset: 2px; background: var(--surface-2); }
+  .dimmed { opacity: 0.5; }
   summary { cursor: pointer; padding: 12px; font-size: 13px; overflow-wrap: anywhere; }
   .body { padding: 0 12px 12px; }
   .plain { display: grid; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--border); }
@@ -153,53 +161,14 @@
   .member-title { padding: 10px 12px; font-size: 13px; }
   .member { border-bottom: 1px solid var(--border); }
   .processing { border: 1px solid var(--border); border-radius: 3px; min-width: 0; }
-  .inherit-hint { margin: 0; color: var(--sec); font-size: 12px; }
+  .inherit-hint { margin: 0 0 8px; color: var(--sec); font-size: 12px; }
   .inherit-reset { padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
   .inherit-reset:disabled { opacity: .45; cursor: not-allowed; }
   label { display: grid; gap: 6px; font-size: 13px; }
-  input {
-    width: 100%;
-    min-width: 0;
-    min-height: 32px;
-    box-sizing: border-box;
-    padding: 4px 8px;
-    border: 1px solid var(--border-vis);
-    border-radius: 3px;
-    box-shadow: var(--edge-inset);
-    background: var(--surface);
-    color: var(--text);
-    font: 13px/20px var(--font-code);
-    outline: none;
-    transition: background-color 80ms linear;
-  }
-  input:focus-visible {
-    outline: 1px solid var(--selected);
-    border-color: var(--selected);
-  }
-  textarea {
-    box-sizing: border-box;
-    width: 100%;
-    min-width: 0;
-    min-height: 130px;
-    max-height: 280px;
-    padding: 8px;
-    border: 1px solid var(--border-vis);
-    border-radius: 3px;
-    box-shadow: var(--edge-inset);
-    background: var(--surface);
-    color: var(--text);
-    overflow: auto;
-    font: 12px/1.6 var(--font-code);
-    tab-size: 2;
-    resize: vertical;
-    outline: none;
-  }
-  textarea:focus-visible {
-    outline: 1px solid var(--selected);
-    border-color: var(--selected);
-  }
   .move-control { display: flex; align-items: center; gap: 6px; }
-  select { max-width: 180px; padding: 5px; background: var(--surface); color: var(--text); border: 1px solid var(--border-vis); border-radius: 3px; }
-  .handle { cursor: grab; color: var(--sec); background: var(--surface); border: 1px solid var(--border-vis); border-radius: 3px; padding: 5px 8px; }
-  .drop-out { padding: 16px; text-align: center; color: var(--sec); }
+  .move-label { color: var(--sec); white-space: nowrap; }
+  .move-control :global(.pixel-select) { width: 160px; flex-shrink: 0; }
+  .handle { display: inline-flex; align-items: center; gap: 4px; cursor: grab; color: var(--sec); background: var(--surface); border: 1px solid var(--border-vis); border-radius: 3px; padding: 5px 8px; font: inherit; }
+  .handle:disabled { opacity: .45; cursor: not-allowed; }
+  .drop-out { padding: 16px; text-align: center; color: var(--sec); border: 2px dashed var(--border-vis); border-radius: 4px; background: var(--surface-2); }
 </style>

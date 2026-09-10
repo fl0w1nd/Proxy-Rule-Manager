@@ -1,6 +1,7 @@
 <script lang="ts">
   import PixelButton from './PixelButton.svelte';
   import { retroScroll } from '../../utils/scrollbars';
+  import { openModal, closeModalWithExit } from '../../utils/modal';
 
   export interface IconPickerItem {
     id: string;
@@ -32,8 +33,6 @@
     oncancel,
   }: Props = $props();
 
-  import { lockScroll } from '../../utils/scrollLock';
-
   const headingId = $props.id();
   let dialog = $state<HTMLDialogElement>();
   let picked = $state('');
@@ -45,13 +44,13 @@
   $effect(() => {
     if (!open || !dialog) return;
     const element = dialog;
-    const previousFocus = document.activeElement as HTMLElement | null;
-    if (!element.open) element.showModal();
-    const unlock = lockScroll(element);
+    const session = openModal(element);
     return () => {
-      unlock();
-      if (element.open) element.close();
-      previousFocus?.focus();
+      if (element.isConnected && element.hasAttribute('open')) {
+        closeModalWithExit(element, 'modal-closing', () => session.finishClose());
+      } else {
+        session.finishClose();
+      }
     };
   });
 
@@ -148,6 +147,8 @@
     animation: pixel-fade 120ms linear;
   }
   .icon-picker[open]::backdrop { animation: pixel-fade 120ms linear; }
+  .icon-picker:global(.modal-closing),
+  .icon-picker:global(.modal-closing)::backdrop { animation: pixel-fade 120ms linear reverse; }
   header {
     flex-shrink: 0;
     padding: 14px 20px;
@@ -203,7 +204,6 @@
     width: 48px;
     height: 48px;
     object-fit: contain;
-    image-rendering: pixelated;
   }
   .tile strong {
     display: block;

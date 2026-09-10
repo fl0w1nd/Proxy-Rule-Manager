@@ -5,6 +5,7 @@
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
   import PixelSkeleton from '../components/pixel/PixelSkeleton.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import { retroScroll } from '../utils/scrollbars';
   import { entryTypeLabel, geoLabel } from './geodata';
   import geositeIcon from '../assets/icons/nav/geosite.svg';
@@ -180,7 +181,7 @@
   <div class="catalog-shell">
     <div class="catalog-toolbar">
       <PixelTabs id={`${kind}-search-mode`} label="检索方式" items={[{ value: 'name', label: '名称' }, { value: 'content', label: '内容' }]} value={match} onchange={(value) => { match = value as 'name' | 'content'; }} />
-      <input class="pixel-input" type="search" placeholder={match === 'content' ? (kind === 'geoip' ? 'IP 地址或 CIDR…' : '域名或规则内容…') : (kind === 'geoip' ? '搜索列表…' : '搜索列表或变体…')} bind:value={query} spellcheck="false" />
+      <PixelInput class="catalog-search" type="search" placeholder={match === 'content' ? (kind === 'geoip' ? 'IP 地址或 CIDR…' : '域名或规则内容…') : (kind === 'geoip' ? '搜索列表…' : '搜索列表或变体…')} bind:value={query} spellcheck="false" aria-label="搜索目录" />
       {#if searching}<span class="search-status">检索中…</span>{/if}
     </div>
     {#if error}
@@ -259,7 +260,7 @@
 <style>
   .catalog-shell { display: flex; flex-direction: column; gap: 12px; min-height: 0; height: 100%; }
   .catalog-toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-  .catalog-toolbar .pixel-input { flex: 1; min-width: 180px; }
+  .catalog-toolbar :global(.catalog-search) { flex: 1; min-width: 180px; }
   .search-status { color: var(--sec); font: 12px/20px var(--font-ui); }
   .catalog-panes { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr); gap: 12px; min-height: 0; flex: 1; }
   .catalog-lists, .catalog-preview {
@@ -355,5 +356,10 @@
   .entry-list code { font: 12px/20px var(--font-code); color: var(--text); overflow-wrap: anywhere; }
   .entry-attrs { color: var(--dim); font: 12px/20px var(--font-code); }
   .preview-more { padding: 10px 6px 4px; }
-  @media (max-width: 720px) { .catalog-panes { grid-template-columns: 1fr; } }
+  @media (max-width: 720px) {
+    .catalog-panes {
+      grid-template-columns: 1fr;
+      grid-template-rows: minmax(120px, 1fr) minmax(160px, 1fr);
+    }
+  }
 </style>

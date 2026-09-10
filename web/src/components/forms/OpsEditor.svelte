@@ -2,6 +2,7 @@
   import PixelButton from '../pixel/PixelButton.svelte';
   import PixelSelect from '../pixel/PixelSelect.svelte';
   import PixelCheckbox from '../pixel/PixelCheckbox.svelte';
+  import PixelInput from '../pixel/PixelInput.svelte';
   import { ruleKinds, type FilterOp } from './ops';
   let { value = $bindable([]), disabled = false }: { value: FilterOp[]; disabled?: boolean } = $props();
   const id = $props.id();
@@ -27,7 +28,7 @@
       {#if op.type === 'filter_values'}
         <div class="value-fields">
           <PixelSelect id="{id}-mode-{i}" label="匹配方式 {i + 1}" options={modes} value={op.mode || 'keyword'} {disabled} onchange={mode => { op.mode = mode; }} />
-          <input aria-label="匹配值 {i + 1}" placeholder="匹配值" bind:value={op.pattern} {disabled} />
+          <PixelInput class="pattern-input" aria-label="匹配值 {i + 1}" placeholder="匹配值" bind:value={op.pattern} {disabled} />
         </div>
       {:else}
         <details>
@@ -58,19 +59,8 @@
   .ops-editor { display: grid; gap: 10px; }
   section { border: 1px solid var(--border); border-radius: 3px; padding: 10px; display: grid; gap: 10px; }
   .op-head, .value-fields { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-  .value-fields input { flex: 1; min-width: 160px; }
+  .value-fields :global(.pattern-input) { flex: 1; min-width: 160px; }
   summary { cursor: pointer; color: var(--sec); }
   .kinds { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px; padding-top: 10px; }
   :global(.kinds .pixel-checkbox) { font-family: var(--font-code); }
-  input {
-    min-height: 32px;
-    box-sizing: border-box;
-    border: 1px solid var(--border-vis);
-    border-radius: 3px;
-    background: var(--surface);
-    color: var(--text);
-    box-shadow: var(--edge-inset);
-    padding: 4px 8px;
-    font: 13px/20px var(--font-code);
-  }
 </style>

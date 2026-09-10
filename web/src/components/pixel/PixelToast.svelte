@@ -1,49 +1,103 @@
 <script lang="ts">
+  import PixelIcon from './PixelIcon.svelte';
+
   interface ToastMessage {
     id: number;
     type: 'success' | 'error' | 'info';
     text: string;
+    remaining: number;
+    shownAt: number;
+    timer: ReturnType<typeof setTimeout> | null;
   }
+
+  const DURATIONS: Record<ToastMessage['type'], number> = {
+    success: 3000,
+    info: 4000,
+    error: 8000,
+  };
+  const ICONS: Record<ToastMessage['type'], string> = {
+    success: 'check',
+    error: 'cross',
+    info: 'help',
+  };
 
   let toasts = $state<ToastMessage[]>([]);
   let count = 0;
+  let host = $state<HTMLDialogElement>();
 
-  export function show(text: string, type: 'success' | 'error' | 'info' = 'success', duration = 3000) {
+  function schedule(toast: ToastMessage) {
+    toast.timer = setTimeout(() => dismiss(toast.id), toast.remaining);
+    toast.shownAt = Date.now();
+  }
+
+  function pause(toast: ToastMessage) {
+    if (toast.timer) clearTimeout(toast.timer);
+    toast.timer = null;
+    toast.remaining = Math.max(500, toast.remaining - (Date.now() - toast.shownAt));
+  }
+
+  function resume(toast: ToastMessage) {
+    if (toast.timer) return;
+    schedule(toast);
+  }
+
+  export function show(text: string, type: 'success' | 'error' | 'info' = 'success', duration?: number) {
     const id = ++count;
-    toasts = [...toasts, { id, type, text }];
-    setTimeout(() => {
-      toasts = toasts.filter((t) => t.id !== id);
-    }, duration);
+    const toast: ToastMessage = { id, type, text, remaining: duration ?? DURATIONS[type], shownAt: Date.now(), timer: null };
+    schedule(toast);
+    toasts = [...toasts, toast];
   }
   export function dismiss(id: number) {
+    const toast = toasts.find((t) => t.id === id);
+    if (toast?.timer) clearTimeout(toast.timer);
     toasts = toasts.filter((t) => t.id !== id);
   }
+
+  $effect(() => {
+    if (!host) return;
+    if (toasts.length > 0) {
+      if (!host.open) host.show();
+    } else if (host.open) {
+      host.close();
+    }
+  });
 </script>
 
-{#if toasts.length > 0}
-  <div class="toast-container" role="status" aria-live="polite">
+<dialog bind:this={host} class="toast-container" aria-label="通知提示" oncancel={(event) => event.preventDefault()}>
+  <div class="toast-list" role="status" aria-live="polite">
     {#each toasts as toast (toast.id)}
-      <button class="toast-item {toast.type}" type="button" onclick={() => dismiss(toast.id)} title="点击关闭">
-        <span class="icon">
-          {toast.type === 'success' ? '✓' : toast.type === 'error' ? '×' : '›'}
-        </span>
+      <button class="toast-item {toast.type}" type="button" onclick={() => dismiss(toast.id)}
+        onpointerenter={() => pause(toast)} onpointerleave={() => resume(toast)}
+        onfocus={() => pause(toast)} onblur={() => resume(toast)} title="点击关闭">
+        <span class="icon"><PixelIcon name={ICONS[toast.type]} size={12} /></span>
         <span class="text">{toast.text}</span>
       </button>
     {/each}
   </div>
-{/if}
+</dialog>
 
 <style>
   .toast-container {
     position: fixed;
-    bottom: 24px;
-    right: 24px;
-    z-index: 200;
+    inset: auto 24px 24px auto;
+    margin: 0;
+    border: 0;
+    padding: 0;
+    width: max-content;
+    max-width: calc(100vw - 32px);
+    background: transparent;
+    color: var(--text);
+    pointer-events: none;
+  }
+
+  .toast-container[open] {
+    display: block;
+  }
+
+  .toast-list {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-width: calc(100vw - 32px);
-    pointer-events: none;
   }
 
   .toast-item {
@@ -84,13 +138,13 @@
 
   .icon {
     flex-shrink: 0;
+    display: inline-flex;
   }
 
   @media (max-width: 600px) {
     .toast-container {
-      bottom: 16px;
-      right: 16px;
-      left: 16px;
+      inset: auto 16px 16px 16px;
+      width: auto;
     }
   }
 </style>

@@ -2,17 +2,17 @@
 
 :root, [data-theme="dark"] {
   --bg: #1c2820;
-  --surface: #202522;
-  --surface-2: #2b302d;
-  --surface-3: #384239;
+  --surface: #242a26;
+  --surface-2: #313732;
+  --surface-3: #3f4a41;
   --display: #fffdf1;
   --text: #eeeadd;
   --sec: #b1baab;
   --dim: #9aa693;
   --border-vis: #aeb6a8;
   --border: #3a3f3a;
-  --accent: #4b6549;
-  --accent-hover: #587653;
+  --accent: #5c7a58;
+  --accent-hover: #6a8a64;
   --selected: #cad9b9;
   --selected-text: #17251b;
   --focus: #afc7ff;
@@ -22,7 +22,7 @@
   --status-error: #663d38;
   --status-info: #344f57;
   --error-border: #efb8ae;
-  --bevel-light: #5b645a;
+  --bevel-light: #667064;
   --bevel-dark: #111713;
   --texture-dot: rgb(174 182 168 / 12%);
   --terminal-bg: #171c19;
@@ -400,10 +400,8 @@ body[data-overlayscrollbars-initialize] {
   color: var(--sec);
 }
 
-.pixel-input:focus {
-  outline: 2px solid var(--focus);
-  outline-offset: 3px;
-}
+/* Focus ring intentionally not re-declared here: the global
+   input:focus-visible rule (2px --focus, 3px offset) applies. */
 
 .pixel-input.is-error,
 .pixel-input[aria-invalid="true"] {
@@ -465,6 +463,17 @@ body[data-overlayscrollbars-initialize] {
 @keyframes pixel-drawer {
   from { transform: translateX(100%); }
   to { transform: translateX(0); }
+}
+
+@keyframes pixel-drawer-out {
+  from { transform: translateX(0); }
+  to { transform: translateX(100%); }
+}
+
+/* Stacked modals: only the bottom-most layer keeps its backdrop,
+   so nested dialogs/drawers don't double-darken the page. */
+dialog[data-modal-depth]:not([data-modal-depth="1"])::backdrop {
+  background: transparent;
 }
 
 @media (pointer: coarse) {

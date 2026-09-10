@@ -6,6 +6,7 @@
   import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
+  import PixelDialog from '../components/pixel/PixelDialog.svelte';
   import UpdateConsole from '../components/UpdateConsole.svelte';
   import iconDashboard from '../assets/icons/nav/dashboard.svg';
   import iconClients from '../assets/icons/nav/clients.svg';
@@ -26,6 +27,7 @@
     onJobFinish: (detail?: UpdateDetail) => void;
     onProgressRule?: (ruleId: string) => void;
     onErrorToast?: (msg: string) => void;
+    hasUnsavedChanges?: boolean;
     children?: Snippet;
   }
 
@@ -38,6 +40,7 @@
     onJobFinish,
     onProgressRule,
     onErrorToast,
+    hasUnsavedChanges = false,
     children,
   }: Props = $props();
 
@@ -46,16 +49,30 @@
   let theme = $state<'dark' | 'light'>('dark');
   let configDirty = $state(false);
   let isReloadingConfig = $state(false);
+  let reloadConfirm = $state(false);
   let dirtyInterval: any = null;
   let runtimeVersion = $state('…');
 
   onMount(() => {
-    // Read initial theme
+    // Read initial theme; fall back to the OS preference and keep following it
+    // until the user picks a theme manually (stored in localStorage).
     const stored = localStorage.getItem('prm-theme') as 'dark' | 'light' | null;
+    const systemDark = typeof window.matchMedia === 'function' ? window.matchMedia('(prefers-color-scheme: dark)') : null;
     if (stored === 'light' || stored === 'dark') {
       theme = stored;
       document.documentElement.setAttribute('data-theme', stored);
+    } else if (systemDark && !systemDark.matches) {
+      theme = 'light';
+      document.documentElement.setAttribute('data-theme', 'light');
     }
+    const followSystem = (event: MediaQueryListEvent) => {
+      try {
+        if (localStorage.getItem('prm-theme')) return;
+      } catch {}
+      theme = event.matches ? 'dark' : 'light';
+      document.documentElement.setAttribute('data-theme', theme);
+    };
+    systemDark?.addEventListener('change', followSystem);
 
     // Fetch runtime version for sidebar footer
     api.getStatus().then((s) => {
@@ -67,6 +84,7 @@
     dirtyInterval = setInterval(checkDirty, 10000);
 
     return () => {
+      systemDark?.removeEventListener('change', followSystem);
       if (dirtyInterval) clearInterval(dirtyInterval);
     };
   });
@@ -95,6 +113,15 @@
     } finally {
       isReloadingConfig = false;
     }
+  }
+
+  function requestReload() {
+    // Reloading drops any unsaved form state, so confirm first when a view is dirty.
+    if (hasUnsavedChanges) {
+      reloadConfirm = true;
+      return;
+    }
+    void handleReloadConfig();
   }
 
   function toggleTheme() {
@@ -235,7 +262,7 @@
           <span>检测到配置文件在外部已被修改，是否立即重新加载？</span>
         </div>
         <div class="dirty-acts">
-          <PixelButton size="sm" variant="primary" disabled={isReloadingConfig} onclick={handleReloadConfig}>
+          <PixelButton size="sm" variant="primary" disabled={isReloadingConfig} onclick={requestReload}>
             {isReloadingConfig ? '重载中…' : '立即重载'}
           </PixelButton>
           <PixelButton size="sm" variant="ghost" onclick={() => { configDirty = false; }}>
@@ -267,6 +294,17 @@
     onclose={() => (drawerOpen = false)}
   />
 </PixelDrawer>
+
+<PixelDialog
+  bind:open={reloadConfirm}
+  title="放弃未保存的修改？"
+  confirmLabel="放弃修改并重载"
+  cancelLabel="继续编辑"
+  danger
+  onconfirm={() => { void handleReloadConfig(); }}
+>
+  当前页面有尚未保存的修改，重新加载配置将刷新页面并丢弃这些修改。
+</PixelDialog>
 
 <style>
   .admin-shell {

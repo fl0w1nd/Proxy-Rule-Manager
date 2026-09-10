@@ -204,6 +204,10 @@
     <div class="notice">请先在客户端管理中添加客户端，再配置 {geoLabel(kind)} 输出目标。</div>
   {/if}
 
+  {#if !loading && remaining.length === 0 && clients.length > 0}
+    <div class="notice">已配置全部可用提供商。</div>
+  {/if}
+
   {#if loading && providers.length === 0}
     <div class="notice">读取 {geoLabel(kind)} 状态…</div>
   {:else if providers.length === 0}

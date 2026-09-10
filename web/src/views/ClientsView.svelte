@@ -8,6 +8,7 @@
   import PixelDialog from '../components/pixel/PixelDialog.svelte';
   import PixelIconPicker from '../components/pixel/PixelIconPicker.svelte';
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
   import OpsEditor from '../components/forms/OpsEditor.svelte';
   import TemplatesView from './TemplatesView.svelte';
@@ -221,8 +222,8 @@
     <fieldset disabled={busy}>
       <legend>基本属性</legend>
       <div class="fields">
-        <label>客户端 ID<input bind:value={draft.id} disabled={!!editing} placeholder="例如：clash, surge" /></label>
-        <label>名称<input bind:value={draft.name} placeholder="例如：Clash Verge" /></label>
+        <label>客户端 ID<PixelInput bind:value={draft.id} disabled={!!editing} placeholder="例如：clash, surge" /></label>
+        <label>名称<PixelInput bind:value={draft.name} placeholder="例如：Clash Verge" /></label>
         <div class="full icon-field">
           <span>图标</span>
           <div class="icon-row">
@@ -254,7 +255,7 @@
               if (!draft.formats?.length) { delete draft.formats; draft.template = format.template; }
             }}>删除格式</PixelButton>
           </div>
-          <div class="fields"><label>格式 ID<input bind:value={format.id} placeholder="输出文件名 ID" /></label><label>格式名称<input bind:value={format.name} placeholder="显示名称" /></label></div>
+          <div class="fields"><label>格式 ID<PixelInput bind:value={format.id} placeholder="输出文件名 ID" /></label><label>格式名称<PixelInput bind:value={format.name} placeholder="显示名称" /></label></div>
           <PixelSelect id="format-template-{i}" label="格式 {i + 1} 模板" {options} bind:value={format.template} disabled={busy} />
         </fieldset>
       {/each}
@@ -270,7 +271,7 @@
             <legend>变体 {i + 1}</legend>
             <PixelButton size="sm" variant="danger" disabled={busy} onclick={() => { draft.variants = draft.variants?.filter((_, j) => i !== j); }}>删除变体</PixelButton>
           </div>
-          <div class="fields"><label>变体 ID<input bind:value={variant.id} placeholder="输出变体 ID" /></label><label>变体名称<input bind:value={variant.name} placeholder="显示名称" /></label></div>
+          <div class="fields"><label>变体 ID<PixelInput bind:value={variant.id} placeholder="输出变体 ID" /></label><label>变体名称<PixelInput bind:value={variant.name} placeholder="显示名称" /></label></div>
           <PixelSelect id="variant-template-{i}" label="变体 {i + 1} 模板" options={variantOptions} value={variant.template ?? ''} disabled={busy} onchange={v => { variant.template = v; }} />
           <h3>过滤链</h3><OpsEditor bind:value={variant.ops} disabled={busy} />
         </fieldset>
@@ -352,8 +353,6 @@
   .icon-row img { width: 32px; height: 32px; object-fit: contain; image-rendering: pixelated; }
   .icon-unset { color: var(--dim); }
   .icon-action { margin-left: auto; }
-  input { width: 100%; min-width: 0; min-height: 32px; padding: 4px 8px; border: 1px solid var(--border-vis); border-radius: 3px; box-shadow: var(--edge-inset); color: var(--text); background: var(--surface); font: 13px/20px var(--font-code); }
-  input:focus-visible { outline: 1px solid var(--selected); border-color: var(--selected); }
   .notice { padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; overflow-wrap: anywhere; }
   .notice.error { background: var(--status-error); }
   .notice-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
