@@ -9,28 +9,109 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 )
 
-// renderSingbox renders entries as a sing-box JSON rule-set document.
-// Logical entries (AND/OR/NOT) are emitted as {"type":"logical","mode":...}
-// rule objects; flat entries are grouped by field group as usual.
-func renderSingbox(tmpl *Template, entries []ir.Entry) ([]byte, error) {
-	const ruleSetVersion = 3
+const singboxRuleSetVersion uint8 = 3
 
-	var rules []map[string]any
+func isSingboxCodec(codec string) bool {
+	return codec == "singbox" || codec == "singbox_srs"
+}
+
+// singboxRule is one rule object, shared by the JSON and SRS codecs. Both
+// formats serialize the same conditions and only differ in the container, so
+// the same rule object feeds both writers.
+type singboxRule struct {
+	// Mode is empty for a condition-only rule, and a logical mode for a rule
+	// whose children are held in Subs.
+	Mode string
+	Subs []singboxRule
+
+	// Fields holds the string conditions (domains, CIDRs, port ranges, process
+	// details) keyed by the sing-box field name.
+	Fields map[string][]string
+	// Ports holds port numbers keyed by the sing-box field name.
+	Ports map[string][]uint16
+}
+
+// empty reports whether the rule carries no condition at all.
+func (r singboxRule) empty() bool {
+	return len(r.Fields) == 0 && len(r.Ports) == 0 && len(r.Subs) == 0
+}
+
+// renderSingbox renders entries as a sing-box JSON rule-set document.
+func renderSingbox(tmpl *Template, entries []ir.Entry) ([]byte, error) {
+	rules, err := buildSingboxRules(tmpl, entries)
+	if err != nil {
+		return nil, err
+	}
+	if len(rules) == 0 {
+		return nil, nil
+	}
+
+	doc := map[string]any{
+		"version": singboxRuleSetVersion,
+		"rules":   singboxRulesJSON(rules),
+	}
+
+	data, err := json.MarshalIndent(doc, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("singbox marshal: %w", err)
+	}
+	data = append(data, '\n')
+	return data, nil
+}
+
+// singboxRulesJSON converts rule objects into the JSON shape sing-box expects.
+func singboxRulesJSON(rules []singboxRule) []map[string]any {
+	out := make([]map[string]any, 0, len(rules))
+	for _, rule := range rules {
+		out = append(out, rule.jsonObject())
+	}
+	return out
+}
+
+// jsonObject writes a rule as a sing-box rule object: a single condition value
+// becomes a scalar, repeated values become an array.
+func (r singboxRule) jsonObject() map[string]any {
+	if r.Mode != "" {
+		return map[string]any{
+			"type":  "logical",
+			"mode":  r.Mode,
+			"rules": singboxRulesJSON(r.Subs),
+		}
+	}
+	obj := make(map[string]any, len(r.Fields)+len(r.Ports))
+	for field, values := range r.Fields {
+		obj[field] = scalarOrList(values)
+	}
+	for field, values := range r.Ports {
+		obj[field] = scalarOrList(values)
+	}
+	return obj
+}
+
+func scalarOrList[T any](values []T) any {
+	if len(values) == 1 {
+		return values[0]
+	}
+	return values
+}
+
+// buildSingboxRules groups entries into rule objects. Flat entries are grouped
+// by field group so conditions sharing OR-semantics land in one object; logical
+// entries each become their own rule object.
+func buildSingboxRules(tmpl *Template, entries []ir.Entry) ([]singboxRule, error) {
+	var rules []singboxRule
 	var flatBatch []ir.Entry
 
-	// flushFlat processes accumulated flat entries through groupByFieldGroup
-	// and appends the resulting rule objects to rules.
 	flushFlat := func() error {
 		if len(flatBatch) == 0 {
 			return nil
 		}
-		groups := groupByFieldGroup(tmpl, flatBatch)
-		for _, g := range groups {
+		for _, g := range groupByFieldGroup(tmpl, flatBatch) {
 			rule, err := buildSingboxRule(tmpl, g)
 			if err != nil {
 				return err
 			}
-			if len(rule) > 0 {
+			if !rule.empty() {
 				rules = append(rules, rule)
 			}
 		}
@@ -47,7 +128,7 @@ func renderSingbox(tmpl *Template, entries []ir.Entry) ([]byte, error) {
 			if err != nil {
 				return nil, err
 			}
-			if len(rule) > 0 {
+			if !rule.empty() {
 				rules = append(rules, rule)
 			}
 			continue
@@ -57,57 +138,33 @@ func renderSingbox(tmpl *Template, entries []ir.Entry) ([]byte, error) {
 	if err := flushFlat(); err != nil {
 		return nil, err
 	}
-	if len(rules) == 0 {
-		return nil, nil
-	}
-
-	doc := map[string]any{
-		"version": ruleSetVersion,
-		"rules":   rules,
-	}
-
-	data, err := json.MarshalIndent(doc, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("singbox marshal: %w", err)
-	}
-	data = append(data, '\n')
-	return data, nil
+	return rules, nil
 }
 
-// buildLogicalSingboxRule renders an AND/OR/NOT entry as a sing-box logical
-// rule object. Sub-entries are recursively rendered: logical sub-entries
-// become nested logical rules, flat sub-entries become normal rule objects.
-func buildLogicalSingboxRule(tmpl *Template, entry ir.Entry) (map[string]any, error) {
-	rule := map[string]any{
-		"type": "logical",
-		"mode": string(entry.Kind), // "and", "or", "not"
-	}
+// buildLogicalSingboxRule renders an AND/OR/NOT entry as a logical rule object.
+// Sub-entries are recursively rendered: logical sub-entries become nested
+// logical rules, flat sub-entries become normal rule objects.
+func buildLogicalSingboxRule(tmpl *Template, entry ir.Entry) (singboxRule, error) {
+	rule := singboxRule{Mode: string(entry.Kind)}
 
-	var subRules []map[string]any
 	for _, sub := range entry.Sub {
+		var (
+			subRule singboxRule
+			err     error
+		)
 		if sub.Kind.IsLogical() {
-			subRule, err := buildLogicalSingboxRule(tmpl, sub)
-			if err != nil {
-				return nil, err
-			}
-			if len(subRule) > 0 {
-				subRules = append(subRules, subRule)
-			}
+			subRule, err = buildLogicalSingboxRule(tmpl, sub)
 		} else {
-			subRule, err := buildSingboxRule(tmpl, entryGroup{entries: []ir.Entry{sub}})
-			if err != nil {
-				return nil, err
-			}
-			if len(subRule) > 0 {
-				subRules = append(subRules, subRule)
-			}
+			subRule, err = buildSingboxRule(tmpl, entryGroup{entries: []ir.Entry{sub}})
+		}
+		if err != nil {
+			return singboxRule{}, err
+		}
+		if !subRule.empty() {
+			rule.Subs = append(rule.Subs, subRule)
 		}
 	}
 
-	if len(subRules) == 0 {
-		return nil, nil
-	}
-	rule["rules"] = subRules
 	return rule, nil
 }
 
@@ -160,19 +217,14 @@ func groupByFieldGroup(tmpl *Template, entries []ir.Entry) []entryGroup {
 
 	if len(result) == 0 && len(entries) > 0 {
 		// If no field groups defined, put all entries in one rule.
-		var flat []ir.Entry
-		flat = append(flat, entries...)
-		if len(flat) > 0 {
-			result = []entryGroup{{entries: flat}}
-		}
+		result = []entryGroup{{entries: append([]ir.Entry{}, entries...)}}
 	}
 
 	return result
 }
 
-func buildSingboxRule(tmpl *Template, g entryGroup) (map[string]any, error) {
-	rule := map[string]any{}
-	fieldValues := map[string][]any{}
+func buildSingboxRule(tmpl *Template, g entryGroup) (singboxRule, error) {
+	rule := singboxRule{Fields: map[string][]string{}, Ports: map[string][]uint16{}}
 
 	for _, e := range g.entries {
 		field, ok := resolveFieldName(tmpl, e)
@@ -190,30 +242,20 @@ func buildSingboxRule(tmpl *Template, g entryGroup) (map[string]any, error) {
 		if e.Kind == ir.KindDstPort || e.Kind == ir.KindSrcPort {
 			ports, ranges, err := expandPortsForSingbox(value, hint.PortRangeSep)
 			if err != nil {
-				return nil, err
+				return singboxRule{}, err
 			}
-			fieldValues[field] = append(fieldValues[field], ports...)
+			rule.Ports[field] = append(rule.Ports[field], ports...)
 			if len(ranges) > 0 {
 				rangeField, ok := resolvePortRangeField(tmpl, e.Kind)
 				if !ok {
-					return nil, fmt.Errorf("template %q has no range field for %s", tmpl.ID, e.Kind)
+					return singboxRule{}, fmt.Errorf("template %q has no range field for %s", tmpl.ID, e.Kind)
 				}
-				for _, rv := range ranges {
-					fieldValues[rangeField] = append(fieldValues[rangeField], rv)
-				}
+				rule.Fields[rangeField] = append(rule.Fields[rangeField], ranges...)
 			}
 			continue
 		}
 
-		fieldValues[field] = append(fieldValues[field], value)
-	}
-
-	for field, vals := range fieldValues {
-		if len(vals) == 1 {
-			rule[field] = vals[0]
-		} else {
-			rule[field] = vals
-		}
+		rule.Fields[field] = append(rule.Fields[field], value)
 	}
 
 	return rule, nil
@@ -231,13 +273,13 @@ func resolvePortRangeField(tmpl *Template, kind ir.Kind) (string, bool) {
 }
 
 // expandPortsForSingbox converts an IR canonical port value (e.g. "80/443/8000-9000")
-// into singbox-appropriate values.
-func expandPortsForSingbox(value, rangeSep string) ([]any, []string, error) {
+// into port numbers and ranges.
+func expandPortsForSingbox(value, rangeSep string) ([]uint16, []string, error) {
 	if rangeSep == "" {
 		rangeSep = ":"
 	}
 	parts := strings.Split(value, "/")
-	var ports []any
+	var ports []uint16
 	var ranges []string
 	for _, p := range parts {
 		p = strings.TrimSpace(p)
@@ -249,10 +291,10 @@ func expandPortsForSingbox(value, rangeSep string) ([]any, []string, error) {
 			continue
 		}
 		n, err := strconv.Atoi(p)
-		if err != nil {
+		if err != nil || n < 0 || n > 65535 {
 			return nil, nil, fmt.Errorf("invalid canonical port %q", p)
 		}
-		ports = append(ports, n)
+		ports = append(ports, uint16(n))
 	}
 	return ports, ranges, nil
 }
