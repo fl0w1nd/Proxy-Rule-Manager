@@ -14,12 +14,17 @@
   let previewTab = $state('');
 
   const previewOutputs = $derived(preview?.outputs ?? []);
-  const previewClients = $derived([...new Map(previewOutputs.map(item => [item.client_id, { value: item.client_id, label: item.client_name }])).values()]);
+  const isBinaryOutput = (item: { binary?: boolean }) => item.binary === true;
+  const previewClients = $derived([...new Map(previewOutputs.map(item => [item.client_id, {
+    value: item.client_id,
+    label: item.client_name,
+  }])).values()]);
   const previewFormats = $derived(previewOutputs.filter(item => item.client_id === previewClient));
 
   $effect(() => {
-    previewTab = preview.outputs[0]?.id ?? '';
-    previewClient = preview.outputs[0]?.client_id ?? '';
+    const first = preview.outputs.find((item) => !isBinaryOutput(item)) ?? preview.outputs[0];
+    previewTab = first?.id ?? '';
+    previewClient = first?.client_id ?? '';
   });
 
   function durationLabel(ms: number) {
@@ -66,7 +71,7 @@
     </ul>
   {/if}
   {#if previewOutputs.length}
-    <PixelTabs id="rule-preview-clients" label="输出客户端" items={previewClients} value={previewClient} onchange={value => { previewClient = value; previewTab = previewOutputs.find(item => item.client_id === value)?.id ?? ''; }} />
+    <PixelTabs id="rule-preview-clients" label="输出客户端" items={previewClients} value={previewClient} onchange={value => { previewClient = value; previewTab = previewOutputs.find(item => item.client_id === value && !isBinaryOutput(item))?.id ?? previewOutputs.find(item => item.client_id === value)?.id ?? ''; }} />
     <div role="tabpanel" id="rule-preview-clients-panel-{previewClient}" aria-labelledby="rule-preview-clients-tab-{previewClient}" class="preview-formats">
     <PixelTabs id="rule-preview-outputs" label="客户端格式" items={previewFormats.map((item) => ({ value: item.id, label: item.name || item.id }))} bind:value={previewTab} />
     {#each previewFormats as item (item.id)}
@@ -74,6 +79,8 @@
         <div role="tabpanel" id="rule-preview-outputs-panel-{item.id}" aria-labelledby="rule-preview-outputs-tab-{item.id}">
         {#if item.error}
           <div class="notice error">{item.error}</div>
+        {:else if isBinaryOutput(item)}
+          <p class="binary-note">二进制规则集无法以文本预览，可下载后导入客户端。</p>
         {:else}
           <CodePanel filename={item.id} stat={`${item.output?.split('\n').length ?? 0} LINES`}>
             <pre use:retroScroll>{item.output}{item.truncated ? '\n… 内容已截断' : ''}</pre>
@@ -101,6 +108,7 @@
   .diff-samples .add { color: var(--diff-add); }
   .diff-samples .del { color: var(--diff-remove); }
   .empty-hint { margin: 0; padding: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 4px; font: 12px/18px var(--font-ui); color: var(--sec); }
+  .binary-note { margin: 0; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--sec); font: 400 14px/22px var(--font-reading); }
   .preview-formats { display: grid; gap: 18px; min-width: 0; border: 1px solid var(--border); padding: 12px; border-radius: 3px; }
   .preview-report :global(.code-panel pre) { margin: 0; max-height: 280px; overflow: auto; padding: 10px 12px; color: var(--terminal-text); font: 13px/20px var(--font-code); white-space: pre-wrap; }
 </style>

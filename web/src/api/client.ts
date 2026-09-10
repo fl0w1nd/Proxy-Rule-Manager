@@ -57,6 +57,7 @@ export interface RulePreviewArtifact {
   client_name: string;
   id: string;
   name: string;
+  binary?: boolean;
   output?: string;
   truncated?: boolean;
   error?: string;

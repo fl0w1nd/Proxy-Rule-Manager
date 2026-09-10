@@ -213,6 +213,42 @@ describe('RulesView', () => {
     expect(previewMock).toHaveBeenCalledWith(expect.objectContaining({ id: 'base' }));
     expect(screen.getByText('DOMAIN,example.com')).toBeInTheDocument();
   });
+
+  it('explains a binary preview tab instead of disabling it', async () => {
+    vi.spyOn(api, 'previewRule').mockResolvedValue({
+      rule_id: 'base',
+      rule_name: 'Base',
+      elapsed_ms: 7,
+      sources: [{ label: 'https://example/base.list', type: 'url', entries: 2, diagnostics: 0, duration_ms: 4 }],
+      pre_ops: 2,
+      post_ops: 2,
+      merged: 2,
+      ops_diff: { added: 0, removed: 0, groups: [] },
+      outputs: [
+        { id: 'mihomo', client_id: 'mihomo', client_name: 'Mihomo', name: 'Standard', output: 'DOMAIN,example.com\n' },
+        { id: 'singbox-binary', client_id: 'sing-box', client_name: 'sing-box', name: 'Binary', binary: true },
+      ],
+    });
+    render(RulesView, { onStartUpdate: vi.fn() });
+    await fireEvent.click(await screen.findByRole('button', { name: '预览' }));
+    await screen.findByText(/合并 2 条/);
+
+    const clients_ = within(screen.getByRole('tablist', { name: '输出客户端' }));
+    const formats = () => within(screen.getByRole('tablist', { name: '客户端格式' }));
+
+    // 全为二进制的客户端也能选中，不会被禁用
+    const binaryClient = clients_.getByRole('tab', { name: 'sing-box' });
+    expect(binaryClient).toBeEnabled();
+    await fireEvent.click(binaryClient);
+
+    expect(formats().getByRole('tab', { name: 'Binary' })).toBeEnabled();
+    expect(screen.getByText('二进制规则集无法以文本预览，可下载后导入客户端。')).toBeInTheDocument();
+    expect(screen.queryByText('DOMAIN,example.com')).not.toBeInTheDocument();
+
+    // 切回文本客户端后代码面板回来
+    await fireEvent.click(clients_.getByRole('tab', { name: 'Mihomo' }));
+    expect(screen.getByText('DOMAIN,example.com')).toBeInTheDocument();
+  });
 });
 
 it('groups sources by dragging and saves shared processing inside the group', async () => {

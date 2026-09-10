@@ -517,6 +517,15 @@
   text-align: right;
   user-select: none;
 }
+.binary-note {
+  margin: 14px 20px 20px;
+  padding: 10px 14px;
+  border: 1px solid var(--border-vis);
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--sec);
+  font: 400 14px/22px var(--font-reading);
+}
 .preview-shell[data-state="error"] pre { color: var(--diff-remove); }
 .preview-shell[data-state="loading"] pre { color: var(--terminal-muted); }
 

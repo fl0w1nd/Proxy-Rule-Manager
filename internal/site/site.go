@@ -50,6 +50,7 @@ type ClientOption struct {
 	ID      string `json:"id"`
 	Name    string `json:"name"`
 	Ext     string `json:"ext"`
+	Binary  bool   `json:"binary,omitempty"` // artifact is not text, so the page cannot preview it
 	Rules   bool   `json:"rules"`
 	GeoIP   bool   `json:"geoip"`
 	Geosite bool   `json:"geosite"`

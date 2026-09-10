@@ -17,6 +17,7 @@
   let expanded = $state<Record<string, boolean>>({});
   let showAll = $state<Record<string, boolean>>({});
   const pageSize = 100;
+  const binary = $derived(target.binary === true);
 
   function listsForTarget(lists: PublicGeositeList[]) {
     return lists.flatMap((list) => {
@@ -83,7 +84,7 @@
 
   <div class="geo-root">
     {#if !hasPublished}
-      <div class="empty">{kind === 'geoip' ? '还没有 GeoIP 数据，先运行 prm update。' : '还没有 Geosite 数据，先运行 prm update。'}</div>
+      <div class="empty">{kind === 'geoip' ? '还没有 GeoIP 数据，先运行 prm update --geoip。' : '还没有 Geosite 数据，先运行 prm update --geosite。'}</div>
     {:else}
     {#each prepared.filter((catalog) => catalog.lists.length > 0) as catalog (catalog.provider)}
       {@const shown = showAll[catalog.provider] ? catalog.lists : catalog.lists.slice(0, pageSize)}
@@ -123,7 +124,7 @@
                 {#if list.hasFull}
                   <PixelButton size="sm" onclick={() => preview(catalog.provider, list.name, list.entries)}>预览</PixelButton>
                   <button class="pill-btn" type="button" onclick={(event) => copy(path, event.currentTarget)}>复制链接</button>
-                  <a class="pill-btn" href={path} target="_blank" rel="noopener">打开</a>
+                  <a class="pill-btn" href={path} target="_blank" rel="noopener" download={binary || undefined}>打开</a>
                 {/if}
               </span>
             </div>
@@ -134,7 +135,7 @@
                     <span class="geo-tag full">完整列表</span><span>{formatCount(list.entries)} 条</span>
                     <span class="row-actions">
                       <PixelButton size="sm" onclick={() => preview(catalog.provider, list.name, list.entries)}>预览</PixelButton>
-                      <a class="pill-btn" href={path} target="_blank" rel="noopener">打开</a>
+                      <a class="pill-btn" href={path} target="_blank" rel="noopener" download={binary || undefined}>打开</a>
                     </span>
                   </div>
                 {/if}
@@ -144,7 +145,7 @@
                     <span class="geo-tag">@{variant.attr}</span><span>{formatCount(variant.entries)} 条</span>
                     <span class="row-actions">
                       <PixelButton size="sm" onclick={() => preview(catalog.provider, list.name, variant.entries, variant.attr)}>预览</PixelButton>
-                      <a class="pill-btn" href={variantPath} target="_blank" rel="noopener">打开</a>
+                      <a class="pill-btn" href={variantPath} target="_blank" rel="noopener" download={binary || undefined}>打开</a>
                     </span>
                   </div>
                 {/each}

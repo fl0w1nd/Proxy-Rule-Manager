@@ -2,14 +2,16 @@ package serve
 
 import (
 	"encoding/json"
-	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
-	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
 )
 
 func TestRulePreviewCompilesDraftWithLocalFile(t *testing.T) {
@@ -102,7 +104,7 @@ func TestRulePreviewSourceNames(t *testing.T) {
 	report := &engine.PreviewReport{RuleID: "example", Sources: []engine.SourceOutcome{
 		{Label: "source[0]", Type: "url"}, {Label: "自定义", Type: "local"}, {Label: "Google", Type: "group"},
 	}}
-	response := buildRulePreviewResponse(cfg, report, 0)
+	response := buildRulePreviewResponse(cfg, report, 0, render.NewRegistry())
 	if response.Sources[0].Label != "https://example.com/rules.list" {
 		t.Fatalf("url source=%+v", response.Sources[0])
 	}

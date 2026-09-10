@@ -4,6 +4,7 @@ export interface PublicClientOption {
   id: string;
   name: string;
   ext: string;
+  binary?: boolean;
   rules: boolean;
   geosite: boolean;
   geoip?: boolean;

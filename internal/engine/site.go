@@ -103,14 +103,16 @@ func (e *UpdateEngine) siteClients() []site.Client {
 			ID: c.ID, Name: name, Icon: site.ResolveClientIcon(c.Icon, c.ID),
 		}
 		for _, target := range config.ExpandClientTargets(c) {
-			ext := ".list"
+			ext, binary := ".list", false
 			if tmpl, ok := e.Registry.Get(target.Template); ok {
 				ext = tmpl.Extension
+				binary = tmpl.IsBinary()
 			}
 			option := site.ClientOption{
 				ID:      target.ID,
 				Name:    target.OptionName,
 				Ext:     ext,
+				Binary:  binary,
 				Rules:   targetHasRuleArtifacts(e.DataDir, target.ID),
 				Geosite: targetHasGeoArtifacts(e.DataDir, target.ID, "geosite"),
 				GeoIP:   targetHasGeoArtifacts(e.DataDir, target.ID, "geoip"),

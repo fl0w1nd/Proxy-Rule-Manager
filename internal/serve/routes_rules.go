@@ -11,6 +11,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
 	"gopkg.in/yaml.v3"
 )
 
@@ -41,6 +42,7 @@ type rulePreviewArtifact struct {
 	ClientName string `json:"client_name"`
 	ID         string `json:"id"`
 	Name       string `json:"name"`
+	Binary     bool   `json:"binary,omitempty"`
 	Output     string `json:"output,omitempty"`
 	Truncated  bool   `json:"truncated,omitempty"`
 	Error      string `json:"error,omitempty"`
@@ -144,7 +146,7 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusUnprocessableEntity, "preview_failed", "规则预览失败", map[string]any{"reason": err.Error()})
 		return
 	}
-	writeJSON(w, http.StatusOK, buildRulePreviewResponse(cfg, report, time.Since(started)))
+	writeJSON(w, http.StatusOK, buildRulePreviewResponse(cfg, report, time.Since(started), s.Engine.Registry))
 }
 
 func overlayRule(cfg *config.Config, rule config.RuleConfig) {
@@ -157,7 +159,7 @@ func overlayRule(cfg *config.Config, rule config.RuleConfig) {
 	cfg.Rules = append(cfg.Rules, rule)
 }
 
-func buildRulePreviewResponse(cfg *config.Config, report *engine.PreviewReport, elapsed time.Duration) rulePreviewResponse {
+func buildRulePreviewResponse(cfg *config.Config, report *engine.PreviewReport, elapsed time.Duration, registry *render.Registry) rulePreviewResponse {
 	sources := make([]rulePreviewSource, 0, len(report.Sources))
 	var definitions []config.SourceConfig
 	for _, rule := range cfg.Rules {
@@ -197,8 +199,16 @@ func buildRulePreviewResponse(cfg *config.Config, report *engine.PreviewReport, 
 	outputs := make([]rulePreviewArtifact, 0, len(targets))
 	for _, target := range targets {
 		item := rulePreviewArtifact{ID: target.ID, Name: target.OptionName, ClientID: target.ClientID, ClientName: target.ClientName}
+		if tmpl, ok := registry.Get(target.Template); ok {
+			item.Binary = tmpl.IsBinary()
+		}
 		if errText := report.ArtifactErrors[target.ID]; errText != "" {
 			item.Error = errText
+			outputs = append(outputs, item)
+			continue
+		}
+		if item.Binary {
+			// Binary artifacts have no text body to show; the tab is informational.
 			outputs = append(outputs, item)
 			continue
 		}

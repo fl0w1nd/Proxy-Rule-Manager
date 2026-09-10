@@ -14,7 +14,7 @@ function fixture(): PublicPageData {
         id: 'clash', name: 'Clash', icon: 'clash', rules: true, geosite: true,
         options: [
           { id: 'clash-yaml', name: 'YAML', ext: '.yaml', rules: true, geosite: true },
-          { id: 'clash-mrs', name: 'MRS', ext: '.mrs', rules: true, geosite: true },
+          { id: 'clash-mrs', name: 'MRS', ext: '.mrs', binary: true, rules: true, geosite: true },
         ],
       },
       {
@@ -155,15 +155,22 @@ describe('PublicApp', () => {
     expect(screen.getByText('list-100')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'category/ai' })).toHaveAttribute('aria-expanded');
     expect(screen.getByRole('button', { name: 'list-1' })).not.toHaveAttribute('aria-expanded');
-    await user.click(screen.getAllByRole('button', { name: '预览' })[0]);
-    await screen.findByText('1 LINES');
-    expect(screen.getByRole('link', { name: '打开文件' })).toHaveAttribute(
+    expect(screen.getAllByRole('link', { name: '打开' })[0]).toHaveAttribute(
       'href',
       'rules/clash-mrs/geosite/v2%20fly/category%2Fai.mrs',
     );
+    expect(screen.getAllByRole('link', { name: '打开' })[0]).toHaveAttribute('download');
 
+    // 二进制格式：弹窗说明无法预览，不去读取文件
+    await user.click(screen.getAllByRole('button', { name: '预览' })[0]);
+    expect(await screen.findByText(/二进制规则集.*无法以文本预览/)).toBeInTheDocument();
+    expect(screen.queryByText('READING')).not.toBeInTheDocument();
+    expect(vi.mocked(fetch)).not.toHaveBeenCalled();
+
+    // 弹窗开着时切回文本格式，重新加载文件
     await user.click(screen.getByRole('button', { name: /Clash/ }));
     await user.click(screen.getByRole('radio', { name: /YAML/ }));
+    await screen.findByText('1 LINES');
     expect(screen.getByRole('link', { name: '打开文件' })).toHaveAttribute(
       'href',
       'rules/clash-yaml/geosite/v2%20fly/category%2Fai.yaml',
@@ -204,11 +211,29 @@ it('uses GeoIP catalogs and updates preview paths for the selected format', asyn
   expect(screen.getByRole('heading', { name: 'GeoIP 列表' })).toBeInTheDocument();
   expect(screen.getByRole('button', { name: 'cn' })).not.toHaveAttribute('aria-expanded');
   expect(screen.getByRole('link', { name: '打开' })).toHaveAttribute('href', 'rules/clash-yaml/geoip/loyalsoldier/cn.yaml');
+  expect(screen.getByRole('link', { name: '打开' })).not.toHaveAttribute('download');
   await fireEvent.click(screen.getByRole('button', { name: '预览' }));
   await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('rules/clash-yaml/geoip/loyalsoldier/cn.yaml', expect.anything()));
   await fireEvent.click(screen.getByRole('button', { name: /Clash/ }));
   await fireEvent.click(screen.getByRole('radio', { name: /MRS/ }));
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledWith('rules/clash-mrs/geoip/loyalsoldier/cn.mrs', expect.anything()));
+  expect(screen.getByRole('link', { name: '打开' })).toHaveAttribute('download');
+  await fireEvent.click(screen.getByRole('button', { name: '预览' }));
+  expect(await screen.findByText(/二进制规则集.*无法以文本预览/)).toBeInTheDocument();
+  expect(fetchMock).toHaveBeenCalledTimes(1); // 只有切换前那次 YAML 读取
+});
+
+it('explains that a binary rule artifact has no text preview', async () => {
+  const user = userEvent.setup();
+  const fetchMock = vi.fn().mockResolvedValue(new Response('payload', { status: 200 }));
+  vi.stubGlobal('fetch', fetchMock);
+  localStorage.setItem('prm-target-clash', 'clash-mrs');
+  render(PublicApp, { data: fixture() });
+
+  await user.click(await screen.findByRole('button', { name: '查看规则 OpenAI' }));
+  expect(await screen.findByText(/二进制规则集.*无法以文本预览/)).toBeInTheDocument();
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(screen.getByRole('link', { name: '下载文件' })).toHaveAttribute('href', 'rules/clash-mrs/OpenAI.mrs');
+  expect(screen.getByRole('link', { name: '下载文件' })).toHaveAttribute('download');
 });
 
 it('hides unpublished GeoIP lists and dims formats without files', async () => {

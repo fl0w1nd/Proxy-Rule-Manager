@@ -23,7 +23,7 @@
   }
 
   let { item, client, target, onclose }: Props = $props();
-  let previewState = $state<'loading' | 'ready' | 'empty' | 'error'>('loading');
+  let previewState = $state<'loading' | 'ready' | 'empty' | 'binary' | 'error'>('loading');
   let previewText = $state('加载中…');
   let previewStat = $state('READING');
   let copied = $state(false);
@@ -55,6 +55,11 @@
       previewState = 'empty';
       previewText = '没有可预览的内容。';
       previewStat = 'EMPTY';
+      return;
+    }
+    if (target.binary) {
+      // 二进制规则集无法按文本读取，打开弹窗只是为了让下载与复制链接仍可达。
+      previewState = 'binary';
       return;
     }
     const cached = previewCache.get(current.path);
@@ -129,14 +134,18 @@
         <span>{formatCount(item.entries)} 条</span>
         <div class="modal-actions">
           <PixelButton size="sm" disabled={!item.path} onclick={handleCopy}>{copied ? '已复制' : '复制链接'}</PixelButton>
-          {#if item.path}<a class="pill-btn" href={item.path} target="_blank" rel="noopener">打开文件</a>{/if}
+          {#if item.path}<a class="pill-btn" href={item.path} target="_blank" rel="noopener" download={target.binary || undefined}>{target.binary ? '下载文件' : '打开文件'}</a>{/if}
         </div>
       </div>
-      <div class="preview-shell" data-state={previewState}>
-        <CodePanel filename={item.path?.split('/').pop()} stat={previewStat}>
-          <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
-        </CodePanel>
-      </div>
+      {#if previewState === 'binary'}
+        <p class="binary-note">二进制规则集（{target.ext}）无法以文本预览，可下载后导入客户端。</p>
+      {:else}
+        <div class="preview-shell" data-state={previewState}>
+          <CodePanel filename={item.path?.split('/').pop()} stat={previewStat}>
+            <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+          </CodePanel>
+        </div>
+      {/if}
     </div>
   </div>
 {/if}
