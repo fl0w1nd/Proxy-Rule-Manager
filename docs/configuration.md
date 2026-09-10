@@ -68,10 +68,17 @@ PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 ```yaml
 - id: sing-box
   name: sing-box
-  template: singbox
+  formats:
+    - id: singbox
+      name: Source
+      template: singbox
+    - id: singbox-binary
+      name: Binary
+      template: singbox-binary
   variants:
     - id: sing-box-non-ip
       name: Non-IP
+      template: singbox
       ops:
         - type: exclude_kinds
           kinds: [ip_cidr]     # 产物里去掉所有 IP 段规则
@@ -83,9 +90,10 @@ PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 | --- | --- | --- | --- |
 | `mihomo-classical` | Mihomo | Classical 行列表 | `.list` |
 | `mihomo-yaml` | Mihomo | YAML rule provider | `.yaml` |
-| `singbox` | sing-box | JSON rule-set | `.json` |
-| `surge` | Surge | 行列表 | `.list` |
-| `shadowrocket` | Shadowrocket | 行列表 | `.list` |
+| `singbox` | sing-box | Source rule-set（JSON） | `.json` |
+| `singbox-binary` | sing-box | Binary rule-set（SRS） | `.srs` |
+| `surge` | Surge | Classical 行列表 | `.list` |
+| `shadowrocket` | Shadowrocket | Classical 行列表 | `.list` |
 
 `icon` 可选值：`mihomo`、`singbox`、`shadowrocket`、`surge`；不写则按客户端 id 推断，无法识别时使用通用图标。自定义模板放在 `data/templates/`，同名时覆盖内置模板。
 
@@ -214,7 +222,7 @@ geoip:
       clients: [mihomo]
 ```
 
-客户端 ID 引用 `clients` 中的配置，每个客户端会展开自己的格式和变体。产物路径为 `rules/<输出 ID>/geoip/<provider>/<分类><扩展名>`，例如 `rules/mihomo-yaml/geoip/loyalsoldier/cn.yaml`。sing-box 通过现有 JSON rule-set 输出 `ip_cidr` 列表。
+客户端 ID 引用 `clients` 中的配置，每个客户端会展开自己的格式和变体。产物路径为 `rules/<输出 ID>/geoip/<provider>/<分类><扩展名>`，例如 `rules/mihomo-yaml/geoip/loyalsoldier/cn.yaml`。sing-box 通过 JSON / SRS rule-set 输出 `ip_cidr` 列表。
 
 管理页的 GeoIP 目录支持按分类名称、IP 地址或 CIDR 检索，并分页预览网段。完整更新刷新上游和自动发布；指定规则更新复用本地缓存。上游刷新失败时继续使用已有缓存，并在更新记录中报告错误。
 

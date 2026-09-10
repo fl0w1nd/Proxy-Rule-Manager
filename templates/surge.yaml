@@ -1,8 +1,8 @@
 id: surge
-name: Surge
+name: Surge Classical
 codec: linelist
 extension: .list
-description: Surge rule set format
+description: Surge classical rule set format
 
 kind_map:
   domain:

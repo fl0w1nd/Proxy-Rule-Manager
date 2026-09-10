@@ -20,7 +20,7 @@
 # clients —— 你的代理客户端
 # ============================================================
 # 这里声明"规则最终渲染给谁、用什么格式"。三种写法：
-#   · 多格式：formats 下列多个模板（如 Mihomo 的 Classical / YAML）
+#   · 多格式：formats 下列多个模板（如 Mihomo 的 Classical / YAML，sing-box 的 Source / Binary）
 #   · 单格式：直接写 template
 #   · 派生变体：variants，渲染前对规则再过滤一次
 #
@@ -38,17 +38,23 @@ clients:
         name: YAML
         template: mihomo-yaml
 
-  # 单格式客户端：一个 template 就够，产物目录名取客户端 id。
   - id: sing-box
     name: sing-box
     icon: singbox
-    template: singbox
+    formats:
+      - id: singbox
+        name: Source
+        template: singbox
+      - id: singbox-binary
+        name: Binary
+        template: singbox-binary
 
-    # 变体：产物目录名取 id；template 省略时继承客户端的模板。
+    # 变体：产物目录名取 id；多格式客户端必须写 template。
     # 常见用途：sing-box 出全量规则，另出一份不含 IP 段的。
     variants:
       - id: sing-box-non-ip
         name: Non-IP
+        template: singbox
         ops:
           - type: exclude_kinds
             kinds: [ip_cidr]

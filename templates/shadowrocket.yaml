@@ -1,8 +1,8 @@
 id: shadowrocket
-name: Shadowrocket
+name: Shadowrocket Classical
 codec: linelist
 extension: .list
-description: Shadowrocket rule set format
+description: Shadowrocket classical rule set format
 
 kind_map:
   domain:

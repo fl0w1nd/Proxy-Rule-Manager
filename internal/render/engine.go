@@ -8,8 +8,7 @@ import (
 
 // Render dispatches to the appropriate codec based on the template's codec field.
 func Render(tmpl *Template, entries []ir.Entry) ([]byte, error) {
-	// Only the singbox codec can represent logical (AND/OR/NOT) entries.
-	if tmpl.Codec != "singbox" {
+	if !isSingboxCodec(tmpl.Codec) {
 		for _, entry := range entries {
 			if entry.Kind.IsLogical() {
 				return nil, fmt.Errorf("template %q does not support logical rule entries", tmpl.ID)
@@ -23,6 +22,8 @@ func Render(tmpl *Template, entries []ir.Entry) ([]byte, error) {
 		return renderYAMLPayload(tmpl, entries)
 	case "singbox":
 		return renderSingbox(tmpl, entries)
+	case "singbox_srs":
+		return renderSingboxSRS(tmpl, entries)
 	default:
 		return nil, fmt.Errorf("unknown codec %q", tmpl.Codec)
 	}

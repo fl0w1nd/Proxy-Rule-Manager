@@ -1,8 +1,8 @@
-id: singbox
-name: sing-box Source
-codec: singbox
-extension: .json
-description: sing-box source rule-set format (JSON, version 3)
+id: singbox-binary
+name: sing-box Binary
+codec: singbox_srs
+extension: .srs
+description: sing-box binary rule-set format (SRS, version 3)
 
 kind_map:
   domain:

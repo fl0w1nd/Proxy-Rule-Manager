@@ -42,7 +42,7 @@ Proxy Rule Manager（prm）把来自多个上游来源的代理规则，编译�
 - **中间表示（IR）**：40 多种规则类型，外加 AND、OR、NOT 逻辑组合。
 - **合并策略**：并集（默认）、交集、差集，自动去重。
 - **过滤操作（ops）**：按类型保留或移除，按关键词/后缀/前缀/精确/正则过滤值。
-- **输出客户端**：Mihomo（Classical、YAML）、sing-box JSON、Surge、Shadowrocket，支持自定义模板。
+- **输出客户端**：Mihomo（Classical、YAML）、sing-box（Source、Binary）、Surge、Shadowrocket，支持自定义模板。
 - **变体**：同一客户端额外产出，渲染前再做一次过滤。
 - **Geo 数据自动发布**：把 geosite 列表及属性变体、geoip 分类网段同步到目标客户端。
 - **JavaScript 预处理**：解析前可先用脚本改写原始内容。

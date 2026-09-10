@@ -1,6 +1,6 @@
 // Package render implements template-driven rule rendering. Templates are YAML
-// files describing how IR entries map to output format syntax. Three codecs
-// handle the actual serialization: linelist, yaml_payload, and singbox.
+// files describing how IR entries map to output format syntax. Codecs
+// handle the actual serialization: linelist, yaml_payload, singbox, and singbox_srs.
 package render
 
 import (
@@ -32,6 +32,12 @@ type Template struct {
 
 	// Per-kind rendering hints
 	Hints map[string]KindHint `yaml:"hints,omitempty"`
+}
+
+// IsBinary reports whether the codec writes an artifact that is not text, so
+// consumers cannot preview it or read it as a rule line list.
+func (t *Template) IsBinary() bool {
+	return t.Codec == "singbox_srs"
 }
 
 // KindMapping maps an IR kind to an output type or field name.
@@ -109,9 +115,9 @@ func (t *Template) Validate() error {
 		return fmt.Errorf("template: id is required")
 	}
 	switch t.Codec {
-	case "linelist", "yaml_payload", "singbox":
+	case "linelist", "yaml_payload", "singbox", "singbox_srs":
 	default:
-		return fmt.Errorf("template %q: codec must be linelist, yaml_payload, or singbox", t.ID)
+		return fmt.Errorf("template %q: codec must be linelist, yaml_payload, singbox, or singbox_srs", t.ID)
 	}
 	if t.Extension == "" {
 		return fmt.Errorf("template %q: extension is required", t.ID)

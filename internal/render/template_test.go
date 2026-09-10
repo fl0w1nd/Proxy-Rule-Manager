@@ -3,6 +3,7 @@ package render
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/fl0w1nd/proxy-rule-manager/templates"
@@ -14,11 +15,42 @@ func TestLoadEmbeddedTemplates(t *testing.T) {
 		t.Fatalf("LoadEmbedded: %v", err)
 	}
 
-	expected := []string{"mihomo-classical", "mihomo-yaml", "singbox", "surge", "shadowrocket"}
+	expected := []string{"mihomo-classical", "mihomo-yaml", "singbox", "singbox-binary", "surge", "shadowrocket"}
 	for _, id := range expected {
 		if _, ok := r.Get(id); !ok {
 			t.Errorf("template %q not loaded", id)
 		}
+	}
+}
+
+func TestEmbeddedSingboxTemplatesShareConditionMapping(t *testing.T) {
+	r := NewRegistry()
+	if err := r.LoadEmbedded(templates.FS); err != nil {
+		t.Fatalf("LoadEmbedded: %v", err)
+	}
+	text, ok := r.Get("singbox")
+	if !ok {
+		t.Fatal("template singbox not loaded")
+	}
+	binary, ok := r.Get("singbox-binary")
+	if !ok {
+		t.Fatal("template singbox-binary not loaded")
+	}
+
+	// Source and binary rule-sets accept the same conditions, so the two
+	// templates may only differ in their container. Drift here would drop rule
+	// kinds from one format without any error.
+	if !reflect.DeepEqual(text.KindMap, binary.KindMap) {
+		t.Errorf("singbox-binary kind_map differs from singbox")
+	}
+	if !reflect.DeepEqual(text.FieldGroups, binary.FieldGroups) {
+		t.Errorf("singbox-binary field_groups differ from singbox")
+	}
+	if !reflect.DeepEqual(text.Hints, binary.Hints) {
+		t.Errorf("singbox-binary hints differ from singbox")
+	}
+	if !reflect.DeepEqual(text.FlagKinds, binary.FlagKinds) {
+		t.Errorf("singbox-binary flag_kinds differ from singbox")
 	}
 }
 

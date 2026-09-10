@@ -139,7 +139,7 @@ func TestRenderYAMLPayloadEscapesSingleQuotes(t *testing.T) {
 }
 
 func TestRenderReturnsEmptyWhenTemplateSupportsNoEntries(t *testing.T) {
-	for _, codec := range []string{"linelist", "yaml_payload", "singbox"} {
+	for _, codec := range []string{"linelist", "yaml_payload", "singbox", "singbox_srs"} {
 		t.Run(codec, func(t *testing.T) {
 			tmpl := &Template{
 				ID:        codec,
