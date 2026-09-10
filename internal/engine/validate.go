@@ -10,11 +10,21 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 )
 
-// ValidateGeositeRefs loads geosite provider caches and validates all geosite
-// references in the config. Returns per-reference diagnostics (as ConfigError)
-// without blocking other rules from working.
+// missingProviderCacheMessage is the validation wording for a provider that
+// has never been downloaded.
+func missingProviderCacheMessage(provider, list string) string {
+	scope := fmt.Sprintf("provider %q", provider)
+	if list != "" {
+		scope = fmt.Sprintf("provider %q for %q", provider, list)
+	}
+	return scope + " has no local data; run an update to download it"
+}
+
+// ValidateGeositeRefs loads geosite provider caches from disk and validates
+// all geosite references in the config. Geo data is installed by updates, so
+// a provider that was never downloaded is reported instead of fetched.
 func ValidateGeositeRefs(
-	ctx context.Context,
+	_ context.Context,
 	cfg *config.Config,
 	mgr *geosite.Manager,
 	logger *slog.Logger,
@@ -24,7 +34,7 @@ func ValidateGeositeRefs(
 	}
 
 	var errs []config.ConfigError
-	caches := loadGeoCaches(ctx, mgr, collectProviderNames(cfg), logger, "geosite")
+	caches := readGeoCaches(mgr, collectProviderNames(cfg), logger, "geosite")
 
 	for i, rule := range cfg.Rules {
 		for sourcePath, src := range config.WalkSources(rule.Sources) {
@@ -42,8 +52,7 @@ func ValidateGeositeRefs(
 			}
 			cache, ok := caches[ref.Provider]
 			if !ok {
-				errs = append(errs, cfg.ErrorAt(path,
-					fmt.Sprintf("provider %q cache unavailable, cannot validate %q", ref.Provider, ref.FormatRef())))
+				errs = append(errs, cfg.ErrorAt(path, missingProviderCacheMessage(ref.Provider, ref.FormatRef())))
 				continue
 			}
 			if err := geosite.ValidateRef(cache, ref); err != nil {
@@ -57,8 +66,7 @@ func ValidateGeositeRefs(
 			path := fmt.Sprintf("geosite.providers[%d]", i)
 			cache, ok := caches[prov.Name]
 			if !ok {
-				errs = append(errs, cfg.ErrorAt(path,
-					fmt.Sprintf("provider %q cache unavailable", prov.Name)))
+				errs = append(errs, cfg.ErrorAt(path, missingProviderCacheMessage(prov.Name, "")))
 				continue
 			}
 			if len(cache.Catalog) == 0 {
@@ -71,8 +79,9 @@ func ValidateGeositeRefs(
 	return errs
 }
 
-func loadGeoCaches[E any](
-	ctx context.Context,
+// readGeoCaches loads provider caches from disk. Validation never downloads
+// geo data: an update installs it, so a missing cache is reported as such.
+func readGeoCaches[E any](
 	mgr *geodata.Manager[E],
 	names []string,
 	logger *slog.Logger,
@@ -83,9 +92,9 @@ func loadGeoCaches[E any](
 		return caches
 	}
 	for _, name := range names {
-		cache, err := mgr.Ensure(ctx, name)
+		cache, err := mgr.Read(name)
 		if err != nil {
-			logger.Warn(kind+" provider unavailable for validation", "provider", name, "error", err)
+			logger.Warn(kind+" provider cache unreadable", "provider", name, "error", err)
 		}
 		if cache != nil {
 			caches[name] = cache

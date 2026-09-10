@@ -25,13 +25,15 @@ type rulePreviewRequest struct {
 }
 
 type rulePreviewSource struct {
-	Details     []string `json:"details,omitempty"`
-	Label       string   `json:"label"`
-	Type        string   `json:"type"`
-	Entries     int      `json:"entries"`
-	Diagnostics int      `json:"diagnostics"`
-	Error       string   `json:"error,omitempty"`
-	DurationMs  int64    `json:"duration_ms"`
+	Details        []string `json:"details,omitempty"`
+	Label          string   `json:"label"`
+	Type           string   `json:"type"`
+	Entries        int      `json:"entries"`
+	Diagnostics    int      `json:"diagnostics"`
+	Error          string   `json:"error,omitempty"`
+	DurationMs     int64    `json:"duration_ms"`
+	CacheFetchedAt string   `json:"cache_fetched_at,omitempty"`
+	CacheVersion   string   `json:"cache_version,omitempty"`
 }
 
 type rulePreviewArtifact struct {
@@ -128,6 +130,17 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 			writeAPIError(w, http.StatusNotFound, "rule_not_found", missing.Error(), map[string]any{})
 			return
 		}
+		var missingData *engine.MissingProviderDataError
+		if errors.As(err, &missingData) {
+			label := "Geosite"
+			if missingData.Kind == "geoip" {
+				label = "GeoIP"
+			}
+			writeAPIError(w, http.StatusConflict, "geo_data_missing",
+				fmt.Sprintf("%s 提供商 %q 还没有本地数据，请先执行一次更新", label, missingData.Provider),
+				map[string]any{"kind": missingData.Kind, "provider": missingData.Provider})
+			return
+		}
 		writeAPIError(w, http.StatusUnprocessableEntity, "preview_failed", "规则预览失败", map[string]any{"reason": err.Error()})
 		return
 	}
@@ -169,13 +182,15 @@ func buildRulePreviewResponse(cfg *config.Config, report *engine.PreviewReport, 
 			}
 		}
 		sources = append(sources, rulePreviewSource{
-			Label:       label,
-			Details:     details,
-			Type:        source.Type,
-			Entries:     len(source.Entries),
-			Diagnostics: len(source.Diagnostics),
-			Error:       source.Error,
-			DurationMs:  source.DurationMs,
+			Label:          label,
+			Details:        details,
+			Type:           source.Type,
+			Entries:        len(source.Entries),
+			Diagnostics:    len(source.Diagnostics),
+			Error:          source.Error,
+			DurationMs:     source.DurationMs,
+			CacheFetchedAt: source.CacheFetchedAt,
+			CacheVersion:   source.CacheVersion,
 		})
 	}
 	targets := config.ExpandSelectedTargets(cfg.Clients, previewOutputIDs(cfg, report.RuleID))

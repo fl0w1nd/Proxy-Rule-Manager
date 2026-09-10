@@ -566,29 +566,24 @@ func (e *UpdateEngine) refreshGeosite(ctx context.Context) (map[string]*geosite.
 // readCachedGeositeProviders loads only providers referenced by a partial rule
 // update. Partial updates deliberately reuse on-disk cache data.
 func (e *UpdateEngine) readCachedGeositeProviders(rules []config.RuleConfig) map[string]*geosite.ProviderCache {
-	providers := make(map[string]*geosite.ProviderCache)
-	if e.Geosite == nil {
-		return providers
+	return readCachedGeoProviders(collectProviderNames(&config.Config{Rules: rules}), e.Geosite)
+}
+
+// readCachedGeoProviders returns the on-disk caches of the named providers.
+// Providers that were never downloaded are absent from the result; geo data is
+// installed by updates, so callers decide whether a missing cache is an error.
+func readCachedGeoProviders[E any](names []string, mgr *geodata.Manager[E]) map[string]*geodata.Cache[E] {
+	caches := make(map[string]*geodata.Cache[E])
+	if mgr == nil {
+		return caches
 	}
-	names := make(map[string]struct{})
-	for i := range rules {
-		for _, source := range config.WalkSources(rules[i].Sources) {
-			if source.SourceType() != "geosite" {
-				continue
-			}
-			ref, err := source.ResolveGeositeRef()
-			if err == nil {
-				names[ref.Provider] = struct{}{}
-			}
-		}
-	}
-	for name := range names {
-		cache, err := e.Geosite.Read(name)
+	for _, name := range names {
+		cache, err := mgr.Read(name)
 		if err == nil && cache != nil {
-			providers[name] = cache
+			caches[name] = cache
 		}
 	}
-	return providers
+	return caches
 }
 
 func geositeFetchResult(previous, current *geosite.ProviderCache, failed bool) string {

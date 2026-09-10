@@ -183,7 +183,7 @@ sources:
 
 ## geosite 域名库
 
-geosite 有内置下载器，支持两个源：`v2fly`、`loyalsoldier`。两种用法：
+geosite 有内置下载器，支持两个源：`v2fly`、`loyalsoldier`。数据只在更新时下载（`prm update`、看板的「立即更新」、定时任务）；预览和 `prm validate` 只读本地缓存，缺失时报错而不会联网。两种用法：
 
 1. 作为规则来源（见上表），写法 `provider/list` 或 `provider/list@attr`，如 `v2fly/google@cn` 取 google 列表的 cn 属性变体；
 2. 自动发布：把某个 provider 的全部列表和属性变体同步发布到目标客户端，不用逐个声明规则：
@@ -199,7 +199,7 @@ geosite:
 
 ## geoip IP 地址库
 
-支持 `loyalsoldier`（[Loyalsoldier/geoip](https://github.com/Loyalsoldier/geoip)）和 `v2fly`（[v2fly/geoip](https://github.com/v2fly/geoip)）。两者均下载完整 `geoip.dat` 并校验 SHA256。
+支持 `loyalsoldier`（[Loyalsoldier/geoip](https://github.com/Loyalsoldier/geoip)）和 `v2fly`（[v2fly/geoip](https://github.com/v2fly/geoip)）。两者均下载完整 `geoip.dat` 并校验 SHA256。与 geosite 相同，数据只在更新时下载。
 
 规则来源写作 `geoip: loyalsoldier/cn` 或 `geoip: loyalsoldier/telegram`，分类内的网段会展开为 `ip_cidr` 条目，参与合并、过滤和客户端渲染。分类以各提供商目录为准，同名分类的内容可能不同。
 

@@ -30,6 +30,9 @@ export interface RulePreviewSource {
   diagnostics: number;
   error?: string;
   duration_ms: number;
+  /** 本地 geo 数据的抓取时间与版本；非 geosite/geoip 来源为空。 */
+  cache_fetched_at?: string;
+  cache_version?: string;
 }
 
 export interface RulePreviewKindCount {

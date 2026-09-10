@@ -23,6 +23,12 @@ type SourceOutcome struct {
 	Diagnostics []ir.Diagnostic
 	Error       string
 	DurationMs  int64
+
+	// CacheFetchedAt and CacheVersion describe the local geo data a
+	// geosite/geoip source was resolved from, so callers can show how old it
+	// is. Empty for sources that do not read a provider cache.
+	CacheFetchedAt string
+	CacheVersion   string
 }
 
 // CompileResult is the full result of compiling one rule.
@@ -271,6 +277,7 @@ func fetchSource(
 			return outcome
 		}
 		outcome.Entries = entries
+		outcome.CacheFetchedAt, outcome.CacheVersion = cache.FetchedAt, cache.ResolvedVersion
 	case "geosite":
 		ref, err := src.ResolveGeositeRef()
 		if err != nil {
@@ -287,6 +294,7 @@ func fetchSource(
 			outcome.Error = err.Error()
 			return outcome
 		}
+		outcome.CacheFetchedAt, outcome.CacheVersion = cache.FetchedAt, cache.ResolvedVersion
 		for _, ge := range geositeEntries {
 			kind := geositeTypeToIRKind(ge.Type)
 			if kind != "" {

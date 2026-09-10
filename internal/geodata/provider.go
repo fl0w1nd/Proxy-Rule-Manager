@@ -22,7 +22,6 @@ const (
 	githubAcceptJSON    = "application/vnd.github+json"
 	fetchTimeout        = 20 * time.Second
 	maxProviderDownload = 50 * 1024 * 1024
-	defaultCacheTTL     = 24 * time.Hour
 )
 
 // refreshState coordinates concurrent Refresh calls for the same provider.
@@ -70,16 +69,13 @@ type Manager[E any] struct {
 	memCache   map[string]*Cache[E]
 	refresh    map[string]*refreshState[E]
 	httpClient *http.Client
-	// ttl, when > 0, makes Ensure auto-refresh caches whose FetchedAt is older
-	// than ttl.
-	ttl time.Duration
 }
 
 // NewManager constructs a manager that persists caches under `dir`.
 func NewManager[E any](dir, kind string, sources map[string]Source, decode func([]byte, string, string) (*Cache[E], error), onWrite func(*Cache[E])) *Manager[E] {
 	return &Manager[E]{dir: dir, kind: kind, sources: sources, decode: decode, onWrite: onWrite,
 		memCache: make(map[string]*Cache[E]), refresh: make(map[string]*refreshState[E]),
-		httpClient: &http.Client{Timeout: fetchTimeout}, ttl: defaultCacheTTL}
+		httpClient: &http.Client{Timeout: fetchTimeout}}
 }
 
 // SetHTTPClient replaces the HTTP client used for upstream fetches.
@@ -88,20 +84,6 @@ func (m *Manager[E]) SetHTTPClient(c *http.Client) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.httpClient = c
-}
-
-// SetCacheTTL controls Ensure's auto-refresh behaviour. ttl<=0 disables it.
-func (m *Manager[E]) SetCacheTTL(ttl time.Duration) {
-	m.mu.Lock()
-	m.ttl = ttl
-	m.mu.Unlock()
-}
-
-// CacheTTL returns the configured TTL.
-func (m *Manager[E]) CacheTTL() time.Duration {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-	return m.ttl
 }
 
 // Read returns the cached provider data, loading from disk if necessary.
@@ -131,44 +113,6 @@ func (m *Manager[E]) Read(provider string) (*Cache[E], error) {
 	m.memCache[provider] = &cache
 	m.mu.Unlock()
 	return &cache, nil
-}
-
-// Ensure returns the cache, fetching it from network if it does not exist.
-// When a TTL is configured, caches older than the TTL are auto-refreshed; if
-// the refresh fails, the stale cache is still returned so reads remain
-// available even when the upstream is temporarily down.
-func (m *Manager[E]) Ensure(ctx context.Context, provider string) (*Cache[E], error) {
-	existing, err := m.Read(provider)
-	if err != nil {
-		return nil, err
-	}
-	if existing == nil {
-		return m.Refresh(ctx, provider)
-	}
-	ttl := m.CacheTTL()
-	if ttl > 0 && cacheExpired(existing.FetchedAt, ttl) {
-		fresh, err := m.Refresh(ctx, provider)
-		if err != nil {
-			return existing, fmt.Errorf("refresh stale %s cache: %w", provider, err)
-		}
-		if fresh == nil {
-			return existing, fmt.Errorf("refresh stale %s cache returned no data", provider)
-		}
-		return fresh, nil
-	}
-	return existing, nil
-}
-
-// cacheExpired returns true when fetchedAt is older than ttl.
-func cacheExpired(fetchedAt string, ttl time.Duration) bool {
-	if fetchedAt == "" {
-		return true
-	}
-	t, err := time.Parse(time.RFC3339, fetchedAt)
-	if err != nil {
-		return true
-	}
-	return time.Since(t) > ttl
 }
 
 // Refresh re-fetches the provider data from the upstream source.

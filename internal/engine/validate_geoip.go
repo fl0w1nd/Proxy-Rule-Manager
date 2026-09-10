@@ -13,7 +13,7 @@ import (
 // references in the config. Returns per-reference diagnostics (as ConfigError)
 // without blocking other rules from working.
 func ValidateGeoIPRefs(
-	ctx context.Context,
+	_ context.Context,
 	cfg *config.Config,
 	mgr *geoip.Manager,
 	logger *slog.Logger,
@@ -23,7 +23,7 @@ func ValidateGeoIPRefs(
 	}
 
 	var errs []config.ConfigError
-	caches := loadGeoCaches(ctx, mgr, collectGeoIPProviderNames(cfg), logger, "geoip")
+	caches := readGeoCaches(mgr, collectGeoIPProviderNames(cfg), logger, "geoip")
 
 	for i, rule := range cfg.Rules {
 		for sourcePath, src := range config.WalkSources(rule.Sources) {
@@ -41,8 +41,7 @@ func ValidateGeoIPRefs(
 			}
 			cache, ok := caches[ref.Provider]
 			if !ok {
-				errs = append(errs, cfg.ErrorAt(path,
-					fmt.Sprintf("provider %q cache unavailable, cannot validate %q", ref.Provider, ref.FormatRef())))
+				errs = append(errs, cfg.ErrorAt(path, missingProviderCacheMessage(ref.Provider, ref.FormatRef())))
 				continue
 			}
 			if _, err := geoip.ResolveEntries(cache, ref.List); err != nil {
@@ -56,8 +55,7 @@ func ValidateGeoIPRefs(
 			path := fmt.Sprintf("geoip.providers[%d]", i)
 			cache, ok := caches[prov.Name]
 			if !ok {
-				errs = append(errs, cfg.ErrorAt(path,
-					fmt.Sprintf("provider %q cache unavailable", prov.Name)))
+				errs = append(errs, cfg.ErrorAt(path, missingProviderCacheMessage(prov.Name, "")))
 				continue
 			}
 			if len(cache.Catalog) == 0 {

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { type RulePreview } from '../api/client';
+  import { type RulePreview, type RulePreviewSource } from '../api/client';
   import PixelTabs from './pixel/PixelTabs.svelte';
   import CodePanel from './CodePanel.svelte';
   import { retroScroll } from '../utils/scrollbars';
@@ -26,6 +26,18 @@
     if (ms < 1000) return `${ms} ms`;
     return `${(ms / 1000).toFixed(2)} s`;
   }
+
+  // 预览只读本地数据，所以把这份数据的抓取时间摆出来，便于判断新旧。
+  function cacheLabel(source: RulePreviewSource): string {
+    if (!source.cache_fetched_at) return '';
+    const at = new Date(source.cache_fetched_at);
+    if (Number.isNaN(at.getTime())) return '';
+    const parts = [
+      `数据 ${at.toLocaleString('zh-CN', { hour12: false })}`,
+      source.cache_version ? `v${source.cache_version}` : '',
+    ].filter(Boolean);
+    return parts.join(' · ');
+  }
 </script>
 
 <div class="preview-report">
@@ -36,6 +48,7 @@
         <strong>{source.label}</strong>
         {#each source.details ?? [] as detail}<span class="source-detail">{detail}</span>{/each}
         <span>{source.type} · {source.entries} 条 · {durationLabel(source.duration_ms)}</span>
+        {#if cacheLabel(source)}<span class="source-cache">{cacheLabel(source)}</span>{/if}
         {#if source.error}<em>{source.error}</em>{/if}
       </div>
     {/each}
@@ -82,6 +95,7 @@
   .preview-source { display: grid; gap: 2px; padding: 8px 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 3px; }
   .preview-source em { color: var(--text); }
   .source-detail, .preview-source strong { overflow-wrap: anywhere; }
+  .source-cache { color: var(--dim); font: 11px/17px var(--font-code); }
   .notice { padding: 10px 14px; background: var(--status-error); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--text); overflow-wrap: anywhere; }
   .diff-samples { margin: 0; padding: 0; list-style: none; font: 12px/20px var(--font-code); }
   .diff-samples .add { color: var(--diff-add); }

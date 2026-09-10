@@ -33,6 +33,18 @@ type PreviewReport struct {
 	RenderError    string
 }
 
+// MissingProviderDataError reports a geo provider without a local cache. Geo
+// data is installed by updates only, so a preview reports the missing data
+// instead of downloading it.
+type MissingProviderDataError struct {
+	Kind     string // "geosite" or "geoip"
+	Provider string
+}
+
+func (e *MissingProviderDataError) Error() string {
+	return fmt.Sprintf("%s provider %q has no local data; run an update to download it", e.Kind, e.Provider)
+}
+
 // Preview compiles a rule without persisting artifacts, returning a
 // per-stage report for CLI inspection.
 func Preview(
@@ -59,18 +71,14 @@ func Preview(
 		return nil, &RuleNotFoundError{ID: ruleID}
 	}
 
-	// Refresh geosite providers so geosite sources resolve correctly.
-	var geositeProviders map[string]*geosite.ProviderCache
-	if geositeMgr != nil {
-		geositeProviders, _, _ = refreshGeositeProviders(ctx, cfg, geositeMgr, logger)
-	}
-
-	geoipProviders, _, _ := refreshGeoIPProviders(ctx, cfg, geoipMgr, logger)
-
 	selected := collectPreviewDependencies(cfg.Rules, rule.ID)
 	sorted, err := TopologicalSort(selected, false)
 	if err != nil {
 		return nil, fmt.Errorf("resolve preview dependencies: %w", err)
+	}
+	geositeProviders, geoipProviders, err := previewGeoData(selected, geositeMgr, geoipMgr)
+	if err != nil {
+		return nil, err
 	}
 	refResults := make(map[string][]ir.Entry)
 	var cr CompileResult
@@ -140,6 +148,35 @@ func Preview(
 	}
 
 	return report, nil
+}
+
+// previewGeoData loads the on-disk caches a preview needs. Updates own geo
+// data downloads, so a provider without local data is reported instead of
+// fetched: a preview reads cache and never waits on the network.
+func previewGeoData(
+	rules []config.RuleConfig,
+	geositeMgr *geosite.Manager,
+	geoipMgr *geoip.Manager,
+) (map[string]*geosite.ProviderCache, map[string]*geoip.ProviderCache, error) {
+	referenced := &config.Config{Rules: rules}
+
+	geositeNames := collectProviderNames(referenced)
+	geositeCache := readCachedGeoProviders(geositeNames, geositeMgr)
+	for _, name := range geositeNames {
+		if geositeCache[name] == nil {
+			return nil, nil, &MissingProviderDataError{Kind: "geosite", Provider: name}
+		}
+	}
+
+	geoipNames := collectGeoIPProviderNames(referenced)
+	geoipCache := readCachedGeoProviders(geoipNames, geoipMgr)
+	for _, name := range geoipNames {
+		if geoipCache[name] == nil {
+			return nil, nil, &MissingProviderDataError{Kind: "geoip", Provider: name}
+		}
+	}
+
+	return geositeCache, geoipCache, nil
 }
 
 func collectPreviewDependencies(rules []config.RuleConfig, targetID string) []config.RuleConfig {
