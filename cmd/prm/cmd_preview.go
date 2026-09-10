@@ -26,6 +26,7 @@ var previewCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer app.Close()
 
 		report, err := engine.Preview(
 			context.Background(),

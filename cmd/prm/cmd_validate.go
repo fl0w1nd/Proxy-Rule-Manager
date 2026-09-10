@@ -35,6 +35,7 @@ other rules from working.`,
 			}
 			return fmt.Errorf("validation failed: %w", err)
 		}
+		defer app.Close()
 
 		fmt.Println("Config and templates are valid.")
 

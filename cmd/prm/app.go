@@ -14,6 +14,7 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/render"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 	"github.com/fl0w1nd/proxy-rule-manager/templates"
 )
 
@@ -28,10 +29,35 @@ type App struct {
 	Buffer        *logging.Buffer
 	Logger        *slog.Logger
 	Updates       *updates.Manager
+
+	// Lock is the data directory lock held for the process lifetime.
+	Lock *util.FileLock
 }
 
-// buildApp creates a fully initialized App from the config file.
+// lockFileRelPath is the process lock inside the data directory. It keeps CLI
+// commands and the server from writing the same state concurrently.
+var lockFileRelPath = filepath.Join(".state", "prm.lock")
+
+// buildApp creates a fully initialized App from the config file. The data
+// directory is locked before anything is read or written, so a second process
+// fails fast instead of corrupting the running one's state.
 func buildApp(dataDir string) (*App, error) {
+	lock, err := util.AcquireFileLock(filepath.Join(dataDir, lockFileRelPath))
+	if err != nil {
+		return nil, fmt.Errorf("data directory %s is in use: %w", dataDir, err)
+	}
+	app, err := newApp(dataDir)
+	if err != nil {
+		_ = lock.Release()
+		return nil, err
+	}
+	app.Lock = lock
+	return app, nil
+}
+
+// newApp constructs the application components for one data directory. The
+// caller must hold the data directory lock.
+func newApp(dataDir string) (*App, error) {
 	configManager, err := config.NewManager(cfgFile, dataDir)
 	if err != nil {
 		return nil, fmt.Errorf("load config: %w", err)
@@ -141,4 +167,16 @@ func buildApp(dataDir string) (*App, error) {
 		Logger:        logger,
 		Updates:       updateManager,
 	}, nil
+}
+
+// Close releases the data directory lock so a later command in the same
+// process can use it again. The App is unusable afterwards.
+func (a *App) Close() {
+	if a == nil || a.Lock == nil {
+		return
+	}
+	if err := a.Lock.Release(); err != nil && a.Logger != nil {
+		a.Logger.Warn("release data directory lock failed", "error", err)
+	}
+	a.Lock = nil
 }

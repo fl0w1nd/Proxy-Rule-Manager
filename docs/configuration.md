@@ -252,6 +252,8 @@ geoip:
 
 可信代理接受单 IP 或 CIDR。管理 API 的写操作要求 Bearer 令牌或同源会话 Cookie，Cookie 为 HttpOnly + SameSite=Strict。`PRM_DEV` 为 `1`、`true`、`yes` 或 `on` 时进入开发模式：管理令牌可不设，`/admin` 与 `/api/v1` 不鉴权。仅用于本地开发。
 
+数据目录同一时间只能被一个进程使用。`serve`、`update`、`build`、`validate`、`preview` 启动时会在 `<data-dir>/.state/prm.lock` 上取排他锁，已有进程持锁时新进程直接报错退出，不会并发写同一份状态。
+
 ## 常见问题
 
 - **报了错但不知道在哪**：`prm validate` 的错误都带 YAML 行号和配置路径，直接看行号。

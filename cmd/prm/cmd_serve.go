@@ -35,6 +35,7 @@ var serveCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer app.Close()
 
 		// Guarantee a servable site before accepting traffic: reconciles
 		// builtin assets and re-renders pages from persisted state when they

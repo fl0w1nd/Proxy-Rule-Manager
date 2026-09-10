@@ -27,6 +27,7 @@ var buildCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+		defer app.Close()
 
 		ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 		defer cancel()
