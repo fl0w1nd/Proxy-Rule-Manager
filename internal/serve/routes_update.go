@@ -256,6 +256,11 @@ func (s *Server) handleUpdateEvents(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "stream_unsupported", "服务端不支持事件流", map[string]any{})
 		return
 	}
+	// The server's WriteTimeout is an absolute deadline set before the handler
+	// runs and writes never extend it, so a long update would be cut off
+	// mid-stream. Clearing the deadline keeps this stream alive until the job
+	// finishes.
+	_ = http.NewResponseController(w).SetWriteDeadline(time.Time{})
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-store")
 	w.Header().Set("Connection", "keep-alive")
