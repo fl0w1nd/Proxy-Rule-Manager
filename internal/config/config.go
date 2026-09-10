@@ -121,7 +121,6 @@ type SourceConfig struct {
 	Ops        []OpConfig     `yaml:"ops,omitempty"`
 	URL        string         `yaml:"url,omitempty"`
 	Type       string         `yaml:"type,omitempty"`
-	Format     string         `yaml:"format,omitempty"`
 	Ref        string         `yaml:"ref,omitempty"` // referenced rule ID
 	Content    string         `yaml:"content,omitempty"`
 	File       string         `yaml:"file,omitempty"`
@@ -471,8 +470,8 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 				if len(s.Group) == 0 {
 					addErr(sp+".group", "at least one source is required")
 				}
-				if s.URL != "" || s.File != "" || s.Content != "" || s.Ref != "" || s.Geosite != "" || s.GeoIP != "" || s.Provider != "" || s.List != "" || len(s.Attrs) > 0 || s.Type != "" || s.Format != "" {
-					addErr(sp, "group cannot configure a source selector, type, or format")
+				if s.URL != "" || s.File != "" || s.Content != "" || s.Ref != "" || s.Geosite != "" || s.GeoIP != "" || s.Provider != "" || s.List != "" || len(s.Attrs) > 0 || s.Type != "" {
+					addErr(sp, "group cannot configure a source selector or type")
 				}
 				for k, child := range s.Group {
 					if child.Preprocess != nil || len(child.Ops) > 0 {
@@ -516,13 +515,6 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 			}
 			if selectors > 1 {
 				addErr(sp, "source must configure exactly one of url, ref, geosite, geoip, content, or file")
-			}
-			if s.Format != "" {
-				if sourceType != "url" && sourceType != "local" {
-					addErr(sp+".format", "format is only valid for url or local sources")
-				} else if !ir.IsValidSourceFormat(s.Format) {
-					addErr(sp+".format", fmt.Sprintf("unknown source format %q", s.Format))
-				}
 			}
 
 			switch sourceType {

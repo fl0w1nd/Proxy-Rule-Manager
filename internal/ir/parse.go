@@ -5,29 +5,14 @@ import (
 	"strings"
 )
 
-// Source format identifiers. "auto" is accepted at the config level and
-// resolved through Detect before parsing.
+// Format identifiers reported by automatic detection.
 const (
-	FormatAuto       = "auto"
 	FormatClassical  = "classical"
 	FormatMihomoYAML = "mihomo-yaml"
 )
 
-// SourceFormats lists the concrete (non-auto) formats in display order.
-var SourceFormats = []string{FormatClassical, FormatMihomoYAML}
-
-// IsValidSourceFormat reports whether f names a concrete format or auto.
-func IsValidSourceFormat(f string) bool {
-	if f == "" || f == FormatAuto {
-		return true
-	}
-	for _, v := range SourceFormats {
-		if f == v {
-			return true
-		}
-	}
-	return false
-}
+// detectOrder fixes the sniffing order so equal scores resolve deterministically.
+var detectOrder = []string{FormatClassical, FormatMihomoYAML}
 
 type parser interface {
 	ID() string
@@ -49,7 +34,7 @@ type Detection struct {
 // A zero-confidence result means nothing matched at all.
 func Detect(content string) Detection {
 	best := Detection{Format: FormatClassical, Confidence: 0}
-	for _, f := range SourceFormats {
+	for _, f := range detectOrder {
 		score := sniff(f, content)
 		if score > best.Confidence {
 			best = Detection{Format: f, Confidence: score}
@@ -58,21 +43,14 @@ func Detect(content string) Detection {
 	return best
 }
 
-// Parse parses content with an explicit format, or sniffs when format is
-// empty / "auto". It returns the rule set plus the detection actually used.
-func Parse(content, format string) (RuleSet, Detection, error) {
-	if format == "" || format == FormatAuto {
-		det := Detect(content)
-		if det.Confidence <= 0 {
-			return RuleSet{}, det, fmt.Errorf("could not detect rule format")
-		}
-		return parsers[det.Format].Parse(content), det, nil
+// Parse sniffs content and returns the rule set plus the detection used.
+// Undetectable content is an error; sources do not declare their format.
+func Parse(content string) (RuleSet, Detection, error) {
+	det := Detect(content)
+	if det.Confidence <= 0 {
+		return RuleSet{}, det, fmt.Errorf("could not detect rule format")
 	}
-	p, ok := parsers[format]
-	if !ok {
-		return RuleSet{}, Detection{}, fmt.Errorf("unknown source format %q", format)
-	}
-	return p.Parse(content), Detection{Format: format, Confidence: 1}, nil
+	return parsers[det.Format].Parse(content), det, nil
 }
 
 // sniff returns a 0..1 confidence score for parsing content as format.

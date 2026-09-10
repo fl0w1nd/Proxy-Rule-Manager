@@ -118,18 +118,16 @@ func TestDetect(t *testing.T) {
 	}
 }
 
-func TestParseAutoAndExplicit(t *testing.T) {
-	rs, det, err := Parse("DOMAIN,x.com\n", FormatAuto)
+func TestParseDetectsFormat(t *testing.T) {
+	rs, det, err := Parse("DOMAIN,x.com\n")
 	if err != nil || det.Format != FormatClassical || len(rs.Entries) != 1 {
-		t.Fatalf("auto parse: %v %+v %+v", err, det, rs)
+		t.Fatalf("classical parse: %v %+v %+v", err, det, rs)
 	}
-	// Explicit format wins over sniffing.
-	rs, det, err = Parse("apple.com\n", FormatClassical)
-	if err != nil || det.Format != FormatClassical || det.Confidence != 1 {
-		t.Fatalf("explicit parse: %v %+v", err, det)
+	rs, det, err = Parse("payload:\n  - '+.google.com'\n")
+	if err != nil || det.Format != FormatMihomoYAML || len(rs.Entries) != 1 {
+		t.Fatalf("mihomo parse: %v %+v %+v", err, det, rs)
 	}
-	if _, _, err := Parse("x", "bogus-format"); err == nil {
-		t.Fatal("bogus format should error")
+	if _, _, err := Parse("!! not a rule list !!"); err == nil {
+		t.Fatal("undetectable content should error")
 	}
-	_ = rs
 }

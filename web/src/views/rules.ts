@@ -34,7 +34,6 @@ export interface RuleSource {
   ops?: FilterOp[];
   label?: string;
   url?: string;
-  format?: string;
   file?: string;
   content?: string;
   ref?: string;
@@ -99,7 +98,6 @@ export function readSource(raw: Record<string, unknown>): RuleSource {
   if (typeof raw.preprocess === 'string') source.preprocess = raw.preprocess;
   if (kind === 'group') source.group = (raw.group as Record<string, unknown>[]).map(readSource);
   if (typeof raw.label === 'string' && raw.label) source.label = raw.label;
-  if (typeof raw.format === 'string' && raw.format && raw.format !== 'auto') source.format = raw.format;
   switch (kind) {
     case 'url':
       source.url = String(raw.url ?? '');
@@ -198,15 +196,12 @@ export function serializeSource(source: RuleSource): Record<string, unknown> {
   switch (source.kind) {
     case 'url':
       value.url = source.url?.trim() ?? '';
-      if (source.format) value.format = source.format;
       break;
     case 'file':
       value.file = source.file?.trim() ?? '';
-      if (source.format) value.format = source.format;
       break;
     case 'content':
       value.content = source.content ?? '';
-      if (source.format) value.format = source.format;
       break;
     case 'ref':
       value.ref = source.ref?.trim() ?? '';

@@ -106,7 +106,7 @@ PRM_ADMIN_TOKEN=secret prm serve  # 启动站点 + 管理 API
 
 要点：
 
-- `format` 可显式指定 `classical` 或 `mihomo-yaml`，默认 `auto` 自动识别；
+- 来源内容格式（经典行列表或 Mihomo YAML）自动识别，识别失败时该来源报错；
 - 本地文件路径永远以 `data/local/` 为根，写相对路径即可；
 - 引用别的规则时无需关心顺序，系统会按依赖图先编译被引用的规则；
 - 每个来源可加 `label`，出错时用它定位。

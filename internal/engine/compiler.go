@@ -203,7 +203,7 @@ func fetchSource(
 				return outcome
 			}
 		}
-		rs, _, err := ir.Parse(content, src.Format)
+		rs, _, err := ir.Parse(content)
 		if err != nil {
 			outcome.Error = err.Error()
 			return outcome
@@ -213,7 +213,6 @@ func fetchSource(
 
 	case "local":
 		content := src.Content
-		format := src.Format
 		if src.File != "" {
 			if localFiles == nil {
 				outcome.Error = fmt.Sprintf("read local source %q: local file sources are disabled (no resolver)", src.File)
@@ -230,7 +229,6 @@ func fetchSource(
 				return outcome
 			}
 			content = string(data)
-			format = ""
 		}
 		if preprocessScript != "" {
 			var err error
@@ -240,7 +238,7 @@ func fetchSource(
 				return outcome
 			}
 		}
-		rs, _, err := ir.Parse(content, format)
+		rs, _, err := ir.Parse(content)
 		if err != nil {
 			outcome.Error = err.Error()
 			return outcome

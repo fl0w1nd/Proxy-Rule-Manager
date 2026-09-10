@@ -67,19 +67,16 @@ rules:
     tags: [ai, service]
 
     # --- 来源 sources ---
-    # 支持六种来源及来源分组；label 可选，用于日志和报错定位。
+    # 支持六种来源及来源分组；label 可选，用于日志和报错定位；内容格式自动识别。
     sources:
       # 1) 远程规则列表（最常见）：直接给 URL。
       - label: blackmatrix7-openai
         type: url
         url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/OpenAI/OpenAI.list
-        # format 可选：auto / classical / mihomo-yaml，省略时自动识别
-        format: classical
 
       # 2) 内联文本：少量规则直接写在配置里。
       # - label: inline-rules
       #   type: local
-      #   format: classical
       #   content: |-
       #     DOMAIN,api.example.com
       #     DOMAIN-SUFFIX,example.net
