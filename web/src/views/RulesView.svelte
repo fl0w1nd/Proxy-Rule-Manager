@@ -1,25 +1,20 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
   import { api, APIRequestError, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
-  import PixelTable from '../components/pixel/PixelTable.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
-  import PixelBadge from '../components/pixel/PixelBadge.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
-  import RefsIcon from '../components/pixel/RefsIcon.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
-  import PixelDialog from '../components/pixel/PixelDialog.svelte';
-  import PixelDrawer from '../components/pixel/PixelDrawer.svelte';
-  import PixelCheckbox from '../components/pixel/PixelCheckbox.svelte';
   import PixelSelect from '../components/pixel/PixelSelect.svelte';
+  import PixelInput from '../components/pixel/PixelInput.svelte';
   import PixelSwitch from '../components/pixel/PixelSwitch.svelte';
-  import OpsEditor from '../components/forms/OpsEditor.svelte';
-  import RulePreviewPanel from '../components/RulePreviewPanel.svelte';
-  import SourceEditor from './SourceEditor.svelte';
   import LocalFilesView from './LocalFilesView.svelte';
+  import RuleTable from './rules/RuleTable.svelte';
+  import RuleEditorDrawer from './rules/RuleEditorDrawer.svelte';
+  import RulePreviewDrawer from './rules/RulePreviewDrawer.svelte';
+  import RuleDialogs from './rules/RuleDialogs.svelte';
   import { clientIconID, clientIconSrc, defaultClientIcon, type ClientConfig } from './clients';
   import {
     emptyRule,
-    mergeStrategies,
     moveRuleOrder,
     readRule,
     refChoices,
@@ -27,12 +22,10 @@
     ruleTopology,
     serializeRule,
     splitCSV,
-    validateRule,
+    validateRuleAll,
     type RuleConfig,
     type RuleIssue,
   } from './rules';
-  import { retroScroll } from '../utils/scrollbars';
-  import rulesIcon from '../assets/icons/nav/rules.svg';
 
   interface Props {
     onStartUpdate: (scope: 'rules', ruleIds: string[]) => void;
@@ -64,6 +57,7 @@
   let message = $state('');
   let error = $state(false);
   let fieldError = $state<RuleIssue | null>(null);
+  let issues = $state<RuleIssue[]>([]);
   let open = $state(false);
   let editing = $state('');
   let draft = $state<RuleConfig>(emptyRule());
@@ -77,8 +71,6 @@
   let selected = $state<string[]>([]);
   let selecting = $state(false);
   let batchClient = $state('');
-  let dragging = $state('');
-  let dropTarget = $state('');
   let editorTab = $state('props');
   let drawerView = $state<'edit' | 'preview'>('edit');
   let previewing = $state(false);
@@ -88,8 +80,6 @@
   let rowPreview = $state<RulePreview | null>(null);
   let rowPreviewError = $state('');
   let rowPreviewName = $state('');
-  let hint = $state<{ kind: 'refs' | 'outputs'; id: string; top: number; left: number; above: boolean } | null>(null);
-  let hintTimer = 0;
   let templates = $state<TemplateItem[]>([]);
 
   const tabs = [
@@ -135,49 +125,13 @@
   const refOptions = $derived([{ value: '', label: '请选择规则' }, ...refChoices(identities, editing || draft.id)]);
   const fileOptions = $derived([{ value: '', label: files.length ? '请选择文件' : '暂无本地文件' }, ...files.map((file) => ({ value: file.name, label: file.name }))]);
   const clientOptions = $derived([{ value: '', label: '选择客户端' }, ...clients.map((client) => ({ value: client.id, label: client.name || client.id }))]);
-  const selectedSet = $derived(new Set(selected));
-  const filteredSelected = $derived(filteredRules.filter((rule) => selectedSet.has(rule.id)).length);
   const canReorder = $derived(!searchQuery && !busy && !isUpdating);
   const issueTab: Record<string, string> = { id: 'props', name: 'props', sources: 'sources', merge: 'pipeline', ops: 'pipeline', outputs: 'outputs' };
-  const editorTabs = $derived([
-    { value: 'props', label: '属性', alert: fieldError?.path === 'id' || fieldError?.path === 'name' },
-    { value: 'sources', label: '来源', alert: fieldError?.path === 'sources' },
-    { value: 'pipeline', label: '处理', alert: fieldError?.path === 'merge' || fieldError?.path === 'ops' },
-    { value: 'outputs', label: '输出', alert: fieldError?.path === 'outputs' },
-  ].map((item) => ({ ...item, disabled: busy || previewing })));
-  const groupProcessingCount = $derived(draft.sources.filter((source) => source.group && (source.preprocess !== undefined || (source.ops?.length ?? 0) > 0)).length);
-  const preprocessStats = $derived.by(() => {
-    let inherit = 0, override = 0, off = 0;
-    for (const source of draft.sources) {
-      if (source.preprocess === undefined) inherit++;
-      else if (source.preprocess) override++;
-      else off++;
-    }
-    return { inherit, override, off };
-  });
 
   $effect(() => { onstatechange?.(dirty || filesDirty, busy || filesBusy || previewing); });
   onMount(() => { void load(); });
-  onDestroy(() => {
-    clearTimeout(hintTimer);
-    onstatechange?.(false, false);
-  });
+  onDestroy(() => { onstatechange?.(false, false); });
 
-  function showHint(kind: 'refs' | 'outputs', id: string, el: HTMLElement, immediate = false) {
-    clearTimeout(hintTimer);
-    const place = () => {
-      const box = el.getBoundingClientRect();
-      const below = box.bottom + 7;
-      const above = below + 200 > window.innerHeight;
-      hint = { kind, id, top: above ? box.top - 7 : below, left: box.left + box.width / 2, above };
-    };
-    if (immediate) place();
-    else hintTimer = window.setTimeout(place, 160);
-  }
-  function hideHint() {
-    clearTimeout(hintTimer);
-    hint = null;
-  }
   function ruleClientIcon(client: ClientConfig): string {
     if (client.icon && clientIconID(client.icon)) return clientIconSrc(client.icon);
     return `/static/icons/${encodeURIComponent(defaultClientIcon(client.id))}.svg`;
@@ -187,8 +141,7 @@
     const tpl = templates.find((item) => item.id === templateID);
     return tpl ? `${tpl.name || tpl.id} · ${tpl.extension}` : templateID;
   }
-  interface RuleOutputInfo { id: string; name: string; icon: string; formats: string[] }
-  function ruleOutputs(raw: Record<string, unknown>): RuleOutputInfo[] {
+  function ruleOutputs(raw: Record<string, unknown>) {
     const outputIDs = Array.isArray(raw.outputs) ? raw.outputs.map(String) : [];
     return outputIDs.map((id) => {
       const client = clients.find((item) => item.id === id);
@@ -238,23 +191,6 @@
     if (e instanceof APIRequestError && e.details.errors?.length) message += '：' + e.details.errors.map((item) => `${item.path} ${item.message}`).join('；');
     if (e instanceof APIRequestError && e.status === 409) message += '。请关闭编辑器后刷新配置再重试。';
   }
-  function formatTime(iso?: string) {
-    if (!iso) return '—';
-    return new Date(iso).toLocaleString('zh-CN', { hour12: false });
-  }
-  function getCheckStatusType(res?: string): 'success' | 'warning' | 'error' | 'neutral' | 'active' {
-    if (!res) return 'neutral';
-    if (res === 'updated') return 'success';
-    if (res === 'unchanged') return 'neutral';
-    if (res === 'failed') return 'error';
-    if (res === 'cancelled') return 'warning';
-    if (res === 'updating') return 'active';
-    return 'neutral';
-  }
-  function getCheckStatusLabel(res?: string): string {
-    const map: Record<string, string> = { updated: '已更新', unchanged: '无变化', failed: '失败', cancelled: '已取消', updating: '更新中', none: '未检查' };
-    return (res && map[res]) || res || '未检查';
-  }
   function edit(raw?: Record<string, unknown>) {
     const next = raw ? readRule(raw) : emptyRule();
     editing = raw ? next.id : '';
@@ -267,6 +203,7 @@
     message = '';
     error = false;
     fieldError = null;
+    issues = [];
     open = true;
     void api.listLocalFiles().then((res) => { files = res.items || []; }).catch(fail);
   }
@@ -278,6 +215,7 @@
   function applyTags() { draft = { ...draft, tags: splitCSV(tagText) }; }
   function clearFieldError(path: string) {
     if (fieldError?.path === path) fieldError = null;
+    if (issues.length) issues = issues.filter((item) => item.path !== path);
   }
   async function scrollToIssue(path: string) {
     await tick();
@@ -287,8 +225,6 @@
   }
   function reject(issue: RuleIssue) {
     fieldError = issue;
-    message = issue.message;
-    error = true;
     drawerView = 'edit';
     editorTab = issueTab[issue.path] ?? 'props';
     void scrollToIssue(issue.path);
@@ -296,10 +232,11 @@
   async function save() {
     if (!snapshot || busy) return;
     applyTags();
-    const issue = validateRule(draft, identities, clients, files, editing);
-    if (issue) { reject(issue); return; }
+    const found = validateRuleAll(draft, identities, clients, files, editing);
+    if (found.length) { issues = found; reject(found[0]); return; }
     busy = true; message = '';
     fieldError = null;
+    issues = [];
     try {
       const value = serializeRule(draft);
       const result = await api.patchConfig(snapshot.version, [editing ? { op: 'update_rule', id: editing, value } : { op: 'add_rule', value }]);
@@ -321,10 +258,11 @@
     if (previewing) return;
     preview = null;
     applyTags();
-    const issue = validateRule(draft, identities, clients, files, editing);
-    if (issue) { reject(issue); return; }
+    const found = validateRuleAll(draft, identities, clients, files, editing);
+    if (found.length) { issues = found; reject(found[0]); return; }
     previewing = true; message = '';
     fieldError = null;
+    issues = [];
     try {
       preview = await api.previewRule(serializeRule(draft));
       error = false;
@@ -375,13 +313,6 @@
     selecting = on;
     if (!on) selected = [];
   }
-  function toggleSelected(id: string, checked: boolean) {
-    selected = checked ? [...selectedSet, id].filter((item, index, list) => list.indexOf(item) === index) : selected.filter((item) => item !== id);
-  }
-  function toggleFiltered(checked: boolean) {
-    const ids = filteredRules.map((rule) => rule.id);
-    selected = checked ? [...new Set([...selected, ...ids])] : selected.filter((id) => !ids.includes(id));
-  }
   async function batchOutputs(add: boolean) {
     if (!snapshot || !selected.length || !batchClient || busy) return;
     busy = true; message = '';
@@ -410,11 +341,9 @@
     } catch (e) { fail(e); }
     finally { busy = false; }
   }
-  async function dropRule(targetID: string) {
-    if (!snapshot || !canReorder || !dragging || dragging === targetID) { dragging = ''; dropTarget = ''; return; }
-    const order = moveRuleOrder(configRules.map((rule) => String(rule.id)), dragging, targetID);
-    dragging = '';
-    dropTarget = '';
+  async function dropRule(targetID: string, draggingID: string) {
+    if (!snapshot || !canReorder || !draggingID || draggingID === targetID) return;
+    const order = moveRuleOrder(configRules.map((rule) => String(rule.id)), draggingID, targetID);
     if (order.every((id, index) => id === String(configRules[index]?.id))) return;
     busy = true; message = '';
     try {
@@ -428,8 +357,7 @@
 </script>
 
 <svelte:window
-  onbeforeunload={event => { if (dirty || filesDirty || busy || filesBusy || previewing) { event.preventDefault(); event.returnValue = ''; } }}
-  onscroll={hideHint} />
+  onbeforeunload={event => { if (dirty || filesDirty || busy || filesBusy || previewing) { event.preventDefault(); event.returnValue = ''; } }} />
 <div class="rules-page">
   <PixelTabs id="rules" label="规则管理" items={tabs.map(item => ({ ...item, disabled: filesBusy || busy || previewing }))}
     value={tab} onchange={switchTab} />
@@ -459,7 +387,7 @@
         </div>
         <div class="toolbar-right">
           <div class="search-wrap">
-            <input type="text" class="pixel-input" placeholder="搜索规则名称 / ID…" bind:value={searchQuery} spellcheck="false" />
+            <PixelInput placeholder="搜索规则名称 / ID…" bind:value={searchQuery} spellcheck="false" aria-label="搜索规则" />
           </div>
           <PixelButton size="sm" disabled={loading || busy} onclick={load}>
             <PixelIcon name="refresh" size={12} />
@@ -486,188 +414,26 @@
         </div>
       {/if}
 
-      <PixelTable class="rules-table" minWidth="820px">
-        <colgroup>
-          <col class="c-lead" />
-          {#if selecting}<col class="c-lead" />{/if}
-          <col class="c-name" style="width: {nameColumnWidth}px;" />
-          <col class="c-num" />
-          <col class="c-time" />
-          <col class="c-status" />
-          <col class="c-actions" />
-        </colgroup>
-        <thead>
-          <tr>
-            <th class="lead-col"></th>
-            {#if selecting}
-              <th class="lead-col">
-                <PixelCheckbox size="sm" label="全选" checked={filteredRules.length > 0 && filteredSelected === filteredRules.length} disabled={busy || !filteredRules.length}
-                  onchange={toggleFiltered} />
-              </th>
-            {/if}
-            <th>名称 / ID</th>
-            <th class="num">条目数量</th>
-            <th>内容版本时间</th>
-            <th>上次检查状态</th>
-            <th class="col-actions">操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {#if loading && rows.length === 0}
-            <tr><td colspan={selecting ? 7 : 6} class="table-empty">加载规则列表中…</td></tr>
-          {:else if filteredRules.length === 0}
-            <tr><td colspan={selecting ? 7 : 6} class="table-empty">没有匹配的规则</td></tr>
-          {:else}
-            {#each filteredRules as rule (rule.id)}
-              {@const isRuleActive = activeRuleId === rule.id || currentProcessingRuleId === rule.id}
-              {@const refs = topologies.get(rule.id) ?? { upstream: [], downstream: [] }}
-              {@const hasOut = refs.upstream.length > 0}
-              {@const hasIn = refs.downstream.length > 0}
-              {@const outs = ruleOutputs(rule.raw)}
-              <tr class:selected={selecting && selectedSet.has(rule.id)} class:drop-target={dropTarget === rule.id}
-                ondragover={(event) => { if (!canReorder || !dragging) return; event.preventDefault(); dropTarget = rule.id; }}
-                ondrop={(event) => { event.preventDefault(); dropRule(rule.id); }}>
-                <td class="lead-col">
-                  <button class="drag-handle" type="button" aria-label="拖动排序 {rule.name}" disabled={!canReorder}
-                    draggable={canReorder} title={searchQuery ? '搜索时无法排序' : '拖动排序'}
-                    ondragstart={(event) => { if (!canReorder) { event.preventDefault(); return; } dragging = rule.id; event.dataTransfer?.setData('text/plain', rule.id); if (event.dataTransfer) event.dataTransfer.effectAllowed = 'move'; }}
-                    ondragend={() => { dragging = ''; dropTarget = ''; }}>
-                    <PixelIcon name="grip" size={12} />
-                  </button>
-                </td>
-                {#if selecting}
-                  <td class="lead-col">
-                    <PixelCheckbox size="sm" label="选择 {rule.name}" checked={selectedSet.has(rule.id)} disabled={busy} onchange={(checked) => toggleSelected(rule.id, checked)} />
-                  </td>
-                {/if}
-                <td class="col-name">
-                  <div class="rule-identity">
-                    <div class="rule-text">
-                      <button class="rule-open" type="button" onclick={() => edit(rule.raw)}>
-                        <div class="rule-name font-name">{rule.name}</div>
-                      </button>
-                      <div class="rule-sub">
-                        <button class="rule-open rule-id-open" type="button" aria-label="编辑规则 {rule.name}" onclick={() => edit(rule.raw)}>
-                          <span class="rule-id text-dim">{rule.id}</span>
-                        </button>
-                        {#if outs.length}
-                          <button
-                            type="button"
-                            class="outputs-mark"
-                            aria-label={`输出客户端 ${outs.length} 个：${outs.map((out) => out.name).join('、')}`}
-                            aria-expanded={hint?.kind === 'outputs' && hint.id === rule.id}
-                            onpointerenter={(event) => showHint('outputs', rule.id, event.currentTarget)}
-                            onpointerleave={hideHint}
-                            onfocus={(event) => showHint('outputs', rule.id, event.currentTarget, true)}
-                            onblur={hideHint}
-                            onclick={(event) => {
-                              event.stopPropagation();
-                              if (hint?.kind === 'outputs' && hint.id === rule.id) hideHint();
-                              else showHint('outputs', rule.id, event.currentTarget, true);
-                            }}
-                            onkeydown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); hideHint(); } }}
-                          >
-                            {#each outs.slice(0, 4) as out (out.id)}
-                              <img src={out.icon} width="12" height="12" alt="" />
-                            {/each}
-                            {#if outs.length > 4}
-                              <span class="outputs-more text-dim">+{outs.length - 4}</span>
-                            {/if}
-                          </button>
-                        {/if}
-                      </div>
-                    </div>
-                    {#if hasOut || hasIn}
-                      <button
-                        type="button"
-                        class="refs-mark"
-                        aria-label={`引用关系，引用 ${refs.upstream.length}，被引用 ${refs.downstream.length}`}
-                        aria-expanded={hint?.kind === 'refs' && hint.id === rule.id}
-                        onpointerenter={(event) => showHint('refs', rule.id, event.currentTarget)}
-                        onpointerleave={hideHint}
-                        onfocus={(event) => showHint('refs', rule.id, event.currentTarget, true)}
-                        onblur={hideHint}
-                        onclick={(event) => {
-                          event.stopPropagation();
-                          if (hint?.kind === 'refs' && hint.id === rule.id) hideHint();
-                          else showHint('refs', rule.id, event.currentTarget, true);
-                        }}
-                        onkeydown={(event) => { if (event.key === 'Escape') { event.stopPropagation(); hideHint(); } }}
-                      >
-                        <RefsIcon direction={hasOut && hasIn ? 'both' : hasOut ? 'left' : 'right'} size={16} />
-                      </button>
-                    {/if}
-                  </div>
-                </td>
-                <td class="num">{rule.entries.toLocaleString()}</td>
-                <td class="text-sec">{formatTime(rule.version_at)}</td>
-                <td>
-                  <div class="status-cell">
-                    <PixelBadge status={isRuleActive ? 'active' : getCheckStatusType(rule.last_check?.result)} pulse={isRuleActive}>
-                      {isRuleActive ? '更新中…' : getCheckStatusLabel(rule.last_check?.result)}
-                    </PixelBadge>
-                    {#if rule.last_check?.checked_at}
-                      <span class="check-time">{formatTime(rule.last_check.checked_at)}</span>
-                    {/if}
-                  </div>
-                </td>
-                <td class="col-actions">
-                  <div class="rule-actions">
-                    <PixelButton size="sm" disabled={busy} onclick={() => edit(rule.raw)}>编辑</PixelButton>
-                    <PixelButton size="sm" disabled={busy} onclick={() => openRulePreview(rule.raw)}>预览</PixelButton>
-                    <PixelButton size="sm" variant="secondary" disabled={isUpdating || isRuleActive || busy}
-                      title={isUpdating ? '当前有更新任务正在进行中' : '更新此规则'}
-                      onclick={() => onStartUpdate('rules', [rule.id])}>更新</PixelButton>
-                    <PixelButton size="sm" variant="danger" disabled={busy || isRuleActive} onclick={() => askDelete(rule.raw)}>删除</PixelButton>
-                  </div>
-                </td>
-              </tr>
-            {/each}
-          {/if}
-        </tbody>
-      </PixelTable>
-      {#if hint}
-        {@const current = hint}
-        {#if current.kind === 'refs'}
-          {@const refs = topologies.get(current.id) ?? { upstream: [], downstream: [] }}
-          <div class="refs-bubble" class:above={current.above} role="tooltip" style="top: {current.top}px; left: {current.left}px">
-            <div>
-              <strong>引用</strong>
-              {#if refs.upstream.length}
-                <ul>{#each refs.upstream as item}<li>{item.name || item.id}</li>{/each}</ul>
-              {:else}
-                <p>没有引用其他规则</p>
-              {/if}
-            </div>
-            <div>
-              <strong>被引用</strong>
-              {#if refs.downstream.length}
-                <ul>{#each refs.downstream as item}<li>{item.name || item.id}</li>{/each}</ul>
-              {:else}
-                <p>没有被其他规则引用</p>
-              {/if}
-            </div>
-          </div>
-        {:else}
-          {@const rule = rows.find((item) => item.id === current.id)}
-          {#if rule}
-            <div class="refs-bubble outputs-bubble" class:above={current.above} role="tooltip" style="top: {current.top}px; left: {current.left}px">
-              <strong>输出客户端</strong>
-              <ul class="out-list">
-                {#each ruleOutputs(rule.raw) as out (out.id)}
-                  <li>
-                    <img src={out.icon} width="16" height="16" alt="" />
-                    <span class="out-meta">
-                      <span class="out-name">{out.name}</span>
-                      {#each out.formats as fmt}<span class="out-format">{fmt}</span>{/each}
-                    </span>
-                  </li>
-                {/each}
-              </ul>
-            </div>
-          {/if}
-        {/if}
-      {/if}
+      <RuleTable
+        rows={filteredRules}
+        {loading}
+        {busy}
+        {isUpdating}
+        {activeRuleId}
+        {currentProcessingRuleId}
+        {selecting}
+        bind:selected
+        {canReorder}
+        {searchQuery}
+        {nameColumnWidth}
+        {topologies}
+        resolveOutputs={ruleOutputs}
+        {onStartUpdate}
+        onEdit={(raw) => edit(raw)}
+        onPreview={openRulePreview}
+        onDelete={askDelete}
+        onReorder={dropRule}
+      />
     </div>
   {:else if tab === 'files'}
     <div role="tabpanel" id="rules-panel-files" aria-labelledby="rules-tab-files">
@@ -676,299 +442,63 @@
   {/if}
 </div>
 
-<PixelDrawer bind:open title={drawerView === 'preview' ? `预览 · ${draft.name || draft.id || '未命名'}` : editing ? '编辑规则' : '新建规则'} icon={rulesIcon} width="760px" onrequestclose={requestClose}>
-  <div class="editor-form">
-    {#if message}<div class="notice" class:error role="status">{message}</div>{/if}
-    {#if drawerView === 'edit'}
-      <PixelTabs id="rule-editor" label="规则编辑" items={editorTabs} value={editorTab} onchange={value => { editorTab = value; }} />
-      {#if editorTab === 'props'}
-      <div role="tabpanel" id="rule-editor-panel-props" aria-labelledby="rule-editor-tab-props" class="editor-fields">
-      <fieldset disabled={busy || previewing}>
-        <legend>基本属性</legend>
-        <div class="fields">
-          <label data-field="id">规则 ID<input class:error={fieldError?.path === 'id'} aria-invalid={fieldError?.path === 'id' || undefined} bind:value={draft.id} disabled={!!editing} placeholder="例如：google" oninput={() => clearFieldError('id')} />
-            {#if fieldError?.path === 'id'}<span class="field-error">{fieldError.message}</span>{/if}
-          </label>
-          <label data-field="name">名称<input class:error={fieldError?.path === 'name'} aria-invalid={fieldError?.path === 'name' || undefined} bind:value={draft.name} placeholder="显示名称" oninput={() => clearFieldError('name')} />
-            {#if fieldError?.path === 'name'}<span class="field-error">{fieldError.message}</span>{/if}
-          </label>
-          <label class="full">说明<textarea bind:value={draft.description} rows="2" placeholder="可选说明"></textarea></label>
-          <label class="full">标签<input bind:value={tagText} placeholder="用逗号分隔" /></label>
-        </div>
-      </fieldset>
-      </div>
-      {:else if editorTab === 'sources'}
-      <div role="tabpanel" id="rule-editor-panel-sources" aria-labelledby="rule-editor-tab-sources" class="editor-fields">
-      <section aria-label="统一预处理" class="unified-preprocess">
-        <h3>统一预处理 <span class="optional-tag">可选</span></h3>
-        <p class="unified-hint">应用于所有未单独配置的来源 · 继承 {preprocessStats.inherit} · 覆盖 {preprocessStats.override} · 禁用 {preprocessStats.off}</p>
-        <label>JavaScript<textarea bind:value={draft.preprocess} rows="8" spellcheck="false" placeholder={"function process(content) { return content; }"} disabled={busy || previewing}></textarea></label>
-      </section>
-      <div class="field-zone" data-field="sources" oninput={() => clearFieldError('sources')} onchange={() => clearFieldError('sources')}>
-        {#if fieldError?.path === 'sources'}<p class="field-error">{fieldError.message}</p>{/if}
-        <SourceEditor bind:sources={draft.sources} preprocess={draft.preprocess} disabled={busy || previewing} {fileOptions} {refOptions} />
-      </div>
-      </div>
-      {:else if editorTab === 'pipeline'}
-      <div role="tabpanel" id="rule-editor-panel-pipeline" aria-labelledby="rule-editor-tab-pipeline" class="editor-fields">
-      {#if groupProcessingCount}
-        <p class="pipeline-hint">
-          {groupProcessingCount} 个来源组配置了独立预处理/过滤
-          <button type="button" class="pipeline-link" onclick={() => { editorTab = 'sources'; }}>查看来源</button>
-        </p>
-      {/if}
-      <section data-field="merge" oninput={() => clearFieldError('merge')} onchange={() => clearFieldError('merge')}>
-        <div class="section-head"><h3>合并策略</h3></div>
-        {#if fieldError?.path === 'merge'}<p class="field-error section-error">{fieldError.message}</p>{/if}
-        <div class="format-single">
-          <PixelSelect id="rule-merge" label="合并策略" options={[...mergeStrategies]} value={draft.merge?.strategy || 'union'} disabled={busy || previewing}
-            onchange={(value) => { draft.merge = { strategy: value }; }} />
-        </div>
-      </section>
-      <section aria-label="全局过滤链" data-field="ops" oninput={() => clearFieldError('ops')} onchange={() => clearFieldError('ops')}>
-        <div class="section-head"><h3>全局过滤链</h3></div>
-        {#if fieldError?.path === 'ops'}<p class="field-error section-error">{fieldError.message}</p>{/if}
-        <div class="format-single"><OpsEditor bind:value={draft.ops!} disabled={busy || previewing} /></div>
-      </section>
-      </div>
-      {:else}
-      <div role="tabpanel" id="rule-editor-panel-outputs" aria-labelledby="rule-editor-tab-outputs" class="editor-fields">
-      <section data-field="outputs" oninput={() => clearFieldError('outputs')} onchange={() => clearFieldError('outputs')}>
-        <div class="section-head"><h3>输出客户端</h3></div>
-        {#if fieldError?.path === 'outputs'}<p class="field-error section-error">{fieldError.message}</p>{/if}
-        {#if !clients.length}
-          <p class="empty-hint">还没有客户端。请先在客户端管理中创建。</p>
-        {:else}
-          <div class="outputs">
-            {#each clients as client (client.id)}
-              {@const formats = (client.formats?.length ? client.formats.map((format) => formatLabel(format.template)) : [formatLabel(client.template)]).filter(Boolean)}
-              {@const on = draft.outputs.includes(client.id)}
-              <div class="output-item" class:on>
-                <div class="output-head">
-                  <img src={ruleClientIcon(client)} width="16" height="16" alt="" />
-                  <PixelCheckbox
-                    label={client.name || client.id}
-                    checked={on}
-                    disabled={busy || previewing}
-                    onchange={(checked) => {
-                      draft.outputs = checked ? [...draft.outputs, client.id] : draft.outputs.filter((id) => id !== client.id);
-                    }}
-                  />
-                </div>
-                {#if formats.length}
-                  <div class="output-formats">
-                    {#each formats as fmt}<span>{fmt}</span>{/each}
-                  </div>
-                {/if}
-              </div>
-            {/each}
-          </div>
-        {/if}
-      </section>
-      </div>
-      {/if}
-    {:else}
-      <div class="editor-fields">
-        {#if previewing}<p role="status" class="preview-meta">正在抓取来源并编译…</p>{/if}
-        {#if preview}
-          {#key preview}<RulePreviewPanel {preview} />{/key}
-        {/if}
-      </div>
-    {/if}
-  </div>
-  {#snippet footer()}
-    {#if drawerView === 'edit'}
-      <PixelButton disabled={busy || previewing} onclick={() => { if (requestClose()) open = false; }}>关闭</PixelButton>
-      <PixelButton disabled={busy || previewing} onclick={openDraftPreview}>预览当前修改</PixelButton>
-    {:else}
-      <PixelButton disabled={busy || previewing} onclick={() => { drawerView = 'edit'; }}>返回编辑</PixelButton>
-    {/if}
-    <PixelButton variant="primary" disabled={busy || previewing || (!dirty && !!editing)} onclick={save}>{busy ? '保存中…' : '保存规则'}</PixelButton>
-  {/snippet}
-</PixelDrawer>
+<RuleEditorDrawer
+  bind:open
+  bind:draft
+  bind:tagText
+  bind:editorTab
+  bind:drawerView
+  {editing}
+  {dirty}
+  {busy}
+  {previewing}
+  {preview}
+  {message}
+  {error}
+  {fieldError}
+  {issues}
+  {clients}
+  {fileOptions}
+  {refOptions}
+  resolveClientIcon={ruleClientIcon}
+  {formatLabel}
+  onrequestclose={requestClose}
+  onReject={reject}
+  onClearFieldError={clearFieldError}
+  onSave={save}
+  onPreviewDraft={openDraftPreview}
+/>
 
-<PixelDrawer bind:open={rowPreviewOpen} title={`预览 · ${rowPreviewName}`} icon={rulesIcon} width="760px">
-  <div class="editor-form">
-    {#if rowPreviewing}<p role="status" class="preview-meta">正在抓取来源并编译…</p>{/if}
-    {#if rowPreviewError}<div class="notice error" role="status">{rowPreviewError}</div>{/if}
-    {#if rowPreview}
-      {#key rowPreview}<RulePreviewPanel preview={rowPreview} />{/key}
-    {/if}
-  </div>
-  {#snippet footer()}
-    <PixelButton onclick={() => { rowPreviewOpen = false; }}>关闭</PixelButton>
-  {/snippet}
-</PixelDrawer>
+<RulePreviewDrawer
+  bind:open={rowPreviewOpen}
+  name={rowPreviewName}
+  previewing={rowPreviewing}
+  preview={rowPreview}
+  error={rowPreviewError}
+/>
 
-<PixelDialog bind:open={leaveDialog} title="切换规则页面？" confirmLabel="放弃修改并切换" cancelLabel="继续编辑" danger
-  oncancel={() => { pending = ''; }} onconfirm={() => { open = false; leave(pending); pending = ''; }}>
-  当前内容尚未保存，切换后将丢弃这些修改。
-</PixelDialog>
-<PixelDialog bind:open={discard} title="放弃未保存的修改？" confirmLabel="放弃修改" cancelLabel="继续编辑" danger onconfirm={() => { open = false; }}>
-  当前修改尚未保存，关闭后将丢弃这些修改。
-</PixelDialog>
-<PixelDialog bind:open={deleteOpen} title="删除规则？" confirmLabel="删除" danger onconfirm={remove}>
-  删除 {deleting?.name || deleting?.id} 的规则配置。
-</PixelDialog>
-<PixelDialog bind:open={refConflictOpen} title="规则引用详情" confirmLabel="知道了" showCancel={false} onconfirm={() => { refConflictOpen = false; }}>
-  <div class="ref-conflict-content">
-    <p>以下规则正在引用该规则，请先解除引用后再删除：</p>
-    <div class="ref-conflict-list" use:retroScroll>
-      {#each refConflictList as item}<div class="ref-conflict-item"><code>{item}</code></div>{/each}
-    </div>
-  </div>
-</PixelDialog>
+<RuleDialogs
+  bind:leaveOpen={leaveDialog}
+  bind:discardOpen={discard}
+  bind:deleteOpen
+  bind:refConflictOpen
+  deletingName={deleting?.name || deleting?.id || ''}
+  {refConflictList}
+  onConfirmLeave={() => { open = false; leave(pending); pending = ''; }}
+  onCancelLeave={() => { pending = ''; }}
+  onConfirmDiscard={() => { open = false; }}
+  onConfirmDelete={remove}
+/>
 
 <style>
-  .rules-page, .editor-form { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
-  .editor-form { padding-bottom: 36px; }
+  .rules-page { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
   .rules-view { display: flex; flex-direction: column; gap: 16px; }
-  .rules-toolbar, .section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-  .section-head { padding: 0 16px; }
+  .rules-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
   .toolbar-left, .toolbar-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .select-cluster { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 4px 8px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; }
   .select-count { color: var(--sec); white-space: nowrap; padding: 0 2px; }
   .batch-client { width: 148px; flex: 0 0 148px; }
-  .search-wrap .pixel-input { width: 260px; }
-  .rules-error, .notice { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--status-error); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--text); overflow-wrap: anywhere; }
-  .notice { background: var(--surface-2); }
-  .notice.error, .rules-error:not(.notice) { background: var(--status-error); }
-  .rule-id { color: var(--dim); font: 400 13px/20px var(--font-code); }
-  .text-sec { color: var(--sec); font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .status-cell { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; min-width: 0; }
-  .status-cell :global(.pixel-badge) { align-self: flex-start; max-width: 100%; width: fit-content; }
-  .check-time { color: var(--dim); font-variant-numeric: tabular-nums; font-size: 11px; line-height: 16px; white-space: nowrap; }
-  .table-empty { text-align: center; color: var(--dim); padding: 36px 0; }
-  :global(.rules-table .pixel-table) { table-layout: fixed; }
-  :global(.rules-table .c-lead) { width: 40px; }
-  :global(.rules-table .c-num) { width: 96px; }
-  :global(.rules-table .c-time) { width: 170px; }
-  :global(.rules-table .c-status) { width: 180px; }
-  :global(.rules-table .c-actions) { width: 240px; }
-  :global(.rules-table .pixel-table .lead-col) { padding-left: 8px; padding-right: 8px; }
-  :global(.rules-table .pixel-table .col-name),
-  :global(.rules-table .pixel-table .col-actions) { overflow: hidden; }
-  :global(.rules-table .pixel-table .col-actions) { text-align: right; white-space: nowrap; }
-  :global(.lead-col .checkbox-label) {
-    position: absolute;
-    width: 1px;
-    height: 1px;
-    overflow: hidden;
-    clip: rect(0 0 0 0);
-  }
-  .drag-handle { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; padding: 0; border: 0; background: transparent; color: var(--dim); cursor: grab; }
-  .drag-handle:disabled { opacity: .35; cursor: not-allowed; }
-  .rule-identity { display: flex; align-items: flex-start; gap: 6px; min-width: 0; }
-  .rule-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .rule-open { display: block; width: fit-content; max-width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; }
-  .rule-name, .rule-id { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .rule-sub { display: flex; align-items: center; gap: 8px; margin-top: 4px; min-width: 0; }
-  .rule-id-open { flex-shrink: 1; min-width: 0; }
-  .refs-mark, .outputs-mark {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex-shrink: 0;
-    padding: 2px;
-    border: 1px solid transparent;
-    border-radius: 3px;
-    background: transparent;
-    cursor: default;
-  }
-  .refs-mark { width: 24px; height: 24px; color: var(--display); }
-  .outputs-mark { gap: 2px; padding: 2px 3px; }
-  .outputs-mark img { width: 12px; height: 12px; image-rendering: pixelated; }
-  .outputs-more { color: var(--sec); font: 400 12px/18px var(--font-display); padding-left: 2px; }
-  .refs-mark:hover,
-  .refs-mark:focus-visible,
-  .refs-mark[aria-expanded='true'],
-  .outputs-mark:hover,
-  .outputs-mark:focus-visible,
-  .outputs-mark[aria-expanded='true'] {
-    background: var(--surface-2);
-    border-color: var(--border-vis);
-  }
-  :global(.pixel-table tbody tr.selected) .refs-mark { color: var(--selected-text); }
-  .refs-bubble {
-    position: fixed;
-    z-index: 40;
-    display: grid;
-    gap: 8px;
-    width: max-content;
-    max-width: 240px;
-    padding: 6px 10px;
-    border: 1px solid var(--border-vis);
-    border-radius: 3px;
-    background: var(--surface-2);
-    color: var(--text);
-    box-shadow: 0 4px 12px rgb(0 0 0 / 25%), var(--shadow-popup);
-    font: 400 11px/17px var(--font-ui);
-    overflow-wrap: anywhere;
-    transform: translateX(-50%);
-    animation: pixel-fade 100ms linear;
-    pointer-events: none;
-  }
-  .refs-bubble.above { transform: translate(-50%, -100%); }
-  .refs-bubble::before,
-  .refs-bubble::after {
-    content: '';
-    position: absolute;
-    left: 50%;
-    width: 0;
-    height: 0;
-    border-left: 4px solid transparent;
-    border-right: 4px solid transparent;
-    transform: translateX(-50%);
-    pointer-events: none;
-  }
-  .refs-bubble::before { top: -5px; border-bottom: 5px solid var(--border-vis); }
-  .refs-bubble::after { top: -4px; border-bottom: 4px solid var(--surface-2); }
-  .refs-bubble.above::before { top: auto; bottom: -5px; border-bottom: 0; border-top: 5px solid var(--border-vis); }
-  .refs-bubble.above::after { top: auto; bottom: -4px; border-bottom: 0; border-top: 4px solid var(--surface-2); }
-  .refs-bubble strong { font: 400 11px/17px var(--font-ui); color: var(--sec); }
-  .refs-bubble p, .refs-bubble ul { margin: 2px 0 0; padding: 0; list-style: none; color: var(--text); }
-  .outputs-bubble { max-width: 280px; }
-  .out-list { display: grid; gap: 6px; }
-  .out-list li { display: flex; align-items: flex-start; gap: 8px; }
-  .out-list img { width: 16px; height: 16px; margin-top: 1px; image-rendering: pixelated; }
-  .out-meta { display: grid; gap: 1px; min-width: 0; }
-  .out-name { color: var(--text); overflow-wrap: anywhere; }
-  .out-format { color: var(--sec); font: 400 11px/17px var(--font-code); overflow-wrap: anywhere; }
-  .rule-actions { display: inline-flex; flex-wrap: nowrap; gap: 6px; }
-  :global(.pixel-table tbody tr.drop-target) { background: var(--status-info); }
-  h3, legend { font: 400 12px/20px var(--font-ui); color: var(--display); margin: 0; }
-  code { font: 12px/20px var(--font-code); color: var(--sec); overflow-wrap: anywhere; }
-  fieldset { min-width: 0; margin: 12px 0 0; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; display: grid; gap: 12px; }
-  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
-  label { display: grid; gap: 6px; color: var(--sec); font: 12px/18px var(--font-ui); }
-  .full { grid-column: 1 / -1; }
-  input, textarea { width: 100%; min-width: 0; padding: 4px 8px; border: 1px solid var(--border-vis); border-radius: 3px; box-shadow: var(--edge-inset); color: var(--text); background: var(--surface); font: 13px/20px var(--font-code); }
-  input { min-height: 32px; }
-  textarea { min-height: 72px; resize: vertical; }
-  input:focus-visible, textarea:focus-visible { outline: 1px solid var(--selected); border-color: var(--selected); }
-  input.error { border-color: var(--error-border); }
-  .field-error { margin: 0; color: var(--error-border); font: 12px/18px var(--font-ui); }
-  .section-error { margin: 8px 16px 0; }
-  .field-zone { display: grid; gap: 8px; min-width: 0; }
-  .format-single { margin: 12px 16px 0; display: grid; gap: 8px; }
-  .empty-hint { margin: 12px 16px 0; padding: 12px; background: var(--surface-2); border: 1px dashed var(--border); border-radius: 4px; font: 12px/18px var(--font-ui); color: var(--sec); }
-  .outputs { margin: 12px 16px 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
-  .output-item { display: grid; gap: 4px; align-content: start; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 3px; background: var(--surface); }
-  .output-item.on { border-color: var(--border-vis); background: var(--surface-2); }
-  .output-head { display: flex; align-items: center; gap: 8px; min-width: 0; }
-  .output-head img { width: 16px; height: 16px; flex-shrink: 0; image-rendering: pixelated; }
-  .output-formats { display: grid; gap: 1px; padding-left: 48px; color: var(--sec); font: 11px/17px var(--font-code); }
-  .output-formats span { overflow-wrap: anywhere; }
-  .ref-conflict-content { display: grid; gap: 12px; }
-  .ref-conflict-list { max-height: 240px; overflow-y: auto; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 3px; padding: 8px 12px; display: grid; gap: 4px; }
-  .ref-conflict-item { padding: 3px 0; border-bottom: 1px dashed var(--border); }
-  .ref-conflict-item:last-child { border-bottom: none; }
-  .editor-fields { display: grid; gap: 18px; min-width: 0; }
-  .preview-meta { margin: 0; color: var(--sec); }
-  .pipeline-hint { margin: 0; padding: 10px 14px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; color: var(--sec); font: 12px/18px var(--font-ui); }
-  .pipeline-link { padding: 0 2px; border: 0; background: none; color: var(--text); font: inherit; text-decoration: underline; cursor: pointer; }
-  .unified-preprocess { display: grid; gap: 8px; padding: 12px; border: 1px solid var(--border-vis); border-radius: 4px; background: var(--surface); }
-  .optional-tag { color: var(--dim); }
-  .unified-hint { margin: 0; color: var(--sec); font: 12px/18px var(--font-ui); }
-  @media (max-width: 600px) { .fields { grid-template-columns: 1fr; } }
+  .search-wrap { width: 260px; }
+  .rules-error { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--status-error); border: 1px solid var(--border-vis); border-radius: 4px; color: var(--text); overflow-wrap: anywhere; }
+  .rules-error.notice { background: var(--surface-2); }
 </style>

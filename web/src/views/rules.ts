@@ -300,6 +300,65 @@ export interface RuleIssue {
   message: string;
 }
 
+export function validateRuleAll(
+  rule: RuleConfig,
+  rules: RuleIdentity[],
+  clients: { id: string; name?: string }[],
+  files: { name: string }[],
+  editing: string,
+): RuleIssue[] {
+  const issues: RuleIssue[] = [];
+  const issue = (path: string, message: string) => { issues.push({ path, message }); };
+  if (!safeRuleID(rule.id)) issue('id', '规则 ID 不能为空或包含路径');
+  if (rules.some((item) => item.id === rule.id && item.id !== editing)) issue('id', '规则 ID 已存在');
+  if (!rule.name.trim()) issue('name', '请输入规则名称');
+  if (!rule.sources.length) issue('sources', '请添加至少一个来源');
+  const knownFiles = new Set(files.map((file) => file.name));
+  const refs = new Set(refChoices(rules, editing || rule.id).map((item) => item.value));
+  const clientIDs = new Set(clients.map((client) => client.id));
+  for (const [index, source] of rule.sources.flatMap(source => source.group ? [source, ...source.group] : [source]).entries()) {
+    if (source.kind === 'group' && !source.group?.length) issue('sources', '请为来源组添加至少一个来源');
+    for (const op of source.ops ?? []) {
+      if (op.type === 'filter_values' && !op.pattern) issue('sources', '请输入来源过滤匹配值');
+      if (op.type !== 'filter_values' && !op.kinds?.length) issue('sources', '请选择来源过滤规则类型');
+    }
+    const label = source.label?.trim() || `来源 ${index + 1}`;
+    switch (source.kind) {
+      case 'url':
+        if (!source.url?.trim()) issue('sources', `请输入${label}的 URL`);
+        break;
+      case 'file':
+        if (!source.file?.trim()) issue('sources', `请选择${label}的本地文件`);
+        else if (!knownFiles.has(source.file.trim())) issue('sources', `${label} 引用了不存在的本地文件`);
+        break;
+      case 'content':
+        if (!source.content?.trim()) issue('sources', `请输入${label}的内联文本`);
+        break;
+      case 'ref':
+        if (!source.ref?.trim()) issue('sources', `请选择${label}引用的规则`);
+        else if (source.ref === rule.id || source.ref === editing) issue('sources', `${label} 不能引用自身`);
+        else if (!refs.has(source.ref)) issue('sources', `${label} 的引用会形成循环或指向未知规则`);
+        break;
+      case 'geosite':
+        if (!source.provider?.trim() || !source.list?.trim()) issue('sources', `请填写${label} 的 Geosite 提供商和列表`);
+        break;
+      case 'geoip':
+        if (!source.provider?.trim() || !source.list?.trim()) issue('sources', `请填写${label} 的 GeoIP 提供商和列表`);
+        break;
+    }
+  }
+  for (const id of rule.outputs) {
+    if (!clientIDs.has(id)) issue('outputs', `输出客户端 ${id} 不存在`);
+  }
+  for (const op of rule.ops ?? []) {
+    if (op.type === 'filter_values' && !op.pattern) issue('ops', '请输入过滤匹配值');
+    if (op.type !== 'filter_values' && !op.kinds?.length) issue('ops', '请选择过滤规则类型');
+  }
+  const strategy = rule.merge?.strategy;
+  if (strategy && !mergeStrategies.some((item) => item.value === strategy)) issue('merge', '请选择有效的合并策略');
+  return issues;
+}
+
 export function validateRule(
   rule: RuleConfig,
   rules: RuleIdentity[],
@@ -307,53 +366,5 @@ export function validateRule(
   files: { name: string }[],
   editing: string,
 ): RuleIssue | null {
-  const issue = (path: string, message: string): RuleIssue => ({ path, message });
-  if (!safeRuleID(rule.id)) return issue('id', '规则 ID 不能为空或包含路径');
-  if (rules.some((item) => item.id === rule.id && item.id !== editing)) return issue('id', '规则 ID 已存在');
-  if (!rule.name.trim()) return issue('name', '请输入规则名称');
-  if (!rule.sources.length) return issue('sources', '请添加至少一个来源');
-  const knownFiles = new Set(files.map((file) => file.name));
-  const refs = new Set(refChoices(rules, editing || rule.id).map((item) => item.value));
-  const clientIDs = new Set(clients.map((client) => client.id));
-  for (const [index, source] of rule.sources.flatMap(source => source.group ? [source, ...source.group] : [source]).entries()) {
-    if (source.kind === 'group' && !source.group?.length) return issue('sources', '请为来源组添加至少一个来源');
-    for (const op of source.ops ?? []) {
-      if (op.type === 'filter_values' && !op.pattern) return issue('sources', '请输入来源过滤匹配值');
-      if (op.type !== 'filter_values' && !op.kinds?.length) return issue('sources', '请选择来源过滤规则类型');
-    }
-    const label = source.label?.trim() || `来源 ${index + 1}`;
-    switch (source.kind) {
-      case 'url':
-        if (!source.url?.trim()) return issue('sources', `请输入${label}的 URL`);
-        break;
-      case 'file':
-        if (!source.file?.trim()) return issue('sources', `请选择${label}的本地文件`);
-        if (!knownFiles.has(source.file.trim())) return issue('sources', `${label} 引用了不存在的本地文件`);
-        break;
-      case 'content':
-        if (!source.content?.trim()) return issue('sources', `请输入${label}的内联文本`);
-        break;
-      case 'ref':
-        if (!source.ref?.trim()) return issue('sources', `请选择${label}引用的规则`);
-        if (source.ref === rule.id || source.ref === editing) return issue('sources', `${label} 不能引用自身`);
-        if (!refs.has(source.ref)) return issue('sources', `${label} 的引用会形成循环或指向未知规则`);
-        break;
-      case 'geosite':
-        if (!source.provider?.trim() || !source.list?.trim()) return issue('sources', `请填写${label} 的 Geosite 提供商和列表`);
-        break;
-      case 'geoip':
-        if (!source.provider?.trim() || !source.list?.trim()) return issue('sources', `请填写${label} 的 GeoIP 提供商和列表`);
-        break;
-    }
-  }
-  for (const id of rule.outputs) {
-    if (!clientIDs.has(id)) return issue('outputs', `输出客户端 ${id} 不存在`);
-  }
-  for (const op of rule.ops ?? []) {
-    if (op.type === 'filter_values' && !op.pattern) return issue('ops', '请输入过滤匹配值');
-    if (op.type !== 'filter_values' && !op.kinds?.length) return issue('ops', '请选择过滤规则类型');
-  }
-  const strategy = rule.merge?.strategy;
-  if (strategy && !mergeStrategies.some((item) => item.value === strategy)) return issue('merge', '请选择有效的合并策略');
-  return null;
+  return validateRuleAll(rule, rules, clients, files, editing)[0] ?? null;
 }

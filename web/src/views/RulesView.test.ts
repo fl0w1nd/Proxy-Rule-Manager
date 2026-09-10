@@ -1,7 +1,15 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { EditorView } from '@codemirror/view';
 import { api } from '../api/client';
 import RulesView from './RulesView.svelte';
+
+/** Replaces the content of the preprocess CodeEditor found by its aria-label. */
+function typePreprocessScript(host: HTMLElement, script: string) {
+  const view = EditorView.findFromDOM(host);
+  if (!view) throw new Error('CodeEditor not found for host element');
+  view.dispatch({ changes: { from: 0, to: view.state.doc.length, insert: script } });
+}
 
 const clients = [
   { id: 'mihomo', name: 'Mihomo', template: 'mihomo-classical' },
@@ -223,7 +231,7 @@ it('groups sources by dragging and saves shared processing inside the group', as
   expect(scriptSection.open).toBe(false);
   await fireEvent.click(within(group).getByText('预处理 · 继承统一'));
   const script = 'function process(content) { return content.trim(); }';
-  await fireEvent.input(within(group).getByLabelText('JavaScript'), { target: { value: script } });
+  typePreprocessScript(within(group).getByLabelText('JavaScript'), script);
   await fireEvent.click(within(group).getByText('组内过滤链 · 0 项'));
   await fireEvent.click(within(group).getByRole('button', { name: '添加过滤' }));
   await fireEvent.click(within(group).getByLabelText('domain'));
@@ -261,7 +269,7 @@ it('edits shared preprocessing while preserving flat sources', async () => {
   await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
   expect(within(screen.getByRole('region', { name: '统一预处理' })).getByText(/继承 2 · 覆盖 0 · 禁用 0/)).toBeInTheDocument();
   const script = 'function process(content) { return content.trim(); }';
-  await fireEvent.input(within(screen.getByRole('region', { name: '统一预处理' })).getByLabelText('JavaScript'), { target: { value: script } });
+  typePreprocessScript(within(screen.getByRole('region', { name: '统一预处理' })).getByLabelText('JavaScript'), script);
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({ sources, preprocess: script }) }]);
@@ -291,7 +299,7 @@ it('configures per-source preprocess and filters without converting to a group',
   const region = screen.getByRole('region', { name: '来源 1' });
   await fireEvent.click(within(region).getByText('预处理 · 继承统一'));
   const script = 'function process(content) { return content.toUpperCase(); }';
-  await fireEvent.input(within(region).getByLabelText('JavaScript'), { target: { value: script } });
+  typePreprocessScript(within(region).getByLabelText('JavaScript'), script);
   await fireEvent.click(within(region).getByText('过滤链 · 0 项'));
   await fireEvent.click(within(region).getByRole('button', { name: '添加过滤' }));
   await fireEvent.click(within(region).getByLabelText('domain'));
@@ -317,7 +325,7 @@ it('converts a newly added source to a one-source group with independent process
   expect(within(group).getByText('来源组 2 · 1 个来源')).toBeInTheDocument();
   await fireEvent.click(within(group).getByText('预处理 · 继承统一'));
   const script = 'function process(content) { return content.trim(); }';
-  await fireEvent.input(within(group).getByLabelText('JavaScript'), { target: { value: script } });
+  typePreprocessScript(within(group).getByLabelText('JavaScript'), script);
   await fireEvent.click(within(group).getByText('组内过滤链 · 0 项'));
   await fireEvent.click(within(group).getByRole('button', { name: '添加过滤' }));
   await fireEvent.click(within(group).getByLabelText('domain'));
