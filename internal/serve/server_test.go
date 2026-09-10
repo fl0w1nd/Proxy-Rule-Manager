@@ -257,6 +257,8 @@ func TestCreateUpdateStrictValidationAndConflictShape(t *testing.T) {
 		{name: "unknown rule", body: `{"scope":"rules","rule_ids":["missing"]}`, contentType: "application/json", want: 422, code: "invalid_rule_ids"},
 		{name: "rules empty", body: `{"scope":"rules","rule_ids":[]}`, contentType: "application/json", want: 422, code: "invalid_rule_ids"},
 		{name: "all with ids", body: `{"scope":"all","rule_ids":["apple"]}`, contentType: "application/json", want: 422, code: "invalid_update_scope"},
+		{name: "geosite with ids", body: `{"scope":"geosite","rule_ids":["apple"]}`, contentType: "application/json", want: 422, code: "invalid_update_scope"},
+		{name: "geoip with ids", body: `{"scope":"geoip","rule_ids":["apple"]}`, contentType: "application/json", want: 422, code: "invalid_update_scope"},
 		{name: "content type", body: `{"scope":"all"}`, contentType: "text/plain", want: 415, code: "unsupported_media_type"},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -672,4 +674,8 @@ func TestConfigReload(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "config_invalid") || !strings.Contains(rec.Body.String(), "field serve not found") {
 		t.Fatalf("unexpected removed-field response: %s", rec.Body.String())
 	}
+}
+
+func (r *blockingAPIRunner) GeoUpdate(ctx context.Context, _ string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
 }

@@ -243,7 +243,7 @@
           <span class="capsule-text">{isUpdating ? '更新进行中…' : '终端日志'}</span>
         </button>
 
-        <PixelButton variant="primary" size="sm" onclick={() => onStartUpdate('all')}>
+        <PixelButton variant="primary" size="sm" disabled={isUpdating} onclick={() => onStartUpdate('all')}>
           <PixelIcon name="refresh" size={12} />
           <span>全部更新</span>
         </PixelButton>

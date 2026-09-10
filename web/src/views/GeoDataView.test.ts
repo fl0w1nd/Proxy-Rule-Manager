@@ -32,9 +32,21 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('GeoDataView', () => {
+  it.each(['geosite', 'geoip'] as const)('starts a %s update and blocks concurrent updates', async (kind) => {
+    const onStartUpdate = vi.fn();
+    const { rerender } = render(GeoDataView, { kind, onStartUpdate });
+    const name = kind === 'geosite' ? '更新 Geosite' : '更新 GeoIP';
+    const button = screen.getByRole('button', { name });
+    await waitFor(() => expect(button).toBeEnabled());
+    await fireEvent.click(button);
+    expect(onStartUpdate).toHaveBeenCalledExactlyOnceWith(kind);
+    await rerender({ kind, onStartUpdate, isUpdating: true });
+    expect(button).toBeDisabled();
+  });
+
   it('adds a provider and saves output clients', async () => {
     const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
-    render(GeoDataView);
+    render(GeoDataView, { onStartUpdate: vi.fn() });
     await waitFor(() => expect(screen.getByRole('button', { name: '添加提供商' })).toBeEnabled());
     await fireEvent.click(screen.getByRole('button', { name: '添加提供商' }));
     await fireEvent.click(screen.getByRole('combobox', { name: '提供商' }));
@@ -66,7 +78,7 @@ describe('GeoDataView', () => {
       provider: 'v2fly', list: 'google', total: 1, offset: 0, limit: 100,
       items: [{ type: 'full', value: 'youtube.com', attrs: [] }],
     });
-    render(GeoDataView);
+    render(GeoDataView, { onStartUpdate: vi.fn() });
     await fireEvent.click(await screen.findByRole('button', { name: '目录' }));
     await screen.findByText('google');
     await fireEvent.input(screen.getByPlaceholderText('搜索列表或变体…'), { target: { value: 'goo' } });
@@ -84,7 +96,7 @@ describe('GeoDataView', () => {
 
   it('deletes a provider after confirmation', async () => {
     const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
-    render(GeoDataView);
+    render(GeoDataView, { onStartUpdate: vi.fn() });
     await fireEvent.click(await screen.findByRole('button', { name: '删除' }));
     await fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
     await screen.findByText('提供商已删除');
@@ -98,7 +110,7 @@ describe('GeoIP providers', () => {
     vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients: [{ id: 'surge', name: 'Surge' }] } });
     vi.mocked(api.getGeoProviders).mockResolvedValue({ items: [], supported: ['loyalsoldier', 'v2fly'] });
     const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
-    render(GeoDataView, { kind: 'geoip' });
+    render(GeoDataView, { kind: 'geoip', onStartUpdate: vi.fn() });
     await waitFor(() => expect(screen.getByRole('button', { name: '添加提供商' })).toBeEnabled());
     expect(api.getGeoProviders).toHaveBeenCalledWith('geoip');
     await fireEvent.click(screen.getByRole('button', { name: '添加提供商' }));
@@ -112,7 +124,7 @@ describe('GeoIP providers', () => {
     vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients: [{ id: 'surge', name: 'Surge' }], geoip: { providers: [{ name: 'v2fly', clients: ['surge'] }] } } });
     vi.spyOn(api, 'getGeoCatalog').mockResolvedValue({ provider: 'v2fly', lists: [{ name: 'cn', entries: 2 }], total: 1 });
     vi.spyOn(api, 'getGeoList').mockResolvedValue({ provider: 'v2fly', list: 'cn', total: 1, offset: 0, limit: 100, items: [{ type: 'ipv6', value: '2001:db8::/32' }] });
-    render(GeoDataView, { kind: 'geoip' });
+    render(GeoDataView, { kind: 'geoip', onStartUpdate: vi.fn() });
     await fireEvent.click(await screen.findByRole('button', { name: '目录' }));
     await fireEvent.click(await screen.findByRole('button', { name: 'cn' }));
     await screen.findByText('2001:db8::/32');

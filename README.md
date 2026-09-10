@@ -113,7 +113,9 @@ rules:
 | --- | --- |
 | `prm init` | 写出示例 `config.yaml` |
 | `prm validate` | 校验配置、模板和 geosite/geoip 引用 |
-| `prm update [rule-ids...]` | 全量更新，或只编译列出的规则及其依赖 |
+| `prm update [rule-ids...]` | 全量更新，或编译列出的规则及引用它们的下游规则 |
+| `prm update --geosite` | 更新 Geosite 数据库及其发布文件 |
+| `prm update --geoip` | 更新 GeoIP 数据库及其发布文件 |
 | `prm preview <rule-id> [--target <id>]` | 查看单条规则各阶段结果，可指定渲染某个输出目标 |
 | `prm build` | 全量更新后，把静态站点导出到 `dist/` |
 | `prm serve` | 启动 HTTP 服务（需要 `PRM_ADMIN_TOKEN`） |
@@ -171,6 +173,8 @@ data/
 - API 端点：`status`、`rules`、`geosite/providers`、`geoip/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
 
 写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
+
+`POST /api/v1/updates` 通过 JSON 的 `scope` 指定更新范围：`all` 执行全量更新；`rules` 配合 `rule_ids` 数组批量更新所选规则及其下游规则，Geo 来源使用本地缓存；`geosite`、`geoip` 更新对应数据库及其发布文件。管理看板的 Geosite、GeoIP 页面提供对应更新按钮，规则管理的选择栏提供批量更新按钮。
 
 ## 部署
 

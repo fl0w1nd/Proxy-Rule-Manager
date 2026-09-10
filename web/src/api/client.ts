@@ -149,10 +149,12 @@ export interface UpdateChange {
   removed: number;
 }
 
+export type UpdateScope = 'all' | 'rules' | 'geosite' | 'geoip';
+
 export interface UpdateItem {
   id: string;
   origin: 'web' | 'scheduled' | 'cli' | string;
-  scope: 'all' | 'rules' | string;
+  scope: UpdateScope | string;
   status: 'running' | 'cancelling' | 'cancelled' | 'completed' | 'completed_with_warnings' | 'completed_with_errors' | 'interrupted' | string;
   started_at: string;
   finished_at?: string;
@@ -438,7 +440,7 @@ export const api = {
     return request<UpdateDetail>(`/updates/${encodeURIComponent(id)}`);
   },
 
-  startUpdate(payload: { scope: 'all' | 'rules'; rule_ids?: string[] }): Promise<UpdateItem> {
+  startUpdate(payload: { scope: UpdateScope; rule_ids?: string[] }): Promise<UpdateItem> {
     return request<UpdateItem>('/updates', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

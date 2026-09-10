@@ -1,6 +1,6 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { api, type UpdateDetail } from './api/client';
+  import { api, APIRequestError, type UpdateDetail, type UpdateScope } from './api/client';
   import AdminLayout from './layouts/AdminLayout.svelte';
   import DashboardView from './views/DashboardView.svelte';
   import RulesView from './views/RulesView.svelte';
@@ -11,7 +11,7 @@
   import PixelDialog from './components/pixel/PixelDialog.svelte';
   import GeoDataView from './views/GeoDataView.svelte';
   import PixelToast from './components/pixel/PixelToast.svelte';
-  import { finishSummary } from './updateLabels';
+  import { finishSummary, scopeText } from './updateLabels';
 
   type TabType = 'dashboard' | 'rules' | 'changes' | 'updates' | 'geosite' | 'geoip' | 'settings' | 'clients';
 
@@ -27,7 +27,8 @@
   let leaveDialog = $state(false);
   let pendingTab = $state<TabType | null>(null);
   let activeJob = $state<string | null>(null);
-  let isUpdating = $derived(!!activeJob);
+  let startingUpdate = $state(false);
+  let isUpdating = $derived(startingUpdate || !!activeJob);
   let activeRuleId = $state<string | null>(null);
   let currentProcessingRuleId = $state<string | null>(null);
   let toastRef: any = null;
@@ -124,10 +125,11 @@
     } catch {}
   }
 
-  async function handleStartUpdate(scope: 'all' | 'rules', ruleIds?: string[]) {
-    if (activeJob) return;
+  async function handleStartUpdate(scope: UpdateScope, ruleIds?: string[]) {
+    if (isUpdating) return;
+    startingUpdate = true;
 
-    if (scope === 'rules' && ruleIds && ruleIds.length > 0) {
+    if (scope === 'rules' && ruleIds?.length === 1) {
       activeRuleId = ruleIds[0];
     } else {
       activeRuleId = null;
@@ -137,17 +139,19 @@
       const summary = await api.startUpdate({ scope, rule_ids: ruleIds });
       activeJob = summary.id;
       toastRef?.show(
-        scope === 'all' ? '已触发全量更新任务' : `已触发规则 [${ruleIds?.join(', ')}] 更新`,
+        scope === 'rules' ? `已启动 ${summary.requested_rule_ids?.length || 0} 条规则更新` : `已启动${scopeText(summary)}任务`,
         'info'
       );
     } catch (e: any) {
       activeRuleId = null;
-      if (e.status === 409 && e.payload?.error?.details?.current_update_id) {
-        activeJob = e.payload.error.details.current_update_id;
+      if (e instanceof APIRequestError && e.status === 409 && e.details.current_update_id) {
+        activeJob = e.details.current_update_id;
         toastRef?.show('已有正在执行的更新任务，已自动连接控制台', 'info');
       } else {
         toastRef?.show(`启动更新失败: ${e.message}`, 'error');
       }
+    } finally {
+      startingUpdate = false;
     }
   }
 
@@ -210,7 +214,7 @@
     <SettingsView onstatechange={(dirty, saving) => { settingsDirty = dirty; settingsSaving = saving; }} />
   {:else if currentTab === 'geosite' || currentTab === 'geoip'}
     {#key currentTab}
-    <GeoDataView kind={currentTab} bind:this={geoRef} onstatechange={(dirty, saving) => { geoDirty = dirty; geoSaving = saving; }} />
+    <GeoDataView kind={currentTab} bind:this={geoRef} onStartUpdate={handleStartUpdate} {isUpdating} onstatechange={(dirty, saving) => { geoDirty = dirty; geoSaving = saving; }} />
     {/key}
   {/if}
 </AdminLayout>

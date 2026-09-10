@@ -283,6 +283,11 @@ rules:
 }
 
 type updatesRunner interface {
+	GeoUpdate(context.Context, string) engine.UpdateResult
 	FullUpdate(context.Context) engine.UpdateResult
 	PartialUpdate(context.Context, []string) engine.UpdateResult
+}
+
+func (r *blockingConfigRunner) GeoUpdate(ctx context.Context, _ string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
 }

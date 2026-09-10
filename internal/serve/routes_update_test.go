@@ -1,6 +1,7 @@
 package serve
 
 import (
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,49 @@ import (
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/updates"
 )
+
+func TestCreateScopedUpdates(t *testing.T) {
+	for _, scope := range []string{"rules", "geosite", "geoip"} {
+		t.Run(scope, func(t *testing.T) {
+			s, _, st := testServer(t)
+			body := `{"scope":"` + scope + `"}`
+			if scope == "rules" {
+				body = `{"scope":"rules","rule_ids":["child","apple","apple"]}`
+			}
+			req := authorized(http.MethodPost, "/api/v1/updates", strings.NewReader(body))
+			req.Header.Set("Content-Type", "application/json")
+			rec := httptest.NewRecorder()
+			s.Handler().ServeHTTP(rec, req)
+			if rec.Code != http.StatusAccepted {
+				t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
+			}
+			var summary updateSummary
+			if err := json.Unmarshal(rec.Body.Bytes(), &summary); err != nil {
+				t.Fatal(err)
+			}
+			job := s.updates.Job(summary.ID)
+			if job == nil {
+				t.Fatal("missing update job")
+			}
+			select {
+			case <-job.Done():
+			case <-time.After(5 * time.Second):
+				t.Fatal("update did not finish")
+			}
+			record, ok := st.GetUpdateHistory(summary.ID)
+			if !ok || record.Scope != scope || record.Status != "completed" {
+				t.Fatalf("record=%+v", record)
+			}
+			if scope == "rules" {
+				if strings.Join(record.RequestedRuleIDs, ",") != "apple,child" || strings.Join(record.EffectiveRuleIDs, ",") != "apple,child" || record.RulesSucceeded != 2 {
+					t.Fatalf("rule update=%+v", record)
+				}
+			} else if len(record.RequestedRuleIDs) != 0 || len(record.EffectiveRuleIDs) != 0 || record.RulesTotal != 0 {
+				t.Fatalf("geo update=%+v", record)
+			}
+		})
+	}
+}
 
 // deadlineRecorder records the write deadline the SSE handler installs.
 type deadlineRecorder struct {

@@ -40,6 +40,27 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('RulesView', () => {
+  it('updates selected rules and disables the batch action during an update', async () => {
+    vi.mocked(api.getConfig).mockResolvedValue({
+      version: 4,
+      config: { clients, rules: [existing, { id: 'child', name: 'Child', sources: [{ ref: 'base' }], outputs: ['mihomo'] }] },
+    });
+    const onStartUpdate = vi.fn();
+    const { rerender } = render(RulesView, { onStartUpdate });
+    await screen.findByText('Child');
+    await fireEvent.click(screen.getByRole('switch', { name: '选择' }));
+    const toolbar = screen.getByText('已选 0').parentElement!;
+    const update = within(toolbar).getByRole('button', { name: '更新' });
+    expect(update).toBeDisabled();
+    await fireEvent.click(screen.getByLabelText('选择 Base'));
+    await fireEvent.click(screen.getByLabelText('选择 Child'));
+    expect(update).toBeEnabled();
+    await fireEvent.click(update);
+    expect(onStartUpdate).toHaveBeenCalledExactlyOnceWith('rules', ['base', 'child']);
+    await rerender({ onStartUpdate, isUpdating: true });
+    expect(update).toBeDisabled();
+  });
+
   it('creates a filtered local-file rule and keeps existing fields on save', async () => {
     const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
     render(RulesView, { onStartUpdate: vi.fn() });

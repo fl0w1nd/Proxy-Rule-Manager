@@ -149,7 +149,7 @@
                 {:else if detail}
                   <div class="digest">{updateDigest(detail)}</div>
 
-                  {#if detail.scope !== 'all'}
+                  {#if detail.scope === 'rules'}
                     {@const requested = requestedIds(detail)}
                     {#if requested.length > 0 && requested.length <= REQUESTED_LIST_LIMIT}
                       <div class="detail-block">

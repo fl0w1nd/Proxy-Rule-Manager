@@ -378,6 +378,7 @@
           {#if selecting}
             <div class="select-cluster">
               <span class="select-count">已选 {selected.length}</span>
+              <PixelButton size="sm" disabled={loading || busy || isUpdating || !selected.length} onclick={() => onStartUpdate('rules', [...selected])}>更新</PixelButton>
               <div class="batch-client">
                 <PixelSelect id="batch-output" label="批量输出客户端" options={clientOptions} bind:value={batchClient} disabled={busy} size="sm" />
               </div>

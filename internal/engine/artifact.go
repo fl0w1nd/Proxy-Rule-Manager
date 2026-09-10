@@ -118,7 +118,37 @@ func CountArtifacts(dataDir string) (int, error) {
 // ReconcileArtifacts removes files under data/rules that were not produced by
 // the latest successful full update.
 func ReconcileArtifacts(dataDir string, expected map[string]struct{}) error {
-	root := rulesDir(dataDir)
+	return reconcileArtifacts(rulesDir(dataDir), expected)
+}
+
+// ReconcileGeoArtifacts removes obsolete publications for one Geo data kind.
+func ReconcileGeoArtifacts(dataDir, kind string, expected map[string]struct{}) error {
+	if !isGeoKind(kind) {
+		return fmt.Errorf("unknown geo data kind %q", kind)
+	}
+	clients, err := os.ReadDir(rulesDir(dataDir))
+	if os.IsNotExist(err) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	for _, client := range clients {
+		if !client.IsDir() {
+			continue
+		}
+		if err := reconcileArtifacts(filepath.Join(rulesDir(dataDir), client.Name(), kind), expected); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func isGeoKind(kind string) bool {
+	return kind == "geosite" || kind == "geoip"
+}
+
+func reconcileArtifacts(root string, expected map[string]struct{}) error {
 	var dirs []string
 	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {

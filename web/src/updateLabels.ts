@@ -28,6 +28,8 @@ export function getStatusLabel(st: string): string {
 
 export function scopeText(item: Pick<UpdateItem, 'scope' | 'requested_rule_ids'>): string {
   if (item.scope === 'all') return '全部更新';
+  if (item.scope === 'geosite') return 'Geosite 更新';
+  if (item.scope === 'geoip') return 'GeoIP 更新';
   const n = (item.requested_rule_ids || []).length;
   return n > 0 ? `指定 ${n} 条` : '指定规则';
 }
@@ -51,6 +53,7 @@ export function changeCount(item: UpdateItem | UpdateDetail): number {
 
 export function finishSummary(detail: UpdateDetail): string {
   const label = getStatusLabel(detail.status);
+  if (detail.scope === 'geosite' || detail.scope === 'geoip') return `${scopeText(detail)} · ${label}`;
   const failed = detail.rules_failed || 0;
   const changed = changeCount(detail);
   if (failed > 0) return `${label} · ${failed} 条`;
@@ -84,6 +87,8 @@ export function updateDigest(detail: UpdateDetail): string {
     } else if (!geositeFailed && !geoipFailed) {
       parts.push('Geo 数据已更新');
     }
+  } else if (detail.scope === 'geosite' || detail.scope === 'geoip') {
+    parts.push(scopeText(detail), getStatusLabel(detail.status), `文件 ${detail.artifacts_processed || 0}`);
   } else {
     parts.push(`指定 ${requested.length}`, `含依赖 ${checked}`, `变更 ${changed}`);
   }

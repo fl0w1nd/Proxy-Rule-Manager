@@ -212,3 +212,15 @@ func TestReconfigureRestartsSchedulerWithCommittedConfig(t *testing.T) {
 		}
 	}
 }
+
+func (r resultRunner) GeoUpdate(ctx context.Context, _ string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
+}
+
+func (r signalingRunner) GeoUpdate(ctx context.Context, _ string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
+}
+
+func (r *blockingRunner) GeoUpdate(ctx context.Context, _ string) engine.UpdateResult {
+	return r.FullUpdate(ctx)
+}

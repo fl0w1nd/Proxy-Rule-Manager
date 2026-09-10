@@ -81,7 +81,16 @@ func (r *UpdateResult) addWarning(message string) {
 
 // FullUpdate compiles all rules and writes artifacts.
 func (e *UpdateEngine) FullUpdate(ctx context.Context) UpdateResult {
-	return e.updateRules(ctx, e.currentConfig().Rules, false)
+	return e.update(ctx, e.currentConfig().Rules, "all")
+}
+
+// GeoUpdate refreshes one Geo database kind and its published artifacts. Rules
+// are left untouched: they are read from the local cache built by earlier runs.
+func (e *UpdateEngine) GeoUpdate(ctx context.Context, kind string) UpdateResult {
+	if !isGeoKind(kind) {
+		return e.finishRejectedUpdate(ctx, kind, fmt.Sprintf("unknown geo data kind %q", kind))
+	}
+	return e.update(ctx, nil, kind)
 }
 
 // PartialUpdate compiles only the selected rule IDs plus their dependents.
@@ -98,7 +107,7 @@ func (e *UpdateEngine) PartialUpdate(ctx context.Context, ruleIDs []string) Upda
 		}
 	}
 	if len(unknown) > 0 {
-		return e.finishRejectedUpdate(ctx, fmt.Sprintf("unknown rule IDs: %s", strings.Join(unknown, ", ")))
+		return e.finishRejectedUpdate(ctx, "rules", fmt.Sprintf("unknown rule IDs: %s", strings.Join(unknown, ", ")))
 	}
 
 	affected := CollectAffectedRules(cfg.Rules, ruleIDs)
@@ -108,10 +117,16 @@ func (e *UpdateEngine) PartialUpdate(ctx context.Context, ruleIDs []string) Upda
 			rules = append(rules, r)
 		}
 	}
-	return e.updateRules(ctx, rules, true)
+	return e.update(ctx, rules, "rules")
 }
 
-func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfig, partial bool) UpdateResult {
+func (e *UpdateEngine) update(ctx context.Context, rules []config.RuleConfig, scope string) UpdateResult {
+	// A Geo run passes no rules at all, so it is neither a subset update nor a
+	// full one; each cleanup below names the scope it actually applies to.
+	ruleSubset := scope == "rules"
+	geoScope := isGeoKind(scope)
+	refreshGeosite := scope == "all" || scope == "geosite"
+	refreshGeoIP := scope == "all" || scope == "geoip"
 	result := UpdateResult{StartTime: time.Now()}
 	log := e.Logger
 	expectedPaths := make(map[string]struct{})
@@ -119,7 +134,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	gstats := newGeoStats()
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "prepare", Status: "running", Message: "正在准备更新"})
 
-	sorted, err := TopologicalSort(rules, partial)
+	sorted, err := TopologicalSort(rules, ruleSubset)
 	if err != nil {
 		result.addError("prepare", "rules", err.Error())
 		reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "prepare", Status: "failed", Message: err.Error()})
@@ -143,7 +158,7 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	}
 
 	var geositeProviders map[string]*geosite.ProviderCache
-	if partial {
+	if !refreshGeosite {
 		geositeProviders = e.readCachedGeositeProviders(sorted)
 	} else {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_refresh", Status: "running", Message: "正在刷新 Geosite"})
@@ -176,10 +191,10 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 		}
 	}
 
-	geoipProviders := e.loadGeoIP(ctx, sorted, partial, &result)
+	geoipProviders := e.loadGeoIP(ctx, sorted, !refreshGeoIP, &result)
 
 	refResults := make(map[string][]ir.Entry)
-	if partial {
+	if ruleSubset {
 		e.preloadReferenceSnapshots(sorted, refResults, &result)
 	}
 	result.RulesTotal = len(sorted)
@@ -188,7 +203,9 @@ func (e *UpdateEngine) updateRules(ctx context.Context, rules []config.RuleConfi
 	}
 	processed := make(map[string]bool, len(sorted))
 	succeeded := make(map[string]struct{}, len(sorted))
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rules", Status: "running", Total: len(sorted), Message: fmt.Sprintf("正在更新规则 · 0 / %d", len(sorted))})
+	if len(sorted) > 0 {
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "rules", Status: "running", Total: len(sorted), Message: fmt.Sprintf("正在更新规则 · 0 / %d", len(sorted))})
+	}
 
 ruleLoop:
 	for ruleIndex, rule := range sorted {
@@ -259,11 +276,11 @@ ruleLoop:
 	}
 
 	// Handle geosite publications
-	if !partial && e.currentConfig().Geosite != nil {
+	if refreshGeosite && e.currentConfig().Geosite != nil {
 		e.updateGeositePublications(ctx, geositeProviders, &result, expectedPaths, gstats)
 	}
 
-	if !partial && e.currentConfig().GeoIP != nil {
+	if refreshGeoIP && e.currentConfig().GeoIP != nil {
 		e.updateGeoIPPublications(ctx, geoipProviders, &result, expectedPaths)
 	}
 
@@ -277,7 +294,9 @@ ruleLoop:
 		}
 	}
 
-	if !partial && len(result.Errors) == 0 {
+	// Only a full update knows the complete set of expected artifacts, so only
+	// it may remove everything else under data/rules.
+	if scope == "all" && len(result.Errors) == 0 {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
 		if err := ReconcileArtifacts(e.DataDir, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile artifacts: %v", err))
@@ -287,7 +306,13 @@ ruleLoop:
 			result.addError("cleanup", "state", fmt.Sprintf("reconcile state: %v", err))
 		}
 	}
-	if partial && ctx.Err() == nil && len(succeeded) > 0 {
+	if geoScope && len(result.Errors) == 0 {
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
+		if err := ReconcileGeoArtifacts(e.DataDir, scope, expectedPaths); err != nil {
+			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile %s artifacts: %v", scope, err))
+		}
+	}
+	if ruleSubset && ctx.Err() == nil && len(succeeded) > 0 {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
 		if err := ReconcileRuleArtifacts(e.DataDir, succeeded, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile partial artifacts: %v", err))
@@ -307,8 +332,10 @@ ruleLoop:
 		result.addError("state", "update.json", fmt.Sprintf("save state: %v", err))
 	}
 
-	// Refresh the public catalog from the latest persisted rule state.
-	if partial {
+	// A full update fills the catalog while publishing artifacts, so its stats
+	// are already current. Every other scope re-derives them from the artifacts
+	// on disk, which is also how a Geo-only run gets its file counts.
+	if scope != "all" {
 		gstats = e.rebuildGeositeStats()
 	}
 	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "site", Status: "running", Message: "正在刷新规则目录"})
@@ -330,10 +357,10 @@ ruleLoop:
 	return result
 }
 
-func (e *UpdateEngine) finishRejectedUpdate(ctx context.Context, message string) UpdateResult {
+func (e *UpdateEngine) finishRejectedUpdate(ctx context.Context, subject, message string) UpdateResult {
 	now := time.Now()
 	result := UpdateResult{StartTime: now, EndTime: now}
-	result.addError("prepare", "rules", message)
+	result.addError("prepare", subject, message)
 	reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "prepare", Status: "failed", Message: message})
 	e.State.SetLastCheck(now)
 	_ = e.State.Save()

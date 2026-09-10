@@ -20,7 +20,12 @@
   import geositeIcon from '../assets/icons/nav/geosite.svg';
   import geoipIcon from '../assets/icons/nav/geoip.svg';
 
-  let { kind = 'geosite', onstatechange }: { kind?: GeoKind; onstatechange?: (dirty: boolean, busy: boolean) => void } = $props();
+  let { kind = 'geosite', onStartUpdate, isUpdating = false, onstatechange }: {
+    kind?: GeoKind;
+    onStartUpdate: (scope: GeoKind) => void;
+    isUpdating?: boolean;
+    onstatechange?: (dirty: boolean, busy: boolean) => void;
+  } = $props();
 
   let snapshot = $state<ConfigSnapshot>();
   let providers = $state<GeoProviderItem[]>([]);
@@ -191,6 +196,7 @@
     <span>共 {providers.length} 个提供商</span>
     <div class="actions">
       <PixelButton disabled={loading || busy} onclick={loadProviders}>刷新</PixelButton>
+      <PixelButton disabled={loading || busy || dirty || isUpdating || !snapshot} onclick={() => onStartUpdate(kind)}>更新 {geoLabel(kind)}</PixelButton>
       <PixelButton variant="primary" disabled={loading || busy || !snapshot || remaining.length === 0 || clients.length === 0} onclick={() => edit()}>添加提供商</PixelButton>
     </div>
   </div>

@@ -39,7 +39,7 @@ type ValidationError struct {
 
 func (e *ValidationError) Error() string { return e.Message }
 
-// Request defines one full or rule-scoped update execution.
+// Request defines one full, rule-scoped, or Geo database update execution.
 type Request struct {
 	Scope   string
 	RuleIDs []string
@@ -48,6 +48,7 @@ type Request struct {
 type runner interface {
 	FullUpdate(context.Context) engine.UpdateResult
 	PartialUpdate(context.Context, []string) engine.UpdateResult
+	GeoUpdate(context.Context, string) engine.UpdateResult
 }
 
 // Manager owns the single active execution and its short-lived event stream.
@@ -161,17 +162,17 @@ func (m *Manager) prepare(parent context.Context, req Request, origin string) (*
 
 func (m *Manager) normalize(req Request) (Request, error) {
 	switch req.Scope {
-	case "all":
+	case "all", "geosite", "geoip":
 		if len(req.RuleIDs) > 0 {
-			return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "全部更新不能指定规则", Details: map[string]any{}}
+			return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "指定规则 ID 时更新范围必须是 rules", Details: map[string]any{}}
 		}
-		return Request{Scope: "all", RuleIDs: []string{}}, nil
+		return Request{Scope: req.Scope, RuleIDs: []string{}}, nil
 	case "rules":
 		if len(req.RuleIDs) == 0 {
 			return Request{}, &ValidationError{Code: "invalid_rule_ids", Message: "规则更新至少需要一个规则 ID", Details: map[string]any{}}
 		}
 	default:
-		return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "更新范围必须是 all 或 rules", Details: map[string]any{}}
+		return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "更新范围必须是 all、rules、geosite 或 geoip", Details: map[string]any{}}
 	}
 
 	requested := make(map[string]struct{}, len(req.RuleIDs))
@@ -207,9 +208,12 @@ func (m *Manager) normalize(req Request) (Request, error) {
 func (m *Manager) execute(ctx context.Context, job *Job) {
 	ctx = engine.WithProgressReporter(ctx, job.addEvent)
 	var result engine.UpdateResult
-	if job.Request.Scope == "rules" {
+	switch job.Request.Scope {
+	case "rules":
 		result = m.runner.PartialUpdate(ctx, job.Request.RuleIDs)
-	} else {
+	case "geosite", "geoip":
+		result = m.runner.GeoUpdate(ctx, job.Request.Scope)
+	default:
 		result = m.runner.FullUpdate(ctx)
 	}
 
