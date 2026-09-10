@@ -19,10 +19,11 @@ func isSingboxCodec(codec string) bool {
 // formats serialize the same conditions and only differ in the container, so
 // the same rule object feeds both writers.
 type singboxRule struct {
-	// Mode is empty for a condition-only rule, and a logical mode for a rule
-	// whose children are held in Subs.
-	Mode string
-	Subs []singboxRule
+	// Mode is empty for a condition-only rule, and "and" or "or" for a logical
+	// rule whose children are held in Subs.
+	Mode   string
+	Invert bool
+	Subs   []singboxRule
 
 	// Fields holds the string conditions (domains, CIDRs, port ranges, process
 	// details) keyed by the sing-box field name.
@@ -72,11 +73,15 @@ func singboxRulesJSON(rules []singboxRule) []map[string]any {
 // becomes a scalar, repeated values become an array.
 func (r singboxRule) jsonObject() map[string]any {
 	if r.Mode != "" {
-		return map[string]any{
+		obj := map[string]any{
 			"type":  "logical",
 			"mode":  r.Mode,
 			"rules": singboxRulesJSON(r.Subs),
 		}
+		if r.Invert {
+			obj["invert"] = true
+		}
+		return obj
 	}
 	obj := make(map[string]any, len(r.Fields)+len(r.Ports))
 	for field, values := range r.Fields {
@@ -145,7 +150,14 @@ func buildSingboxRules(tmpl *Template, entries []ir.Entry) ([]singboxRule, error
 // Sub-entries are recursively rendered: logical sub-entries become nested
 // logical rules, flat sub-entries become normal rule objects.
 func buildLogicalSingboxRule(tmpl *Template, entry ir.Entry) (singboxRule, error) {
-	rule := singboxRule{Mode: string(entry.Kind)}
+	// sing-box accepts only "and" and "or" as logical modes. NOT is a
+	// single-child AND whose match result is inverted.
+	mode := string(entry.Kind)
+	inverted := entry.Kind == ir.KindNot
+	if inverted {
+		mode = string(ir.KindAnd)
+	}
+	rule := singboxRule{Mode: mode, Invert: inverted}
 
 	for _, sub := range entry.Sub {
 		var (

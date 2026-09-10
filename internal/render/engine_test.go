@@ -266,9 +266,10 @@ func TestRenderSingboxLogical(t *testing.T) {
 		t.Errorf("AND sub 1: %#v", andSub1)
 	}
 
-	// Rule 2: NOT logical
+	// Rule 2: NOT logical — sing-box has no "not" mode, so NOT is written as a
+	// single-child AND with invert.
 	notRule := rules[2].(map[string]any)
-	if notRule["type"] != "logical" || notRule["mode"] != "not" {
+	if notRule["type"] != "logical" || notRule["mode"] != "and" || notRule["invert"] != true {
 		t.Errorf("NOT rule: %#v", notRule)
 	}
 	notSubs := notRule["rules"].([]any)
