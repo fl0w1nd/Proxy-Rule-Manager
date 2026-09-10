@@ -320,7 +320,8 @@ export type ConfigPatchOp =
 
 /**
  * 409 有几种完全不同的原因：版本过期、文件被外部改动、更新占用。
- * 返回按错误码区分后的提示；调用方给出同一条默认文案以免退化。
+ * 返回需要补充的提示；返回空字符串表示服务端消息已经说清，不必再补。
+ * fallback 是调用方原本的兜底文案，未知错误码仍用它。
  */
 export function conflictHint(error: unknown, fallback: string): string {
   if (!(error instanceof APIRequestError) || error.status !== 409) return '';
@@ -331,6 +332,9 @@ export function conflictHint(error: unknown, fallback: string): string {
       return '配置文件已被外部修改，请先重新加载再保存。';
     case 'config_version_conflict':
       return '配置已在别处修改，请刷新页面后重试。';
+    case 'geo_data_missing':
+      // 服务端已说明是哪个提供商缺数据、该执行更新。
+      return '';
     default:
       return fallback;
   }

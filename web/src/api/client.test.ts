@@ -18,6 +18,10 @@ describe('conflictHint', () => {
     expect(conflictHint(conflict('config_version_conflict'), '兜底')).toContain('刷新页面');
   });
 
+  it('adds nothing when the server message is already actionable', () => {
+    expect(conflictHint(conflict('geo_data_missing'), '兜底')).toBe('');
+  });
+
   it('falls back for unknown conflict codes', () => {
     expect(conflictHint(conflict('template_save_failed'), '兜底')).toBe('兜底');
   });
