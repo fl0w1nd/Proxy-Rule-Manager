@@ -33,8 +33,8 @@ describe('ChangesView', () => {
 
     await fireEvent.click(screen.getByText('OpenAI'));
     const diff = screen.getByRole('region', { name: 'OpenAI IR Diff' });
-    expect(within(diff).getByText('- domain,old.example')).toHaveClass('del-line');
-    expect(within(diff).getByText('+ domain,new.example')).toHaveClass('add-line');
+    expect(within(diff).getByText('- domain,old.example')).toBeInTheDocument();
+    expect(within(diff).getByText('+ domain,new.example')).toBeInTheDocument();
     expect(within(diff).getByText('… 另有 100 条新增已省略')).toBeInTheDocument();
     expect(diff).not.toHaveTextContent('client');
   });

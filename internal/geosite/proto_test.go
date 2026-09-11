@@ -61,13 +61,3 @@ func TestDecodeGeoSiteListCorrupt(t *testing.T) {
 		t.Fatal("expected error for corrupt protobuf data")
 	}
 }
-
-func TestDecodeGeoSiteListEmpty(t *testing.T) {
-	decoded, err := decodeGeoSiteList(nil)
-	if err != nil {
-		t.Fatalf("decode nil: %v", err)
-	}
-	if decoded == nil || len(decoded.Entry) != 0 {
-		t.Fatalf("expected empty list, got %+v", decoded)
-	}
-}

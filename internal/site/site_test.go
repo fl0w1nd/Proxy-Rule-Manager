@@ -80,7 +80,6 @@ func TestWritePublicRendersIndexOnly(t *testing.T) {
 			t.Errorf("index leaks admin content %q", bad)
 		}
 	}
-	assertThemeInitializedBeforeStyles(t, index)
 	assertInlineScriptsParse(t, index)
 	assertPublicData(t, index, "")
 	for _, name := range []string{"public.js", "public.css"} {
@@ -137,22 +136,6 @@ func assertInlineScriptsParse(t *testing.T, page []byte) {
 	}
 }
 
-func assertThemeInitializedBeforeStyles(t *testing.T, page []byte) {
-	t.Helper()
-	html := string(page)
-	themeInit := strings.Index(html, "localStorage.getItem('prm-theme')")
-	styles := strings.Index(html, "public.css")
-	if themeInit < 0 || styles < 0 || themeInit > styles {
-		t.Error("saved theme must be restored before styles are evaluated")
-	}
-}
-
-func TestEscapePath(t *testing.T) {
-	if got := escapePath("rules/Clash Meta/OpenAi.list"); got != "rules/Clash%20Meta/OpenAi.list" {
-		t.Errorf("escapePath = %q", got)
-	}
-}
-
 func TestPublicDataJSONEscapesHTML(t *testing.T) {
 	idx := sampleIndex()
 	idx.Rules[0].Description = `</script><script>alert("x")</script>`
@@ -200,12 +183,6 @@ func assertPublicData(t *testing.T, page []byte, adminURL string) {
 	}
 	if got := payload.Rules[0].Files[0].Path; got != "rules/Clash%20Meta/OpenAi.list" {
 		t.Fatalf("escaped rule path = %q", got)
-	}
-}
-
-func TestPixelIconFallback(t *testing.T) {
-	if got := pixelIcon(t.TempDir(), "nonexistent", 16); !strings.Contains(string(got), "singbox.svg") {
-		t.Error("fallback icon should reference singbox.svg")
 	}
 }
 

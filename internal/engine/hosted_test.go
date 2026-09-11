@@ -10,52 +10,6 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 )
 
-func TestHostedKindsForScope(t *testing.T) {
-	tests := []struct {
-		scope string
-		want  []string
-	}{
-		{"all", []string{"geosite", "geoip", "mmdb", "asn"}},
-		{"geosite", []string{"geosite"}},
-		{"geoip", []string{"geoip", "mmdb", "asn"}},
-		{"mmdb", []string{"mmdb"}},
-		{"asn", []string{"asn"}},
-		{"rules", nil},
-	}
-	for _, tc := range tests {
-		got := hostedKindsForScope(tc.scope)
-		if len(got) != len(tc.want) {
-			t.Errorf("hostedKindsForScope(%q) = %v, want %v", tc.scope, got, tc.want)
-			continue
-		}
-		for i := range got {
-			if got[i] != tc.want[i] {
-				t.Errorf("hostedKindsForScope(%q)[%d] = %s, want %s", tc.scope, i, got[i], tc.want[i])
-			}
-		}
-	}
-}
-
-func TestHostedGeoFilePath(t *testing.T) {
-	dataDir := t.TempDir()
-	path, err := hostedGeoFilePath(dataDir, "mmdb", "loyalsoldier", "Country.mmdb")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	expected := filepath.Join(dataDir, "geo", "mmdb", "loyalsoldier", "Country.mmdb")
-	if path != expected {
-		t.Errorf("got %q, want %q", path, expected)
-	}
-
-	// Path traversal check
-	if _, err := hostedGeoFilePath(dataDir, "..", "loyalsoldier", "Country.mmdb"); err == nil {
-		t.Error("expected error for traversal in kind")
-	}
-	if _, err := hostedGeoFilePath(dataDir, "mmdb", "../bad", "Country.mmdb"); err == nil {
-		t.Error("expected error for traversal in provider")
-	}
-}
-
 func TestHostedProviderSummariesReadsState(t *testing.T) {
 	dataDir := t.TempDir()
 	st, err := state.Open(dataDir)

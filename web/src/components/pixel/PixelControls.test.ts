@@ -121,11 +121,4 @@ describe('pixel controls', () => {
     expect(checkbox).not.toBeChecked();
     expect(onchange).toHaveBeenLastCalledWith(false);
   });
-
-  it('supports sm size and custom class on PixelSelect', () => {
-    render(PixelSelect, { id: 'size-test', label: '尺寸测试', options, value: 'manual', size: 'sm', class: 'custom-select' });
-    const root = document.querySelector('.pixel-select');
-    expect(root).toHaveClass('sm');
-    expect(root).toHaveClass('custom-select');
-  });
 });

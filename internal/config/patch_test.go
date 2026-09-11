@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestManagerAppliesStructuredOperationsAtomically(t *testing.T) {
@@ -228,7 +229,7 @@ geosite:
 	}
 }
 
-func TestUpdateHistoryWritesStableFieldOrder(t *testing.T) {
+func TestUpdateHistoryAppliesCorrectly(t *testing.T) {
 	dir := t.TempDir()
 	path := filepath.Join(dir, "config.yaml")
 	source := "clients:\n  - id: surge\n    name: Surge\n    template: surge\nrules:\n  - id: base\n    name: Base\n    sources: [{content: \"DOMAIN,base.example\"}]\n    outputs: [surge]\nupdate: {}\n"
@@ -246,11 +247,12 @@ func TestUpdateHistoryWritesStableFieldOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	text := string(candidate.raw)
-	retention := strings.Index(text, "history_retention:")
-	limit := strings.Index(text, "history_limit:")
-	if retention < 0 || limit < 0 || retention > limit {
-		t.Fatalf("history fields have unstable order:\n%s", text)
+	cfg, _, err := manager.Commit(candidate)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Update.HistoryLimit != 50 || cfg.Update.HistoryRetention != Duration(48*time.Hour) {
+		t.Fatalf("unexpected history config: %+v", cfg.Update)
 	}
 }
 

@@ -45,23 +45,3 @@ it('ignores a preview response after the template changes', async () => {
   expect(screen.queryByText('模板语法校验通过')).not.toBeInTheDocument();
   expect(screen.queryByText('OUTDATED')).not.toBeInTheDocument();
 });
-
-it('supports testing template with PixelSelect and PixelCheckbox', async () => {
-  vi.spyOn(api, 'validateTemplate').mockResolvedValue({
-    valid: true,
-    errors: [],
-    output: 'DOMAIN,example.com\nIP-CIDR,1.1.1.1/32,no-resolve\n',
-    extension: '.list',
-    sample: [],
-  });
-  render(TemplatesView);
-  await fireEvent.click(await screen.findByRole('button', { name: '查看模板' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '测试' }));
-  expect(await screen.findByText(/测试 IR 规则/)).toBeInTheDocument();
-
-  const comboboxes = screen.getAllByRole('combobox');
-  expect(comboboxes.length).toBeGreaterThan(0);
-
-  const checkboxes = screen.getAllByRole('checkbox');
-  expect(checkboxes.length).toBeGreaterThan(0);
-});

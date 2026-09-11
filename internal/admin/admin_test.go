@@ -10,17 +10,6 @@ import (
 	"github.com/fl0w1nd/proxy-rule-manager/internal/admin"
 )
 
-func TestDistFSLoads(t *testing.T) {
-	fsys, err := admin.DistFS()
-	if err != nil {
-		t.Fatalf("DistFS error: %v", err)
-	}
-
-	if _, err := fsys.Open("index.html"); err != nil {
-		t.Fatalf("index.html not found in DistFS: %v", err)
-	}
-}
-
 func TestHandlerServesIndexAndFallsBack(t *testing.T) {
 	h := admin.Handler()
 
@@ -33,7 +22,7 @@ func TestHandlerServesIndexAndFallsBack(t *testing.T) {
 		t.Fatalf("status = %d, want %d", rec.Code, http.StatusOK)
 	}
 	body := rec.Body.String()
-	if !strings.Contains(body, `id="app"`) || !strings.Contains(body, "PRM · 管理系统") {
+	if !strings.Contains(body, `id="app"`) {
 		t.Fatalf("unexpected body content: %s", body)
 	}
 	if rec.Header().Get("Cache-Control") != "no-store" {

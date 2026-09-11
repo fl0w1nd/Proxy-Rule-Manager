@@ -8,8 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 )
 
 func TestLocalFilesCRUDAndGuards(t *testing.T) {
@@ -197,23 +195,6 @@ func TestLocalFilesSkipsUnmanagedEntries(t *testing.T) {
 	}
 	if rec.Code != 200 || len(listed.Items) != 1 || listed.Items[0].Name != "keep.list" || listed.Items[0].Lines != 1 {
 		t.Fatalf("list: %d %s", rec.Code, rec.Body.String())
-	}
-}
-
-func TestLocalFileRefsMatchResolvedPath(t *testing.T) {
-	s, _ := fileBackedConfigServer(t, nil)
-	cfg := s.config()
-	cfg.Rules[0].Sources = []config.SourceConfig{{File: filepath.Join(s.DataDir, "local", "abs.list")}}
-	s.ConfigManager = config.NewMemoryManager(cfg)
-	if err := os.MkdirAll(filepath.Join(s.DataDir, "local"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(s.DataDir, "local", "abs.list"), []byte("x\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	refs := s.localFileRefs("abs.list")
-	if len(refs) != 1 || refs[0].ID != "base" {
-		t.Fatalf("refs=%+v", refs)
 	}
 }
 

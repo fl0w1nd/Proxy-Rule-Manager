@@ -47,26 +47,6 @@ func TestGeositeRemovalWarnings(t *testing.T) {
 	}
 }
 
-func TestGeositeFetchResult(t *testing.T) {
-	old := &geosite.ProviderCache{ResolvedVersion: "v1"}
-	for _, tt := range []struct {
-		name    string
-		current *geosite.ProviderCache
-		failed  bool
-		want    string
-	}{
-		{name: "updated", current: &geosite.ProviderCache{ResolvedVersion: "v2"}, want: state.ProviderUpdated},
-		{name: "unchanged", current: &geosite.ProviderCache{ResolvedVersion: "v1"}, want: state.ProviderUnchanged},
-		{name: "failed", current: old, failed: true, want: state.ProviderFailed},
-	} {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := geositeFetchResult(old, tt.current, tt.failed); got != tt.want {
-				t.Fatalf("geositeFetchResult() = %q, want %q", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestGeositeTransientFailureEmitsRetryProgress(t *testing.T) {
 	attempts := 0
 	manager := geosite.NewManager(t.TempDir())

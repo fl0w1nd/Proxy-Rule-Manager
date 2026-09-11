@@ -2,23 +2,6 @@ package render
 
 import "testing"
 
-func TestWildcardToRegex(t *testing.T) {
-	tests := []struct {
-		input string
-		want  string
-	}{
-		{"*.example.com", `^.*\.example\.com$`},
-		{"test?", `^test.$`},
-		{"plain", `^plain$`},
-	}
-	for _, tt := range tests {
-		got := wildcardToRegex(tt.input)
-		if got != tt.want {
-			t.Errorf("wildcardToRegex(%q) = %q, want %q", tt.input, got, tt.want)
-		}
-	}
-}
-
 func TestApplyTransform(t *testing.T) {
 	tests := []struct {
 		name, value, want string
@@ -28,6 +11,9 @@ func TestApplyTransform(t *testing.T) {
 		{"strip_leading_dot", ".example.com", "example.com"},
 		{"add_leading_dot", "example.com", ".example.com"},
 		{"add_leading_dot", ".example.com", ".example.com"},
+		{"wildcard_to_regex", "*.example.com", `^.*\.example\.com$`},
+		{"wildcard_to_regex", "test?", `^test.$`},
+		{"wildcard_to_regex", "plain", `^plain$`},
 		{"unknown", "hello", "hello"},
 	}
 	for _, tt := range tests {
