@@ -67,11 +67,12 @@ func documentError(err error, doc *yaml.Node) error {
 			if node == nil {
 				return
 			}
-			if node.Kind == yaml.DocumentNode {
+			switch node.Kind {
+			case yaml.DocumentNode:
 				for _, child := range node.Content {
 					walk(child, prefix)
 				}
-			} else if node.Kind == yaml.MappingNode {
+			case yaml.MappingNode:
 				for i := 0; i+1 < len(node.Content); i += 2 {
 					key, value := node.Content[i], node.Content[i+1]
 					field := key.Value
@@ -83,7 +84,7 @@ func documentError(err error, doc *yaml.Node) error {
 					}
 					walk(value, field)
 				}
-			} else if node.Kind == yaml.SequenceNode {
+			case yaml.SequenceNode:
 				for i, child := range node.Content {
 					walk(child, fmt.Sprintf("%s[%d]", prefix, i))
 				}

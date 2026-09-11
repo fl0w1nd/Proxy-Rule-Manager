@@ -188,7 +188,7 @@ func TestConcurrentTemplateEdits(t *testing.T) {
 		}(prefix)
 	}
 	first, second := <-results, <-results
-	if !((first == 200 && second == 409) || (first == 409 && second == 200)) {
+	if (first != 200 || second != 409) && (first != 409 || second != 200) {
 		t.Fatalf("concurrent statuses: %d %d", first, second)
 	}
 }
