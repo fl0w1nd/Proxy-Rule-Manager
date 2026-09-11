@@ -262,7 +262,7 @@ asn:
 | `schedule.interval` | - | interval 模式的执行间隔，如 `30m` |
 | `schedule.cron` | - | 标准五段 cron 表达式，如 `"0 3 * * *"`，配合 `timezone` |
 | `fetch.timeout` | 15s | 单次下载超时 |
-| `fetch.max_download` | 4MB | 单个来源最大下载量 |
+| `fetch.max_download` | 50MB | 单个来源最大下载量 |
 | `fetch.concurrency` | 4 | 全局并发（1..64） |
 | `fetch.per_host_concurrency` | 2 | 同主机并发（1..concurrency） |
 | `fetch.retries` | 2 | 失败重试（0..10） |

@@ -202,7 +202,7 @@ update:
 
   fetch:
     timeout: 15s               # 单次 HTTP 请求超时
-    max_download: 4MB          # 单个远程来源的最大下载量
+    max_download: 50MB         # 单个远程来源的最大下载量
     concurrency: 4             # 全局并发下载数（1..64）
     per_host_concurrency: 2    # 同一主机的并发下载数（1..concurrency）
     retries: 2                 # 请求失败后的重试次数（0..10）

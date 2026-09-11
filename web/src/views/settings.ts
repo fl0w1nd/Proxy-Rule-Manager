@@ -57,7 +57,7 @@ export function readSettings(config: ConfigDocument): RuntimeSettings {
   const fetch = (update.fetch ?? {}) as Values;
   return {
     schedule: { mode: 'manual', timezone: 'UTC', interval: '30m', cron: '0 3 * * *', ...(update.schedule as Values) },
-    fetch: { timeout: '15s', max_download: '4MB', concurrency: 4, per_host_concurrency: Math.min(Number(fetch.concurrency ?? 4), 2), retries: 2, retry_delay: '500ms', user_agent: 'Proxy-Rule-Manager/2.0', ...fetch },
+    fetch: { timeout: '15s', max_download: '50MB', concurrency: 4, per_host_concurrency: Math.min(Number(fetch.concurrency ?? 4), 2), retries: 2, retry_delay: '500ms', user_agent: 'Proxy-Rule-Manager/2.0', ...fetch },
     preprocess: { timeout: '5s', max_output: '8MB', ...(update.preprocess as Values) },
     history: { history_retention: (update.history_retention ?? '168h') as string, history_limit: (update.history_limit ?? 200) as number },
   };

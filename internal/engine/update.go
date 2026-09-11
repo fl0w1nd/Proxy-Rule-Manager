@@ -41,6 +41,29 @@ type UpdateEngine struct {
 // SetConfig atomically swaps the immutable runtime configuration.
 func (e *UpdateEngine) SetConfig(cfg *config.Config) {
 	e.configValue.Store(cfg)
+	e.configureGeoManagers(cfg)
+}
+
+func (e *UpdateEngine) configureGeoManagers(cfg *config.Config) {
+	if cfg == nil {
+		return
+	}
+	timeout := time.Duration(cfg.Update.Fetch.Timeout)
+	maxBytes := int64(cfg.Update.Fetch.MaxDownload)
+	userAgent := cfg.Update.Fetch.UserAgent
+
+	if e.Geosite != nil {
+		e.Geosite.Configure(timeout, maxBytes, userAgent)
+	}
+	if e.GeoIP != nil {
+		e.GeoIP.Configure(timeout, maxBytes, userAgent)
+	}
+	if e.MMDB != nil {
+		e.MMDB.Configure(timeout, maxBytes, userAgent)
+	}
+	if e.ASN != nil {
+		e.ASN.Configure(timeout, maxBytes, userAgent)
+	}
 }
 
 func (e *UpdateEngine) currentConfig() *config.Config {
@@ -659,6 +682,13 @@ func refreshGeoProviders[E any](ctx context.Context, cfg *config.Config, mgr *ge
 			fetchErrors[name] = "provider manager unavailable"
 		}
 		return caches, failed, fetchErrors
+	}
+	if cfg != nil {
+		mgr.Configure(
+			time.Duration(cfg.Update.Fetch.Timeout),
+			int64(cfg.Update.Fetch.MaxDownload),
+			cfg.Update.Fetch.UserAgent,
+		)
 	}
 	for _, name := range providers {
 		cache, err := mgr.RefreshWithRetry(

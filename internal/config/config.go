@@ -292,7 +292,7 @@ func (c *Config) Defaults() {
 		c.Update.Fetch.Timeout = Duration(15 * time.Second)
 	}
 	if c.Update.Fetch.MaxDownload == 0 && shouldDefault("update.fetch.max_download") {
-		c.Update.Fetch.MaxDownload = Size(4 * 1024 * 1024)
+		c.Update.Fetch.MaxDownload = Size(50 * 1024 * 1024)
 	}
 	if c.Update.Fetch.Concurrency == 0 && shouldDefault("update.fetch.concurrency") {
 		c.Update.Fetch.Concurrency = 4

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -19,10 +20,10 @@ import (
 )
 
 const (
-	githubUserAgent     = "Proxy-Rule-Manager/2.0"
-	githubAcceptJSON    = "application/vnd.github+json"
-	fetchTimeout        = 20 * time.Second
-	maxProviderDownload = 50 * 1024 * 1024
+	defaultUserAgent       = "Proxy-Rule-Manager/2.0"
+	defaultFetchTimeout    = 15 * time.Second
+	defaultMaxDownloadSize = 50 * 1024 * 1024
+	githubAcceptJSON       = "application/vnd.github+json"
 )
 
 // refreshState coordinates concurrent Refresh calls for the same provider.
@@ -70,13 +71,63 @@ type Manager[E any] struct {
 	memCache   map[string]*Cache[E]
 	refresh    map[string]*refreshState[E]
 	httpClient *http.Client
+	timeout    time.Duration
+	maxBytes   int64
+	userAgent  string
 }
 
 // NewManager constructs a manager that persists caches under `dir`.
 func NewManager[E any](dir, kind string, sources map[string]Source, decode func([]byte, string, string) (*Cache[E], error), onWrite func(*Cache[E])) *Manager[E] {
-	return &Manager[E]{dir: dir, kind: kind, sources: sources, decode: decode, onWrite: onWrite,
-		memCache: make(map[string]*Cache[E]), refresh: make(map[string]*refreshState[E]),
-		httpClient: &http.Client{Timeout: fetchTimeout}}
+	dialer := &net.Dialer{Timeout: 10 * time.Second, KeepAlive: 30 * time.Second}
+	transport := &http.Transport{
+		Proxy:                 http.ProxyFromEnvironment,
+		DialContext:           dialer.DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+	}
+	return &Manager[E]{
+		dir:        dir,
+		kind:       kind,
+		sources:    sources,
+		decode:     decode,
+		onWrite:    onWrite,
+		memCache:   make(map[string]*Cache[E]),
+		refresh:    make(map[string]*refreshState[E]),
+		httpClient: &http.Client{Transport: transport},
+		timeout:    defaultFetchTimeout,
+		maxBytes:   defaultMaxDownloadSize,
+		userAgent:  defaultUserAgent,
+	}
+}
+
+// Configure updates the network fetch parameters.
+func (m *Manager[E]) Configure(timeout time.Duration, maxBytes int64, userAgent string) {
+	if m == nil {
+		return
+	}
+	if timeout <= 0 {
+		timeout = defaultFetchTimeout
+	}
+	if maxBytes <= 0 {
+		maxBytes = defaultMaxDownloadSize
+	}
+	if userAgent == "" {
+		userAgent = defaultUserAgent
+	}
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.timeout = timeout
+	m.maxBytes = maxBytes
+	m.userAgent = userAgent
+}
+
+func (m *Manager[E]) snapshot() (time.Duration, int64, string, *http.Client) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return m.timeout, m.maxBytes, m.userAgent, m.httpClient
 }
 
 // SetHTTPClient replaces the HTTP client used for upstream fetches.
@@ -432,43 +483,52 @@ func (m *Manager[E]) fetchBytes(ctx context.Context, url string, headers map[str
 }
 
 func (m *Manager[E]) fetchBytesOnce(ctx context.Context, url string, headers map[string]string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	timeout, maxBytes, userAgent, client := m.snapshot()
+
+	ac := util.NewActivityController(ctx, timeout)
+	defer ac.Close()
+
+	req, err := http.NewRequestWithContext(ac.Context(), http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", githubUserAgent)
+	req.Header.Set("User-Agent", userAgent)
 	req.Header.Set("Accept", githubAcceptJSON)
 	for k, v := range headers {
 		req.Header.Set(k, v)
 	}
-	m.mu.RLock()
-	client := m.httpClient
-	m.mu.RUnlock()
+
 	resp, err := client.Do(req)
 	if err != nil {
 		if ctx.Err() != nil {
 			return nil, ctx.Err()
 		}
-		return nil, markProviderErrorRetryable(err)
+		return nil, markProviderErrorRetryable(ac.WrapErr(err))
 	}
 	defer func() { _ = resp.Body.Close() }()
+
+	ac.Reset()
+
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(io.LimitReader(resp.Body, 1024))
+		body, _ := io.ReadAll(io.LimitReader(ac.Reader(resp.Body), 1024))
 		err := fmt.Errorf("fetch %s: HTTP %d (%s)", url, resp.StatusCode, string(body))
 		if retryableStatus(resp.StatusCode) {
 			return nil, markProviderErrorRetryable(err)
 		}
 		return nil, err
 	}
-	if cl := resp.ContentLength; cl > maxProviderDownload {
-		return nil, fmt.Errorf("provider asset too large: %d bytes", cl)
+	if cl := resp.ContentLength; cl > maxBytes {
+		return nil, fmt.Errorf("provider asset too large: %d bytes (limit %d bytes)", cl, maxBytes)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxProviderDownload+1))
+	body, err := io.ReadAll(io.LimitReader(ac.Reader(resp.Body), maxBytes+1))
 	if err != nil {
-		return nil, markProviderErrorRetryable(err)
+		if ctx.Err() != nil {
+			return nil, ctx.Err()
+		}
+		return nil, markProviderErrorRetryable(ac.WrapErr(err))
 	}
-	if len(body) > maxProviderDownload {
-		return nil, fmt.Errorf("provider asset too large: %d bytes", len(body))
+	if int64(len(body)) > maxBytes {
+		return nil, fmt.Errorf("provider asset too large: exceeds limit %d bytes", maxBytes)
 	}
 	return body, nil
 }

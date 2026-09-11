@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	defaultMaxDownloadSize = 4 * 1024 * 1024
+	defaultMaxDownloadSize = 50 * 1024 * 1024
 	defaultFetchTimeout    = 15 * time.Second
 	defaultGlobalLimit     = 4
 	defaultHostLimit       = 2
@@ -214,10 +214,10 @@ func (f *Fetcher) fetchOnce(
 	}
 	defer releaseFetchSlot(globalSem)
 
-	reqCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
+	ac := util.NewActivityController(ctx, timeout)
+	defer ac.Close()
 
-	req, err := http.NewRequestWithContext(reqCtx, http.MethodGet, raw, nil)
+	req, err := http.NewRequestWithContext(ac.Context(), http.MethodGet, raw, nil)
 	if err != nil {
 		return "", false, err.Error()
 	}
@@ -225,19 +225,22 @@ func (f *Fetcher) fetchOnce(
 
 	resp, err := f.Client.Do(req)
 	if err != nil {
+		err = ac.WrapErr(err)
 		return "", ctx.Err() == nil, err.Error()
 	}
+	defer func() { _ = resp.Body.Close() }()
+
+	ac.Reset()
+
 	if resp.StatusCode != http.StatusOK {
-		_ = resp.Body.Close()
 		return "", retryableStatus(resp.StatusCode), fmt.Sprintf("HTTP %d: %s", resp.StatusCode, resp.Status)
 	}
 	if cl := resp.ContentLength; cl > maxBytes {
-		_ = resp.Body.Close()
 		return "", false, fmt.Sprintf("content too large (%d bytes > %d)", cl, maxBytes)
 	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, maxBytes+1))
-	_ = resp.Body.Close()
+	body, err := io.ReadAll(io.LimitReader(ac.Reader(resp.Body), maxBytes+1))
 	if err != nil {
+		err = ac.WrapErr(err)
 		return "", true, err.Error()
 	}
 	if int64(len(body)) > maxBytes {
