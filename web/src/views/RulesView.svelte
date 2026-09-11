@@ -21,7 +21,6 @@
     ruleReferences,
     ruleTopology,
     serializeRule,
-    splitCSV,
     validateRuleAll,
     type RuleConfig,
     type RuleIssue,
@@ -62,7 +61,6 @@
   let editing = $state('');
   let draft = $state<RuleConfig>(emptyRule());
   let baseline = $state('');
-  let tagText = $state('');
   let discard = $state(false);
   let deleteOpen = $state(false);
   let deleting = $state<RuleConfig>();
@@ -119,7 +117,7 @@
     const q = searchQuery.toLowerCase();
     return rule.name.toLowerCase().includes(q) || rule.id.toLowerCase().includes(q);
   }));
-  const dirty = $derived(open && JSON.stringify({ ...draft, tags: splitCSV(tagText) }) !== baseline);
+  const dirty = $derived(open && JSON.stringify(draft) !== baseline);
   const identities = $derived(configRules.map((raw) => ({ id: String(raw.id ?? ''), name: String(raw.name ?? ''), sources: raw.sources })));
   const topologies = $derived(new Map(identities.map((rule) => [rule.id, ruleTopology(identities, rule.id)])));
   const refOptions = $derived([{ value: '', label: '请选择规则' }, ...refChoices(identities, editing || draft.id)]);
@@ -199,8 +197,7 @@
     editorTab = 'props';
     drawerView = 'edit';
     preview = null;
-    tagText = (next.tags ?? []).join(', ');
-    baseline = JSON.stringify({ ...next, tags: splitCSV(tagText) });
+    baseline = JSON.stringify(next);
     message = '';
     error = false;
     fieldError = null;
@@ -213,7 +210,6 @@
     if (dirty) { discard = true; return false; }
     return true;
   }
-  function applyTags() { draft = { ...draft, tags: splitCSV(tagText) }; }
   function clearFieldError(path: string) {
     if (fieldError?.path === path) fieldError = null;
     if (issues.length) issues = issues.filter((item) => item.path !== path);
@@ -232,7 +228,6 @@
   }
   async function save() {
     if (!snapshot || busy) return;
-    applyTags();
     const found = validateRuleAll(draft, identities, clients, files, editing);
     if (found.length) { issues = found; reject(found[0]); return; }
     busy = true; message = '';
@@ -244,7 +239,7 @@
       const nextRules = editing ? configRules.map((rule) => String(rule.id) === editing ? value : rule) : [...configRules, value];
       snapshot = { version: result.version, config: { ...snapshot.config, rules: nextRules } };
       editing = String(value.id);
-      baseline = JSON.stringify({ ...draft, tags: splitCSV(tagText) });
+      baseline = JSON.stringify(draft);
       statuses = (await api.getRules()).items || [];
       error = false;
       message = result.warnings?.length ? `已保存。${result.warnings.join('；')}` : '规则已保存';
@@ -258,7 +253,6 @@
   async function runPreview() {
     if (previewing) return;
     preview = null;
-    applyTags();
     const found = validateRuleAll(draft, identities, clients, files, editing);
     if (found.length) { issues = found; reject(found[0]); return; }
     previewing = true; message = '';
@@ -447,7 +441,6 @@
 <RuleEditorDrawer
   bind:open
   bind:draft
-  bind:tagText
   bind:editorTab
   bind:drawerView
   {editing}

@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/svelte';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import { EditorView } from '@codemirror/view';
 import { api } from '../api/client';
@@ -103,6 +104,34 @@ describe('RulesView', () => {
       preprocess: 'function process(content) { return content; }',
       sources: [{ url: 'https://example/base.list' }],
       outputs: ['mihomo'],
+    }) }]);
+  });
+
+  it('adds and removes tag chips and saves them in the rule', async () => {
+    const user = userEvent.setup();
+    const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
+    render(RulesView, { onStartUpdate: vi.fn() });
+    await user.click(await screen.findByRole('button', { name: '编辑' }));
+
+    // Verify existing tag chip
+    expect(screen.getByText('core')).toBeInTheDocument();
+
+    // Type a new tag chip
+    const tagInput = screen.getByRole('textbox', { name: '标签输入' });
+    await user.type(tagInput, 'proxy{enter}');
+    expect(screen.getByText('proxy')).toBeInTheDocument();
+
+    // Remove the 'core' tag chip
+    const removeCore = screen.getByRole('button', { name: '删除标签 core' });
+    await user.click(removeCore);
+    expect(screen.queryByText('core')).not.toBeInTheDocument();
+
+    // Save rule
+    await user.click(screen.getByRole('button', { name: '保存规则' }));
+    await screen.findByText('规则已保存');
+
+    expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
+      tags: ['proxy'],
     }) }]);
   });
 

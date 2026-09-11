@@ -5,6 +5,7 @@
   import PixelCheckbox from '../../components/pixel/PixelCheckbox.svelte';
   import PixelSelect from '../../components/pixel/PixelSelect.svelte';
   import PixelInput from '../../components/pixel/PixelInput.svelte';
+  import PixelTagInput from '../../components/pixel/PixelTagInput.svelte';
   import PixelTextarea from '../../components/pixel/PixelTextarea.svelte';
   import CodeEditor from '../../components/CodeEditor.svelte';
   import OpsEditor from '../../components/forms/OpsEditor.svelte';
@@ -18,7 +19,6 @@
   interface Props {
     open: boolean;
     draft: RuleConfig;
-    tagText: string;
     editorTab: string;
     drawerView: 'edit' | 'preview';
     editing: string;
@@ -45,7 +45,6 @@
   let {
     open = $bindable(false),
     draft = $bindable(),
-    tagText = $bindable(),
     editorTab = $bindable('props'),
     drawerView = $bindable<'edit' | 'preview'>('edit'),
     editing,
@@ -120,7 +119,15 @@
             {#if fieldError?.path === 'name'}<span class="field-error">{fieldError.message}</span>{/if}
           </label>
           <label class="full">说明<PixelTextarea bind:value={draft.description} rows={2} placeholder="可选说明" /></label>
-          <label class="full">标签<PixelInput bind:value={tagText} placeholder="用逗号分隔" /></label>
+          <div class="field-item full" data-field="tags">
+            <label for="rule-tags">标签</label>
+            <PixelTagInput
+              id="rule-tags"
+              bind:value={draft.tags}
+              placeholder="输入标签后按回车或逗号…"
+              disabled={busy || previewing}
+            />
+          </div>
         </div>
       </fieldset>
       </div>
@@ -228,7 +235,8 @@
   h3, legend { font: 400 12px/20px var(--font-ui); color: var(--display); margin: 0; }
   fieldset { min-width: 0; margin: 12px 0 0; padding: 14px 16px; background: var(--surface-2); border: 1px solid var(--border-vis); border-radius: 4px; display: grid; gap: 12px; }
   .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
-  label { display: grid; gap: 6px; color: var(--sec); font: 12px/18px var(--font-ui); }
+  label, .field-item { display: grid; gap: 6px; color: var(--sec); font: 12px/18px var(--font-ui); }
+  .field-item label { color: inherit; font: inherit; }
   .full { grid-column: 1 / -1; }
   .field-error { margin: 0; color: var(--error-border); font: 12px/18px var(--font-ui); }
   .section-error { margin: 8px 16px 0; }
