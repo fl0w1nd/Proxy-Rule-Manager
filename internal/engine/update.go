@@ -13,6 +13,7 @@ import (
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geodata"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
@@ -31,6 +32,8 @@ type UpdateEngine struct {
 	State        *state.Store
 	Geosite      *geosite.Manager
 	GeoIP        *geoip.Manager
+	MMDB         *geohost.Manager
+	ASN          *geohost.Manager
 	Logger       *slog.Logger
 	configValue  atomic.Pointer[config.Config]
 }
@@ -125,8 +128,11 @@ func (e *UpdateEngine) update(ctx context.Context, rules []config.RuleConfig, sc
 	// full one; each cleanup below names the scope it actually applies to.
 	ruleSubset := scope == "rules"
 	geoScope := isGeoKind(scope)
-	refreshGeosite := scope == "all" || scope == "geosite"
-	refreshGeoIP := scope == "all" || scope == "geoip"
+	geoKinds := geoKindsForScope(scope)
+	refreshGeosite := geoKinds["geosite"]
+	refreshGeoIP := geoKinds["geoip"]
+	refreshMMDB := geoKinds[geohost.KindMMDB]
+	refreshASN := geoKinds[geohost.KindASN]
 	result := UpdateResult{StartTime: time.Now()}
 	log := e.Logger
 	expectedPaths := make(map[string]struct{})
@@ -192,6 +198,9 @@ func (e *UpdateEngine) update(ctx context.Context, rules []config.RuleConfig, sc
 	}
 
 	geoipProviders := e.loadGeoIP(ctx, sorted, !refreshGeoIP, &result)
+	if refreshMMDB || refreshASN {
+		e.refreshHostedGeo(ctx, geoKinds, &result)
+	}
 
 	refResults := make(map[string][]ir.Entry)
 	if ruleSubset {
@@ -284,6 +293,11 @@ ruleLoop:
 		e.updateGeoIPPublications(ctx, geoipProviders, &result, expectedPaths)
 	}
 
+	hostedExpected := make(map[string]struct{})
+	if len(geoKinds) > 0 {
+		e.publishHostedGeoFiles(ctx, geoKinds, &result, hostedExpected)
+	}
+
 	if ctx.Err() != nil {
 		result.addError("cancel", "update", "update cancelled")
 		cancelledAt := time.Now()
@@ -305,11 +319,17 @@ ruleLoop:
 		if err := e.State.Reconcile(expectedArtifacts, expectedRules); err != nil {
 			result.addError("cleanup", "state", fmt.Sprintf("reconcile state: %v", err))
 		}
+		if err := ReconcileHostedGeo(e.DataDir, hostedKindsForScope("all"), hostedExpected); err != nil {
+			result.addError("cleanup", "geo", fmt.Sprintf("reconcile hosted geo: %v", err))
+		}
 	}
 	if geoScope && len(result.Errors) == 0 {
 		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "cleanup", Status: "running", Message: "正在清理过期规则文件"})
 		if err := ReconcileGeoArtifacts(e.DataDir, scope, expectedPaths); err != nil {
 			result.addError("cleanup", "artifacts", fmt.Sprintf("reconcile %s artifacts: %v", scope, err))
+		}
+		if err := ReconcileHostedGeo(e.DataDir, hostedKindsForScope(scope), hostedExpected); err != nil {
+			result.addError("cleanup", "geo", fmt.Sprintf("reconcile hosted geo: %v", err))
 		}
 	}
 	if ruleSubset && ctx.Err() == nil && len(succeeded) > 0 {

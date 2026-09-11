@@ -42,7 +42,7 @@
 - **自动运行**：每天 `03:17 UTC`。
 - **手动运行**：Actions 页面 → *Publish Rules to GitHub Pages* → Run workflow。
 - **检查结果**：运行日志和构建错误保留在 Actions 运行记录里。更新错误会终止发布，线上站点不受影响。
-- **数据缓存**：`data/.state`、`data/geosite`、`data/geoip`、`data/rules` 会缓存以加速后续构建。如配置变化后出现异常，可在 Actions 缓存管理中清除缓存再跑。
+- **数据缓存**：`data/.state`、`data/geosite`、`data/geoip`、`data/mmdb`、`data/asn`、`data/rules`、`data/geo` 会缓存以加速后续构建。如配置变化后出现异常，可在 Actions 缓存管理中清除缓存再跑。
 
 ## 同步上游
 
@@ -65,4 +65,4 @@ prm 版本由源仓库的最新 Release 自动推进；同步 `main` 可以取�
 prm --data-dir data build --output dist
 ```
 
-产物固定包含 `index.html`、`rules/`、`static/assets/public.js`、`static/assets/public.css`、`static/icons/`、`.nojekyll`。页面资源使用相对路径，可在 GitHub Pages 仓库子路径运行，也可用任意静态文件服务器预览 `dist/`。
+产物固定包含 `index.html`、`rules/`、`geo/`、`static/assets/public.js`、`static/assets/public.css`、`static/icons/`、`.nojekyll`。页面资源使用相对路径，可在 GitHub Pages 仓库子路径运行，也可用任意静态文件服务器预览 `dist/`。

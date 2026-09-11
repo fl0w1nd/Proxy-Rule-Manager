@@ -96,6 +96,8 @@ func (s *Server) Handler() http.Handler {
 	// Public: static rule artifacts
 	rulesDir := filepath.Join(s.DataDir, "rules")
 	r.Handle("/rules/*", http.StripPrefix("/rules/", http.FileServer(http.Dir(rulesDir))))
+	geoDir := filepath.Join(s.DataDir, "geo")
+	r.Handle("/geo/*", http.StripPrefix("/geo/", http.FileServer(http.Dir(geoDir))))
 
 	// Public: generated pages and static assets (icons, etc.)
 	iconsDir := filepath.Join(s.DataDir, "static", "icons")
@@ -123,6 +125,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/geoip/providers", s.handleGeoIPProviders)
 		r.Get("/geoip/providers/{provider}/catalog", s.handleGeoIPCatalog)
 		r.Get("/geoip/providers/{provider}/lists/{list}", s.handleGeoIPList)
+		r.Get("/mmdb/providers", s.handleMMDBProviders)
+		r.Get("/asn/providers", s.handleASNProviders)
 		r.Get("/changes", s.handleChanges)
 		r.Get("/updates", s.handleUpdates)
 		r.Post("/updates", s.sameOriginMutation(s.handleCreateUpdate))

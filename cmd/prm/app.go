@@ -8,6 +8,7 @@ import (
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/logging"
@@ -141,6 +142,8 @@ func newApp(dataDir string) (*App, error) {
 		State:        st,
 		Geosite:      geositeManager,
 		GeoIP:        geoip.NewManager(filepath.Join(dataDir, "geoip")),
+		MMDB:         geohost.NewManager(filepath.Join(dataDir, "mmdb"), geohost.KindMMDB),
+		ASN:          geohost.NewManager(filepath.Join(dataDir, "asn"), geohost.KindASN),
 		Logger:       logger,
 	}
 	eng.SetConfig(cfg)

@@ -22,6 +22,12 @@ func TestOpenAndSave(t *testing.T) {
 	s.SetLastCheck(updatedAt)
 	s.SetRuleCheck("rule1", RuleUpdated, updatedAt, true)
 	s.SetGeositeUpdate("v2fly", ProviderFailed, updatedAt)
+	if err := s.SetHostedGeoUpdate("mmdb", "loyalsoldier", ProviderUpdated, updatedAt); err != nil {
+		t.Fatalf("SetHostedGeoUpdate(mmdb): %v", err)
+	}
+	if err := s.SetHostedGeoUpdate("asn", "loyalsoldier", ProviderUnchanged, updatedAt); err != nil {
+		t.Fatalf("SetHostedGeoUpdate(asn): %v", err)
+	}
 
 	if err := s.Save(); err != nil {
 		t.Fatalf("Save: %v", err)
@@ -43,6 +49,12 @@ func TestOpenAndSave(t *testing.T) {
 	}
 	if result, checkedAt, ok := s2.GeositeUpdate("v2fly"); !ok || result != ProviderFailed || !checkedAt.Equal(updatedAt) {
 		t.Fatalf("geosite update = %q, %v, %t", result, checkedAt, ok)
+	}
+	if result, checkedAt, ok := s2.HostedGeoUpdate("mmdb", "loyalsoldier"); !ok || result != ProviderUpdated || !checkedAt.Equal(updatedAt) {
+		t.Fatalf("mmdb update = %q, %v, %t", result, checkedAt, ok)
+	}
+	if result, checkedAt, ok := s2.HostedGeoUpdate("asn", "loyalsoldier"); !ok || result != ProviderUnchanged || !checkedAt.Equal(updatedAt) {
+		t.Fatalf("asn update = %q, %v, %t", result, checkedAt, ok)
 	}
 }
 

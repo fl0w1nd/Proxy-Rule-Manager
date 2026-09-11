@@ -166,12 +166,12 @@ func TestPublicDataJSONEscapesHTML(t *testing.T) {
 }
 
 func TestPublicDataJSONUsesArraysForEmptyCollections(t *testing.T) {
-	idx := &IndexData{UpdatedAt: time.Now(), Clients: []Client{{ID: "empty"}}, Rules: []PublicRule{{ID: "empty"}}, Geosite: []GeoCatalog{{Provider: "empty", Lists: []GeoList{{Name: "empty"}}}}, IconSets: []IconSet{{Name: "empty"}}}
+	idx := &IndexData{UpdatedAt: time.Now(), Clients: []Client{{ID: "empty"}}, Rules: []PublicRule{{ID: "empty"}}, Geosite: []GeoCatalog{{Provider: "empty", Lists: []GeoList{{Name: "empty"}}}}, IconSets: []IconSet{{Name: "empty"}}, GeoFiles: []GeoFile{}}
 	got, err := publicDataJSON(idx)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`"options":[]`, `"tags":[]`, `"files":[]`, `"variants":[]`, `"icons":[]`} {
+	for _, want := range []string{`"options":[]`, `"tags":[]`, `"files":[]`, `"variants":[]`, `"icons":[]`, `"geo_files":[]`} {
 		if !strings.Contains(string(got), want) {
 			t.Errorf("public data missing stable array %s: %s", want, got)
 		}

@@ -115,7 +115,7 @@ rules:
 | `prm validate` | 校验配置、模板和 geosite/geoip 引用 |
 | `prm update [rule-ids...]` | 全量更新，或编译列出的规则及引用它们的下游规则 |
 | `prm update --geosite` | 更新 Geosite 数据库及其发布文件 |
-| `prm update --geoip` | 更新 GeoIP 数据库及其发布文件 |
+| `prm update --geoip` | 更新 GeoIP 数据库及其发布文件，同时下载已配置的 mmdb、asn |
 | `prm preview <rule-id> [--target <id>]` | 查看单条规则各阶段结果，可指定渲染某个输出目标 |
 | `prm build` | 全量更新后，把静态站点导出到 `dist/` |
 | `prm serve` | 启动 HTTP 服务（需要 `PRM_ADMIN_TOKEN`） |
@@ -142,13 +142,20 @@ data/
 │   │   └── geosite/v2fly/google.list
 │   └── sing-box-non-ip/
 │       └── OpenAI.json
+├── geo/                # host / mmdb / asn 发布的原始数据库，公开在 /geo/
+│   ├── geosite/v2fly/dlc.dat
+│   ├── geoip/v2fly/geoip.dat
+│   ├── mmdb/loyalsoldier/Country.mmdb
+│   └── asn/loyalsoldier/GeoLite2-ASN.mmdb
 ├── local/              # 本地文件来源
 ├── templates/          # 自定义模板覆盖
 ├── static/
 │   ├── assets/         # 应用管理的公开页 JS 与 CSS
 │   └── icons/          # 内置及用户自定义图标
-├── geosite/            # 域名库缓存
-├── geoip/              # IP 库缓存
+├── geosite/            # 域名库缓存；raw/ 下是上游原始文件
+├── geoip/              # IP 库缓存；raw/ 下是上游原始文件
+├── mmdb/               # MMDB 原始数据库缓存
+├── asn/                # ASN 原始数据库缓存
 └── .state/             # 快照和更新历史
 ```
 
@@ -167,14 +174,15 @@ data/
 
 - 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite/geoip 目录。
 - 规则产物在 `/rules/`。
+- 原始 Geo 数据库在 `/geo/`。
 - 图标在 `/static/icons/`。
 - 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
 - 管理看板在 `/admin`，管理 API 在 `/api/v1`。
-- API 端点：`status`、`rules`、`geosite/providers`、`geoip/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
+- API 端点：`status`、`rules`、`geosite/providers`、`geoip/providers`、`mmdb/providers`、`asn/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
 
 写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
 
-`POST /api/v1/updates` 通过 JSON 的 `scope` 指定更新范围：`all` 执行全量更新；`rules` 配合 `rule_ids` 数组批量更新所选规则及其下游规则，Geo 来源使用本地缓存；`geosite`、`geoip` 更新对应数据库及其发布文件。管理看板的 Geosite、GeoIP 页面提供对应更新按钮，规则管理的选择栏提供批量更新按钮。
+`POST /api/v1/updates` 通过 JSON 的 `scope` 指定更新范围：`all` 执行全量更新；`rules` 配合 `rule_ids` 数组批量更新所选规则及其下游规则，Geo 来源使用本地缓存；`geosite`、`geoip` 更新对应数据库及其发布文件。`geoip` 范围同时下载已配置的 mmdb、asn。管理看板的 Geosite、GeoIP 页面提供对应更新按钮，规则管理的选择栏提供批量更新按钮。
 
 ## 部署
 
@@ -187,7 +195,7 @@ data/
 
 ## 静态站点
 
-不用自托管服务器时，`prm build` 可以把规则站导出为独立静态站点：`index.html`、`rules/`、`static/assets/`、`static/icons/`、`.nojekyll`。页面使用相对资源路径，可直接发布到 GitHub Pages 仓库子路径。
+不用自托管服务器时，`prm build` 可以把规则站导出为独立静态站点：`index.html`、`rules/`、`geo/`、`static/assets/`、`static/icons/`、`.nojekyll`。页面使用相对资源路径，可直接发布到 GitHub Pages 仓库子路径。
 
 ## 开发
 

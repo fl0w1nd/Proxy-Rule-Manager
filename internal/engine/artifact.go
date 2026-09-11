@@ -5,9 +5,11 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 )
 
@@ -93,7 +95,8 @@ func ListArtifacts(dataDir, clientID string) ([]string, error) {
 	return files, err
 }
 
-// CountArtifacts returns the current number of published files below data/rules.
+// CountArtifacts returns the current number of published files below
+// data/rules and data/geo.
 func CountArtifacts(dataDir string) (int, error) {
 	root := rulesDir(dataDir)
 	count := 0
@@ -112,7 +115,14 @@ func CountArtifacts(dataDir string) (int, error) {
 	if os.IsNotExist(err) {
 		return 0, nil
 	}
-	return count, err
+	if err != nil {
+		return 0, err
+	}
+	hosted, err := countHostedGeo(dataDir)
+	if err != nil {
+		return 0, err
+	}
+	return count + hosted, nil
 }
 
 // ReconcileArtifacts removes files under data/rules that were not produced by
@@ -125,6 +135,10 @@ func ReconcileArtifacts(dataDir string, expected map[string]struct{}) error {
 func ReconcileGeoArtifacts(dataDir, kind string, expected map[string]struct{}) error {
 	if !isGeoKind(kind) {
 		return fmt.Errorf("unknown geo data kind %q", kind)
+	}
+	// MMDB and ASN publish only to data/geo and have no per-client artifacts.
+	if kind == geohost.KindMMDB || kind == geohost.KindASN {
+		return nil
 	}
 	clients, err := os.ReadDir(rulesDir(dataDir))
 	if os.IsNotExist(err) {
@@ -145,7 +159,7 @@ func ReconcileGeoArtifacts(dataDir, kind string, expected map[string]struct{}) e
 }
 
 func isGeoKind(kind string) bool {
-	return kind == "geosite" || kind == "geoip"
+	return slices.Contains(geoDataKinds, kind)
 }
 
 func reconcileArtifacts(root string, expected map[string]struct{}) error {

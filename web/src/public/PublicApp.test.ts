@@ -199,6 +199,23 @@ describe('PublicApp', () => {
 });
 
 
+it('lists published original databases and only offers their view when present', async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(PublicApp, { data: fixture() });
+  expect(screen.queryByRole('button', { name: 'MMDB' })).not.toBeInTheDocument();
+  expect(screen.queryByRole('button', { name: 'ASN' })).not.toBeInTheDocument();
+
+  const data = fixture();
+  data.geo_files = [
+    { kind: 'mmdb', provider: 'loyalsoldier', name: 'Country.mmdb', path: 'geo/mmdb/loyalsoldier/Country.mmdb', size: 7824943, version: '202609100029' },
+    { kind: 'asn', provider: 'loyalsoldier', name: 'GeoLite2-ASN.mmdb', path: 'geo/asn/loyalsoldier/GeoLite2-ASN.mmdb', size: 12106670 },
+  ];
+  await rerender({ data });
+  await user.click(screen.getByRole('button', { name: 'MMDB' }));
+
+  expect(screen.getByRole('link', { name: '下载' })).toHaveAttribute('href', 'geo/mmdb/loyalsoldier/Country.mmdb');
+});
+
 it('uses GeoIP catalogs and updates preview paths for the selected format', async () => {
   const data = fixture();
   data.clients[0].geoip = true;

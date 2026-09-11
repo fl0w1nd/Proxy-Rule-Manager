@@ -1,4 +1,6 @@
 export type GeoKind = 'geosite' | 'geoip';
+export type HostedGeoKind = 'mmdb' | 'asn';
+export type GeoDataKind = GeoKind | HostedGeoKind;
 
 /**
  * PRM API Client & Type Definitions
@@ -149,7 +151,7 @@ export interface UpdateChange {
   removed: number;
 }
 
-export type UpdateScope = 'all' | 'rules' | 'geosite' | 'geoip';
+export type UpdateScope = 'all' | 'rules' | 'geosite' | 'geoip' | 'mmdb' | 'asn';
 
 export interface UpdateItem {
   id: string;
@@ -319,7 +321,7 @@ export type ConfigPatchOp =
   | { op: 'batch_add_output' | 'batch_remove_output'; rule_ids: string[]; output_ids: string[] }
   | { op: 'reorder_rules'; order: string[] }
   | { op: 'update_schedule' | 'update_fetch' | 'update_preprocess' | 'update_history'; value: ConfigValue }
-  | { op: 'update_geosite' | 'update_geoip'; value: ConfigValue | null };
+  | { op: 'update_geosite' | 'update_geoip' | 'update_mmdb' | 'update_asn'; value: ConfigValue | null };
 
 /**
  * 409 有几种完全不同的原因：版本过期、文件被外部改动、更新占用。
@@ -402,7 +404,7 @@ export const api = {
     });
   },
 
-  getGeoProviders(kind: GeoKind = 'geosite'): Promise<{ items: GeoProviderItem[]; supported: string[] }> {
+  getGeoProviders(kind: GeoDataKind = 'geosite'): Promise<{ items: GeoProviderItem[]; supported: string[] }> {
     return request<{ items: GeoProviderItem[]; supported: string[] }>(`/${kind}/providers`);
   },
 

@@ -1,4 +1,4 @@
-export type PublicView = 'rules' | 'geosite' | 'geoip' | 'icons';
+export type PublicView = 'rules' | 'geosite' | 'geoip' | 'mmdb' | 'asn' | 'icons';
 
 export interface PublicClientOption {
   id: string;
@@ -67,7 +67,17 @@ export interface PublicPageData {
   tags: string[];
   geosite: PublicGeoCatalog[];
   geoip?: PublicGeoCatalog[];
+  geo_files?: PublicGeoFile[];
   icon_sets: PublicIconSet[];
+}
+
+export interface PublicGeoFile {
+  kind: string;
+  provider: string;
+  name: string;
+  path: string;
+  size: number;
+  version?: string;
 }
 
 export interface PreviewItem {

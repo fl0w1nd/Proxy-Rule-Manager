@@ -5,6 +5,7 @@ type Source struct {
 	Repository string
 	Asset      string
 	Checksum   bool
+	Ref        string
 }
 
 type Cache[E any] struct {

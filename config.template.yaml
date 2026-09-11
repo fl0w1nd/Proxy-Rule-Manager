@@ -154,6 +154,7 @@ rules:
 #     # provider 名称：v2fly 或 loyalsoldier，同一名称只声明一次
 #     - name: v2fly
 #       clients: [mihomo, sing-box]
+#       # host: true            # 在公开页提供原始 .dat
 
 # ============================================================
 # geoip 自动发布（可选）
@@ -164,8 +165,24 @@ rules:
 #   providers:
 #     - name: loyalsoldier
 #       clients: [mihomo, sing-box]
+#       # host: true
 #     - name: v2fly
 #       clients: [mihomo]
+
+# ============================================================
+# mmdb / asn 原始数据库（可选）
+# ============================================================
+# 仅用于在公开页提供 mihomo geox-url 所需的 Country.mmdb 与
+# GeoLite2-ASN.mmdb。
+# 提供商目前仅 loyalsoldier；随 GeoIP 更新一并下载。
+# mmdb:
+#   providers:
+#     - name: loyalsoldier
+#       host: true
+# asn:
+#   providers:
+#     - name: loyalsoldier
+#       host: true
 
 # ============================================================
 # update —— 更新历史、调度与资源限制

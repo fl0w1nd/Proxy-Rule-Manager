@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 )
@@ -22,8 +23,12 @@ type UpdateState struct {
 	RuleUpdates    map[string]UpdateRecord      `json:"rule_updates,omitempty"`
 	GeositeUpdates map[string]string            `json:"geosite_updates,omitempty"`
 	GeoIPUpdates   map[string]string            `json:"geoip_updates,omitempty"`
+	MMDBUpdates    map[string]string            `json:"mmdb_updates,omitempty"`
+	ASNUpdates     map[string]string            `json:"asn_updates,omitempty"`
 	GeositeChecks  map[string]string            `json:"geosite_checks,omitempty"`
 	GeoIPChecks    map[string]string            `json:"geoip_checks,omitempty"`
+	MMDBChecks     map[string]string            `json:"mmdb_checks,omitempty"`
+	ASNChecks      map[string]string            `json:"asn_checks,omitempty"`
 	UpdateHistory  []UpdateHistoryRecord        `json:"update_history,omitempty"`
 }
 
@@ -120,7 +125,12 @@ func Open(dataDir string) (*Store, error) {
 	if s.state.RuleUpdates == nil {
 		s.state.RuleUpdates = make(map[string]UpdateRecord)
 	}
-	for _, target := range []*map[string]string{&s.state.GeositeUpdates, &s.state.GeositeChecks, &s.state.GeoIPUpdates, &s.state.GeoIPChecks} {
+	for _, target := range []*map[string]string{
+		&s.state.GeositeUpdates, &s.state.GeositeChecks,
+		&s.state.GeoIPUpdates, &s.state.GeoIPChecks,
+		&s.state.MMDBUpdates, &s.state.MMDBChecks,
+		&s.state.ASNUpdates, &s.state.ASNChecks,
+	} {
 		if *target == nil {
 			*target = make(map[string]string)
 		}
@@ -565,4 +575,48 @@ func (s *Store) GeoIPUpdate(provider string) (string, time.Time, bool) {
 	checkedAtValue := s.state.GeoIPChecks[provider]
 	checkedAt, _ := time.Parse(time.RFC3339, checkedAtValue)
 	return result, checkedAt, true
+}
+
+// SetHostedGeoUpdate records the outcome of an MMDB or ASN database update.
+// Unknown kinds report an error instead of dropping the record silently.
+func (s *Store) SetHostedGeoUpdate(kind, provider, result string, checkedAt time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	updates, checks, err := s.hostedGeoMaps(kind)
+	if err != nil {
+		return err
+	}
+	updates[provider] = result
+	checks[provider] = util.FormatISO(checkedAt)
+	return nil
+}
+
+// HostedGeoUpdate returns the latest outcome for one MMDB or ASN provider.
+func (s *Store) HostedGeoUpdate(kind, provider string) (string, time.Time, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	updates, checks, err := s.hostedGeoMaps(kind)
+	if err != nil {
+		return "", time.Time{}, false
+	}
+	result, ok := updates[provider]
+	if !ok {
+		return "", time.Time{}, false
+	}
+	checkedAtValue := checks[provider]
+	checkedAt, _ := time.Parse(time.RFC3339, checkedAtValue)
+	return result, checkedAt, true
+}
+
+// hostedGeoMaps returns the update and check maps for a hosted Geo kind.
+// Callers hold s.mu (either mode).
+func (s *Store) hostedGeoMaps(kind string) (map[string]string, map[string]string, error) {
+	switch kind {
+	case geohost.KindMMDB:
+		return s.state.MMDBUpdates, s.state.MMDBChecks, nil
+	case geohost.KindASN:
+		return s.state.ASNUpdates, s.state.ASNChecks, nil
+	default:
+		return nil, nil, fmt.Errorf("unknown hosted geo kind %q", kind)
+	}
 }

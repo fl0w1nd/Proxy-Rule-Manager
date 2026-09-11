@@ -9,6 +9,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 	"sync"
@@ -246,6 +247,38 @@ func (m *Manager[E]) cachePath(provider string) (string, error) {
 	return util.JoinInside(m.dir, provider+".json")
 }
 
+// Source returns the upstream asset descriptor for a provider.
+func (m *Manager[E]) Source(provider string) (Source, bool) {
+	source, ok := m.sources[provider]
+	return source, ok
+}
+
+// RawPath is the on-disk original asset downloaded for a provider.
+func (m *Manager[E]) RawPath(provider string) (string, error) {
+	source, ok := m.sources[provider]
+	if !ok {
+		return "", fmt.Errorf("unsupported %s provider: %s", m.kind, provider)
+	}
+	if err := util.EnsureSafeSegment(provider, m.kind+" provider"); err != nil {
+		return "", err
+	}
+	if err := util.EnsureSafeSegment(source.Asset, m.kind+" asset"); err != nil {
+		return "", err
+	}
+	return util.JoinInside(m.dir, "raw", provider, source.Asset)
+}
+
+func (m *Manager[E]) writeRaw(provider string, payload []byte) error {
+	path, err := m.RawPath(provider)
+	if err != nil {
+		return err
+	}
+	if err := util.EnsureDir(filepath.Dir(path)); err != nil {
+		return err
+	}
+	return util.AtomicWriteFile(path, payload)
+}
+
 // ListStatus returns each supported provider in name order.
 func (m *Manager[E]) ListStatus() []Status {
 	out := make([]Status, 0, len(m.sources))
@@ -298,32 +331,72 @@ func (m *Manager[E]) download(ctx context.Context, provider string) (*Cache[E], 
 	if !ok {
 		return nil, fmt.Errorf("unsupported %s provider: %s", m.kind, provider)
 	}
-	release, err := m.latestRelease(ctx, source.Repository)
+	version, payload, err := m.fetchAsset(ctx, source)
 	if err != nil {
 		return nil, err
+	}
+	cache, err := m.decode(payload, provider, version)
+	if err != nil {
+		return nil, err
+	}
+	if err := m.writeRaw(provider, payload); err != nil {
+		return nil, err
+	}
+	return cache, nil
+}
+
+func (m *Manager[E]) fetchAsset(ctx context.Context, source Source) (string, []byte, error) {
+	if source.Ref != "" {
+		return m.fetchRefAsset(ctx, source)
+	}
+	return m.fetchReleaseAsset(ctx, source)
+}
+
+func (m *Manager[E]) fetchReleaseAsset(ctx context.Context, source Source) (string, []byte, error) {
+	release, err := m.latestRelease(ctx, source.Repository)
+	if err != nil {
+		return "", nil, err
 	}
 	assetURL := release.assetURL(source.Asset)
 	if assetURL == "" {
-		return nil, fmt.Errorf("%s release missing %s", provider, source.Asset)
+		return "", nil, fmt.Errorf("release missing %s", source.Asset)
 	}
 	payload, err := m.fetchBytes(ctx, assetURL, map[string]string{"Accept": "application/octet-stream"})
 	if err != nil {
-		return nil, err
+		return "", nil, err
 	}
 	if source.Checksum {
 		checksumURL := release.assetURL(source.Asset + ".sha256sum")
 		if checksumURL == "" {
-			return nil, fmt.Errorf("%s release missing checksum", provider)
+			return "", nil, fmt.Errorf("release missing %s", source.Asset+".sha256sum")
 		}
 		checksum, err := m.fetchBytes(ctx, checksumURL, map[string]string{"Accept": "application/octet-stream"})
 		if err != nil {
-			return nil, err
+			return "", nil, err
 		}
 		if err := verifySHA256(payload, checksum); err != nil {
-			return nil, err
+			return "", nil, err
 		}
 	}
-	return m.decode(payload, provider, release.TagName)
+	return release.TagName, payload, nil
+}
+
+func (m *Manager[E]) fetchRefAsset(ctx context.Context, source Source) (string, []byte, error) {
+	base := "https://raw.githubusercontent.com/" + source.Repository + "/" + source.Ref + "/" + source.Asset
+	payload, err := m.fetchBytes(ctx, base, map[string]string{"Accept": "application/octet-stream"})
+	if err != nil {
+		return "", nil, err
+	}
+	if source.Checksum {
+		checksum, err := m.fetchBytes(ctx, base+".sha256sum", map[string]string{"Accept": "application/octet-stream"})
+		if err != nil {
+			return "", nil, err
+		}
+		if err := verifySHA256(payload, checksum); err != nil {
+			return "", nil, err
+		}
+	}
+	return fmt.Sprintf("%x", sha256.Sum256(payload))[:12], payload, nil
 }
 
 func verifySHA256(payload, checksumFile []byte) error {

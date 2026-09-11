@@ -9,7 +9,6 @@
   import { retroScroll } from '../utils/scrollbars';
   import { entryTypeLabel, geoLabel } from './geodata';
   import geositeIcon from '../assets/icons/nav/geosite.svg';
-  import geoipIcon from '../assets/icons/nav/geoip.svg';
 
   let {
     open = $bindable(false),
@@ -177,7 +176,7 @@
   }
 </script>
 
-<PixelDrawer bind:open title={provider ? `${provider} 目录` : `${geoLabel(kind)} 目录`} icon={kind === 'geoip' ? geoipIcon : geositeIcon} width="880px" scrollable={false} onclose={close}>
+<PixelDrawer bind:open title={provider ? `${provider} 目录` : `${geoLabel(kind)} 目录`} icon={geositeIcon} width="880px" scrollable={false} onclose={close}>
   <div class="catalog-shell">
     <div class="catalog-toolbar">
       <PixelTabs id={`${kind}-search-mode`} label="检索方式" items={[{ value: 'name', label: '名称' }, { value: 'content', label: '内容' }]} value={match} onchange={(value) => { match = value as 'name' | 'content'; }} />

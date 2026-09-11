@@ -5,6 +5,7 @@
   import ClientPicker from './components/ClientPicker.svelte';
   import FilePreviewModal from './components/FilePreviewModal.svelte';
   import GeoCatalog from './components/GeoCatalog.svelte';
+  import HostedGeoFiles from './components/HostedGeoFiles.svelte';
   import IconGallery from './components/IconGallery.svelte';
   import RuleCatalog from './components/RuleCatalog.svelte';
   import type { PreviewItem, PublicPageData, PublicRule, PublicView } from './types';
@@ -13,6 +14,7 @@
   interface Props { data: PublicPageData; }
   let { data }: Props = $props();
 
+  const hostedViews: Extract<PublicView, 'mmdb' | 'asn'>[] = ['mmdb', 'asn'];
   let view = $state<PublicView>('rules');
   let selectedClient = $state(0);
   let selectedTargets = $state<Record<string, string>>({});
@@ -21,6 +23,9 @@
 
   const activeClient = $derived(data.clients[selectedClient]);
   const activeTarget = $derived(activeClient ? selectedOption(activeClient, selectedTargets[activeClient.id], view) : undefined);
+  const geoFiles = $derived(data.geo_files ?? []);
+  const hostedFiles = $derived(geoFiles.filter((file) => file.kind === view));
+  const publishedHostedViews = $derived(hostedViews.filter((kind) => geoFiles.some((file) => file.kind === kind)));
 
   onMount(() => {
     try {
@@ -41,7 +46,7 @@
   });
 
   function normalizeSelection(nextView: PublicView) {
-    if (nextView === 'icons' || data.clients.length === 0) return;
+    if (nextView === 'icons' || nextView === 'mmdb' || nextView === 'asn' || data.clients.length === 0) return;
     let index = selectedClient;
     if (!clientUsable(data.clients[index], nextView)) {
       const fallback = data.clients.findIndex((client) => clientUsable(client, nextView));
@@ -135,10 +140,13 @@
     <button class:on={view === 'rules'} type="button" onclick={() => setView('rules')}>规则</button>
     <button class:on={view === 'geosite'} type="button" onclick={() => setView('geosite')}>Geosite</button>
     <button class:on={view === 'geoip'} type="button" onclick={() => setView('geoip')}>GeoIP</button>
+    {#each publishedHostedViews as kind (kind)}
+      <button class:on={view === kind} type="button" onclick={() => setView(kind)}>{kind.toUpperCase()}</button>
+    {/each}
     <button class:on={view === 'icons'} type="button" onclick={() => setView('icons')}>图标</button>
   </nav>
 
-  {#if view !== 'icons' && activeClient && activeTarget}
+  {#if view !== 'icons' && view !== 'mmdb' && view !== 'asn' && activeClient && activeTarget}
     <ClientPicker
       clients={data.clients}
       {view}
@@ -151,10 +159,15 @@
 
   {#if view === 'rules' && activeClient && activeTarget}
     <RuleCatalog rules={data.rules} tags={data.tags} target={activeTarget} onpreview={openRule} />
-  {:else if (view === 'geosite' || view === 'geoip') && activeClient && activeTarget}
-    {#key view}
-    <GeoCatalog kind={view} catalogs={data[view] ?? []} client={activeClient} target={activeTarget} onpreview={(item) => { previewItem = item; }} />
-  {/key}
+  {:else if view === 'geosite' || view === 'geoip'}
+    <HostedGeoFiles files={hostedFiles} kind={view} />
+    {#if activeClient && activeTarget}
+      {#key view}
+      <GeoCatalog kind={view} catalogs={data[view] ?? []} client={activeClient} target={activeTarget} onpreview={(item) => { previewItem = item; }} />
+      {/key}
+    {/if}
+  {:else if view === 'mmdb' || view === 'asn'}
+    <HostedGeoFiles files={hostedFiles} kind={view} />
   {:else if view === 'icons'}
     <IconGallery sets={data.icon_sets} />
   {/if}

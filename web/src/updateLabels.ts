@@ -26,10 +26,26 @@ export function getStatusLabel(st: string): string {
   return map[st] || st;
 }
 
+const geoKindLabels: Record<string, string> = {
+  geosite: 'Geosite',
+  geoip: 'GeoIP',
+  mmdb: 'MMDB',
+  asn: 'ASN',
+};
+
+/** geoKindLabel returns the display name for a Geo update scope. */
+function geoKindLabel(scope: string): string | undefined {
+  return Object.hasOwn(geoKindLabels, scope) ? geoKindLabels[scope] : undefined;
+}
+
+export function isGeoScope(scope: string): boolean {
+  return geoKindLabel(scope) !== undefined;
+}
+
 export function scopeText(item: Pick<UpdateItem, 'scope' | 'requested_rule_ids'>): string {
   if (item.scope === 'all') return '全部更新';
-  if (item.scope === 'geosite') return 'Geosite 更新';
-  if (item.scope === 'geoip') return 'GeoIP 更新';
+  const geo = geoKindLabel(item.scope);
+  if (geo) return `${geo} 更新`;
   const n = (item.requested_rule_ids || []).length;
   return n > 0 ? `指定 ${n} 条` : '指定规则';
 }
@@ -53,12 +69,12 @@ export function changeCount(item: UpdateItem | UpdateDetail): number {
 
 export function finishSummary(detail: UpdateDetail): string {
   const label = getStatusLabel(detail.status);
-  if (detail.scope === 'geosite' || detail.scope === 'geoip') return `${scopeText(detail)} · ${label}`;
+  if (isGeoScope(detail.scope)) return `${scopeText(detail)} · ${label}`;
   const failed = detail.rules_failed || 0;
   const changed = changeCount(detail);
   if (failed > 0) return `${label} · ${failed} 条`;
   if (changed > 0) return `${label} · 变更 ${changed}`;
-  return label;
+  return `${label} · 无变更`;
 }
 
 function hasGeoBlocker(detail: UpdateDetail): boolean {
@@ -71,23 +87,21 @@ function hasGeoIssue(detail: UpdateDetail, kind: string): boolean {
 }
 
 export function updateDigest(detail: UpdateDetail): string {
-  const checked = detail.effective_rule_ids?.length || detail.rules_total || 0;
-  const changed = changeCount(detail);
   const requested = detail.requested_rule_ids || [];
+  const checked = detail.rules_total || 0;
+  const changed = changeCount(detail);
   const failed = detail.rules_failed || 0;
   const parts: string[] = [];
   if (detail.scope === 'all') {
     parts.push(`规则 ${checked}`, `变更 ${changed}`);
-    const geositeFailed = hasGeoIssue(detail, 'geosite');
-    const geoipFailed = hasGeoIssue(detail, 'geoip');
-    if (geositeFailed) parts.push('Geosite 更新失败');
-    if (geoipFailed) parts.push('GeoIP 更新失败');
+    const geoFailed = Object.keys(geoKindLabels).filter((kind) => hasGeoIssue(detail, kind));
+    for (const kind of geoFailed) parts.push(`${geoKindLabels[kind]} 更新失败`);
     if (hasGeoBlocker(detail)) {
       parts.push('Geo 数据未完成');
-    } else if (!geositeFailed && !geoipFailed) {
+    } else if (geoFailed.length === 0) {
       parts.push('Geo 数据已更新');
     }
-  } else if (detail.scope === 'geosite' || detail.scope === 'geoip') {
+  } else if (isGeoScope(detail.scope)) {
     parts.push(scopeText(detail), getStatusLabel(detail.status), `文件 ${detail.artifacts_processed || 0}`);
   } else {
     parts.push(`指定 ${requested.length}`, `含依赖 ${checked}`, `变更 ${changed}`);

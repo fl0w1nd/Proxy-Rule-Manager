@@ -32,15 +32,20 @@ beforeEach(() => {
 afterEach(() => vi.restoreAllMocks());
 
 describe('GeoDataView', () => {
-  it.each(['geosite', 'geoip'] as const)('starts a %s update and blocks concurrent updates', async (kind) => {
+  it.each(['geosite', 'geoip', 'mmdb', 'asn'] as const)('starts a %s update and blocks concurrent updates', async (tab) => {
     const onStartUpdate = vi.fn();
-    const { rerender } = render(GeoDataView, { kind, onStartUpdate });
-    const name = kind === 'geosite' ? '更新 Geosite' : '更新 GeoIP';
+    const { rerender } = render(GeoDataView, { onStartUpdate });
+    const labels: Record<string, string> = { geosite: 'Geosite', geoip: 'GeoIP', mmdb: 'MMDB', asn: 'ASN' };
+    if (tab !== 'geosite') {
+      await waitFor(() => expect(screen.getByRole('tab', { name: labels[tab] })).toBeEnabled());
+      await fireEvent.click(screen.getByRole('tab', { name: labels[tab] }));
+    }
+    const name = `更新 ${labels[tab]}`;
     const button = screen.getByRole('button', { name });
     await waitFor(() => expect(button).toBeEnabled());
     await fireEvent.click(button);
-    expect(onStartUpdate).toHaveBeenCalledExactlyOnceWith(kind);
-    await rerender({ kind, onStartUpdate, isUpdating: true });
+    expect(onStartUpdate).toHaveBeenCalledExactlyOnceWith(tab);
+    await rerender({ onStartUpdate, isUpdating: true });
     expect(button).toBeDisabled();
   });
 
@@ -104,13 +109,14 @@ describe('GeoDataView', () => {
   });
 });
 
-
 describe('GeoIP providers', () => {
   it('defaults to Loyalsoldier and saves GeoIP output clients', async () => {
     vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients: [{ id: 'surge', name: 'Surge' }] } });
     vi.mocked(api.getGeoProviders).mockResolvedValue({ items: [], supported: ['loyalsoldier', 'v2fly'] });
     const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
-    render(GeoDataView, { kind: 'geoip', onStartUpdate: vi.fn() });
+    render(GeoDataView, { onStartUpdate: vi.fn() });
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'GeoIP' })).toBeEnabled());
+    await fireEvent.click(screen.getByRole('tab', { name: 'GeoIP' }));
     await waitFor(() => expect(screen.getByRole('button', { name: '添加提供商' })).toBeEnabled());
     expect(api.getGeoProviders).toHaveBeenCalledWith('geoip');
     await fireEvent.click(screen.getByRole('button', { name: '添加提供商' }));
@@ -124,7 +130,8 @@ describe('GeoIP providers', () => {
     vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients: [{ id: 'surge', name: 'Surge' }], geoip: { providers: [{ name: 'v2fly', clients: ['surge'] }] } } });
     vi.spyOn(api, 'getGeoCatalog').mockResolvedValue({ provider: 'v2fly', lists: [{ name: 'cn', entries: 2 }], total: 1 });
     vi.spyOn(api, 'getGeoList').mockResolvedValue({ provider: 'v2fly', list: 'cn', total: 1, offset: 0, limit: 100, items: [{ type: 'ipv6', value: '2001:db8::/32' }] });
-    render(GeoDataView, { kind: 'geoip', onStartUpdate: vi.fn() });
+    render(GeoDataView, { onStartUpdate: vi.fn() });
+    await fireEvent.click(await screen.findByRole('tab', { name: 'GeoIP' }));
     await fireEvent.click(await screen.findByRole('button', { name: '目录' }));
     await fireEvent.click(await screen.findByRole('button', { name: 'cn' }));
     await screen.findByText('2001:db8::/32');
@@ -134,3 +141,52 @@ describe('GeoIP providers', () => {
     await waitFor(() => expect(api.getGeoCatalog).toHaveBeenCalledWith('v2fly', '2001:db8::1', 'content', 'geoip'));
   });
 });
+
+describe('MMDB and ASN providers', () => {
+  it('adds an MMDB provider and saves configuration', async () => {
+    vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: {} });
+    vi.mocked(api.getGeoProviders).mockResolvedValue({ items: [], supported: ['loyalsoldier'] });
+    const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
+    render(GeoDataView, { onStartUpdate: vi.fn() });
+    await fireEvent.click(await screen.findByRole('tab', { name: 'MMDB' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: '添加 MMDB' })).toBeEnabled());
+    await fireEvent.click(screen.getByRole('button', { name: '添加 MMDB' }));
+    await fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await screen.findByText('MMDB 提供商已保存');
+    expect(save).toHaveBeenCalledWith(4, [{ op: 'update_mmdb', value: { providers: [expect.objectContaining({ name: 'loyalsoldier' })] } }]);
+  });
+
+  it('edits an MMDB provider and updates host flag', async () => {
+    vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { mmdb: { providers: [{ name: 'loyalsoldier', host: true }] } } });
+    vi.mocked(api.getGeoProviders).mockResolvedValue({
+      items: [{ name: 'loyalsoldier', lists: 0, variants: 0, entries: 0, files: 1, clients: [], checked_at: '2026-09-08T12:00:00.000Z', result: 'updated' }],
+      supported: ['loyalsoldier'],
+    });
+    const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
+    render(GeoDataView, { onStartUpdate: vi.fn() });
+    await fireEvent.click(await screen.findByRole('tab', { name: 'MMDB' }));
+    await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+    const checkbox = screen.getByRole('checkbox', { name: '公开原始数据库' });
+    expect(checkbox).toBeChecked();
+    await fireEvent.click(checkbox);
+    await fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    await screen.findByText('MMDB 提供商已保存');
+    expect(save).toHaveBeenCalledWith(4, [{ op: 'update_mmdb', value: { providers: [{ name: 'loyalsoldier' }] } }]);
+  });
+
+  it('deletes an ASN provider after confirmation', async () => {
+    vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { asn: { providers: [{ name: 'loyalsoldier' }] } } });
+    vi.mocked(api.getGeoProviders).mockResolvedValue({
+      items: [{ name: 'loyalsoldier', lists: 0, variants: 0, entries: 0, files: 1, clients: [], checked_at: '2026-09-08T12:00:00.000Z', result: 'updated' }],
+      supported: ['loyalsoldier'],
+    });
+    const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
+    render(GeoDataView, { onStartUpdate: vi.fn() });
+    await fireEvent.click(await screen.findByRole('tab', { name: 'ASN' }));
+    await fireEvent.click(await screen.findByRole('button', { name: '删除' }));
+    await fireEvent.click(screen.getByRole('button', { name: '确认删除' }));
+    await screen.findByText('ASN 提供商已删除');
+    expect(save).toHaveBeenCalledWith(4, [{ op: 'update_asn', value: null }]);
+  });
+});
+

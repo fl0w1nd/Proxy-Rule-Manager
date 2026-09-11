@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
@@ -66,9 +67,11 @@ type Config struct {
 	Clients []ClientConfig `yaml:"clients"`
 	Rules   []RuleConfig   `yaml:"rules"`
 
-	Geosite *GeositeConfig `yaml:"geosite,omitempty"`
-	GeoIP   *GeoIPConfig   `yaml:"geoip,omitempty"`
-	Update  UpdateConfig   `yaml:"update"`
+	Geosite *GeositeConfig   `yaml:"geosite,omitempty"`
+	GeoIP   *GeoIPConfig     `yaml:"geoip,omitempty"`
+	MMDB    *HostedGeoConfig `yaml:"mmdb,omitempty"`
+	ASN     *HostedGeoConfig `yaml:"asn,omitempty"`
+	Update  UpdateConfig     `yaml:"update"`
 
 	// positions is populated by Load() from the raw YAML node tree;
 	// used by Validate() to attach line numbers to errors.
@@ -196,6 +199,18 @@ type GeoIPConfig struct {
 type GeoIPProvider struct {
 	Name    string   `yaml:"name"`
 	Clients []string `yaml:"clients"`
+	Host    bool     `yaml:"host,omitempty"`
+}
+
+// HostedGeoConfig downloads original geo database files for the public site.
+type HostedGeoConfig struct {
+	Providers []HostedGeoProvider `yaml:"providers"`
+}
+
+// HostedGeoProvider names one upstream database published as a raw file.
+type HostedGeoProvider struct {
+	Name string `yaml:"name"`
+	Host bool   `yaml:"host,omitempty"`
 }
 
 // OpConfig defines one structured operation on parsed entries.
@@ -225,6 +240,7 @@ type GeositeConfig struct {
 type GeositeProvider struct {
 	Name    string   `yaml:"name"`
 	Clients []string `yaml:"clients"`
+	Host    bool     `yaml:"host,omitempty"`
 }
 
 // UpdateConfig controls update scheduling and fetch behavior.
@@ -667,6 +683,8 @@ func (c *Config) Validate(dataDir string) []ConfigError {
 			}
 		}
 	}
+	validateHostedGeoProviders("mmdb", c.MMDB, isSupportedMMDBProvider, addErr)
+	validateHostedGeoProviders("asn", c.ASN, isSupportedASNProvider, addErr)
 	if c.GeoIP != nil {
 		providerNames := map[string]bool{}
 		for i, p := range c.GeoIP.Providers {
@@ -797,4 +815,36 @@ func isSupportedGeoIPProvider(name string) bool {
 		}
 	}
 	return false
+}
+
+func isSupportedMMDBProvider(name string) bool {
+	return geohost.Supports(geohost.KindMMDB, name)
+}
+
+func isSupportedASNProvider(name string) bool {
+	return geohost.Supports(geohost.KindASN, name)
+}
+
+func validateHostedGeoProviders(kind string, cfg *HostedGeoConfig, supported func(string) bool, addErr func(string, string)) {
+	if cfg == nil {
+		return
+	}
+	providerNames := map[string]bool{}
+	for i, p := range cfg.Providers {
+		base := fmt.Sprintf("%s.providers[%d]", kind, i)
+		if p.Name == "" {
+			addErr(base+".name", "required")
+			continue
+		}
+		if !supported(p.Name) {
+			addErr(base+".name", fmt.Sprintf("unsupported %s provider %q", kind, p.Name))
+		}
+		if err := util.EnsureSafeSegment(p.Name, kind+" provider"); err != nil {
+			addErr(base+".name", err.Error())
+		}
+		if providerNames[p.Name] {
+			addErr(base+".name", fmt.Sprintf("duplicate provider name %q", p.Name))
+		}
+		providerNames[p.Name] = true
+	}
 }

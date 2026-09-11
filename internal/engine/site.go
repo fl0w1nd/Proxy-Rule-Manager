@@ -350,6 +350,7 @@ func (e *UpdateEngine) publicIndexData(
 	}
 	idx.Geosite = e.publishedGeoCatalog("geosite", gstats.catalog())
 	idx.GeoIP = e.publishedGeoCatalog("geoip", e.rebuildGeoIPStats().catalog())
+	idx.GeoFiles = e.hostedGeoFiles()
 	return idx
 }
 

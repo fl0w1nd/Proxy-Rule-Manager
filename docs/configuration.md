@@ -201,9 +201,10 @@ geosite:
   providers:
     - name: v2fly
       clients: [mihomo, sing-box]
+      host: true   # 可选；在公开页提供原始 .dat
 ```
 
-产物路径形如 `rules/<客户端>/geosite/v2fly/google.list`。
+产物路径形如 `rules/<客户端>/geosite/v2fly/google.list`。`host: true` 时额外发布 `geo/geosite/<provider>/<文件>`，例如 `geo/geosite/v2fly/dlc.dat`。
 
 ## geoip IP 地址库
 
@@ -218,13 +219,38 @@ geoip:
   providers:
     - name: loyalsoldier
       clients: [mihomo, sing-box]
+      host: true
     - name: v2fly
       clients: [mihomo]
 ```
 
-客户端 ID 引用 `clients` 中的配置，每个客户端会展开自己的格式和变体。产物路径为 `rules/<输出 ID>/geoip/<provider>/<分类><扩展名>`，例如 `rules/mihomo-yaml/geoip/loyalsoldier/cn.yaml`。sing-box 通过 JSON / SRS rule-set 输出 `ip_cidr` 列表。
+客户端 ID 引用 `clients` 中的配置，每个客户端会展开自己的格式和变体。产物路径为 `rules/<输出 ID>/geoip/<provider>/<分类><扩展名>`，例如 `rules/mihomo-yaml/geoip/loyalsoldier/cn.yaml`。sing-box 通过 JSON / SRS rule-set 输出 `ip_cidr` 列表。`host: true` 时额外发布 `geo/geoip/<provider>/geoip.dat`。
 
 管理页的 GeoIP 目录支持按分类名称、IP 地址或 CIDR 检索，并分页预览网段。完整更新刷新上游和自动发布；指定规则更新复用本地缓存。上游刷新失败时继续使用已有缓存，并在更新记录中报告错误。
+
+## mmdb / asn 原始数据库
+
+`mmdb` 与 `asn` 没有分类产物，只在公开页提供 mihomo `geox-url` 使用的原始文件。当前提供商仅 `loyalsoldier`，随 `prm update --geoip` 或完整更新一并下载。CLI 没有单独的 mmdb / asn flag，单独刷新请用管理 API `POST /api/v1/updates` 的 `scope: mmdb` 或 `scope: asn`。
+
+```yaml
+mmdb:
+  providers:
+    - name: loyalsoldier
+      host: true
+asn:
+  providers:
+    - name: loyalsoldier
+      host: true
+```
+
+公开路径：
+
+- `geo/mmdb/loyalsoldier/Country.mmdb`
+- `geo/asn/loyalsoldier/GeoLite2-ASN.mmdb`
+
+`Country.mmdb` 来自上游 Release，数据版本显示 release tag（如 `202609100029`）；`GeoLite2-ASN.mmdb` 取自上游 `release` 分支，没有 release tag，数据版本显示下载内容的内容哈希前 12 位。管理页与公开页都会同时展示这两种格式。
+
+原始数据库优先通过硬链接发布，文件系统不支持时使用文件复制。
 
 ## update：调度与限制
 

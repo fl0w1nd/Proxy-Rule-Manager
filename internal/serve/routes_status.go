@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/engine"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geohost"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geosite"
 	"github.com/fl0w1nd/proxy-rule-manager/version"
@@ -135,6 +136,35 @@ func (s *Server) handleGeoIPProviders(w http.ResponseWriter, _ *http.Request) {
 		}
 		if item.Clients == nil {
 			item.Clients = []string{}
+		}
+		if !summary.CheckedAt.IsZero() {
+			item.CheckedAt = apiTime(summary.CheckedAt)
+		}
+		resp.Items = append(resp.Items, item)
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+func (s *Server) handleMMDBProviders(w http.ResponseWriter, _ *http.Request) {
+	s.writeHostedGeoProviders(w, geohost.KindMMDB, geohost.SupportedMMDB)
+}
+
+func (s *Server) handleASNProviders(w http.ResponseWriter, _ *http.Request) {
+	s.writeHostedGeoProviders(w, geohost.KindASN, geohost.SupportedASN)
+}
+
+func (s *Server) writeHostedGeoProviders(w http.ResponseWriter, kind string, supported []string) {
+	summaries := s.Engine.HostedProviderSummaries(kind)
+	resp := geoProvidersResponse{
+		Items:     make([]geoProviderInfo, 0, len(summaries)),
+		Total:     len(summaries),
+		Supported: append([]string(nil), supported...),
+	}
+	for _, summary := range summaries {
+		item := geoProviderInfo{
+			Name: summary.Name, Version: summary.Version, Result: summary.Result,
+			Clients: []string{},
+			Lists:   summary.Lists, Variants: summary.Variants, Entries: summary.Entries, Files: summary.Files,
 		}
 		if !summary.CheckedAt.IsZero() {
 			item.CheckedAt = apiTime(summary.CheckedAt)

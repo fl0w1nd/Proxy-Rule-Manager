@@ -42,6 +42,8 @@ func (c *Config) DeepCopy() *Config {
 			out.GeoIP.Providers[i].Clients = append([]string(nil), c.GeoIP.Providers[i].Clients...)
 		}
 	}
+	out.MMDB = copyHostedGeo(c.MMDB)
+	out.ASN = copyHostedGeo(c.ASN)
 	if c.positions != nil {
 		out.positions = &PositionIndex{entries: make(map[string]Position, len(c.positions.entries))}
 		for path, position := range c.positions.entries {
@@ -49,6 +51,15 @@ func (c *Config) DeepCopy() *Config {
 		}
 	}
 	return &out
+}
+
+func copyHostedGeo(cfg *HostedGeoConfig) *HostedGeoConfig {
+	if cfg == nil {
+		return nil
+	}
+	out := &HostedGeoConfig{Providers: make([]HostedGeoProvider, len(cfg.Providers))}
+	copy(out.Providers, cfg.Providers)
+	return out
 }
 
 func copyOps(ops []OpConfig) []OpConfig {

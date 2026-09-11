@@ -112,6 +112,17 @@ type IndexData struct {
 	Geosite   []GeoCatalog `json:"geosite"`
 	GeoIP     []GeoCatalog `json:"geoip"`
 	IconSets  []IconSet    `json:"icon_sets"`
+	GeoFiles  []GeoFile    `json:"geo_files"`
+}
+
+// GeoFile is an original database published at /geo/{kind}/{provider}/{name}.
+type GeoFile struct {
+	Kind     string `json:"kind"`
+	Provider string `json:"provider"`
+	Name     string `json:"name"`
+	Path     string `json:"path"`
+	Size     int64  `json:"size"`
+	Version  string `json:"version,omitempty"`
 }
 
 var funcMap = template.FuncMap{
@@ -208,6 +219,7 @@ func publicDataJSON(index *IndexData) (template.JS, error) {
 	}
 	payload.Geosite = cloneGeoCatalogs(index.Geosite)
 	payload.GeoIP = cloneGeoCatalogs(index.GeoIP)
+	payload.GeoFiles = append([]GeoFile{}, index.GeoFiles...)
 	payload.IconSets = make([]IconSet, len(index.IconSets))
 	for i, set := range index.IconSets {
 		payload.IconSets[i] = set

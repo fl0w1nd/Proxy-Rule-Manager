@@ -162,7 +162,7 @@ func (m *Manager) prepare(parent context.Context, req Request, origin string) (*
 
 func (m *Manager) normalize(req Request) (Request, error) {
 	switch req.Scope {
-	case "all", "geosite", "geoip":
+	case "all", "geosite", "geoip", "mmdb", "asn":
 		if len(req.RuleIDs) > 0 {
 			return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "指定规则 ID 时更新范围必须是 rules", Details: map[string]any{}}
 		}
@@ -172,7 +172,7 @@ func (m *Manager) normalize(req Request) (Request, error) {
 			return Request{}, &ValidationError{Code: "invalid_rule_ids", Message: "规则更新至少需要一个规则 ID", Details: map[string]any{}}
 		}
 	default:
-		return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "更新范围必须是 all、rules、geosite 或 geoip", Details: map[string]any{}}
+		return Request{}, &ValidationError{Code: "invalid_update_scope", Message: "更新范围必须是 all、rules、geosite、geoip、mmdb 或 asn", Details: map[string]any{}}
 	}
 
 	requested := make(map[string]struct{}, len(req.RuleIDs))
@@ -211,7 +211,7 @@ func (m *Manager) execute(ctx context.Context, job *Job) {
 	switch job.Request.Scope {
 	case "rules":
 		result = m.runner.PartialUpdate(ctx, job.Request.RuleIDs)
-	case "geosite", "geoip":
+	case "geosite", "geoip", "mmdb", "asn":
 		result = m.runner.GeoUpdate(ctx, job.Request.Scope)
 	default:
 		result = m.runner.FullUpdate(ctx)

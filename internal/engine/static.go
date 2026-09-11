@@ -39,6 +39,9 @@ func (e *UpdateEngine) ExportStatic(outputDir string) error {
 	if err := copyStaticTree(filepath.Join(e.DataDir, "rules"), filepath.Join(staging, "rules")); err != nil {
 		return fmt.Errorf("copy rules: %w", err)
 	}
+	if err := copyStaticTreeIfExists(filepath.Join(e.DataDir, "geo"), filepath.Join(staging, "geo")); err != nil {
+		return fmt.Errorf("copy geo: %w", err)
+	}
 	stagingStatic := filepath.Join(staging, site.StaticDir)
 	if err := copyStaticTree(
 		filepath.Join(e.DataDir, site.StaticDir, "icons"),
@@ -145,6 +148,15 @@ func pathWithin(path, root string) bool {
 	rel, err := filepath.Rel(root, path)
 	return err == nil && !filepath.IsAbs(rel) &&
 		(rel == "." || (rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))))
+}
+
+func copyStaticTreeIfExists(source, destination string) error {
+	if _, err := os.Lstat(source); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return copyStaticTree(source, destination)
 }
 
 func copyStaticTree(source, destination string) error {

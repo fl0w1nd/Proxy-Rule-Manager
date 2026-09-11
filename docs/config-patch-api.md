@@ -88,6 +88,8 @@ Config Patch API 为管理界面提供带版本检查的配置事务。所有端
 | `update_history` | `value`，包含 `history_retention` 与 `history_limit` |
 | `update_geosite` | `value`；`null` 清除 geosite 配置 |
 | `update_geoip` | `value`；`null` 清除 geoip 配置 |
+| `update_mmdb` | `value`；`null` 清除 mmdb 配置 |
+| `update_asn` | `value`；`null` 清除 asn 配置 |
 
 客户端、规则和设置更新采用整对象替换：提交的 `value` 中省略的键会从 YAML 中消失，运行时按既有默认值规则回填（与手写 YAML 省略字段一致），不是 JSON merge。替换类操作一旦提交即记为已执行，版本递增，即使结果内容与当前一致。输出增删采用幂等语义：目标状态已满足时（添加已存在的输出、移除不存在的输出）操作不生效，返回当前版本。客户端收到 `config_version_conflict` 时应通过 `GET /config` 刷新版本与内容。
 

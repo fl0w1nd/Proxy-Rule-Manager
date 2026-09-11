@@ -178,6 +178,10 @@ func applyPatchOperation(doc *yaml.Node, op PatchOp) (bool, string, error) {
 		return updateGeoData(doc, "geosite", op.Value)
 	case "update_geoip":
 		return updateGeoData(doc, "geoip", op.Value)
+	case "update_mmdb":
+		return updateGeoData(doc, "mmdb", op.Value)
+	case "update_asn":
+		return updateGeoData(doc, "asn", op.Value)
 	default:
 		return false, "op", fmt.Errorf("unknown operation %q", op.Type)
 	}
