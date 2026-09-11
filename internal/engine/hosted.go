@@ -104,7 +104,7 @@ func (e *UpdateEngine) refreshHostedKind(ctx context.Context, kind, label string
 	if len(names) == 0 {
 		return
 	}
-	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: kind + "_refresh", Status: "running", Message: "正在刷新 " + label})
+	reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: kind + "_refresh", Status: "running", Message: "正在检查 " + label})
 	previous := map[string]*geohost.Cache{}
 	if mgr != nil {
 		for _, name := range names {
@@ -122,7 +122,7 @@ func (e *UpdateEngine) refreshHostedKind(ctx context.Context, kind, label string
 			continue
 		}
 		status := state.ProviderUpdated
-		if old, current := previous[name], caches[name]; old != nil && current != nil && old.ResolvedVersion == current.ResolvedVersion {
+		if old, current := previous[name], caches[name]; old != nil && current != nil && geodata.SameContent(old, current) {
 			status = state.ProviderUnchanged
 		}
 		e.recordHostedGeoUpdate(kind, name, status, now, result)
@@ -243,6 +243,11 @@ func publishHostedProvider(ctx context.Context, e *UpdateEngine, kind, provider 
 // published copy live in the same data directory, so a hard link keeps a single
 // copy on disk; file systems without hard links fall back to a plain copy.
 func publishHostedFile(src, dst string) error {
+	if source, err := os.Stat(src); err == nil {
+		if destination, err := os.Stat(dst); err == nil && os.SameFile(source, destination) {
+			return nil
+		}
+	}
 	if err := util.EnsureDir(filepath.Dir(dst)); err != nil {
 		return err
 	}

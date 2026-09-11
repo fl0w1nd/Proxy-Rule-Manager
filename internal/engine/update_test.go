@@ -50,10 +50,12 @@ func TestGeositeRemovalWarnings(t *testing.T) {
 func TestGeositeTransientFailureEmitsRetryProgress(t *testing.T) {
 	attempts := 0
 	manager := geosite.NewManager(t.TempDir())
-	manager.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(*http.Request) (*http.Response, error) {
-		attempts++
-		if attempts == 1 {
-			return nil, errors.New("TLS handshake timeout")
+	manager.SetHTTPClient(&http.Client{Transport: roundTripFunc(func(req *http.Request) (*http.Response, error) {
+		if req.URL.Host == "api.github.com" {
+			attempts++
+			if attempts == 1 {
+				return nil, errors.New("TLS handshake timeout")
+			}
 		}
 		return &http.Response{
 			StatusCode: http.StatusNotFound,

@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"log/slog"
@@ -190,7 +191,7 @@ func (e *UpdateEngine) update(ctx context.Context, rules []config.RuleConfig, sc
 	if !refreshGeosite {
 		geositeProviders = e.readCachedGeositeProviders(sorted)
 	} else {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_refresh", Status: "running", Message: "正在刷新 Geosite"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geosite_refresh", Status: "running", Message: "正在检查 Geosite"})
 		var geositeResults map[string]string
 		var geositeWarnings []string
 		var geositeErrors map[string]string
@@ -215,6 +216,9 @@ func (e *UpdateEngine) update(ctx context.Context, rules []config.RuleConfig, sc
 				version = cache.ResolvedVersion
 			}
 			fetchResult := geositeResults[name]
+			if fetchResult != state.ProviderFailed {
+				reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "geosite_refresh", Subject: name, Status: fetchResult, Message: fmt.Sprintf("Geosite %s · %s", name, fetchResult)})
+			}
 			e.State.SetGeositeUpdate(name, fetchResult, geositeCheckedAt)
 			gstats.setMeta(name, version, fetchResult, geositeCheckedAt)
 		}
@@ -660,7 +664,7 @@ func geositeFetchResult(previous, current *geosite.ProviderCache, failed bool) s
 	if failed {
 		return state.ProviderFailed
 	}
-	if previous != nil && current != nil && previous.ResolvedVersion == current.ResolvedVersion {
+	if geodata.SameContent(previous, current) {
 		return state.ProviderUnchanged
 	}
 	return state.ProviderUpdated
@@ -906,9 +910,12 @@ func (e *UpdateEngine) publishGeoEntries(kind, reference, provider string, irEnt
 			}
 			continue
 		}
-		if err := util.AtomicWriteFile(artifactPath, rendered); err != nil {
-			result.addError(kind+"_publish", reference, fmt.Sprintf("write artifact: %v", err))
-			continue
+		existing, readErr := os.ReadFile(artifactPath)
+		if readErr != nil || !bytes.Equal(existing, rendered) {
+			if err := util.AtomicWriteFile(artifactPath, rendered); err != nil {
+				result.addError(kind+"_publish", reference, fmt.Sprintf("write artifact: %v", err))
+				continue
+			}
 		}
 		expectedPaths[filepath.Clean(artifactPath)] = struct{}{}
 		result.Artifacts++

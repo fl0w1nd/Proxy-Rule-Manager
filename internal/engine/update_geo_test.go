@@ -71,9 +71,9 @@ func TestGeoUpdateRefreshesSelectedDatabaseAndPublications(t *testing.T) {
 					switch req.URL.Path {
 					case "/repos/" + repository + "/releases/latest":
 						body = fmt.Sprintf(`{"tag_name":"v2","assets":[{"name":%q,"browser_download_url":"https://download.test/%s"},{"name":"%s.sha256sum","browser_download_url":"https://download.test/%s.sha256sum"}]}`, asset, asset, asset, asset)
-					case "/" + asset:
+					case "/" + asset, "/" + repository + "/releases/latest/download/" + asset:
 						body = string(payload)
-					case "/" + asset + ".sha256sum":
+					case "/" + asset + ".sha256sum", "/" + repository + "/releases/latest/download/" + asset + ".sha256sum":
 						body = fmt.Sprintf("%x", sha256.Sum256(payload))
 					default:
 						t.Errorf("unexpected request: %s", req.URL)

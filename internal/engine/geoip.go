@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/geodata"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/geoip"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/state"
 )
@@ -34,7 +35,7 @@ func (e *UpdateEngine) loadGeoIP(ctx context.Context, rules []config.RuleConfig,
 		}
 	}
 	if len(names) > 0 {
-		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geoip_refresh", Status: "running", Message: "正在刷新 GeoIP"})
+		reportProgress(ctx, ProgressEvent{Kind: ProgressInfo, Stage: "geoip_refresh", Status: "running", Message: "正在检查 GeoIP"})
 	}
 	caches, failed, fetchErrors := refreshGeoIPProviders(ctx, cfg, e.GeoIP, e.Logger)
 	for _, name := range names {
@@ -45,7 +46,7 @@ func (e *UpdateEngine) loadGeoIP(ctx context.Context, rules []config.RuleConfig,
 			result.addError("geoip_refresh", name, message)
 			reportProgress(ctx, ProgressEvent{Kind: ProgressError, Stage: "geoip_refresh", Subject: name, Status: "failed", Message: message})
 		} else if old, current := previous[name], caches[name]; old != nil && current != nil {
-			if old.ResolvedVersion == current.ResolvedVersion {
+			if geodata.SameContent(old, current) {
 				status = state.ProviderUnchanged
 			}
 			for _, list := range old.Catalog {
@@ -57,6 +58,9 @@ func (e *UpdateEngine) loadGeoIP(ctx context.Context, rules []config.RuleConfig,
 			}
 		}
 		e.State.SetGeoIPUpdate(name, status, time.Now())
+		if !failed[name] {
+			reportProgress(ctx, ProgressEvent{Kind: ProgressSuccess, Stage: "geoip_refresh", Subject: name, Status: status, Message: fmt.Sprintf("GeoIP %s · %s", name, status)})
+		}
 	}
 	return caches
 }

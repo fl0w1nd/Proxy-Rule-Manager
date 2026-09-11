@@ -3,6 +3,7 @@ package geodata
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -195,6 +196,10 @@ func (m *Manager[E]) Refresh(ctx context.Context, provider string) (*Cache[E], e
 		state.err = err
 		return nil, err
 	}
+	if previous, _ := m.Read(provider); previous == cache {
+		state.cache = cache
+		return cache, nil
+	}
 	if err := m.write(cache); err != nil {
 		state.err = err
 		return nil, err
@@ -356,6 +361,7 @@ type githubRelease struct {
 	TagName string `json:"tag_name"`
 	Assets  []struct {
 		Name               string `json:"name"`
+		Digest             string `json:"digest"`
 		BrowserDownloadURL string `json:"browser_download_url"`
 	} `json:"assets"`
 }
@@ -382,84 +388,86 @@ func (m *Manager[E]) download(ctx context.Context, provider string) (*Cache[E], 
 	if !ok {
 		return nil, fmt.Errorf("unsupported %s provider: %s", m.kind, provider)
 	}
-	version, payload, err := m.fetchAsset(ctx, source)
+	headers := map[string]string{"Accept": "application/octet-stream"}
+	version, digest := "", ""
+	assetURL := "https://github.com/" + source.Repository + "/releases/latest/download/" + source.Asset
+	checksumURL := assetURL + ".sha256sum"
+	if source.Ref != "" {
+		assetURL = "https://raw.githubusercontent.com/" + source.Repository + "/" + source.Ref + "/" + source.Asset
+		checksumURL = assetURL + ".sha256sum"
+	} else if release, err := m.latestRelease(ctx, source.Repository); err == nil {
+		version = release.TagName
+		if url := release.assetURL(source.Asset); url != "" {
+			assetURL = url
+		}
+		if url := release.assetURL(source.Asset + ".sha256sum"); url != "" {
+			checksumURL = url
+		}
+		for _, asset := range release.Assets {
+			if asset.Name == source.Asset {
+				digest = parseSHA256(strings.TrimPrefix(asset.Digest, "sha256:"))
+			}
+		}
+	}
+	if source.Checksum && digest == "" {
+		if checksum, err := m.fetchBytes(ctx, checksumURL, headers); err == nil {
+			digest = parseSHA256(string(checksum))
+		}
+	}
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	previous, _ := m.Read(provider)
+	// Verify the local original as well as its parsed cache before reusing it.
+	rawPath, err := m.RawPath(provider)
 	if err != nil {
 		return nil, err
+	}
+	local, localErr := os.ReadFile(rawPath)
+	localDigest := fmt.Sprintf("%x", sha256.Sum256(local))
+	reusable := localErr == nil && previous != nil && previous.SHA256 != "" && previous.SHA256 == localDigest
+	if digest != "" && reusable && digest == previous.SHA256 {
+		return previous, nil
+	}
+	payload, err := m.fetchBytes(ctx, assetURL, headers)
+	if err != nil {
+		return nil, err
+	}
+	actual := fmt.Sprintf("%x", sha256.Sum256(payload))
+	if digest != "" && actual != digest {
+		return nil, fmt.Errorf("checksum mismatch: got %s, want %s", actual, digest)
+	}
+	if previous != nil && previous.SHA256 == actual {
+		if !reusable {
+			if err := m.writeRaw(provider, payload); err != nil {
+				return nil, err
+			}
+		}
+		return previous, nil
+	}
+	if version == "" {
+		version = actual[:12]
 	}
 	cache, err := m.decode(payload, provider, version)
 	if err != nil {
 		return nil, err
 	}
+	cache.SHA256 = actual
 	if err := m.writeRaw(provider, payload); err != nil {
 		return nil, err
 	}
 	return cache, nil
 }
 
-func (m *Manager[E]) fetchAsset(ctx context.Context, source Source) (string, []byte, error) {
-	if source.Ref != "" {
-		return m.fetchRefAsset(ctx, source)
-	}
-	return m.fetchReleaseAsset(ctx, source)
-}
-
-func (m *Manager[E]) fetchReleaseAsset(ctx context.Context, source Source) (string, []byte, error) {
-	release, err := m.latestRelease(ctx, source.Repository)
-	if err != nil {
-		return "", nil, err
-	}
-	assetURL := release.assetURL(source.Asset)
-	if assetURL == "" {
-		return "", nil, fmt.Errorf("release missing %s", source.Asset)
-	}
-	payload, err := m.fetchBytes(ctx, assetURL, map[string]string{"Accept": "application/octet-stream"})
-	if err != nil {
-		return "", nil, err
-	}
-	if source.Checksum {
-		checksumURL := release.assetURL(source.Asset + ".sha256sum")
-		if checksumURL == "" {
-			return "", nil, fmt.Errorf("release missing %s", source.Asset+".sha256sum")
-		}
-		checksum, err := m.fetchBytes(ctx, checksumURL, map[string]string{"Accept": "application/octet-stream"})
-		if err != nil {
-			return "", nil, err
-		}
-		if err := verifySHA256(payload, checksum); err != nil {
-			return "", nil, err
-		}
-	}
-	return release.TagName, payload, nil
-}
-
-func (m *Manager[E]) fetchRefAsset(ctx context.Context, source Source) (string, []byte, error) {
-	base := "https://raw.githubusercontent.com/" + source.Repository + "/" + source.Ref + "/" + source.Asset
-	payload, err := m.fetchBytes(ctx, base, map[string]string{"Accept": "application/octet-stream"})
-	if err != nil {
-		return "", nil, err
-	}
-	if source.Checksum {
-		checksum, err := m.fetchBytes(ctx, base+".sha256sum", map[string]string{"Accept": "application/octet-stream"})
-		if err != nil {
-			return "", nil, err
-		}
-		if err := verifySHA256(payload, checksum); err != nil {
-			return "", nil, err
-		}
-	}
-	return fmt.Sprintf("%x", sha256.Sum256(payload))[:12], payload, nil
-}
-
-func verifySHA256(payload, checksumFile []byte) error {
-	fields := strings.Fields(string(checksumFile))
+func parseSHA256(value string) string {
+	fields := strings.Fields(value)
 	if len(fields) == 0 || len(fields[0]) != sha256.Size*2 {
-		return errors.New("invalid SHA256 checksum file")
+		return ""
 	}
-	actual := fmt.Sprintf("%x", sha256.Sum256(payload))
-	if !strings.EqualFold(actual, fields[0]) {
-		return fmt.Errorf("checksum mismatch: got %s, want %s", actual, fields[0])
+	if _, err := hex.DecodeString(fields[0]); err != nil {
+		return ""
 	}
-	return nil
+	return strings.ToLower(fields[0])
 }
 
 func (m *Manager[E]) fetchJSON(ctx context.Context, url string, target any) error {
