@@ -73,11 +73,7 @@ func geoKindsForScope(scope string) map[string]bool {
 		for _, kind := range geoDataKinds {
 			kinds[kind] = true
 		}
-	case "geoip":
-		kinds["geoip"] = true
-		kinds[geohost.KindMMDB] = true
-		kinds[geohost.KindASN] = true
-	case "geosite", geohost.KindMMDB, geohost.KindASN:
+	case "geosite", "geoip", geohost.KindMMDB, geohost.KindASN:
 		kinds[scope] = true
 	}
 	return kinds
