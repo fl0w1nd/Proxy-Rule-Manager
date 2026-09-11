@@ -207,6 +207,22 @@ func TestRenderRejectsLogicalEntries(t *testing.T) {
 	}
 }
 
+func TestRenderSingboxUnsupportedLogicalCondition(t *testing.T) {
+	for _, codec := range []string{"singbox", "singbox_srs"} {
+		t.Run(codec, func(t *testing.T) {
+			tmpl := singboxTemplate()
+			tmpl.Codec = codec
+			entries := []ir.Entry{{Kind: ir.KindAnd, Sub: []ir.Entry{
+				{Kind: ir.KindDomain, Value: "example.com"},
+				{Kind: ir.KindGeoIP, Value: "CN"},
+			}}}
+			if output, err := Render(tmpl, entries); err == nil || len(output) != 0 {
+				t.Fatalf("unsupported logical condition: output=%q err=%v", output, err)
+			}
+		})
+	}
+}
+
 func TestRenderSingboxLogical(t *testing.T) {
 	tmpl := singboxTemplate()
 	entries := []ir.Entry{

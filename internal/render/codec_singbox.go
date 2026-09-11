@@ -172,9 +172,10 @@ func buildLogicalSingboxRule(tmpl *Template, entry ir.Entry) (singboxRule, error
 		if err != nil {
 			return singboxRule{}, err
 		}
-		if !subRule.empty() {
-			rule.Subs = append(rule.Subs, subRule)
+		if subRule.empty() {
+			return singboxRule{}, fmt.Errorf("template %q cannot render %s condition in %s rule", tmpl.ID, sub.Kind, entry.Kind)
 		}
+		rule.Subs = append(rule.Subs, subRule)
 	}
 
 	return rule, nil
