@@ -93,17 +93,16 @@ func (s *Server) Handler() http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 
-	// Public: static rule artifacts
+	// Public artifacts: store at CDN/browser, revalidate with origin before use.
 	rulesDir := filepath.Join(s.DataDir, "rules")
-	r.Handle("/rules/*", http.StripPrefix("/rules/", http.FileServer(http.Dir(rulesDir))))
+	r.Handle("/rules/*", publicRevalidate(http.StripPrefix("/rules/", http.FileServer(http.Dir(rulesDir)))))
 	geoDir := filepath.Join(s.DataDir, "geo")
-	r.Handle("/geo/*", http.StripPrefix("/geo/", http.FileServer(http.Dir(geoDir))))
+	r.Handle("/geo/*", publicRevalidate(http.StripPrefix("/geo/", http.FileServer(http.Dir(geoDir)))))
 
-	// Public: generated pages and static assets (icons, etc.)
 	iconsDir := filepath.Join(s.DataDir, "static", "icons")
-	r.Handle("/static/icons/*", http.StripPrefix("/static/icons/", http.FileServer(http.Dir(iconsDir))))
+	r.Handle("/static/icons/*", publicRevalidate(http.StripPrefix("/static/icons/", http.FileServer(http.Dir(iconsDir)))))
 	assetsDir := filepath.Join(s.DataDir, "static", "assets")
-	r.Handle("/static/assets/*", http.StripPrefix("/static/assets/", http.FileServer(http.Dir(assetsDir))))
+	r.Handle("/static/assets/*", publicRevalidate(http.StripPrefix("/static/assets/", http.FileServer(http.Dir(assetsDir)))))
 	r.Get("/", s.handleSitePage("static/index.html"))
 	r.Get("/index.html", s.handleSitePage("static/index.html"))
 
@@ -266,6 +265,13 @@ func (s *Server) bearerGuard(next http.Handler) http.Handler {
 func noStore(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Cache-Control", "no-store")
+		next.ServeHTTP(w, r)
+	})
+}
+
+func publicRevalidate(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Cache-Control", "public, no-cache")
 		next.ServeHTTP(w, r)
 	})
 }

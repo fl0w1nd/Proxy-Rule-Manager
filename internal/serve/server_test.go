@@ -163,6 +163,15 @@ func TestPublicRoutesAreNarrowed(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(staticDir, "assets", "public.js"), []byte("bundle"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.MkdirAll(filepath.Join(s.DataDir, "geo", "geosite", "v2fly"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.DataDir, "rules", "surge", "apple.list"), []byte("DOMAIN,apple.example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(s.DataDir, "geo", "geosite", "v2fly", "dlc.dat"), []byte("dat"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for _, target := range []string{"/static/admin.html", "/api/status", "/api/logs", "/api/update"} {
 		rec := httptest.NewRecorder()
 		s.Handler().ServeHTTP(rec, authorized(http.MethodGet, target, nil))
@@ -170,15 +179,22 @@ func TestPublicRoutesAreNarrowed(t *testing.T) {
 			t.Fatalf("%s status=%d", target, rec.Code)
 		}
 	}
-	rec := httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/icons/prm.svg", nil))
-	if rec.Code != http.StatusOK || rec.Body.String() != "icon" {
-		t.Fatalf("icon=%d %q", rec.Code, rec.Body.String())
-	}
-	rec = httptest.NewRecorder()
-	s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/static/assets/public.js", nil))
-	if rec.Code != http.StatusOK || rec.Body.String() != "bundle" {
-		t.Fatalf("asset=%d %q", rec.Code, rec.Body.String())
+	for _, file := range []struct {
+		target, body string
+	}{
+		{target: "/static/icons/prm.svg", body: "icon"},
+		{target: "/static/assets/public.js", body: "bundle"},
+		{target: "/rules/surge/apple.list", body: "DOMAIN,apple.example\n"},
+		{target: "/geo/geosite/v2fly/dlc.dat", body: "dat"},
+	} {
+		rec := httptest.NewRecorder()
+		s.Handler().ServeHTTP(rec, httptest.NewRequest(http.MethodGet, file.target, nil))
+		if rec.Code != http.StatusOK || rec.Body.String() != file.body {
+			t.Fatalf("%s status=%d body=%q", file.target, rec.Code, rec.Body.String())
+		}
+		if rec.Header().Get("Cache-Control") != "public, no-cache" {
+			t.Fatalf("%s cache-control=%q", file.target, rec.Header().Get("Cache-Control"))
+		}
 	}
 }
 
