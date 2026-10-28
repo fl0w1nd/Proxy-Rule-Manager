@@ -4,7 +4,7 @@ go 1.25.0
 
 require (
 	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
-	github.com/go-chi/chi/v5 v5.2.5
+	github.com/go-chi/chi/v5 v5.4.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/sagernet/sing v0.9.3
 	github.com/spf13/cobra v1.9.1
