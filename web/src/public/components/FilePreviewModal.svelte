@@ -8,12 +8,15 @@
 </script>
 
 <script lang="ts">
+  import { tick } from 'svelte';
+  import { OverlayScrollbars } from 'overlayscrollbars';
   import CodePanel from '../../components/CodePanel.svelte';
   import PixelButton from '../../components/pixel/PixelButton.svelte';
   import PixelIcon from '../../components/pixel/PixelIcon.svelte';
   import type { PreviewItem, PublicClient, PublicClientOption } from '../types';
   import { copyURL, formatBytes, formatCount } from '../utils';
   import { retroScroll } from '../../utils/scrollbars';
+  import { lockScroll } from '../../utils/scrollLock';
 
   interface Props {
     item: PreviewItem | null;
@@ -37,14 +40,32 @@
     }
   }
 
+  let modalEl = $state<HTMLElement | null>(null);
+  let preEl = $state<HTMLElement | null>(null);
+
+  // 页面滚动由 OverlayScrollbars 接管 <html>，只锁 body 的 overflow 拦不住背景滚动。
   $effect(() => {
-    if (item) {
-      const originalOverflow = document.body.style.overflow;
-      document.body.style.overflow = 'hidden';
-      return () => {
-        document.body.style.overflow = originalOverflow;
-      };
-    }
+    if (item && modalEl) return lockScroll(modalEl);
+  });
+
+  // pre 先以「加载中…」一行的高度初始化滚动条，内容到达后高度才撑开。
+  // OverlayScrollbars 偶尔漏掉这次尺寸变化，滑块就停在按旧高度算出的大小和位置上，所以在内容变化后强制重算。
+  $effect(() => {
+    void previewText;
+    const el = preEl;
+    if (!el) return;
+    const refresh = () => OverlayScrollbars(el)?.update(true);
+    let frame = 0;
+    tick().then(() => {
+      refresh();
+      frame = requestAnimationFrame(() => { refresh(); frame = requestAnimationFrame(refresh); });
+    });
+    const timer = setTimeout(refresh, 250);
+    document.fonts?.ready.then(refresh);
+    return () => {
+      cancelAnimationFrame(frame);
+      clearTimeout(timer);
+    };
   });
 
   $effect(() => {
@@ -120,7 +141,7 @@
 
 {#if item}
   <div class="modal-backdrop" role="presentation" onclick={(event) => { if (event.target === event.currentTarget) onclose(); }}>
-    <div class="file-modal" role="dialog" aria-modal="true" aria-labelledby="preview-title">
+    <div class="file-modal" bind:this={modalEl} role="dialog" aria-modal="true" aria-labelledby="preview-title">
       <header class="modal-head">
         <h2 id="preview-title">{item.title}</h2>
         <button type="button" class="modal-close" aria-label="关闭" onclick={onclose}><PixelIcon name="cross" size={12} /></button>
@@ -141,8 +162,8 @@
         <p class="binary-note">二进制规则集（{target.ext}）无法以文本预览，可下载后导入客户端。</p>
       {:else}
         <div class="preview-shell" data-state={previewState}>
-          <CodePanel filename={item.path?.split('/').pop()} stat={previewStat}>
-            <pre use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+          <CodePanel fill filename={item.path?.split('/').pop()} stat={previewStat}>
+            <pre bind:this={preEl} use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
           </CodePanel>
         </div>
       {/if}
