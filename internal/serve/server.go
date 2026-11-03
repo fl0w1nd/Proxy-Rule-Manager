@@ -83,13 +83,12 @@ func (s *Server) config() *config.Config {
 func (s *Server) Handler() http.Handler {
 	r := chi.NewRouter()
 
-	// proxyAware runs before middleware.RealIP so it sees the real TCP peer
-	// (RealIP rewrites RemoteAddr from forwarded headers). It stashes the
-	// proxy-aware HTTPS decision in the request context for cookie Secure and
-	// same-origin checks.
+	// proxyAware reads the TCP peer directly. Forwarded headers are only
+	// honored for configured trusted proxies, so clients cannot spoof the
+	// effective scheme. It stashes the proxy-aware HTTPS decision in the
+	// request context for cookie Secure and same-origin checks.
 	r.Use(s.proxyAware)
 	r.Use(securityHeaders)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 
@@ -334,13 +333,12 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 }
 
 // secureCtxKey is the context key for the proxy-aware HTTPS decision computed
-// by proxyAware before chi's RealIP middleware rewrites RemoteAddr.
+// by proxyAware from the original TCP peer.
 type secureCtxKey struct{}
 
 // proxyAware determines whether the current request is HTTPS — accounting for
 // TLS-terminating reverse proxies — and stores the result in the request
-// context. It must run before middleware.RealIP so it inspects the original
-// TCP peer rather than the forwarded-for value.
+// context. It inspects the original TCP peer rather than forwarded values.
 func (s *Server) proxyAware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		https := s.requestIsHTTPS(r)
