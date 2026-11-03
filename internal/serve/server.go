@@ -153,6 +153,8 @@ func (s *Server) Handler() http.Handler {
 		r.Get("/local-files/{name}", s.handleLocalFile)
 		r.Put("/local-files/{name}", s.sameOriginMutation(s.handleLocalFileUpdate))
 		r.Delete("/local-files/{name}", s.sameOriginMutation(s.handleLocalFileDelete))
+		r.Get("/rule-syntax", s.handleRuleSyntax)
+		r.Post("/rule-syntax/lint", s.sameOriginMutation(s.handleRuleSyntaxLint))
 	})
 
 	return r

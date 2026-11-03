@@ -26,15 +26,17 @@ type rulePreviewRequest struct {
 }
 
 type rulePreviewSource struct {
-	Details        []string `json:"details,omitempty"`
-	Label          string   `json:"label"`
-	Type           string   `json:"type"`
-	Entries        int      `json:"entries"`
-	Diagnostics    int      `json:"diagnostics"`
-	Error          string   `json:"error,omitempty"`
-	DurationMs     int64    `json:"duration_ms"`
-	CacheFetchedAt string   `json:"cache_fetched_at,omitempty"`
-	CacheVersion   string   `json:"cache_version,omitempty"`
+	Details     []string `json:"details,omitempty"`
+	Label       string   `json:"label"`
+	Type        string   `json:"type"`
+	Entries     int      `json:"entries"`
+	Diagnostics int      `json:"diagnostics"`
+	// DiagnosticItems holds the first unparseable lines of the source.
+	DiagnosticItems []ir.Diagnostic `json:"diagnostic_items,omitempty"`
+	Error           string          `json:"error,omitempty"`
+	DurationMs      int64           `json:"duration_ms"`
+	CacheFetchedAt  string          `json:"cache_fetched_at,omitempty"`
+	CacheVersion    string          `json:"cache_version,omitempty"`
 }
 
 type rulePreviewArtifact struct {
@@ -149,6 +151,9 @@ func (s *Server) handleRulePreview(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, buildRulePreviewResponse(cfg, report, time.Since(started), s.Engine.Registry))
 }
 
+// previewDiagnosticItems bounds the per-source diagnostics a preview echoes.
+const previewDiagnosticItems = 20
+
 func overlayRule(cfg *config.Config, rule config.RuleConfig) {
 	for i := range cfg.Rules {
 		if cfg.Rules[i].ID == rule.ID {
@@ -184,15 +189,16 @@ func buildRulePreviewResponse(cfg *config.Config, report *engine.PreviewReport, 
 			}
 		}
 		sources = append(sources, rulePreviewSource{
-			Label:          label,
-			Details:        details,
-			Type:           source.Type,
-			Entries:        len(source.Entries),
-			Diagnostics:    len(source.Diagnostics),
-			Error:          source.Error,
-			DurationMs:     source.DurationMs,
-			CacheFetchedAt: source.CacheFetchedAt,
-			CacheVersion:   source.CacheVersion,
+			Label:           label,
+			Details:         details,
+			Type:            source.Type,
+			Entries:         len(source.Entries),
+			Diagnostics:     len(source.Diagnostics),
+			DiagnosticItems: source.Diagnostics[:min(len(source.Diagnostics), previewDiagnosticItems)],
+			Error:           source.Error,
+			DurationMs:      source.DurationMs,
+			CacheFetchedAt:  source.CacheFetchedAt,
+			CacheVersion:    source.CacheVersion,
 		})
 	}
 	targets := config.ExpandSelectedTargets(cfg.Clients, previewOutputIDs(cfg, report.RuleID))
