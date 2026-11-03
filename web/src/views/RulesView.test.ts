@@ -301,26 +301,33 @@ describe('RulesView', () => {
   });
 });
 
-it('groups sources by dragging and saves shared processing inside the group', async () => {
+async function openSources() {
+  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
+}
+
+async function chooseMenu(menu: string, item: string) {
+  await fireEvent.click(screen.getByRole('button', { name: menu }));
+  await fireEvent.click(screen.getByRole('menuitem', { name: item }));
+}
+
+it('merges one source into another and saves shared processing on the row', async () => {
   vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources: [
     { url: 'https://example/a' }, { url: 'https://example/b' },
   ] }] } });
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
-  await fireEvent.dragStart(screen.getByRole('button', { name: '拖动来源 2' }), { dataTransfer: { setData: vi.fn() } });
-  await fireEvent.drop(screen.getByRole('region', { name: '来源 1' }));
-  const group = screen.getByRole('region', { name: '来源 1' });
-  expect(within(group).getByText('来源组 1 · 2 个来源')).toBeInTheDocument();
-  const scriptSection = within(group).getByText('预处理 · 继承统一').closest('details')!;
-  expect(scriptSection.open).toBe(false);
-  await fireEvent.click(within(group).getByText('预处理 · 继承统一'));
+  await openSources();
+  expect(screen.getByText('∪ 并集')).toBeInTheDocument();
+  await chooseMenu('来源 2 操作', '并入 来源 1');
+  const row = screen.getByRole('region', { name: '来源 1' });
+  expect(within(row).getByText('2 个输入')).toBeInTheDocument();
+  await fireEvent.click(within(row).getByRole('radio', { name: '自定义' }));
   const script = 'function process(content) { return content.trim(); }';
-  typePreprocessScript(within(group).getByLabelText('JavaScript'), script);
-  await fireEvent.click(within(group).getByText('组内过滤链 · 0 项'));
-  await fireEvent.click(within(group).getByRole('button', { name: '添加过滤' }));
-  await fireEvent.click(within(group).getByLabelText('domain'));
+  typePreprocessScript(within(row).getByLabelText('来源 1 预处理脚本'), script);
+  await fireEvent.click(within(row).getByText('过滤 · 0 项'));
+  await fireEvent.click(within(row).getByRole('button', { name: '添加过滤' }));
+  await fireEvent.click(within(row).getByLabelText('domain'));
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
@@ -329,50 +336,53 @@ it('groups sources by dragging and saves shared processing inside the group', as
   }) }]);
 });
 
-it('keeps preprocessing opt-out and filters when moving a member out of its group', async () => {
+it('splits an input out of a multi-input source and keeps its processing', async () => {
   const ops = [{ type: 'include_kinds', kinds: ['domain'] }];
   vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources: [
     { group: [{ url: 'https://example/a' }, { url: 'https://example/b' }], preprocess: '', ops },
   ] }] } });
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
-  await fireEvent.click(screen.getAllByRole('button', { name: '移出组' })[1]);
+  await openSources();
+  await chooseMenu('来源 1 输入 2 操作', '拆为独立来源');
+  expect(screen.getByRole('region', { name: '来源 2' })).toBeInTheDocument();
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
-    sources: [{ group: [{ url: 'https://example/a' }], preprocess: '', ops }, { group: [{ url: 'https://example/b' }], preprocess: '', ops }],
+    sources: [{ group: [{ url: 'https://example/a' }], preprocess: '', ops }, { url: 'https://example/b', preprocess: '', ops }],
   }) }]);
 });
 
-it('edits shared preprocessing while preserving flat sources', async () => {
+it('edits the default preprocess on the processing tab while preserving flat sources', async () => {
   const sources = [{ url: 'https://example/a' }, { url: 'https://example/b' }];
   vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources }] } });
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
-  expect(within(screen.getByRole('region', { name: '统一预处理' })).getByText(/继承 2 · 覆盖 0 · 禁用 0/)).toBeInTheDocument();
+  await openSources();
+  expect(screen.getByText(/默认预处理已配置 · 2 个来源使用/)).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: '编辑默认脚本' }));
+  const region = screen.getByRole('region', { name: '默认预处理' });
+  expect(within(region).getByText(/使用默认 2 · 自定义 0 · 关闭 0/)).toBeInTheDocument();
   const script = 'function process(content) { return content.trim(); }';
-  typePreprocessScript(within(screen.getByRole('region', { name: '统一预处理' })).getByLabelText('JavaScript'), script);
+  typePreprocessScript(within(region).getByLabelText('默认预处理脚本'), script);
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({ sources, preprocess: script }) }]);
 });
 
-it('keeps inheritance when grouping a source that relies on the unified preprocess', async () => {
+it('keeps inheritance when adding a second input to a source', async () => {
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
-  await fireEvent.click(screen.getByRole('button', { name: '转为来源组' }));
-  expect(screen.getByText('预处理 · 继承统一')).toBeInTheDocument();
+  await openSources();
+  await fireEvent.click(within(screen.getByRole('region', { name: '来源 1' })).getByRole('button', { name: /添加输入/ }));
+  const row = screen.getByRole('region', { name: '来源 1' });
+  await fireEvent.input(within(row).getByLabelText('来源 1 输入 2 URL'), { target: { value: 'https://example/new' } });
+  expect(within(row).getByRole('radio', { name: '使用默认' })).toHaveAttribute('aria-checked', 'true');
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   const payload = save.mock.calls[0][1][0] as { value: Record<string, unknown> };
   const sources = payload.value.sources as Record<string, unknown>[];
-  expect(sources[0].group).toEqual([{ url: 'https://example/base.list' }]);
+  expect(sources[0].group).toEqual([{ url: 'https://example/base.list' }, { url: 'https://example/new' }]);
   expect(sources[0]).not.toHaveProperty('preprocess');
   expect(payload.value.preprocess).toBe(existing.preprocess);
 });
@@ -380,13 +390,12 @@ it('keeps inheritance when grouping a source that relies on the unified preproce
 it('configures per-source preprocess and filters without converting to a group', async () => {
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
+  await openSources();
   const region = screen.getByRole('region', { name: '来源 1' });
-  await fireEvent.click(within(region).getByText('预处理 · 继承统一'));
+  await fireEvent.click(within(region).getByRole('radio', { name: '自定义' }));
   const script = 'function process(content) { return content.toUpperCase(); }';
-  typePreprocessScript(within(region).getByLabelText('JavaScript'), script);
-  await fireEvent.click(within(region).getByText('过滤链 · 0 项'));
+  typePreprocessScript(within(region).getByLabelText('来源 1 预处理脚本'), script);
+  await fireEvent.click(within(region).getByText('过滤 · 0 项'));
   await fireEvent.click(within(region).getByRole('button', { name: '添加过滤' }));
   await fireEvent.click(within(region).getByLabelText('domain'));
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
@@ -397,31 +406,94 @@ it('configures per-source preprocess and filters without converting to a group',
   }) }]);
 });
 
-it('converts a newly added source to a one-source group with independent processing', async () => {
+it('adds a typed source from the menu and keeps a one-input group unless dissolved', async () => {
+  vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources: [
+    { group: [{ url: 'https://example/a', label: 'a' }], preprocess: '' },
+  ] }] } });
   const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
   render(RulesView, { onStartUpdate: vi.fn() });
-  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
-  await fireEvent.click(screen.getByRole('tab', { name: '来源' }));
-  await fireEvent.click(screen.getByRole('button', { name: '添加来源' }));
-  const plain = screen.getByRole('region', { name: '来源 2' });
-  expect(within(plain).queryByText('添加组内来源')).toBeNull();
-  await fireEvent.input(within(plain).getByLabelText('URL'), { target: { value: 'https://example/new' } });
-  await fireEvent.click(within(plain).getByRole('button', { name: '转为来源组' }));
-  const group = screen.getByRole('region', { name: '来源 2' });
-  expect(within(group).getByText('来源组 2 · 1 个来源')).toBeInTheDocument();
-  await fireEvent.click(within(group).getByText('预处理 · 继承统一'));
-  const script = 'function process(content) { return content.trim(); }';
-  typePreprocessScript(within(group).getByLabelText('JavaScript'), script);
-  await fireEvent.click(within(group).getByText('组内过滤链 · 0 项'));
-  await fireEvent.click(within(group).getByRole('button', { name: '添加过滤' }));
-  await fireEvent.click(within(group).getByLabelText('domain'));
+  await openSources();
+  await chooseMenu('添加来源', '内联文本');
+  const added = screen.getByRole('region', { name: '来源 2' });
+  expect(within(added).getByRole('button', { name: /^来源 2：/ })).toHaveAttribute('aria-expanded', 'true');
+  typePreprocessScript(within(added).getByLabelText('来源 2 内联文本'), 'DOMAIN,new.example');
+  await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
+  await screen.findByText('规则已保存');
+  expect(save).toHaveBeenLastCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
+    sources: [{ group: [{ url: 'https://example/a', label: 'a' }], preprocess: '' }, { content: 'DOMAIN,new.example' }],
+  }) }]);
+
+  await chooseMenu('来源 1 操作', '解散为普通来源');
+  await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
+  await waitFor(() => expect(save).toHaveBeenLastCalledWith(5, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
+    sources: [{ url: 'https://example/a', label: 'a', preprocess: '' }, { content: 'DOMAIN,new.example' }],
+  }) }]));
+});
+
+it('confirms before a move drops the processing of a removed source', async () => {
+  vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources: [
+    { url: 'https://example/a' }, { url: 'https://example/b', preprocess: '' },
+  ] }] } });
+  render(RulesView, { onStartUpdate: vi.fn() });
+  await openSources();
+  await chooseMenu('来源 2 操作', '并入 来源 1');
+  expect(screen.getByRole('dialog', { name: '移入后使用目标来源的处理设置' })).toBeInTheDocument();
+  await fireEvent.click(screen.getByRole('button', { name: '取消' }));
+  expect(screen.getByRole('region', { name: '来源 2' })).toBeInTheDocument();
+  await chooseMenu('来源 2 操作', '并入 来源 1');
+  await fireEvent.click(screen.getByRole('button', { name: '移动' }));
+  expect(screen.queryByRole('region', { name: '来源 2' })).toBeNull();
+  expect(within(screen.getByRole('region', { name: '来源 1' })).getByText('2 个输入')).toBeInTheDocument();
+});
+
+it('reorders rows by dragging and shows the difference base', async () => {
+  vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, merge: { strategy: 'difference' }, sources: [
+    { url: 'https://example/a' }, { url: 'https://example/b' },
+  ] }] } });
+  const save = vi.spyOn(api, 'patchConfig').mockResolvedValue({ version: 5, warnings: [] });
+  render(RulesView, { onStartUpdate: vi.fn() });
+  await openSources();
+  expect(screen.getByText('基准')).toBeInTheDocument();
+  expect(screen.getByText('− 减去')).toBeInTheDocument();
+  await fireEvent.dragStart(screen.getByRole('button', { name: '拖动来源 2' }), { dataTransfer: { setData: vi.fn() } });
+  await fireEvent.drop(screen.getByRole('region', { name: '来源 1' }));
   await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
   await screen.findByText('规则已保存');
   expect(save).toHaveBeenCalledWith(4, [{ op: 'update_rule', id: 'base', value: expect.objectContaining({
-    preprocess: existing.preprocess,
-    sources: [{ url: 'https://example/base.list' }, {
-      group: [{ url: 'https://example/new' }], preprocess: script,
-      ops: [{ type: 'include_kinds', kinds: ['domain'] }],
-    }],
+    merge: { strategy: 'difference' },
+    sources: [{ url: 'https://example/b' }, { url: 'https://example/a' }],
   }) }]);
+});
+
+it('runs a single source through preview without outputs', async () => {
+  const preview = vi.spyOn(api, 'previewRule').mockResolvedValue({
+    rule_id: 'base', rule_name: 'Base', elapsed_ms: 3,
+    sources: [{ label: '来源 1', type: 'url', entries: 1, diagnostics: 1, duration_ms: 2,
+      diagnostic_items: [{ line: 3, text: 'NOPE,x', reason: 'unknown rule type "NOPE"' }] }],
+    pre_ops: 1, post_ops: 1, merged: 1, ops_diff: { added: 0, removed: 0, groups: [] }, outputs: [],
+  });
+  render(RulesView, { onStartUpdate: vi.fn() });
+  await openSources();
+  await fireEvent.click(screen.getByRole('button', { name: '试运行' }));
+  const result = await screen.findByRole('status', { name: '来源 1 试运行结果' });
+  await waitFor(() => expect(result).toHaveTextContent('⚠ 1 行无法解析'));
+  expect(result).toHaveTextContent('第 3 行：未知规则类型 NOPE');
+  expect(preview).toHaveBeenCalledWith({
+    id: 'base', name: 'Base', preprocess: existing.preprocess,
+    sources: [{ url: 'https://example/base.list' }], outputs: [],
+  });
+});
+
+it('expands the failing source and shows the error next to its input', async () => {
+  vi.mocked(api.getConfig).mockResolvedValue({ version: 4, config: { clients, rules: [{ ...existing, sources: [
+    { url: 'https://example/a' }, { group: [{ url: 'https://example/b' }, { file: 'missing.list' }] },
+  ] }] } });
+  render(RulesView, { onStartUpdate: vi.fn() });
+  await fireEvent.click(await screen.findByRole('button', { name: '编辑' }));
+  await fireEvent.click(screen.getByRole('button', { name: '保存规则' }));
+  const alert = screen.getByRole('alert', { name: '表单错误' });
+  expect(alert).toHaveTextContent('来源 2 的输入 2 引用了不存在的本地文件');
+  const row = screen.getByRole('region', { name: '来源 2' });
+  expect(within(row).getByRole('button', { name: /^来源 2：/ })).toHaveAttribute('aria-expanded', 'true');
+  expect(within(row).getAllByText('来源 2 的输入 2 引用了不存在的本地文件').length).toBeGreaterThan(0);
 });

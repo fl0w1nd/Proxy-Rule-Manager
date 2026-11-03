@@ -14,10 +14,13 @@
     open = $bindable(false),
     provider = '',
     kind = 'geosite',
+    onpick,
   }: {
     open: boolean;
     provider: string;
     kind?: GeoKind;
+    /** 传入后进入选择模式：预览区显示「选用」按钮，选中后关闭目录。 */
+    onpick?: (list: string, attr: string) => void;
   } = $props();
 
   let catalog = $state<GeoListOverview[]>([]);
@@ -223,6 +226,9 @@
           <div class="preview-head">
             <strong>{previewTitle}</strong>
             <span>{previewItems.length.toLocaleString()}/{previewTotal.toLocaleString()}</span>
+            {#if onpick}
+              <PixelButton size="sm" variant="primary" onclick={() => { onpick(previewList, previewAttr); close(); }}>选用</PixelButton>
+            {/if}
           </div>
         {/if}
         <div class="preview-body" use:retroScroll aria-busy={previewLoading}>

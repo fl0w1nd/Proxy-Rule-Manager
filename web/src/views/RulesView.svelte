@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onDestroy, onMount, tick } from 'svelte';
-  import { api, APIRequestError, conflictHint, type ConfigSnapshot, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
+  import { api, APIRequestError, conflictHint, type ConfigSnapshot, type LocalFileDetail, type LocalFileItem, type RuleItem, type RulePreview, type TemplateItem } from '../api/client';
+  import LocalFileEditorDrawer from '../components/LocalFileEditorDrawer.svelte';
   import PixelButton from '../components/pixel/PixelButton.svelte';
   import PixelIcon from '../components/pixel/PixelIcon.svelte';
   import PixelTabs from '../components/pixel/PixelTabs.svelte';
@@ -21,9 +22,11 @@
     ruleReferences,
     ruleTopology,
     serializeRule,
+    serializeSource,
     validateRuleAll,
     type RuleConfig,
     type RuleIssue,
+    type RuleSource,
   } from './rules';
 
   interface Props {
@@ -79,6 +82,10 @@
   let rowPreviewError = $state('');
   let rowPreviewName = $state('');
   let templates = $state<TemplateItem[]>([]);
+  let expandedSource = $state<number | null>(null);
+  let fileEditorOpen = $state(false);
+  let fileEditorName = $state('');
+  let fileEditorAssign: ((name: string) => void) | null = null;
 
   const tabs = [
     { value: 'compile', label: '编译规则' },
@@ -121,10 +128,13 @@
   const identities = $derived(configRules.map((raw) => ({ id: String(raw.id ?? ''), name: String(raw.name ?? ''), sources: raw.sources })));
   const topologies = $derived(new Map(identities.map((rule) => [rule.id, ruleTopology(identities, rule.id)])));
   const refOptions = $derived([{ value: '', label: '请选择规则' }, ...refChoices(identities, editing || draft.id)]);
-  const fileOptions = $derived([{ value: '', label: files.length ? '请选择文件' : '暂无本地文件' }, ...files.map((file) => ({ value: file.name, label: file.name }))]);
+  const fileOptions = $derived([{ value: '', label: files.length ? '请选择文件' : '暂无本地文件' }, ...files.map((file) => ({
+    value: file.name,
+    label: file.diagnostics ? `${file.name}（⚠ ${file.diagnostics} 行无法解析）` : file.name,
+  }))]);
   const clientOptions = $derived([{ value: '', label: '选择客户端' }, ...clients.map((client) => ({ value: client.id, label: client.name || client.id }))]);
   const canReorder = $derived(!searchQuery && !busy && !isUpdating);
-  const issueTab: Record<string, string> = { id: 'props', name: 'props', sources: 'sources', merge: 'pipeline', ops: 'pipeline', outputs: 'outputs' };
+  const issueTab: Record<string, string> = { id: 'props', name: 'props', sources: 'sources', merge: 'sources', ops: 'pipeline', outputs: 'outputs' };
 
   $effect(() => { onstatechange?.(dirty || filesDirty, busy || filesBusy || previewing); });
   onMount(() => { void load(); });
@@ -197,6 +207,7 @@
     editorTab = 'props';
     drawerView = 'edit';
     preview = null;
+    expandedSource = next.sources.length === 1 ? 0 : null;
     baseline = JSON.stringify(next);
     message = '';
     error = false;
@@ -214,9 +225,11 @@
     if (fieldError?.path === path) fieldError = null;
     if (issues.length) issues = issues.filter((item) => item.path !== path);
   }
-  async function scrollToIssue(path: string) {
+  async function scrollToIssue(path: string, source?: number) {
     await tick();
-    const el = document.querySelector(`.editor-form [data-field="${path}"]`);
+    const el = source === undefined
+      ? document.querySelector(`.editor-form [data-field="${path}"]`)
+      : document.querySelector(`.editor-form [data-source="${source}"]`);
     el?.scrollIntoView?.({ block: 'center', behavior: 'smooth' });
     if (path === 'id' || path === 'name') (el?.querySelector('input') as HTMLElement | null)?.focus({ preventScroll: true });
   }
@@ -224,7 +237,31 @@
     fieldError = issue;
     drawerView = 'edit';
     editorTab = issueTab[issue.path] ?? 'props';
-    void scrollToIssue(issue.path);
+    if (issue.source !== undefined) expandedSource = issue.source;
+    void scrollToIssue(issue.path, issue.source);
+  }
+  /** 只抓取并解析一个来源：包成不带输出的临时规则交给预览接口，不写配置。 */
+  function trialSource(source: RuleSource): Promise<RulePreview> {
+    const rule: Record<string, unknown> = {
+      id: editing || '__source_trial__',
+      name: draft.name.trim() || '试运行',
+      sources: [serializeSource(source)],
+      outputs: [],
+    };
+    if (draft.preprocess?.trim()) rule.preprocess = draft.preprocess.trim();
+    return api.previewRule(rule);
+  }
+  function editFile(name: string, assign: (name: string) => void) {
+    fileEditorName = name;
+    fileEditorAssign = assign;
+    fileEditorOpen = true;
+  }
+  function fileSaved(detail: LocalFileDetail, created: boolean) {
+    const { content: _content, ...item } = detail;
+    const index = files.findIndex((file) => file.name === item.name);
+    files = index >= 0 ? files.map((file, i) => i === index ? item : file) : [...files, item].sort((a, b) => a.name.localeCompare(b.name));
+    if (created) fileEditorAssign?.(item.name);
+    fileEditorName = item.name;
   }
   async function save() {
     if (!snapshot || busy) return;
@@ -462,7 +499,13 @@
   onClearFieldError={clearFieldError}
   onSave={save}
   onPreviewDraft={openDraftPreview}
+  bind:expandedSource
+  onTrialSource={trialSource}
+  onEditFile={editFile}
 />
+
+<LocalFileEditorDrawer bind:open={fileEditorOpen} name={fileEditorName}
+  rules={files.find((file) => file.name === fileEditorName)?.rules ?? []} onsaved={fileSaved} />
 
 <RulePreviewDrawer
   bind:open={rowPreviewOpen}

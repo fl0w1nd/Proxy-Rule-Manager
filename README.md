@@ -178,7 +178,7 @@ data/
 - 图标在 `/static/icons/`。
 - 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
 - 管理看板在 `/admin`，管理 API 在 `/api/v1`。
-- API 端点：`status`、`rules`、`geosite/providers`、`geoip/providers`、`mmdb/providers`、`asn/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
+- API 端点：`status`、`rules`（含草稿预览）、`geosite/providers`、`geoip/providers`、`mmdb/providers`、`asn/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）、`local-files`（列表附带语法检查摘要和引用规则）、`rule-syntax`（规则类型表与 `POST rule-syntax/lint` 语法检查）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
 
 写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
 
