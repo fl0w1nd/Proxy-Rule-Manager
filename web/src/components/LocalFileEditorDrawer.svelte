@@ -11,6 +11,7 @@
   import PixelDrawer from './pixel/PixelDrawer.svelte';
   import PixelInput from './pixel/PixelInput.svelte';
   import rulesIcon from '../assets/icons/nav/rules.svg';
+  import { retroScroll } from '../utils/scrollbars';
   import { localFileLanguage, referencedRuleLabel, validateLocalFileName } from '../views/localFiles';
   import {
     createLinter, diagnosticMessage, diagnosticReason, documentDiagnostics, editorDiagnostics,
@@ -228,7 +229,7 @@
               {#if lint.kinds.length}
                 <p class="kinds">{#each lint.kinds as kind (kind.kind)}<span>{kind.kind} · {kind.count}</span>{/each}</p>
               {/if}
-              <div class="parsed-table">
+              <div class="parsed-scroll" use:retroScroll>
                 <PixelTable minWidth="480px">
                   <thead><tr><th style="width: 64px;" class="num">行</th><th style="width: 30%;">类型</th><th>规范化后的值</th></tr></thead>
                   <tbody>
@@ -241,8 +242,8 @@
                     {/each}
                   </tbody>
                 </PixelTable>
+                {#if lint.lines_truncated}<p class="editor-status truncated">仅显示前 {lint.lines.length.toLocaleString()} 条，共 {lint.entries.toLocaleString()} 条。</p>{/if}
               </div>
-              {#if lint.lines_truncated}<p class="editor-status">仅显示前 {lint.lines.length.toLocaleString()} 条，共 {lint.entries.toLocaleString()} 条。</p>{/if}
             {/if}
           </div>
         {/if}
@@ -265,12 +266,14 @@
           {/if}
         </div>
         {#if lint && (lintDocumentIssues.length || lintDiagnostics.length)}
-          <ul class="lint-list" aria-label="无法解析的行">
-            {#each lintDocumentIssues as issue}<li>{issue}</li>{/each}
-            {#each lint.diagnostics.filter((item) => item.line).slice(0, 50) as item (item.line)}
-              <li><button type="button" onclick={() => jumpTo(item.line)}><span class="font-code">{item.line}</span> {item.text} — {diagnosticReason(item.reason)}</button></li>
-            {/each}
-          </ul>
+          <div class="lint-list" use:retroScroll>
+            <ul aria-label="无法解析的行">
+              {#each lintDocumentIssues as issue}<li>{issue}</li>{/each}
+              {#each lint.diagnostics.filter((item) => item.line).slice(0, 50) as item (item.line)}
+                <li><button type="button" onclick={() => jumpTo(item.line)}><span class="font-code">{item.line}</span> {item.text} — {diagnosticReason(item.reason)}</button></li>
+              {/each}
+            </ul>
+          </div>
         {/if}
       {/if}
     {/if}
@@ -330,8 +333,9 @@
   .editor-field { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 6px; }
   .editor-pane, .parsed-pane { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: 10px; }
   .editor-pane.hidden { display: none; }
-  .parsed-pane { overflow: auto; }
-  .parsed-table { min-height: 0; }
+  /* 类型统计固定在顶部，只有表格区域滚动，使用项目统一的像素滚动条。 */
+  .parsed-scroll { flex: 1; min-height: 0; padding-right: 22px; }
+  .truncated { margin-top: 8px; }
   .parsed-row { cursor: pointer; }
   .value-cell { overflow-wrap: anywhere; }
   .kinds { margin: 0; display: flex; flex-wrap: wrap; gap: 6px 12px; color: var(--sec); font: 12px/18px var(--font-code); }
@@ -339,8 +343,10 @@
   .lint-ok { color: var(--text); }
   .lint-warning { color: var(--text); }
   .lint-error { padding: 0; border: 0; background: none; color: var(--error-border); font: inherit; text-decoration: underline; cursor: pointer; }
-  .lint-list { flex-shrink: 0; margin: 0; padding: 6px 10px; max-height: 112px; overflow-y: auto; list-style: none; display: grid; gap: 2px;
+  /* 右侧留出像素滚动条（18px）的位置，避免文字被盖住。 */
+  .lint-list { flex-shrink: 0; max-height: 136px; padding: 6px 22px 6px 10px;
     border: 1px solid var(--border); border-radius: 3px; background: var(--surface-2); font: 12px/18px var(--font-ui); color: var(--sec); }
+  .lint-list ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 2px; }
   .lint-list button { padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; overflow-wrap: anywhere; }
   .lint-list button:hover { color: var(--text); text-decoration: underline; }
   .lint-list .font-code { color: var(--error-border); margin-right: 6px; }
