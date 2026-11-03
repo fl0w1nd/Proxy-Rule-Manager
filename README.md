@@ -1,10 +1,10 @@
 # Proxy Rule Manager
 
 <p align="center">
-  <img src="web/src/assets/icons/brand/prm.svg" width="96" alt="prm 标志">
+  <img src="web/src/assets/icons/brand/prm.svg" width="96" alt="prm logo">
 </p>
 
-<p align="center"><em>把多个上游来源的代理规则，编译成各个客户端专用格式。</em></p>
+<p align="center"><em>多源代理规则编译与分发工具，将上游规则集统一编译为各客户端专用格式。</em></p>
 
 <p align="center">
   <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26.10-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go version"></a>
@@ -14,66 +14,30 @@
   <a href="https://github.com/fl0w1nd/Proxy-Rule-Manager/commits/main"><img src="https://img.shields.io/github/last-commit/fl0w1nd/Proxy-Rule-Manager?style=flat-square&label=last%20commit" alt="Last commit"></a>
 </p>
 
-## 目录
+Proxy Rule Manager（`prm`）通过声明式配置拉取、解析、合并与过滤多个上游代理规则源，并将其渲染为 Mihomo、sing-box、Surge、Shadowrocket 等客户端的规则格式。`prm` 既可作为命令行构建工具单次执行，也可作为附带 Web 管理界面的常驻 HTTP 服务运行，或导出为无后端的纯静态规则站点。
 
-- [它是什么](#它是什么)
-- [功能特性](#功能特性)
-- [工作原理](#工作原理)
-- [快速开始](#快速开始)
-- [命令](#命令)
-- [配置](#配置)
-- [产物目录](#产物目录)
-- [HTTP 服务](#http-服务)
-- [部署](#部署)
-- [静态站点](#静态站点)
-- [开发](#开发)
-- [文档](#文档)
+## 核心特性
 
-## 它是什么
-
-Proxy Rule Manager（prm）把来自多个上游来源的代理规则，编译成客户端专用格式，支持 Mihomo、sing-box、Surge、Shadowrocket。
-
-你只维护一份规则来源。prm 负责抓取、合并、过滤、渲染，最后写出产物。它既可以当命令行工具用，也可以作为常驻服务定时运行。
-
-## 功能特性
-
-- **多种来源**：远程规则列表、本地文件、内联文本、引用其他规则、geosite 域名库、geoip IP 库（v2fly、loyalsoldier）。
-- **输入解析**：经典行列表和 Mihomo YAML 格式，自动识别。
-- **中间表示（IR）**：40 多种规则类型，外加 AND、OR、NOT 逻辑组合。
-- **合并策略**：并集（默认）、交集、差集，自动去重。
-- **过滤操作（ops）**：按类型保留或移除，按关键词/后缀/前缀/精确/正则过滤值。
-- **输出客户端**：Mihomo（Classical、YAML）、sing-box（Source、Binary）、Surge、Shadowrocket，支持自定义模板。
-- **变体**：同一客户端额外产出，渲染前再做一次过滤。
-- **Geo 数据自动发布**：把 geosite 列表及属性变体、geoip 分类网段同步到目标客户端。
-- **JavaScript 预处理**：解析前可先用脚本改写原始内容。
-- **更新历史**：记录每次更新的新增/删除条目样例。
-- **调度**：手动、固定间隔或 cron；同一时间只跑一次更新，可取消。
-- **HTTP 服务**：公开规则站点 + 带鉴权的管理 API。
-- **静态站点导出**：输出到 `dist/`，可托管到 GitHub Pages。
+- **多源输入与组合**：支持远程 URL、本地文件、内联规则、规则间引用（`ref`）以及 Geosite / GeoIP 分类库；支持分组局部处理与并集、交集、差集合并策略。
+- **结构化过滤与预处理**：将经典行规则与 Mihomo YAML 统一解析为中间表示（IR，涵盖 40 余种规则类型及逻辑组合），支持按规则类型或匹配模式（关键词、前后缀、精确匹配、正则表达式）过滤，并提供解析前 JavaScript 预处理能力。
+- **多格式与变体输出**：内置 Mihomo（Classical `.list` / YAML `.yaml`）、sing-box（Source `.json` / Binary `.srs`）、Surge、Shadowrocket 模板，支持为同一客户端派生附加过滤变体（如 Non-IP 规则集）及自定义模板覆盖。
+- **Geo 数据库同步与托管**：支持将 `v2fly`、`loyalsoldier` 的 Geosite 与 GeoIP 分类批量编译至目标客户端，并可托管原始 `.dat`、`Country.mmdb` 与 `GeoLite2-ASN.mmdb` 文件。
+- **可视化管理与静态发布**：内置 Web 公开索引页与 `/admin` 管理控制台（支持规则在线编辑、调试预览、变更对比、配置快照回滚与定时调度），同时支持一键导出静态站点部署至 GitHub Pages。
 
 ## 工作原理
 
-一条规则就是一个编译单元：声明来源、可选过滤操作、合并策略和输出客户端。执行 `prm update` 时，按依赖顺序编译所有规则并写出产物。
+每条规则（`rule`）对应一个独立的编译单元。执行更新时，`prm` 按依赖拓扑顺序执行以下流水线：
 
 ```mermaid
 flowchart LR
-    URL[URL 规则列表] --> PARSE
-    FILE[本地文件或内联文本] --> PARSE
-    REF[引用其他规则] --> PARSE
-    GEO[geosite / geoip] --> PARSE
-    PARSE[预处理、抓取、解析] --> MERGE[合并来源]
-    MERGE --> OPS[应用过滤操作]
-    OPS --> RENDER[按输出目标渲染]
-    RENDER --> OUT[产物写入 data/rules]
+    SRC[上游来源<br/>URL / 本地 / 引用 / Geo] --> PARSE[预处理与解析]
+    PARSE --> MERGE[集合合并与去重]
+    MERGE --> OPS[规则级与变体级过滤]
+    OPS --> RENDER[模板渲染]
+    RENDER --> OUT[输出产物<br/>data/rules/]
 ```
 
-1. **读取来源**。每个来源是远程 URL、本地文件、内联文本、其他规则的引用或 geosite/geoip 列表。被引用的规则先编译。可选 JavaScript 脚本能在解析前改写原文。
-2. **解析**。解析器把经典行列表和 Mihomo YAML 格式转成中间表示。解析不了的文本会作为诊断信息展示，不会静默丢弃。
-3. **合并**。多来源按策略合并：并集（默认）、交集、差集。重复条目消失。
-4. **应用过滤**。规则级操作保留或移除条目、过滤值。变体操作在合并结果上再执行一次。
-5. **渲染**。每个输出目标用模板渲染中间表示，产物写入 `data/rules/`。
-
-配置示例：
+最小配置示例（`config.yaml`）：
 
 ```yaml
 clients:
@@ -95,137 +59,90 @@ rules:
     outputs: [mihomo]
 ```
 
-每个字段的完整讲解和默认值，见 [docs/configuration.md](docs/configuration.md)。
-
 ## 快速开始
 
-1. **获取程序**。从 [Releases 页面](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载最新发布；或 `mise run build` 后用 `bin/prm`。用 Docker 就执行 `mise run docker:build`。
-2. **生成配置**。`prm init` 写出一个最小可运行的 `config.yaml`，已有文件时拒绝覆盖。
-3. **编辑配置**。`config.yaml` 里声明你的客户端（clients）和规则（rules）。
-4. **校验配置**。`prm validate` 通过则继续，报错带 YAML 行号和配置路径。
-5. **执行更新**。`prm update` 抓取来源、生成产物，产物出现在 `data/rules/`。
+1. **获取二进制程序**
+   从 [Releases](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载对应平台的可执行文件，或在仓库根目录通过 `mise run build` 编译生成 `bin/prm`。
+2. **初始化配置文件**
+   ```bash
+   prm init
+   ```
+   该命令在当前目录生成最小可运行的 `config.yaml`。
+3. **校验并编译规则**
+   ```bash
+   prm validate
+   prm update
+   ```
+   编译完成后，生成的规则文件位于 `./data/rules/`。
+4. **启动 HTTP 服务（可选）**
+   ```bash
+   PRM_ADMIN_TOKEN=your-secret-token prm serve
+   ```
+   访问 `http://127.0.0.1:3001/` 查看公开规则索引页，访问 `http://127.0.0.1:3001/admin` 进入管理控制台。
 
-所有命令都支持 `--config PATH` 指定配置文件（默认 `config.yaml`）。访问运行数据的命令支持 `--data-dir PATH`（默认 `./data`，环境变量 `PRM_DATA_DIR`）。
+## 命令行参考
 
-## 命令
+### 子命令
 
-| 命令 | 作用 |
+| 命令 | 说明 |
 | --- | --- |
-| `prm init` | 写出示例 `config.yaml` |
-| `prm validate` | 校验配置、模板和 geosite/geoip 引用 |
-| `prm update [rule-ids...]` | 全量更新，或编译列出的规则及引用它们的下游规则 |
-| `prm update --geosite` | 更新 Geosite 数据库及其发布文件 |
-| `prm update --geoip` | 更新 GeoIP 数据库及其发布文件，同时下载已配置的 mmdb、asn |
-| `prm preview <rule-id> [--target <id>]` | 查看单条规则各阶段结果，可指定渲染某个输出目标 |
-| `prm build` | 全量更新后，把静态站点导出到 `dist/` |
-| `prm serve` | 启动 HTTP 服务（需要 `PRM_ADMIN_TOKEN`） |
+| `prm init` | 生成最小示例配置 `config.yaml` |
+| `prm validate` | 校验配置文件语法、模板引用及本地缓存的 Geosite / GeoIP 引用 |
+| `prm update [rule-ids...]` | 执行全量更新，或仅编译指定规则及其下游依赖规则 |
+| `prm update --geosite` | 更新 Geosite 数据库及自动发布产物 |
+| `prm update --geoip` | 更新 GeoIP、MMDB、ASN 数据库及自动发布产物 |
+| `prm preview <rule-id> [--target <id>]` | 预览单条规则在各编译阶段的条目统计，可通过 `--target` 查看指定格式的渲染内容 |
+| `prm build [--output <dir>]` | 执行全量更新并将静态规则站点导出至目标目录（默认 `dist/`） |
+| `prm serve` | 启动常驻 HTTP 服务、定时更新调度器与管理 API |
 
-## 配置
+### 参数与环境变量
 
-复制 `config.template.yaml` 为 `config.yaml` 后编辑。友好教程见 [docs/configuration.md](docs/configuration.md)，逐字段参考见模板本身。
+配置优先级为：**CLI 参数 > 环境变量 > 默认值**。
 
-几个关键约定：
+| 参数 | 环境变量 | 默认值 | 适用范围 | 说明 |
+| --- | --- | --- | --- | --- |
+| `-c, --config` | — | `config.yaml` | 全局 | 配置文件路径 |
+| `--data-dir` | `PRM_DATA_DIR` | `./data` | 全局 | 运行时数据与产物目录 |
+| `--host` | `PRM_SERVE_HOST` | `127.0.0.1` | `serve` | HTTP 监听 IP 地址 |
+| `--port` | `PRM_SERVE_PORT` | `3001` | `serve` | HTTP 监听端口 |
+| `--trusted-proxy` | `PRM_TRUSTED_PROXIES` | 空 | `serve` | 可信反向代理 IP 或 CIDR（CLI 可重复指定，环境变量用逗号分隔） |
+| — | `PRM_ADMIN_TOKEN` | — | `serve` | 管理控制台与 API 鉴权令牌（非开发模式下必填） |
+| — | `PRM_DEV` | 关闭 | `serve` | 设为 `1` 或 `true` 时启用开发模式，免除管理鉴权（仅限本地开发） |
 
-- 时长用 Go 语法（`30m`、`168h`）；大小可写 `4MB` 或字节数。
-- 数据目录和 HTTP 服务参数属于运行时接口，通过 CLI flag 或 `PRM_*` 环境变量设置。
-- 本地文件来源只从 `data/local/` 下解析。
-- 同一数据目录同时只能被一个 prm 进程使用，启动时取 `.state/prm.lock` 排他锁。
-- 校验错误带 YAML 行号和配置路径。
+## 部署与运行模式
 
-## 产物目录
+`prm` 支持两种交付模式：
 
-```text
-data/
-├── rules/
-│   ├── mihomo-classical/
-│   │   ├── OpenAI.list
-│   │   └── geosite/v2fly/google.list
-│   └── sing-box-non-ip/
-│       └── OpenAI.json
-├── geo/                # host / mmdb / asn 发布的原始数据库，公开在 /geo/
-│   ├── geosite/v2fly/dlc.dat
-│   ├── geoip/v2fly/geoip.dat
-│   ├── mmdb/loyalsoldier/Country.mmdb
-│   └── asn/loyalsoldier/GeoLite2-ASN.mmdb
-├── local/              # 本地文件来源
-├── templates/          # 自定义模板覆盖
-├── static/
-│   ├── assets/         # 应用管理的公开页 JS 与 CSS
-│   └── icons/          # 内置及用户自定义图标
-├── geosite/            # 域名库缓存；raw/ 下是上游原始文件
-├── geoip/              # IP 库缓存；raw/ 下是上游原始文件
-├── mmdb/               # MMDB 原始数据库缓存
-├── asn/                # ASN 原始数据库缓存
-└── .state/             # 快照和更新历史
+- **自托管服务（二进制 / Docker Compose）**：运行 `prm serve`，提供公开规则站（`/`、`/rules/`、`/geo/`）、Web 管理控制台（`/admin`）、REST API（`/api/v1`）以及内置定时调度（`interval` / `cron`）。详见 [部署指南](docs/deployment.md)。
+- **无服务静态站点（GitHub Pages）**：通过 `prm build` 将公开索引页与全部产物导出为纯静态目录，结合 GitHub Actions 定时编译发布，无需常驻服务器。详见 [GitHub Pages 部署指南](docs/github-pages.md)。
+
+## 开发指南
+
+项目使用 [mise](https://mise.jdx.dev) 统一管理 Go、Node.js、pnpm、golangci-lint、protoc 等工具链版本（定义于 `mise.toml` 与 `mise.lock`）。
+
+```bash
+mise install      # 安装全部开发工具链
+mise run dev      # 启动本地开发环境（Go 后端热重载 :3001 + Vite 管理前端 :5173/admin/）
+mise run build    # 构建前端资源并编译 bin/prm
+mise run ci       # 运行完整本地质量检查（版本一致性、代码检查、Go 竞态测试、前端测试）
 ```
 
-## HTTP 服务
+常用开发任务：
 
-`prm serve` 默认监听 `127.0.0.1:3001`，管理令牌通过 `PRM_ADMIN_TOKEN` 提供。运行时参数遵循 CLI flag > 环境变量 > 默认值：
-
-| 用途 | CLI flag | 环境变量 |
-| --- | --- | --- |
-| 数据目录 | `--data-dir` | `PRM_DATA_DIR` |
-| 监听地址 | `--host` | `PRM_SERVE_HOST` |
-| 监听端口 | `--port` | `PRM_SERVE_PORT` |
-| 可信代理 | 重复 `--trusted-proxy` | `PRM_TRUSTED_PROXIES`（逗号分隔） |
-
-示例：`PRM_ADMIN_TOKEN=secret prm --data-dir ./data serve --host 127.0.0.1 --port 3001`。
-
-- 公开页面 `/` 和 `/index.html`：规则索引、标签筛选、产物下载链接、geosite/geoip 目录。
-- 规则产物在 `/rules/`。
-- 原始 Geo 数据库在 `/geo/`。
-- 图标在 `/static/icons/`。
-- 公开页前端资源在 `/static/assets/`，由应用按版本自动刷新。
-- 管理看板在 `/admin`，管理 API 在 `/api/v1`。
-- API 端点：`status`、`rules`（含草稿预览）、`geosite/providers`、`geoip/providers`、`mmdb/providers`、`asn/providers`、`changes`、`updates`（含详情、事件流、取消）、`config`（含事务 Patch、外部修改检测与 reload）、`local-files`（列表附带语法检查摘要和引用规则）、`rule-syntax`（规则类型表与 `POST rule-syntax/lint` 语法检查）。配置 Patch 契约见 [docs/config-patch-api.md](docs/config-patch-api.md)。
-
-写操作接口接受 Bearer 令牌，或同源请求携带有效会话 Cookie（HttpOnly + SameSite=Strict）。同一时间只能执行一次更新，期间发起第二次会返回冲突，直到第一次结束。配置了 `interval` 或 `cron` 调度时，`serve` 会自动启动定时器。
-
-`POST /api/v1/updates` 通过 JSON 的 `scope` 指定更新范围：`all` 执行全量更新；`rules` 配合 `rule_ids` 数组批量更新所选规则及其下游规则，Geo 来源使用本地缓存；`geosite`、`geoip` 更新对应数据库及其发布文件。`geoip` 范围同时下载已配置的 mmdb、asn。管理看板的 Geosite、GeoIP 页面提供对应更新按钮，规则管理的选择栏提供批量更新按钮。
-
-## 部署
-
-两种部署方式，按场景选择：
-
-- **自托管**：下载 [Release](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 二进制直接运行，或用 Docker Compose 跑 `ghcr.io/fl0w1nd/prm` 镜像。带完整管理能力（`/admin` 看板、API、手动更新、历史查看），适合个人环境。
-- **GitHub Pages 静态发布**：Fork 仓库，启用 Actions，在 `publish` 分支维护配置，工作流自动构建并发布规则站。只有公开站点，无管理看板，适合纯只读的公开规则站。
-
-完整步骤：自托管见 [docs/deployment.md](docs/deployment.md)，静态发布见 [docs/github-pages.md](docs/github-pages.md)。
-
-## 静态站点
-
-不用自托管服务器时，`prm build` 可以把规则站导出为独立静态站点：`index.html`、`rules/`、`geo/`、`static/assets/`、`static/icons/`、`.nojekyll`。页面使用相对资源路径，可直接发布到 GitHub Pages 仓库子路径。
-
-## 开发
-
-工具链由 [mise](https://mise.jdx.dev) 管理，版本固定在 `mise.toml` 和 `mise.lock`。安装 mise 后，在仓库根目录执行 `mise install`，即可装好 Go、Node.js、pnpm、golangci-lint、air、protoc 等工具。`mise tasks` 列出全部任务。
-
-| 命令 | 作用 |
+| 任务 | 说明 |
 | --- | --- |
-| `mise run dev` | 本地开发：Go 热重载 + 管理看板 Vite |
-| `mise run build` | 构建 `bin/prm` |
-| `mise run test` | 运行全部测试（随机顺序 + 覆盖率） |
-| `mise run test:race` | 带竞态检测运行测试 |
-| `mise run test:web` | 前端类型检查与组件测试 |
-| `mise run lint` | 运行 gofmt、go vet、golangci-lint |
-| `mise run ci` | 本地质量门禁（版本一致性 + lint + 竞态测试 + 前端测试，并行执行） |
-| `mise run proto` | 重新生成 geosite/geoip 的 protobuf 代码 |
-| `mise run docker:build` | 构建容器镜像 |
-| `mise run docker:run` | 用 `./data` 运行容器 |
-| `mise run clean` | 清理 `bin/` 和 `tmp/` |
+| `mise run dev [-c <file>] [--data-dir <dir>]` | 启动前后端热重载开发服务（默认读取或初始化 `config.dev.yaml`，自动启用 `PRM_DEV=1`） |
+| `mise run test` / `mise run test:race` | 运行 Go 单元测试（含覆盖率 / 竞态检测） |
+| `mise run test:web` | 运行前端类型检查与组件测试 |
+| `mise run lint` | 运行 `gofmt`、`go vet` 与 `golangci-lint` |
+| `mise run proto` | 重新生成 Geosite 与 GeoIP 的 Protobuf 代码 |
+| `mise run docker:build` / `docker:run` | 构建本地容器镜像 / 挂载 `./data` 启动测试容器 |
+| `mise run clean` / `mise run distclean` | 清理构建产物（`bin/`、`tmp/`） / 额外清理运行数据（`data/`） |
 
-前端依赖和前端产物按源文件变化增量处理：`package.json` 与 `pnpm-lock.yaml` 未变时跳过 `pnpm install`，`web/` 源码未变时跳过前端构建。需要强制重跑时加 `--force`。
+## 文档索引
 
-`mise run dev` 默认使用 `config.dev.yaml`（不存在时从 `config.template.yaml` 复制），数据目录为 `./data`，并设置 `PRM_DEV=1` 跳过管理令牌。自定义配置：`mise run dev -c path.yaml`，数据目录：`--data-dir`。管理看板走 Vite：http://127.0.0.1:5173/admin/ ；HTTP 服务在 http://127.0.0.1:3001/ 。
-
-升级工具时修改 `mise.toml` 后执行 `mise install` 更新 `mise.lock`。`Dockerfile`、`go.mod` 和 `web/package.json` 里的 Go、Node.js、pnpm 版本需要同步修改，`mise run check:versions` 会检查它们是否一致。
-
-CI 先构建一次前端产物，再并行跑 lint、Go 测试和前端测试，最后做二进制构建和容器构建。发布用 goreleaser，容器推送到 `ghcr.io/fl0w1nd/prm`。
-## 文档
-
-- [docs/configuration.md](docs/configuration.md)：配置友好教程。
-- [docs/config-patch-api.md](docs/config-patch-api.md)：配置快照、事务 Patch、错误响应与 YAML 保证。
-- [docs/deployment.md](docs/deployment.md)：部署指南（自托管、Docker Compose、反向代理）。
-- [docs/github-pages.md](docs/github-pages.md)：GitHub Pages 静态发布。
-- [config.template.yaml](config.template.yaml)：逐字段参考模板。
+- [配置指南 (`docs/configuration.md`)](docs/configuration.md)：`config.yaml` 各模块结构、数据源类型、过滤操作、Geo 自动发布与更新策略详解。
+- [配置模板 (`config.template.yaml`)](config.template.yaml)：带完整字段注释与默认值的参考配置模板。
+- [部署指南 (`docs/deployment.md`)](docs/deployment.md)：二进制与 Docker Compose 部署、数据目录结构及反向代理配置。
+- [GitHub Pages 静态发布 (`docs/github-pages.md`)](docs/github-pages.md)：基于 GitHub Actions 的无服务器静态规则站构建与发布流程。
+- [Config Patch API (`docs/config-patch-api.md`)](docs/config-patch-api.md)：管理端配置快照、版本控制、增量 Patch 事务与回滚接口规范。

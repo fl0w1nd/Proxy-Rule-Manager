@@ -7,12 +7,11 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const exampleConfig = `# Proxy Rule Manager 最小可用配置
-# 这份配置可以直接运行：cp 到 config.yaml 后执行 prm update。
-# 完整字段与讲解见 config.template.yaml 或 docs/configuration.md。
-# 数据目录和 HTTP 参数通过 CLI flag 或 PRM_* 环境变量设置。
+const exampleConfig = `# Proxy Rule Manager 最小配置示例
+# 完整字段参考见 config.template.yaml，详细配置指南见 docs/configuration.md。
+# 数据目录与 HTTP 服务参数通过 CLI 参数或 PRM_* 环境变量设置。
 
-# 输出客户端：规则渲染给哪些代理客户端、用什么格式。
+# 目标代理客户端与输出格式
 clients:
   - id: mihomo
     name: Mihomo
@@ -21,7 +20,7 @@ clients:
         name: Classical
         template: mihomo-classical
 
-# 规则：一条规则 = 一次编译单元（读来源 -> 合并 -> 过滤 -> 渲染）。
+# 规则编译单元
 rules:
   - id: Google
     name: Google

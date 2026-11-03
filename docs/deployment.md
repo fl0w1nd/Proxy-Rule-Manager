@@ -1,51 +1,55 @@
 # 部署指南
 
-prm 有两种部署方式，核心区别在**有没有管理能力**：
+`prm` 支持**自托管常驻服务**与 **GitHub Pages 静态发布**两种部署模式：
 
-| 能力 | 自托管 | GitHub Pages |
+| 维度 | 自托管服务（`prm serve`） | GitHub Pages 静态发布（`prm build`） |
 | --- | --- | --- |
-| 规则站点（公开页、产物下载） | 有 | 有 |
-| 管理看板 `/admin`、管理 API `/api/v1` | 有 | 无 |
-| 手动触发更新、查看更新历史/变更 | 有 | 无 |
-| 定时自动更新 | 有（`update.schedule`） | 有（工作流每日构建） |
-| 需要常驻服务器 | 是 | 否 |
+| 公开规则索引页与产物下载 | 支持 | 支持 |
+| Web 管理控制台（`/admin`）与 REST API（`/api/v1`） | 支持 | 不支持 |
+| 在线编辑、实时调试预览、配置快照回滚 | 支持 | 不支持 |
+| 自动更新机制 | 内置调度器（`interval` / `cron`） | GitHub Actions 定时工作流 |
+| 基础设施要求 | 常驻进程或容器环境 | 仅需 GitHub 仓库 |
 
-- **自托管**：直接运行二进制，或用 Docker Compose 跑容器，管理能力完整。适合个人环境，配合代理客户端使用。
-- **GitHub Pages 静态发布**：Actions 定时把规则编译成静态站并发布。只有公开站点，没有 `/admin` 和 API，纯只读。
+本文档说明自托管服务的部署与运维配置；无服务器静态部署流程见 [GitHub Pages 静态发布指南](github-pages.md)。
 
-两种方式都要求先有一份可用的 `config.yaml`。没有的话先执行 `prm init` 并 `prm validate`。
+## 二进制直接部署
 
-## 方式一：自托管
-
-### A. 直接运行二进制
-
-1. 从 [Releases 页面](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载对应平台的压缩包（`prm_<版本>_<系统>_<架构>.tar.gz`），解压出 `prm`。
-2. 把 `config.yaml` 和 `data/` 放在同一目录。
-3. 首次更新并启动：
-
+1. 从 [Releases](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载对应操作系统与架构的压缩包（`prm_<version>_<os>_<arch>.tar.gz`）并解压。
+2. 准备配置文件与数据目录：
+   ```bash
+   ./prm init
+   ./prm validate
+   ```
+3. 执行首次规则编译并启动 HTTP 服务：
    ```bash
    export PRM_DATA_DIR=./data
-   export PRM_ADMIN_TOKEN=<强随机令牌>
+   export PRM_ADMIN_TOKEN=<设置高强度随机令牌>
+
    ./prm update
    ./prm serve
    ```
 
-`serve` 会按 `update.schedule` 的配置自动执行定时更新。想停止服务直接按 `Ctrl-C`。
+`prm serve` 默认监听 `127.0.0.1:3001`，并根据 `config.yaml` 中的 `update.schedule` 配置自动运行后台定时任务。
 
-### B. Docker Compose
+## Docker Compose 部署
 
-镜像发布在 `ghcr.io/fl0w1nd/prm`，支持 `linux/amd64` 和 `linux/arm64`。建议用固定版本标签，`latest` 只在每次新版本发布时更新。
+官方容器镜像发布于 `ghcr.io/fl0w1nd/prm`，支持 `linux/amd64` 与 `linux/arm64` 架构。
 
-项目根目录放一份 `docker-compose.yml`，`config.yaml` 放在 `./data/` 下：
+### 目录结构
+
+容器内工作目录为 `/data`，默认读取 `/data/config.yaml`，并将运行数据固定写入 `/data`。建议将宿主机的 `./data` 目录整体挂载至 `/data`（避免单文件挂载在原子重命名保存配置时因 inode 变更导致宿主机与容器文件脱节）：
 
 ```text
-项目目录/
+project/
 ├── docker-compose.yml
+├── .env
 └── data/
-    ├── config.yaml       # 配置文件
-    ├── local/            # 本地文件来源
-    └── rules/            # 产物（由 prm 生成）
+    ├── config.yaml       # 配置文件（若为空目录，首次启动时会自动生成默认配置）
+    ├── local/            # 本地规则文件
+    └── rules/            # 编译产物
 ```
+
+### `docker-compose.yml`
 
 ```yaml
 services:
@@ -54,62 +58,102 @@ services:
     container_name: prm
     restart: unless-stopped
     ports:
-      - "3001:3001"
+      - "127.0.0.1:3001:3001"
     environment:
       PRM_ADMIN_TOKEN: ${PRM_ADMIN_TOKEN:?请在 .env 中设置 PRM_ADMIN_TOKEN}
+      # 镜像内置默认环境变量（按需覆盖）：
       # PRM_DATA_DIR: /data
       # PRM_SERVE_HOST: 0.0.0.0
       # PRM_SERVE_PORT: 3001
       # PRM_TRUSTED_PROXIES: 127.0.0.1/32,172.16.0.0/12
     volumes:
-      - ./data:/data       # 整个目录，包含 config.yaml 和全部数据
+      - ./data:/data
 ```
 
-启动：
+启动与日常运维命令：
 
 ```bash
-# .env 文件里写一行：PRM_ADMIN_TOKEN=你的强随机令牌
+# 启动服务
 docker compose up -d
-docker compose logs -f prm     # 看启动日志
-```
 
-容器内 `WORKDIR` 是 `/data`，默认从 `/data/config.yaml` 读取配置。镜像通过 `PRM_DATA_DIR=/data` 固定运行数据目录，产物、缓存和历史都写入该卷。空卷首次启动时会生成纯业务配置。
+# 查看运行日志
+docker compose logs -f prm
 
-镜像运行时默认值为 `PRM_SERVE_HOST=0.0.0.0`、`PRM_SERVE_PORT=3001`、`PRM_TRUSTED_PROXIES=127.0.0.1/32,172.16.0.0/12`。Compose 的 `environment` 可覆盖这些值。
-
-只挂目录、不挂单文件，是为了让配置修改能正确生效。单文件挂载依赖文件 inode，宿主机上用编辑器改写文件后容器内不会联动；目录挂载则总是读到最新内容。
-
-修改配置后重新加载：
-
-```bash
+# 命令行校验配置或手动触发更新
 docker compose exec prm prm validate
 docker compose exec prm prm update
 ```
 
-升级版本：改 `image:` 里的标签，然后 `docker compose up -d`。
+## HTTP 路由与服务接口
 
-### 反向代理与安全注意事项
+| 路径 | 鉴权要求 | 说明 |
+| --- | --- | --- |
+| `/`、`/index.html` | 公开 | 规则索引页（支持客户端切换、标签过滤、产物链接复制与 Geo 目录检索） |
+| `/rules/*` | 公开 | 编译生成的各客户端规则产物 |
+| `/geo/*` | 公开 | 启用 `host: true` 时发布的原始 `.dat` 与 `.mmdb` 数据库文件 |
+| `/static/icons/*`、`/static/assets/*` | 公开 | 客户端图标与公开页前端静态资源 |
+| `/admin` | 需鉴权 | Web 管理控制台 |
+| `/api/v1/*` | 需鉴权 | 管理与控制 REST API（配置读写见 [Config Patch API](config-patch-api.md)） |
 
-prm 自带的 HTTP 服务只做规则提供和管理 API，生产环境通常在它前面放一个反向代理（Nginx、Caddy）负责 TLS 和域名。注意以下几点：
+鉴权与并发控制说明：
 
-- **监听地址**：本地默认监听 `127.0.0.1`；容器镜像默认监听 `0.0.0.0`。通过 `--host` 或 `PRM_SERVE_HOST` 调整。
-- **代理头与 HTTPS 识别**：prm 用 `--trusted-proxy` 或 `PRM_TRUSTED_PROXIES` 声明的网段判断可信转发头。填写反代所在网段或 IP（如 `127.0.0.1/32` 或 `10.0.0.0/8`）。Nginx 侧传递 `X-Forwarded-Proto`：
+- **身份验证**：`/api/v1` 接受 `Authorization: Bearer <PRM_ADMIN_TOKEN>` 请求头，或通过 `/admin` 登录建立的同源会话 Cookie（`HttpOnly`、`SameSite=Strict`）。
+- **更新触发**：`POST /api/v1/updates` 通过请求体 `{"scope": "..."}` 触发更新，支持 `all`（全量）、`rules`（配合 `rule_ids` 数组更新指定规则及其下游依赖）、`geosite`、`geoip`、`mmdb`、`asn`。同一时间仅允许运行一个更新任务，并发触发将返回 `409 Conflict`。
 
-  ```nginx
-  location / {
-      proxy_pass http://127.0.0.1:3001;
-      proxy_set_header Host $host;
-      proxy_set_header X-Forwarded-Proto $scheme;
-  }
-  ```
+## 数据目录结构
 
-- **令牌**：`PRM_ADMIN_TOKEN` 使用足够随机的长字符串，通过环境变量注入。管理接口 `/admin` 和 `/api/v1` 都需要它。
-- **可信代理覆盖**：Compose 可设置 `PRM_TRUSTED_PROXIES=127.0.0.1/32,10.0.0.0/8`；每项接受单 IP 或 CIDR。
-- **数据持久化**：`./data` 卷保存规则产物、geosite/geoip/mmdb/asn 缓存（含 `raw/` 原始文件）、`geo/` 发布目录和更新历史。备份时整卷复制即可。
-- **端口暴露**：只把反代端口暴露到公网，prm 的 `3001` 端口保持内网可达即可。
+运行时数据目录（默认 `./data`）包含全部编译产物、缓存与状态文件，同一时刻通过 `.state/prm.lock` 排他锁防止多进程并发写入：
 
-## 方式二：GitHub Pages 静态发布
+```text
+data/
+├── rules/              # 渲染后的客户端规则产物（公开于 /rules/）
+│   ├── mihomo-classical/
+│   │   ├── OpenAI.list
+│   │   └── geosite/v2fly/google.list
+│   └── sing-box-non-ip/
+│       └── OpenAI.json
+├── geo/                # 托管的原始 Geo 数据库（公开于 /geo/）
+│   ├── geosite/v2fly/dlc.dat
+│   ├── geoip/v2fly/geoip.dat
+│   ├── mmdb/loyalsoldier/Country.mmdb
+│   └── asn/loyalsoldier/GeoLite2-ASN.mmdb
+├── local/              # 本地规则源（对应 sources 中的 file 相对路径）
+├── templates/          # 自定义模板（同名时覆盖内置模板）
+├── static/
+│   ├── assets/         # 公开页前端静态资源（随版本自动同步）
+│   └── icons/          # 内置与自定义客户端图标
+├── geosite/            # Geosite 解析缓存与上游原始文件（raw/）
+├── geoip/              # GeoIP 解析缓存与上游原始文件（raw/）
+├── mmdb/               # MMDB 数据库缓存
+├── asn/                # ASN 数据库缓存
+└── .state/             # 运行状态快照、更新历史记录与配置自动备份（backups/）
+```
 
-把规则站点发布成公开页面，无需常驻服务器。核心流程：Fork 仓库 → 在 `publish` 分支维护配置 → 启用 Actions → 工作流每天自动构建并发布。
+备份或迁移时，直接完整备份 `config.yaml` 与 `data/` 目录即可。
 
-完整步骤见 [github-pages.md](github-pages.md)。
+## 反向代理配置
+
+生产环境建议将 `prm` 置于 Nginx 或 Caddy 等反向代理之后以提供 HTTPS 接入。
+
+当通过 HTTPS 反向代理访问 `/admin` 时，`prm` 需要识别请求的真实协议以设置 `Secure` Cookie 并执行同源校验。请确保：
+
+1. 通过 `--trusted-proxy` 或环境变量 `PRM_TRUSTED_PROXIES` 声明反向代理所在的 IP 或网段（例如 `127.0.0.1/32` 或容器网段 `172.16.0.0/12`）。
+2. 在反向代理中转发 `Host` 与 `X-Forwarded-Proto` 请求头。
+
+Nginx 配置示例：
+
+```nginx
+server {
+    listen 443 ssl http2;
+    server_name rules.example.com;
+
+    # SSL 证书配置省略
+
+    location / {
+        proxy_pass http://127.0.0.1:3001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```

@@ -1,31 +1,30 @@
 # ============================================================
-# Proxy Rule Manager 配置模板
+# Proxy Rule Manager 配置模板与字段参考
 # ============================================================
 #
-# 这份文件既是模板，也是完整参考。怎么用：
+# 使用方法：
+#   cp config.template.yaml config.yaml
+#   prm validate -c config.yaml
+#   prm update
 #
-#   cp config.template.yaml config.yaml   # 复制为实际配置
-#   prm validate -c config.yaml           # 检查配置是否合法（带行号报错）
-#   prm update                            # 拉取来源并生成所有客户端产物
+# 语法约定：
+#   · 时长（Duration）：采用 Go 标准时长格式，如 500ms、15s、30m、168h
+#   · 体积（Size）：支持带单位字符串（如 "50MB"）或纯数字字节数
+#   · 运行时参数（数据目录、HTTP 监听地址等）：通过 CLI 参数或 PRM_* 环境变量指定
 #
-# 通用约定：
-#   · 时长用 Go duration 语法：500ms、15s、30m、168h
-#   · 大小可写 "4MB" 或纯数字字节数（4000000）
-#   · 数据目录和 HTTP 参数通过 CLI flag 或 PRM_* 环境变量设置
-#
-# 每个字段都标注了可选值或默认值；完整的应用讲解见 docs/configuration.md。
+# 完整配置说明见 docs/configuration.md。
 # ============================================================
 
 # ============================================================
-# clients —— 你的代理客户端
+# clients —— 目标代理客户端与输出格式
 # ============================================================
-# 这里声明"规则最终渲染给谁、用什么格式"。三种写法：
-#   · 多格式：formats 下列多个模板（如 Mihomo 的 Classical / YAML，sing-box 的 Source / Binary）
-#   · 单格式：直接写 template
-#   · 派生变体：variants，渲染前对规则再过滤一次
+# 支持三种输出定义方式：
+#   · 多格式（formats）：同一客户端输出多种格式（如 Mihomo 的 Classical 与 YAML）
+#   · 单格式（template）：直接在客户端层级指定单一模板
+#   · 派生变体（variants）：在规则级过滤完成后，额外执行变体专属 ops 并渲染独立产物
 #
-# id 是全文通用引用值（rules 的 outputs 里要用到），不能重复。
-# name 用于站点页面展示；icon 可选，省略时按 id 推断。
+# id 为全局唯一标识，供 rules[].outputs 及 Geo 自动发布引用。
+# icon 可选（内置：mihomo、singbox、shadowrocket、surge），省略时按 id 自动推断。
 clients:
   - id: mihomo
     name: Mihomo
@@ -49,8 +48,7 @@ clients:
         name: Binary
         template: singbox-binary
 
-    # 变体：产物目录名取 id；多格式客户端必须写 template。
-    # 常见用途：sing-box 出全量规则，另出一份不含 IP 段的。
+    # 派生变体：产物输出至 rules/<variant.id>/ 目录；多格式客户端下须显式指定 template。
     variants:
       - id: sing-box-non-ip
         name: Non-IP
@@ -60,56 +58,56 @@ clients:
             kinds: [ip_cidr]
 
 # ============================================================
-# rules —— 一条规则 = 一次编译单元
+# rules —— 规则编译单元
 # ============================================================
-# 更新流程：读取各来源 -> 合并 -> 过滤（ops）-> 渲染各客户端产物。
-# 一条规则最少需要：id、name、一个 sources、outputs。
-#   · id 必须唯一，且不能包含路径分隔符；同时充当 ref 引用值和输出文件名
-#   · name / description / tags 用于站点页面的展示与筛选
+# 编译流水线：读取来源与预处理 -> 解析 -> 集合合并 -> 规则级过滤（ops） -> 模板渲染。
+# 必填字段：id（全局唯一，不可含路径分隔符）、name、sources、outputs。
 rules:
   - id: OpenAI
     name: OpenAI
     description: OpenAI 服务规则
     tags: [ai, service]
 
-    # --- 来源 sources ---
-    # 支持六种来源及来源分组；label 可选，用于日志和报错定位；内容格式自动识别。
+    # --- 数据源 sources ---
+    # 支持六种来源类型及单层分组（group）；label 可选，用于日志与报错定位；格式自动识别。
     sources:
-      # 1) 远程规则列表（最常见）：直接给 URL。
+      # 1) 远程规则列表（URL）
       - label: blackmatrix7-openai
         type: url
         url: https://raw.githubusercontent.com/blackmatrix7/ios_rule_script/master/rule/Surge/OpenAI/OpenAI.list
 
-      # 2) 内联文本：少量规则直接写在配置里。
+      # 2) 内联规则文本
       # - label: inline-rules
       #   type: local
       #   content: |-
       #     DOMAIN,api.example.com
       #     DOMAIN-SUFFIX,example.net
 
-      # 3) 本地文件：相对路径以 data/local 为根，custom.list 指向 data/local/custom.list。
+      # 3) 本地规则文件（相对于 <data-dir>/local/ 的路径）
       # - label: local-file
       #   type: local
       #   file: custom.list
 
-      # 4) 引用另一条规则：被引用的规则会先编译，在这里完整继承其内容。
+      # 4) 引用其他规则（按依赖拓扑顺序先行编译）
       # - label: shared-base
       #   type: ref
       #   ref: base_rules
 
-      # 5) geosite 列表：provider/list 或 provider/list@attr1,attr2。
-      #    可用 provider：v2fly、loyalsoldier。
+      # 5) Geosite 域名列表：provider/list 或 provider/list@attr1,attr2
+      #    可选 provider：v2fly、loyalsoldier
       # - label: geosite-list
       #   type: geosite
       #   geosite: v2fly/google@cn
 
-      # 6) geoip 列表：provider/list，展开为 IPv4/IPv6 CIDR。
-      #    可用 provider：loyalsoldier、v2fly。
+      # 6) GeoIP 地址列表：provider/list（展开为 IPv4/IPv6 CIDR）
+      #    可选 provider：loyalsoldier、v2fly
       # - label: geoip-list
       #   type: geoip
       #   geoip: loyalsoldier/cn
 
-      # 来源组：各来源分别预处理、解析，组内取并集后执行组内过滤。
+      # 来源分组：组内成员分别预处理与解析，合并（并集）后执行组级 ops。
+      # 普通来源与 group 均可配置局部 preprocess 与 ops；
+      # preprocess 省略时继承规则级脚本，设为 "" 时禁用预处理。
       # - group:
       #     - url: https://example.com/a.list
       #     - url: https://example.com/b.list
@@ -118,15 +116,11 @@ rules:
       #   ops:
       #     - type: include_kinds
       #       kinds: [domain, domain_suffix]
-      # 普通来源也支持 preprocess / ops；组内成员的处理统一配置在组上。
-      # preprocess 省略时继承规则级脚本，设为 "" 时关闭预处理。
 
-    # --- 全局过滤 ops（可选，按声明顺序执行）---
-    # include_kinds：只保留指定类型；exclude_kinds：移除指定类型。
-    # 常用类型：domain、domain_suffix、domain_keyword、domain_regex、
-    #           ip_cidr、ip_asn、geoip、process_name、user_agent 等。
-    # filter_values：删除"值"匹配 pattern 的条目；
-    #           mode 取 keyword（默认）/ suffix / prefix / exact / regex。
+    # --- 规则级过滤操作 ops（可选，按数组顺序执行）---
+    # · include_kinds：仅保留指定类型
+    # · exclude_kinds：移除指定类型
+    # · filter_values：移除值匹配 pattern 的条目（mode: keyword / suffix / prefix / exact / regex）
     ops:
       - type: include_kinds
         kinds: [domain, domain_suffix, domain_keyword, ip_cidr]
@@ -134,47 +128,45 @@ rules:
       #   mode: suffix
       #   pattern: internal.example
 
-    # --- 多来源合并策略（可选，默认 union）---
-    # union 并集（推荐）/ intersect 只留交集 / difference 用第一个来源减去其余来源
+    # --- 合并策略 merge（可选，默认 union）---
+    # 可选值：union（并集）/ intersect（交集）/ difference（差集：首项减去其余项）
     merge:
       strategy: union
 
-    # --- 输出 ---
-    # 客户端 id 必须存在于上方的 clients；每个客户端会展开自己的全部格式和变体。
+    # --- 目标客户端 outputs ---
+    # 引用 clients[].id，自动展开该客户端下的全部 formats 与 variants。
     outputs: [mihomo, sing-box]
 
-# ------------------------------------------------------------
-# geosite 自动发布（可选）
-# ------------------------------------------------------------
-# 把 provider 的全部列表与属性变体同步发布到目标客户端，
-# 输出形如 rules/<客户端>/geosite/v2fly/google.list。
-# 启用后无需为每个列表单独声明规则。
+# ============================================================
+# geosite 自动发布与原始库托管（可选）
+# ============================================================
+# 将指定 provider 的全量分类及属性变体批量编译至目标客户端：
+#   产物路径：rules/<输出目标 ID>/geosite/<provider>/<list><ext>
+#   host: true 时额外发布原始数据库至 geo/geosite/<provider>/
 # geosite:
 #   providers:
-#     # provider 名称：v2fly 或 loyalsoldier，同一名称只声明一次
-#     - name: v2fly
+#     - name: v2fly             # v2fly 或 loyalsoldier
 #       clients: [mihomo, sing-box]
-#       # host: true            # 在公开页提供原始 .dat
+#       # host: true
 
 # ============================================================
-# geoip 自动发布（可选）
+# geoip 自动发布与原始库托管（可选）
 # ============================================================
-# 全部 IP 列表按客户端格式和变体输出。
-# 输出形如 rules/<输出 ID>/geoip/loyalsoldier/cn.list。
+# 将指定 provider 的全量 IP 分类批量编译至目标客户端：
+#   产物路径：rules/<输出目标 ID>/geoip/<provider>/<list><ext>
+#   host: true 时额外发布原始数据库至 geo/geoip/<provider>/geoip.dat
 # geoip:
 #   providers:
-#     - name: loyalsoldier
+#     - name: loyalsoldier      # loyalsoldier 或 v2fly
 #       clients: [mihomo, sing-box]
 #       # host: true
 #     - name: v2fly
 #       clients: [mihomo]
 
 # ============================================================
-# mmdb / asn 原始数据库（可选）
+# mmdb / asn 原始数据库托管（可选）
 # ============================================================
-# 仅用于在公开页提供 mihomo geox-url 所需的 Country.mmdb 与
-# GeoLite2-ASN.mmdb。
-# 提供商目前仅 loyalsoldier；随 GeoIP 更新一并下载。
+# 在公开站 /geo/ 路径下托管 Country.mmdb 与 GeoLite2-ASN.mmdb（随 GeoIP 更新下载）。
 # mmdb:
 #   providers:
 #     - name: loyalsoldier
@@ -185,30 +177,28 @@ rules:
 #       host: true
 
 # ============================================================
-# update —— 更新历史、调度与资源限制
+# update —— 历史保留、定时调度与资源限制
 # ============================================================
 update:
-  # 更新历史：保留最近 168h 内、最多 200 条记录。
-  history_retention: 168h
-  history_limit: 200           # 1..10000
+  history_retention: 168h      # 更新历史最长保留时间
+  history_limit: 200           # 更新历史保留条数上限（1..10000）
 
   schedule:
-    # 自动更新模式：manual 手动 / interval 固定间隔 / cron 定时表达式。
-    # 需要在 prm serve 运行中才会调度执行；manual 模式只在你执行 update 时运行。
+    # 调度模式：manual（手动）/ interval（固定间隔）/ cron（定时表达式，仅在 prm serve 下生效）
     mode: manual
     # interval: 30m
-    # cron: "0 3 * * *"         # 每天 03:00，时区见下
+    # cron: "0 3 * * *"
     timezone: UTC
 
   fetch:
-    timeout: 15s               # 单次 HTTP 请求超时
-    max_download: 50MB         # 单个远程来源的最大下载量
-    concurrency: 4             # 全局并发下载数（1..64）
-    per_host_concurrency: 2    # 同一主机的并发下载数（1..concurrency）
-    retries: 2                 # 请求失败后的重试次数（0..10）
-    retry_delay: 500ms         # 重试基础间隔
+    timeout: 15s               # 单次请求响应与传输停滞（stall）超时
+    max_download: 50MB         # 单个远程资源体积上限
+    concurrency: 4             # 全局最大并发下载数（1..64）
+    per_host_concurrency: 2    # 单主机最大并发下载数（1..concurrency）
+    retries: 2                 # 请求失败重试次数（0..10）
+    retry_delay: 500ms         # 重试退避基础间隔
     user_agent: Proxy-Rule-Manager/2.0
 
   preprocess:
-    timeout: 5s                # 单次 JavaScript 预处理的最长耗时
-    max_output: 8MB            # 预处理结果的最大体积
+    timeout: 5s                # 单次 JavaScript 预处理超时时间
+    max_output: 8MB            # 单次预处理输出体积上限
