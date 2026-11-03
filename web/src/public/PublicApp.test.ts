@@ -116,6 +116,15 @@ describe('PublicApp', () => {
     await user.click(screen.getByRole('button', { name: '预览 OpenAI' }));
     expect(await screen.findByText(/仅显示前 500 行/)).toBeInTheDocument();
     expect(screen.getByText('500 / 501 LINES')).toBeInTheDocument();
+    expect(screen.queryByText('line-501')).not.toBeInTheDocument();
+
+    // Load the rest on demand; the full text comes from the cached response
+    await user.click(screen.getByRole('button', { name: '加载全部' }));
+    expect(screen.getByText('line-501')).toBeInTheDocument();
+    expect(screen.getByText('501 LINES')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '加载全部' })).not.toBeInTheDocument();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
     await user.click(screen.getByRole('button', { name: '复制链接' }));
     expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/rules/clash-yaml/OpenAI.yaml'));
 

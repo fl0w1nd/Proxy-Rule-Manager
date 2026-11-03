@@ -503,6 +503,15 @@
 /* overscroll-behavior 要写在真正滚动的 OverlayScrollbars viewport 上，写在宿主 pre 上拦不住滚动链 */
 .preview-shell [data-overlayscrollbars-viewport] { overscroll-behavior: contain; }
 .preview-shell { margin: 14px 20px 20px; }
+.preview-more {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  color: var(--dim);
+}
 .preview-shell pre {
   /* OverlayScrollbars 宿主必须有确定高度：height:auto + max-height 时内部 viewport 会按内容撑开，
      滚动改由外层容器承担，滚动条就和文字一起被顶走。flex 收缩后的高度同样是确定值。 */

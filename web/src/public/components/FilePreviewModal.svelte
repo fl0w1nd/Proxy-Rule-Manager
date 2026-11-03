@@ -1,5 +1,5 @@
 <script module lang="ts">
-  const previewCache = new Map<string, { text: string; stat: string }>();
+  const previewCache = new Map<string, { text: string; head: string; total: number }>();
   const cacheLimit = 6;
 
   export function clearPreviewCache() {
@@ -27,12 +27,22 @@
 
   let { item, client, target, onclose }: Props = $props();
   let previewState = $state<'loading' | 'ready' | 'empty' | 'binary' | 'error'>('loading');
+  // ready 时 previewText 是完整内容，previewHead 是前 previewLines 行；其余状态下 previewText 是提示文案。
   let previewText = $state('加载中…');
-  let previewStat = $state('READING');
+  let previewHead = $state('');
+  let previewTotal = $state(0);
+  let previewNote = $state('READING');
+  let expanded = $state(false);
   let copied = $state(false);
   const previewLines = 500;
 
-  function remember(path: string, value: { text: string; stat: string }) {
+  const truncated = $derived(previewState === 'ready' && !expanded && previewTotal > previewLines);
+  const shownText = $derived(truncated ? previewHead : previewText);
+  const previewStat = $derived(
+    previewState === 'ready' ? `${truncated ? `${previewLines} / ` : ''}${previewTotal} LINES` : previewNote,
+  );
+
+  function remember(path: string, value: { text: string; head: string; total: number }) {
     previewCache.delete(path);
     previewCache.set(path, value);
     if (previewCache.size > cacheLimit) {
@@ -51,7 +61,7 @@
   // pre 先以「加载中…」一行的高度初始化滚动条，内容到达后高度才撑开。
   // OverlayScrollbars 偶尔漏掉这次尺寸变化，滑块就停在按旧高度算出的大小和位置上，所以在内容变化后强制重算。
   $effect(() => {
-    void previewText;
+    void shownText;
     const el = preEl;
     if (!el) return;
     const refresh = () => OverlayScrollbars(el)?.update(true);
@@ -71,11 +81,12 @@
   $effect(() => {
     const current = item;
     copied = false;
+    expanded = false;
     if (!current) return;
     if (!current.path) {
       previewState = 'empty';
       previewText = '没有可预览的内容。';
-      previewStat = 'EMPTY';
+      previewNote = 'EMPTY';
       return;
     }
     if (target.binary) {
@@ -88,14 +99,15 @@
       remember(current.path, cached);
       previewState = 'ready';
       previewText = cached.text;
-      previewStat = cached.stat;
+      previewHead = cached.head;
+      previewTotal = cached.total;
       return;
     }
 
     const controller = new AbortController();
     previewState = 'loading';
     previewText = '加载中…';
-    previewStat = 'READING';
+    previewNote = 'READING';
     fetch(current.path, { signal: controller.signal })
       .then((response) => {
         if (!response.ok) throw new Error(`http ${response.status}`);
@@ -104,21 +116,18 @@
       .then((text) => {
         const lines = text.split('\n');
         const total = lines.length;
-        const truncated = total > previewLines;
-        const rendered = truncated
-          ? `${lines.slice(0, previewLines).join('\n')}\n… 仅显示前 ${previewLines} 行，完整内容请打开文件`
-          : text;
-        const stat = `${truncated ? `${previewLines} / ` : ''}${total} LINES`;
-        remember(current.path!, { text: rendered, stat });
+        const head = total > previewLines ? lines.slice(0, previewLines).join('\n') : text;
+        remember(current.path!, { text, head, total });
         previewState = 'ready';
-        previewText = rendered;
-        previewStat = stat;
+        previewText = text;
+        previewHead = head;
+        previewTotal = total;
       })
       .catch((error) => {
         if (error instanceof DOMException && error.name === 'AbortError') return;
         previewState = 'error';
         previewText = '无法加载预览。请通过 prm serve 访问，或点「打开文件」查看。';
-        previewStat = 'LOAD ERROR';
+        previewNote = 'LOAD ERROR';
       });
     return () => controller.abort();
   });
@@ -163,8 +172,14 @@
       {:else}
         <div class="preview-shell" data-state={previewState}>
           <CodePanel fill filename={item.path?.split('/').pop()} stat={previewStat}>
-            <pre bind:this={preEl} use:retroScroll>{#each previewText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
+            <pre bind:this={preEl} use:retroScroll>{#each shownText.split('\n') as line, index}<span data-line={index + 1}>{line || ' '}</span>{/each}</pre>
           </CodePanel>
+          {#if truncated}
+            <div class="preview-more">
+              <span>仅显示前 {previewLines} 行，共 {formatCount(previewTotal)} 行</span>
+              <button type="button" class="pill-btn" onclick={() => { expanded = true; }}>加载全部</button>
+            </div>
+          {/if}
         </div>
       {/if}
     </div>
