@@ -30,6 +30,8 @@ export interface RulePreviewSource {
   type: string;
   entries: number;
   diagnostics: number;
+  /** 前若干条无法解析的行。 */
+  diagnostic_items?: RuleDiagnostic[];
   error?: string;
   duration_ms: number;
   /** 本地 geo 数据的抓取时间与版本；非 geosite/geoip 来源为空。 */
@@ -241,6 +243,49 @@ export interface LocalFileItem {
   size: number;
   lines: number;
   modified_at: string;
+  /** 原始文件（未经预处理）的解析结果。 */
+  format?: string;
+  entries?: number;
+  diagnostics?: number;
+  /** 读取此文件的规则。 */
+  rules?: { id: string; name: string }[];
+}
+
+export interface RuleDiagnostic {
+  /** 1 起始；0 表示整份文档的问题。 */
+  line?: number;
+  text: string;
+  reason: string;
+}
+
+export interface RuleSyntaxType {
+  name: string;
+  kind: string;
+  alias?: boolean;
+}
+
+export interface RuleSyntax {
+  types: RuleSyntaxType[];
+  flags: string[];
+}
+
+export interface LintLine {
+  line: number;
+  text: string;
+  kind: string;
+  value: string;
+}
+
+export interface LintReport {
+  format?: string;
+  confidence: number;
+  entries: number;
+  kinds: RulePreviewKindCount[];
+  diagnostics: RuleDiagnostic[];
+  diagnostic_count: number;
+  lines: LintLine[];
+  lines_truncated?: boolean;
+  warnings: string[];
 }
 
 export interface LocalFileDetail extends LocalFileItem {
@@ -537,6 +582,19 @@ export const api = {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ content }),
+    });
+  },
+
+  getRuleSyntax(): Promise<RuleSyntax> {
+    return request<RuleSyntax>('/rule-syntax');
+  },
+
+  lintRules(content: string, name = '', signal?: AbortSignal): Promise<LintReport> {
+    return request<LintReport>('/rule-syntax/lint', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(name ? { name, content } : { content }),
+      signal,
     });
   },
 

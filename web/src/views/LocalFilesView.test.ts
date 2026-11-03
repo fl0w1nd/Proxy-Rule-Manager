@@ -50,4 +50,41 @@ describe('LocalFilesView', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('文件正被规则 Direct 引用，无法删除'));
     expect(screen.getByText('used.list')).toBeInTheDocument();
   });
+
+  it('shows lint status, inserts rules and confirms saving unparseable content', async () => {
+    const broken = { ...item, entries: 1, diagnostics: 1, format: 'classical', rules: [{ id: 'direct', name: 'Direct' }] };
+    vi.spyOn(api, 'listLocalFiles').mockResolvedValue({ items: [broken] });
+    vi.spyOn(api, 'getRuleSyntax').mockResolvedValue({ types: [{ name: 'DOMAIN-SUFFIX', kind: 'domain_suffix' }, { name: 'IP-CIDR', kind: 'ip_cidr' }], flags: ['no-resolve'] });
+    vi.spyOn(api, 'getLocalFile').mockResolvedValue({ ...broken, content: 'DOMAIN,a.com\nNOPE,b\n' });
+    const report = {
+      format: 'classical', confidence: 1, entries: 1, kinds: [{ kind: 'domain', count: 1 }],
+      diagnostics: [{ line: 2, text: 'NOPE,b', reason: 'unknown rule type "NOPE"' }], diagnostic_count: 1,
+      lines: [{ line: 1, text: 'DOMAIN,a.com', kind: 'domain', value: 'a.com' }], warnings: [],
+    };
+    const lint = vi.spyOn(api, 'lintRules').mockResolvedValue(report);
+    const save = vi.spyOn(api, 'saveLocalFile').mockResolvedValue({ ...broken, content: '' });
+    render(LocalFilesView);
+    expect(await screen.findByText('1 行无法解析')).toBeInTheDocument();
+    expect(screen.getByText('Direct')).toBeInTheDocument();
+
+    await fireEvent.click(screen.getByRole('button', { name: '编辑' }));
+    const status = await screen.findByRole('status', { name: '语法检查' });
+    await waitFor(() => expect(status).toHaveTextContent('⚠ 1 行无法解析'), { timeout: 2000 });
+    expect(screen.getByRole('button', { name: /2 NOPE,b — 未知规则类型 NOPE/ })).toBeInTheDocument();
+
+    await fireEvent.input(screen.getByLabelText('插入规则值'), { target: { value: 'example.com' } });
+    await fireEvent.click(screen.getByRole('button', { name: '插入' }));
+    const box = screen.getByRole('textbox', { name: '文件内容' });
+    expect(EditorView.findFromDOM(box)!.state.doc.toString()).toContain('DOMAIN-SUFFIX,example.com');
+
+    await fireEvent.click(screen.getByRole('button', { name: '保存' }));
+    expect(await screen.findByText(/引用此文件的规则 Direct 会在更新时报错/)).toBeInTheDocument();
+    expect(save).not.toHaveBeenCalled();
+    await fireEvent.click(screen.getByRole('button', { name: '仍然保存' }));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
+    expect(lint).toHaveBeenCalled();
+
+    await fireEvent.click(screen.getByRole('tab', { name: /解析结果/ }));
+    expect(screen.getByRole('cell', { name: 'a.com' })).toBeInTheDocument();
+  });
 });
