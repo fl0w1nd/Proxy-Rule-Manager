@@ -14,6 +14,7 @@
   interface Props { data: PublicPageData; }
   let { data }: Props = $props();
 
+  const repoURL = 'https://github.com/fl0w1nd/Proxy-Rule-Manager';
   const hostedViews: Extract<PublicView, 'mmdb' | 'asn'>[] = ['mmdb', 'asn'];
   let view = $state<PublicView>('rules');
   let selectedClient = $state(0);
@@ -131,6 +132,7 @@
       <div><strong>PROXY RULE MANAGER</strong><small>规则索引 · 更新于 {formatUpdatedAt(data.updated_at)}</small></div>
     </div>
     <div class="top-actions">
+      <a class="bracket-btn" href={repoURL} target="_blank" rel="noopener" title="在 GitHub 上查看项目">[ 仓库 ]</a>
       {#if data.admin_url}<a class="bracket-btn" href={data.admin_url}>[ 管理 ]</a>{/if}
       <button class="bracket-btn" type="button" onclick={toggleTheme}>[ {theme === 'dark' ? '亮色' : '暗色'} ]</button>
     </div>
