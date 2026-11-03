@@ -17,6 +17,7 @@ import (
 	"github.com/go-chi/chi/v5"
 
 	"github.com/fl0w1nd/proxy-rule-manager/internal/config"
+	"github.com/fl0w1nd/proxy-rule-manager/internal/ir"
 	"github.com/fl0w1nd/proxy-rule-manager/internal/util"
 )
 
@@ -27,6 +28,12 @@ type localFileItem struct {
 	Size       int64  `json:"size"`
 	Lines      int    `json:"lines"`
 	ModifiedAt string `json:"modified_at"`
+	// Parse summary of the raw file (before any rule preprocessing).
+	Format      string `json:"format,omitempty"`
+	Entries     int    `json:"entries"`
+	Diagnostics int    `json:"diagnostics"`
+	// Rules lists the rules whose sources read this file.
+	Rules []localFileRef `json:"rules"`
 }
 
 type localFileDetail struct {
@@ -71,6 +78,7 @@ func (s *Server) handleLocalFile(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "local_file_read_failed", "读取本地文件失败", map[string]any{})
 		return
 	}
+	item.Rules = s.localFileRefs(item.Name)
 	writeJSON(w, http.StatusOK, localFileDetail{localFileItem: item, Content: content})
 }
 
@@ -104,6 +112,7 @@ func (s *Server) handleLocalFileCreate(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "local_file_write_failed", "写入本地文件失败", map[string]any{})
 		return
 	}
+	detail.Rules = s.localFileRefs(detail.Name)
 	writeJSON(w, http.StatusCreated, detail)
 }
 
@@ -132,6 +141,7 @@ func (s *Server) handleLocalFileUpdate(w http.ResponseWriter, r *http.Request) {
 		writeAPIError(w, http.StatusInternalServerError, "local_file_write_failed", "写入本地文件失败", map[string]any{})
 		return
 	}
+	detail.Rules = s.localFileRefs(detail.Name)
 	writeJSON(w, http.StatusOK, detail)
 }
 
@@ -188,7 +198,9 @@ func (s *Server) listLocalFiles() ([]localFileItem, error) {
 		if err != nil {
 			return nil, err
 		}
-		items = append(items, localFileMeta(entry.Name(), info, content))
+		item := localFileMeta(entry.Name(), info, content)
+		item.Rules = s.localFileRefs(item.Name)
+		items = append(items, item)
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 	return items, nil
@@ -344,11 +356,16 @@ func writeLocalFile(path string, content string) (localFileDetail, error) {
 }
 
 func localFileMeta(name string, info os.FileInfo, content []byte) localFileItem {
+	report := ir.Lint(string(content), 0)
 	return localFileItem{
-		Name:       name,
-		Size:       info.Size(),
-		Lines:      countTextLines(content),
-		ModifiedAt: util.FormatISO(info.ModTime()),
+		Name:        name,
+		Size:        info.Size(),
+		Lines:       countTextLines(content),
+		ModifiedAt:  util.FormatISO(info.ModTime()),
+		Format:      report.Format,
+		Entries:     report.Entries,
+		Diagnostics: report.DiagnosticCount,
+		Rules:       []localFileRef{},
 	}
 }
 

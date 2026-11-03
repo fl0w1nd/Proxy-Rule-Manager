@@ -1,12 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addInput,
+  dissolveGroup,
+  duplicateSource,
+  inputSummary,
+  moveInput,
+  moveLosesProcessing,
   moveRuleOrder,
+  moveSource,
+  preprocessMode,
   readRule,
   refChoices,
+  removeInput,
   ruleReferences,
   serializeRule,
   serializeSource,
+  splitInput,
   validateRule,
+  validateRuleAll,
 } from './rules';
 
 const clients = [{ id: 'mihomo', name: 'Mihomo' }, { id: 'sing-box', name: 'sing-box' }];
@@ -63,7 +74,7 @@ describe('rule editor helpers', () => {
   });
 
   it('rejects missing sources, unknown files and cyclic refs', () => {
-    expect(validateRule({ id: 'child', name: 'Child', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'child')).toEqual({ path: 'sources', message: '来源 1 不能引用自身' });
+    expect(validateRule({ id: 'child', name: 'Child', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'child')).toEqual({ path: 'sources', message: '来源 1 不能引用自身', source: 0 });
     expect(validateRule({ id: 'base', name: 'Base', sources: [{ kind: 'ref', ref: 'child' }], outputs: [] }, rules, clients, files, 'base')?.message).toContain('循环');
     expect(validateRule({ id: 'custom', name: 'Custom', sources: [{ kind: 'file', file: 'missing.list' }], outputs: ['mihomo'] }, rules, clients, files, '')?.message).toContain('不存在的本地文件');
     expect(validateRule({
@@ -92,4 +103,82 @@ it('round-trips grouped sources, overrides and explicit preprocessing opt-out', 
 it('validates files and refs inside source groups', () => {
   const draft = readRule({ id: 'grouped', name: 'Grouped', outputs: [], sources: [{ group: [{ file: 'missing.list' }] }] });
   expect(validateRule(draft, rules, clients, files, '')?.message).toContain('不存在的本地文件');
+});
+
+describe('source rows', () => {
+  const ops = [{ type: 'include_kinds', kinds: ['domain'] }];
+  const a = { kind: 'url' as const, url: 'https://example/a', ops: [] };
+  const b = { kind: 'url' as const, url: 'https://example/b', ops: [] };
+
+  it('keeps untouched sources byte-for-byte when round-tripping', () => {
+    for (const sources of [
+      [{ url: 'https://example/a' }],
+      [{ url: 'https://example/a', label: 'remote', preprocess: '', ops }],
+      [{ group: [{ url: 'https://example/a' }] }],
+      [{ group: [{ url: 'https://example/a', label: 'a' }, { file: 'direct.list' }], label: 'g', preprocess: 'function process(c) { return c; }', ops }],
+      [{ ref: 'base' }, { geosite: 'v2fly/google@cn' }, { geoip: 'loyalsoldier/cn' }, { content: 'DOMAIN,a.com' }],
+    ]) {
+      const raw = { id: 'x', name: 'X', outputs: [], sources };
+      expect(serializeRule(readRule(raw))).toEqual(raw);
+    }
+  });
+
+  it('upgrades a plain source to a group only when a second input is added', () => {
+    const plain = { ...a, label: 'remote', preprocess: '', ops };
+    const [group] = addInput([plain], 0, b);
+    expect(serializeSource(group)).toEqual({ group: [{ url: 'https://example/a', label: 'remote' }, { url: 'https://example/b' }], preprocess: '', ops });
+    // 删到只剩一个输入时保持 group，不改写结构
+    expect(serializeSource(removeInput([group], 0, 1)[0])).toEqual({ group: [{ url: 'https://example/a', label: 'remote' }], preprocess: '', ops });
+    // 显式解散才退回普通来源，处理配置随之保留
+    expect(serializeSource(dissolveGroup(removeInput([group], 0, 1), 0)[0])).toEqual({ url: 'https://example/a', label: 'remote', preprocess: '', ops });
+  });
+
+  it('splits an input out with the row processing so results stay the same', () => {
+    const group = { kind: 'group' as const, group: [a, b], preprocess: '', ops };
+    const next = splitInput([group], 0, 1);
+    expect(next.map(serializeSource)).toEqual([
+      { group: [{ url: 'https://example/a' }], preprocess: '', ops },
+      { url: 'https://example/b', preprocess: '', ops },
+    ]);
+    expect(splitInput([group, b], 0, 0, 2).map(serializeSource)).toEqual([
+      { group: [{ url: 'https://example/b' }], preprocess: '', ops },
+      { url: 'https://example/b' },
+      { url: 'https://example/a', preprocess: '', ops },
+    ]);
+  });
+
+  it('moves inputs between rows and reports lost processing', () => {
+    const custom = { ...b, preprocess: 'function process(c) { return c; }' };
+    expect(moveLosesProcessing([a, custom], 1, 0)).toBe(true);
+    expect(moveLosesProcessing([a, b], 1, 0)).toBe(false);
+    expect(moveInput([a, custom], 1, 0, 0).map(serializeSource)).toEqual([{ group: [{ url: 'https://example/a' }, { url: 'https://example/b' }] }]);
+    const group = { kind: 'group' as const, group: [a, b] };
+    expect(moveLosesProcessing([group, custom], 0, 1)).toBe(false);
+    expect(moveInput([group, custom], 0, 0, 1).map(serializeSource)).toEqual([
+      { group: [{ url: 'https://example/b' }] },
+      { group: [{ url: 'https://example/b' }, { url: 'https://example/a' }], preprocess: 'function process(c) { return c; }' },
+    ]);
+    expect(moveSource([a, b, group], 2, 0)).toEqual([group, a, b]);
+    expect(duplicateSource([a], 0)).toEqual([a, a]);
+  });
+
+  it('numbers issues the way the editor shows them', () => {
+    const draft = readRule({ id: 'x', name: 'X', outputs: [], sources: [
+      { url: 'https://example/a' },
+      { group: [{ url: '' }, { file: 'missing.list' }], label: '组' },
+    ] });
+    expect(validateRuleAll(draft, rules, clients, files, '')).toEqual([
+      { path: 'sources', message: '请输入组 的输入 1的 URL', source: 1, input: 0 },
+      { path: 'sources', message: '组 的输入 2 引用了不存在的本地文件', source: 1, input: 1 },
+    ]);
+  });
+
+  it('summarizes inputs and preprocess modes', () => {
+    expect(inputSummary({ kind: 'url', url: 'https://rules.example/a/b.list' })).toBe('rules.example/a/b.list');
+    expect(inputSummary({ kind: 'content', content: 'DOMAIN,a.com\nDOMAIN,b.com\n' })).toBe('DOMAIN,a.com 等 2 行');
+    expect(inputSummary({ kind: 'geosite', provider: 'v2fly', list: 'google', attrs: 'cn' })).toBe('v2fly/google@cn');
+    expect(preprocessMode({ kind: 'url' })).toBe('inherit');
+    expect(preprocessMode({ kind: 'url', preprocess: '' })).toBe('off');
+    expect(preprocessMode({ kind: 'url', preprocess: 'x' })).toBe('custom');
+  });
 });

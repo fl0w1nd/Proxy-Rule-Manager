@@ -3,7 +3,6 @@
   import PixelTabs from '../../components/pixel/PixelTabs.svelte';
   import PixelDrawer from '../../components/pixel/PixelDrawer.svelte';
   import PixelCheckbox from '../../components/pixel/PixelCheckbox.svelte';
-  import PixelSelect from '../../components/pixel/PixelSelect.svelte';
   import PixelInput from '../../components/pixel/PixelInput.svelte';
   import PixelTagInput from '../../components/pixel/PixelTagInput.svelte';
   import PixelTextarea from '../../components/pixel/PixelTextarea.svelte';
@@ -12,7 +11,7 @@
   import RulePreviewPanel from '../../components/RulePreviewPanel.svelte';
   import SourceEditor from '../SourceEditor.svelte';
   import type { ClientConfig } from '../clients';
-  import { mergeStrategies, type RuleConfig, type RuleIssue, type RuleSource } from '../rules';
+  import { type RuleConfig, type RuleIssue, type RuleSource } from '../rules';
   import type { RulePreview } from '../../api/client';
   import rulesIcon from '../../assets/icons/nav/rules.svg';
 
@@ -40,6 +39,10 @@
     onClearFieldError: (path: string) => void;
     onSave: () => void;
     onPreviewDraft: () => void;
+    /** 当前展开的来源下标。 */
+    expandedSource: number | null;
+    onTrialSource: (source: RuleSource) => Promise<RulePreview>;
+    onEditFile: (name: string, assign: (name: string) => void) => void;
   }
 
   let {
@@ -66,16 +69,19 @@
     onClearFieldError,
     onSave,
     onPreviewDraft,
+    expandedSource = $bindable(null),
+    onTrialSource,
+    onEditFile,
   }: Props = $props();
 
   const alertPaths = $derived(new Set([...issues.map((item) => item.path), ...(fieldError ? [fieldError.path] : [])]));
   const editorTabs = $derived([
     { value: 'props', label: '属性', alert: alertPaths.has('id') || alertPaths.has('name') },
-    { value: 'sources', label: '来源', alert: alertPaths.has('sources') },
-    { value: 'pipeline', label: '处理', alert: alertPaths.has('merge') || alertPaths.has('ops') },
+    { value: 'sources', label: '来源', alert: alertPaths.has('sources') || alertPaths.has('merge') },
+    { value: 'pipeline', label: '处理', alert: alertPaths.has('ops') },
     { value: 'outputs', label: '输出', alert: alertPaths.has('outputs') },
   ].map((item) => ({ ...item, disabled: busy || previewing })));
-  const groupProcessingCount = $derived(draft.sources.filter((source: RuleSource) => source.group && (source.preprocess !== undefined || (source.ops?.length ?? 0) > 0)).length);
+  const sourceProcessingCount = $derived(draft.sources.filter((source: RuleSource) => source.preprocess !== undefined || (source.ops?.length ?? 0) > 0).length);
   const preprocessStats = $derived.by(() => {
     let inherit = 0, override = 0, off = 0;
     for (const source of draft.sources) {
@@ -85,6 +91,8 @@
     }
     return { inherit, override, off };
   });
+  const sourceIssues = $derived([...issues, ...(fieldError ? [fieldError] : [])]
+    .filter((issue, index, all) => issue.path === 'sources' && all.findIndex((item) => item.message === issue.message && item.source === issue.source && item.input === issue.input) === index));
   const title = $derived(drawerView === 'preview' ? `预览 · ${draft.name || draft.id || '未命名'}` : editing ? '编辑规则' : '新建规则');
 
   function close() {
@@ -133,33 +141,29 @@
       </div>
       {:else if editorTab === 'sources'}
       <div role="tabpanel" id="rule-editor-panel-sources" aria-labelledby="rule-editor-tab-sources" class="editor-fields">
-      <section aria-label="统一预处理" class="unified-preprocess">
-        <h3>统一预处理 <span class="optional-tag">可选</span></h3>
-        <p class="unified-hint">应用于所有未单独配置的来源 · 继承 {preprocessStats.inherit} · 覆盖 {preprocessStats.override} · 禁用 {preprocessStats.off}</p>
-        <CodeEditor value={draft.preprocess ?? ''} language="javascript" label="JavaScript" filename="process.js" height="220px"
-          placeholder={"function process(content) { return content; }"} readonly={busy || previewing}
-          onchange={(value) => { draft.preprocess = value; }} />
-      </section>
       <div class="field-zone" data-field="sources" oninput={() => onClearFieldError('sources')} onchange={() => onClearFieldError('sources')}>
-        {#if fieldError?.path === 'sources'}<p class="field-error">{fieldError.message}</p>{/if}
-        <SourceEditor bind:sources={draft.sources} preprocess={draft.preprocess} disabled={busy || previewing} {fileOptions} {refOptions} />
+        {#if fieldError?.path === 'merge'}<p class="field-error">{fieldError.message}</p>{/if}
+        <SourceEditor bind:sources={draft.sources} bind:expanded={expandedSource}
+          merge={draft.merge?.strategy || 'union'} onmergechange={(value) => { draft.merge = { strategy: value }; onClearFieldError('merge'); }}
+          defaultPreprocess={draft.preprocess ?? ''} disabled={busy || previewing} issues={sourceIssues}
+          {fileOptions} {refOptions} ongotopipeline={() => { editorTab = 'pipeline'; }}
+          oneditfile={onEditFile} ontrial={onTrialSource} />
       </div>
       </div>
       {:else if editorTab === 'pipeline'}
       <div role="tabpanel" id="rule-editor-panel-pipeline" aria-labelledby="rule-editor-tab-pipeline" class="editor-fields">
-      {#if groupProcessingCount}
+      {#if sourceProcessingCount}
         <p class="pipeline-hint">
-          {groupProcessingCount} 个来源组配置了独立预处理/过滤
+          {sourceProcessingCount} 个来源单独配置了预处理或过滤
           <button type="button" class="pipeline-link" onclick={() => { editorTab = 'sources'; }}>查看来源</button>
         </p>
       {/if}
-      <section data-field="merge" oninput={() => onClearFieldError('merge')} onchange={() => onClearFieldError('merge')}>
-        <div class="section-head"><h3>合并策略</h3></div>
-        {#if fieldError?.path === 'merge'}<p class="field-error section-error">{fieldError.message}</p>{/if}
-        <div class="format-single">
-          <PixelSelect id="rule-merge" label="合并策略" options={[...mergeStrategies]} value={draft.merge?.strategy || 'union'} disabled={busy || previewing}
-            onchange={(value) => { draft.merge = { strategy: value }; }} />
-        </div>
+      <section aria-label="默认预处理" class="unified-preprocess">
+        <h3>默认预处理 <span class="optional-tag">可选</span></h3>
+        <p class="unified-hint">用于所有选择「使用默认」的文本来源 · 使用默认 {preprocessStats.inherit} · 自定义 {preprocessStats.override} · 关闭 {preprocessStats.off}</p>
+        <CodeEditor value={draft.preprocess ?? ''} language="javascript" label="默认预处理脚本" filename="process.js" height="220px"
+          placeholder={"function process(content) { return content; }"} readonly={busy || previewing}
+          onchange={(value) => { draft.preprocess = value; }} />
       </section>
       <section aria-label="全局过滤链" data-field="ops" oninput={() => onClearFieldError('ops')} onchange={() => onClearFieldError('ops')}>
         <div class="section-head"><h3>全局过滤链</h3></div>

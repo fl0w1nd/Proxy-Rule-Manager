@@ -13,6 +13,7 @@
   import { search, searchKeymap, highlightSelectionMatches } from '@codemirror/search';
   import { tags } from '@lezer/highlight';
   import type { ConfigValidationIssue } from '../api/client';
+  import type { EditorDiagnostic } from '../utils/ruleSyntax';
 
   export type EditorLanguage = 'yaml' | 'javascript' | 'text';
 
@@ -27,6 +28,8 @@
     fill = false,
     height = '',
     placeholder = '',
+    diagnostics,
+    extensions = [],
     onchange,
   }: {
     value: string;
@@ -40,6 +43,10 @@
     /** Explicit container height (e.g. '200px'); defaults to the tall panel sizing. */
     height?: string;
     placeholder?: string;
+    /** 任意语言下显示的行级诊断；传入后启用诊断侧栏。 */
+    diagnostics?: EditorDiagnostic[];
+    /** 额外的 CodeMirror 扩展（如自动补全），只在挂载时读取。 */
+    extensions?: Extension[];
     onchange?: (value: string) => void;
   } = $props();
 
@@ -62,7 +69,7 @@
   ]);
 
   function languageExtensions(mode: EditorLanguage): Extension[] {
-    if (mode === 'yaml') return [yaml(), lintGutter(), syntaxHighlighting(colors)];
+    if (mode === 'yaml') return [yaml(), syntaxHighlighting(colors)];
     if (mode === 'javascript') return [javascript(), syntaxHighlighting(colors)];
     return [];
   }
@@ -83,6 +90,8 @@
           keymap.of([...defaultKeymap, ...historyKeymap, ...searchKeymap, indentWithTab]),
           EditorState.lineSeparator.of(value.includes('\r\n') ? '\r\n' : '\n'),
           lang.of(languageExtensions(language)),
+          language === 'yaml' || diagnostics !== undefined ? lintGutter() : [],
+          extensions,
           editable.of([EditorState.readOnly.of(isReadonly), EditorView.editable.of(!isReadonly)]),
           attrs.of(EditorView.contentAttributes.of({ 'aria-label': label, 'aria-multiline': 'true' })),
           hint.of(placeholder ? placeholderExt(placeholder) : []),
@@ -203,15 +212,29 @@
   $effect(() => {
     if (!view) return;
     const editor = view;
-    if (language !== 'yaml') {
-      editor.dispatch(setDiagnostics(editor.state, []));
-      return;
-    }
-    editor.dispatch(setDiagnostics(editor.state, issues.filter(issue => issue.line && issue.line <= editor.state.doc.lines).map(issue => {
-      const line = editor.state.doc.line(issue.line!);
-      return { from: line.from, to: line.to, severity: 'error' as const, message: `${issue.path}: ${issue.message}` };
+    const lines = editor.state.doc.lines;
+    const fromIssues = language === 'yaml'
+      ? issues.filter(issue => issue.line && issue.line <= lines).map(issue => ({ line: issue.line!, message: `${issue.path}: ${issue.message}`, severity: 'error' as const }))
+      : [];
+    const fromProps = (diagnostics ?? []).filter(item => item.line >= 1 && item.line <= lines);
+    editor.dispatch(setDiagnostics(editor.state, [...fromIssues, ...fromProps].map(item => {
+      const line = editor.state.doc.line(item.line);
+      return { from: line.from, to: line.to, severity: item.severity ?? 'error', message: item.message };
     })));
   });
+  /** 在光标所在行之后插入一行（当前行为空时直接写入该行），并把光标移到新行末尾。 */
+  export function insertLine(text: string) {
+    if (!view || isReadonly) return;
+    const { state } = view;
+    const line = state.doc.lineAt(state.selection.main.head);
+    const sep = state.lineBreak;
+    const change = line.text.trim() === ''
+      ? { from: line.from, to: line.to, insert: text }
+      : { from: line.to, insert: sep + text };
+    const anchor = change.from + change.insert.length;
+    view.dispatch({ changes: change, selection: { anchor }, scrollIntoView: true });
+    view.focus();
+  }
   export function focusLine(number: number) {
     if (!view || number < 1 || number > view.state.doc.lines) return;
     view.dispatch({ selection: { anchor: view.state.doc.line(number).from }, scrollIntoView: true });

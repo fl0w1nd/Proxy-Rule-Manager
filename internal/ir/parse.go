@@ -17,6 +17,7 @@ var detectOrder = []string{FormatClassical, FormatMihomoYAML}
 type parser interface {
 	ID() string
 	Parse(content string) RuleSet
+	walk(content string, visit visitFunc)
 }
 
 var parsers = map[string]parser{

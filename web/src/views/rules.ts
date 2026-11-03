@@ -293,6 +293,10 @@ export interface RuleIssue {
   /** 出错字段的锚点：id / name / sources / ops / outputs / merge */
   path: string;
   message: string;
+  /** 来源错误所在的顶层来源序号（0 起）。 */
+  source?: number;
+  /** 来源错误所在的输入序号（0 起）；来源级错误为空。 */
+  input?: number;
 }
 
 export function validateRuleAll(
@@ -303,7 +307,9 @@ export function validateRuleAll(
   editing: string,
 ): RuleIssue[] {
   const issues: RuleIssue[] = [];
-  const issue = (path: string, message: string) => { issues.push({ path, message }); };
+  const issue = (path: string, message: string, source?: number, input?: number) => {
+    issues.push({ path, message, ...(source === undefined ? {} : { source }), ...(input === undefined ? {} : { input }) });
+  };
   if (!safeRuleID(rule.id)) issue('id', '规则 ID 不能为空或包含路径');
   if (rules.some((item) => item.id === rule.id && item.id !== editing)) issue('id', '规则 ID 已存在');
   if (!rule.name.trim()) issue('name', '请输入规则名称');
@@ -311,37 +317,45 @@ export function validateRuleAll(
   const knownFiles = new Set(files.map((file) => file.name));
   const refs = new Set(refChoices(rules, editing || rule.id).map((item) => item.value));
   const clientIDs = new Set(clients.map((client) => client.id));
-  for (const [index, source] of rule.sources.flatMap(source => source.group ? [source, ...source.group] : [source]).entries()) {
-    if (source.kind === 'group' && !source.group?.length) issue('sources', '请为来源组添加至少一个来源');
+  // 编号与界面一致：顶层来源按 1 起编号，多输入来源内的输入再按 1 起编号。
+  rule.sources.forEach((source, i) => {
+    const blockLabel = source.label?.trim() || `来源 ${i + 1}`;
+    if (source.kind === 'group' && !source.group?.length) issue('sources', `请为${blockLabel}添加至少一个输入`, i);
     for (const op of source.ops ?? []) {
-      if (op.type === 'filter_values' && !op.pattern) issue('sources', '请输入来源过滤匹配值');
-      if (op.type !== 'filter_values' && !op.kinds?.length) issue('sources', '请选择来源过滤规则类型');
+      if (op.type === 'filter_values' && !op.pattern) issue('sources', `请输入${blockLabel}的过滤匹配值`, i);
+      if (op.type !== 'filter_values' && !op.kinds?.length) issue('sources', `请选择${blockLabel}的过滤规则类型`, i);
     }
-    const label = source.label?.trim() || `来源 ${index + 1}`;
-    switch (source.kind) {
-      case 'url':
-        if (!source.url?.trim()) issue('sources', `请输入${label}的 URL`);
-        break;
-      case 'file':
-        if (!source.file?.trim()) issue('sources', `请选择${label}的本地文件`);
-        else if (!knownFiles.has(source.file.trim())) issue('sources', `${label} 引用了不存在的本地文件`);
-        break;
-      case 'content':
-        if (!source.content?.trim()) issue('sources', `请输入${label}的内联文本`);
-        break;
-      case 'ref':
-        if (!source.ref?.trim()) issue('sources', `请选择${label}引用的规则`);
-        else if (source.ref === rule.id || source.ref === editing) issue('sources', `${label} 不能引用自身`);
-        else if (!refs.has(source.ref)) issue('sources', `${label} 的引用会形成循环或指向未知规则`);
-        break;
-      case 'geosite':
-        if (!source.provider?.trim() || !source.list?.trim()) issue('sources', `请填写${label} 的 Geosite 提供商和列表`);
-        break;
-      case 'geoip':
-        if (!source.provider?.trim() || !source.list?.trim()) issue('sources', `请填写${label} 的 GeoIP 提供商和列表`);
-        break;
-    }
-  }
+    sourceInputs(source).forEach((input, j) => {
+      const at = source.group ? j : undefined;
+      const label = source.group ? (input.label?.trim() || `${blockLabel} 的输入 ${j + 1}`) : blockLabel;
+      switch (input.kind) {
+        case 'url':
+          if (!input.url?.trim()) issue('sources', `请输入${label}的 URL`, i, at);
+          break;
+        case 'file':
+          if (!input.file?.trim()) issue('sources', `请选择${label}的本地文件`, i, at);
+          else if (!knownFiles.has(input.file.trim())) issue('sources', `${label} 引用了不存在的本地文件`, i, at);
+          break;
+        case 'content':
+          if (!input.content?.trim()) issue('sources', `请输入${label}的内联文本`, i, at);
+          break;
+        case 'ref':
+          if (!input.ref?.trim()) issue('sources', `请选择${label}引用的规则`, i, at);
+          else if (input.ref === rule.id || input.ref === editing) issue('sources', `${label} 不能引用自身`, i, at);
+          else if (!refs.has(input.ref)) issue('sources', `${label} 的引用会形成循环或指向未知规则`, i, at);
+          break;
+        case 'geosite':
+          if (!input.provider?.trim() || !input.list?.trim()) issue('sources', `请填写${label} 的 Geosite 提供商和列表`, i, at);
+          break;
+        case 'geoip':
+          if (!input.provider?.trim() || !input.list?.trim()) issue('sources', `请填写${label} 的 GeoIP 提供商和列表`, i, at);
+          break;
+        case 'group':
+          issue('sources', `${label} 不能再嵌套来源组`, i, at);
+          break;
+      }
+    });
+  });
   for (const id of rule.outputs) {
     if (!clientIDs.has(id)) issue('outputs', `输出客户端 ${id} 不存在`);
   }
@@ -363,3 +377,159 @@ export function validateRule(
 ): RuleIssue | null {
   return validateRuleAll(rule, rules, clients, files, editing)[0] ?? null;
 }
+
+// ---- 来源列表操作 ----
+// 界面上每个顶层来源是一行，行内有 1..n 个输入；处理配置（预处理、过滤链）挂在行上。
+// 行内只有一个输入时保持原有写法（普通来源），增加到多个输入时才升级为 group；
+// 已经是 group 的行即使只剩一个输入也保持 group，避免没改动的配置被改写结构。
+// 下列函数都是纯函数，调用方需传入普通对象（如 $state.snapshot 的结果）。
+
+export function sourceInputs(source: RuleSource): RuleSource[] {
+  return source.group ?? [source];
+}
+
+export type PreprocessMode = 'inherit' | 'custom' | 'off';
+
+export function preprocessMode(source: RuleSource): PreprocessMode {
+  if (source.preprocess === undefined) return 'inherit';
+  return source.preprocess ? 'custom' : 'off';
+}
+
+export function hasProcessing(source: RuleSource): boolean {
+  return source.preprocess !== undefined || !!source.ops?.length;
+}
+
+function sameProcessing(a: RuleSource, b: RuleSource): boolean {
+  return a.preprocess === b.preprocess && JSON.stringify(a.ops ?? []) === JSON.stringify(b.ops ?? []);
+}
+
+/** 去掉处理配置，得到可放进 group 的成员。 */
+function asMember(source: RuleSource): RuleSource {
+  const member: RuleSource = { ...source };
+  delete member.preprocess;
+  delete member.ops;
+  delete member.group;
+  return member;
+}
+
+/** 把行的处理配置带到独立来源上，保证拆出后的编译结果不变。 */
+function withProcessing(member: RuleSource, from: RuleSource, label = member.label): RuleSource {
+  const source: RuleSource = { ...asMember(member), ops: structuredClone(from.ops ?? []) };
+  if (label) source.label = label;
+  else delete source.label;
+  if (from.preprocess !== undefined) source.preprocess = from.preprocess;
+  return source;
+}
+
+function withInput(block: RuleSource, input: RuleSource): RuleSource {
+  if (block.group) return { ...block, group: [...block.group, asMember(input)] };
+  const group: RuleSource = { kind: 'group', group: [asMember(block), asMember(input)], ops: structuredClone(block.ops ?? []) };
+  if (block.preprocess !== undefined) group.preprocess = block.preprocess;
+  return group;
+}
+
+export function addInput(sources: RuleSource[], index: number, input: RuleSource = emptySource()): RuleSource[] {
+  return sources.map((block, i) => i === index ? withInput(block, input) : block);
+}
+
+export function removeInput(sources: RuleSource[], index: number, input: number): RuleSource[] {
+  const block = sources[index];
+  if (!block.group || block.group.length <= 1) return sources.filter((_, i) => i !== index);
+  return sources.map((item, i) => i === index ? { ...item, group: item.group!.filter((_, j) => j !== input) } : item);
+}
+
+/** 只剩一个输入的 group 退回普通来源。 */
+export function dissolveGroup(sources: RuleSource[], index: number): RuleSource[] {
+  const block = sources[index];
+  if (!block.group || block.group.length !== 1) return sources;
+  const member = block.group[0];
+  return sources.map((item, i) => i === index ? withProcessing(member, block, member.label || block.label) : item);
+}
+
+/**
+ * 把 group 中的一个输入拆成独立来源，并沿用该行的处理配置。
+ * position 是插入位置（按原列表计算的下标），默认紧随原来源之后。
+ */
+export function splitInput(sources: RuleSource[], index: number, input: number, position = index + 1): RuleSource[] {
+  const block = sources[index];
+  if (!block.group) return moveSource(sources, index, position > index ? position - 1 : position);
+  if (block.group.length === 1) {
+    const dissolved = dissolveGroup(sources, index);
+    return moveSource(dissolved, index, position > index ? position - 1 : position);
+  }
+  const member = block.group[input];
+  const next = sources.map((item, i) => i === index ? { ...block, group: block.group!.filter((_, j) => j !== input) } : item);
+  next.splice(position, 0, withProcessing(member, block));
+  return next;
+}
+
+/** 移动后原来源整行消失、且它的处理配置与目标不同，这些配置会丢失。 */
+export function moveLosesProcessing(sources: RuleSource[], index: number, target: number): boolean {
+  const block = sources[index];
+  const removesBlock = !block.group || block.group.length <= 1;
+  return removesBlock && hasProcessing(block) && !sameProcessing(block, sources[target]);
+}
+
+/** 把一个输入移到另一行；移入后使用目标行的处理配置。 */
+export function moveInput(sources: RuleSource[], index: number, input: number, target: number): RuleSource[] {
+  if (index === target) return sources;
+  const member = sourceInputs(sources[index])[input];
+  const marked = sources.map((block, i) => i === target ? withInput(block, member) : block);
+  return removeInput(marked, index, input);
+}
+
+export function moveSource(sources: RuleSource[], from: number, to: number): RuleSource[] {
+  if (from === to || to < 0 || to >= sources.length) return sources;
+  const next = [...sources];
+  const [item] = next.splice(from, 1);
+  next.splice(to, 0, item);
+  return next;
+}
+
+export function duplicateSource(sources: RuleSource[], index: number): RuleSource[] {
+  return [...sources.slice(0, index + 1), structuredClone(sources[index]), ...sources.slice(index + 1)];
+}
+
+export function sourceKindLabel(kind: RuleSource['kind']): string {
+  if (kind === 'group') return '多输入';
+  return sourceKinds.find((item) => item.value === kind)?.label ?? kind;
+}
+
+/** 折叠行上展示的一句话摘要。 */
+export function inputSummary(input: RuleSource): string {
+  switch (input.kind) {
+    case 'url': {
+      const raw = input.url?.trim() ?? '';
+      if (!raw) return '未填写 URL';
+      try {
+        const url = new URL(raw);
+        return `${url.host}${url.pathname === '/' ? '' : url.pathname}`;
+      } catch { return raw; }
+    }
+    case 'file':
+      return input.file?.trim() || '未选择文件';
+    case 'content': {
+      const lines = (input.content ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+      if (!lines.length) return '未填写内容';
+      return lines.length > 1 ? `${lines[0]} 等 ${lines.length} 行` : lines[0];
+    }
+    case 'ref':
+      return input.ref?.trim() || '未选择规则';
+    case 'geosite': {
+      const attrs = splitCSV(input.attrs);
+      const ref = `${input.provider || '?'}/${input.list || '?'}`;
+      return attrs.length ? `${ref}@${attrs.join(',')}` : ref;
+    }
+    case 'geoip':
+      return `${input.provider || '?'}/${input.list || '?'}`;
+    default:
+      return '';
+  }
+}
+
+/** 预处理只作用于文本来源（URL、本地文件、内联文本）。 */
+export function hasTextInput(source: RuleSource): boolean {
+  return sourceInputs(source).some((input) => input.kind === 'url' || input.kind === 'file' || input.kind === 'content');
+}
+
+export const defaultPreprocessScript = 'function process(content) {\n  return content;\n}';

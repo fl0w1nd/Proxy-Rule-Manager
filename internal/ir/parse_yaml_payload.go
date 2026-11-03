@@ -21,29 +21,26 @@ type yamlPayloadItem struct {
 
 // Parse extracts the payload list and classifies each item: rule lines, bare
 // CIDRs, or domain patterns.
-func (yamlPayloadParser) Parse(content string) RuleSet {
+func (p yamlPayloadParser) Parse(content string) RuleSet { return collect(p.walk, content) }
+
+func (yamlPayloadParser) walk(content string, visit visitFunc) {
 	items, ok := extractYAMLItems(content)
 	if !ok {
-		return RuleSet{Diagnostics: []Diagnostic{{Text: "(document)", Reason: "no payload/rules list found in YAML"}}}
+		visit(0, "(document)", Entry{}, errNoYAMLPayload)
+		return
 	}
-	var rs RuleSet
 	for i, item := range items {
 		value := strings.TrimSpace(item.Value)
 		if value == "" || isCommentLine(value) {
 			continue
 		}
-		entry, err := parseYAMLItem(value)
-		if err != nil {
-			line := item.Line
-			if line == 0 {
-				line = i + 1
-			}
-			rs.Diagnostics = append(rs.Diagnostics, Diagnostic{Line: line, Text: value, Reason: err.Error()})
-			continue
+		line := item.Line
+		if line == 0 {
+			line = i + 1
 		}
-		rs.Entries = append(rs.Entries, entry)
+		entry, err := parseYAMLItem(value)
+		visit(line, value, entry, err)
 	}
-	return rs
 }
 
 // extractYAMLItems tries a strict YAML decode first, then falls back to the
