@@ -13,8 +13,6 @@ on:
       - "config.template.yaml"
       - ".gitignore"
       - ".goreleaser.yaml"
-      - ".github/workflows/droid.yml"
-      - ".github/workflows/droid-review.yml"
       - ".github/workflows/pages.yml"
       - ".github/workflows/release.yml"
   pull_request:
