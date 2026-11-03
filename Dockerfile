@@ -9,7 +9,7 @@ RUN npm install -g pnpm@10.33.0 && pnpm --dir web install --frozen-lockfile
 COPY web ./web
 RUN pnpm --dir web build
 
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS builder
+FROM --platform=$BUILDPLATFORM golang:1.26.10-alpine AS builder
 
 WORKDIR /build
 COPY go.mod go.sum ./

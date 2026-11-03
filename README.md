@@ -7,7 +7,7 @@
 <p align="center"><em>把多个上游来源的代理规则，编译成各个客户端专用格式。</em></p>
 
 <p align="center">
-  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.25.0-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go version"></a>
+  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.26.10-00ADD8?style=flat-square&logo=go&logoColor=white" alt="Go version"></a>
   <a href="https://github.com/fl0w1nd/Proxy-Rule-Manager/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/fl0w1nd/Proxy-Rule-Manager/ci.yml?style=flat-square&branch=main&label=ci" alt="CI"></a>
   <a href="https://github.com/fl0w1nd/Proxy-Rule-Manager/releases"><img src="https://img.shields.io/github/v/release/fl0w1nd/Proxy-Rule-Manager?style=flat-square&sort=semver&label=release" alt="Release"></a>
   <a href="https://github.com/fl0w1nd/Proxy-Rule-Manager/stargazers"><img src="https://img.shields.io/github/stars/fl0w1nd/Proxy-Rule-Manager?style=flat-square&label=stars" alt="Stars"></a>
@@ -199,7 +199,7 @@ data/
 
 ## 开发
 
-环境要求：Go 1.25、Node.js LTS、pnpm 10、make。
+环境要求：Go 1.26.10、Node.js LTS、pnpm 10、make。
 
 | 命令 | 作用 |
 | --- | --- |
