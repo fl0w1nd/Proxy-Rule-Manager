@@ -199,7 +199,7 @@ data/
 
 ## 开发
 
-环境要求：Go 1.26.10、Node.js LTS、pnpm 10、make。
+环境要求：Go 1.26.10、Node.js 26.13.0、pnpm 10、make。
 
 | 命令 | 作用 |
 | --- | --- |

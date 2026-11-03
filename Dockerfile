@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1.7
 
-FROM --platform=$BUILDPLATFORM node:lts-alpine AS web-builder
+FROM --platform=$BUILDPLATFORM node:26.13.0-alpine AS web-builder
 
 WORKDIR /build
 COPY web/package.json web/pnpm-lock.yaml ./web/
