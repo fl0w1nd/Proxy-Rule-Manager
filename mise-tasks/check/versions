@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+#MISE description="Check that Dockerfile, go.mod and package.json match mise.toml"
+set -euo pipefail
+
+status=0
+
+expect() {
+  local label="$1" actual="$2" expected="$3"
+  if [[ "$actual" == "$expected" ]]; then
+    echo "ok        $label: $actual"
+  else
+    echo "mismatch  $label: ${actual:-<missing>} (mise.toml: $expected)" >&2
+    status=1
+  fi
+}
+
+pinned() { mise config get --file mise.toml "tools.$1"; }
+
+go_version="$(pinned go)"
+node_version="$(pinned node)"
+pnpm_version="$(pinned pnpm)"
+
+expect "go.mod go directive" "$(awk '$1 == "go" { print $2 }' go.mod)" "$go_version"
+expect "Dockerfile golang image" "$(sed -nE 's/^FROM .*golang:([0-9.]+)-alpine.*/\1/p' Dockerfile)" "$go_version"
+expect "Dockerfile node image" "$(sed -nE 's/^FROM .*node:([0-9.]+)-alpine.*/\1/p' Dockerfile)" "$node_version"
+expect "Dockerfile pnpm" "$(sed -nE 's/.*pnpm@([0-9.]+).*/\1/p' Dockerfile)" "$pnpm_version"
+expect "web/package.json packageManager" "$(sed -nE 's/.*"packageManager": *"pnpm@([^"]+)".*/\1/p' web/package.json)" "$pnpm_version"
+
+exit "$status"

@@ -1,2 +1,193 @@
 [tools]
+go = "1.26.10"
 node = "26.13.0"
+pnpm = "10.33.0"
+golangci-lint = "2.12.2"
+goreleaser = "2.17.1"
+air = "1.67.4"
+protoc = "36.2"
+protoc-gen-go = "1.36.12"
+
+[settings]
+lockfile = true
+
+[tasks."web:install"]
+description = "Install web dependencies"
+dir = "web"
+run = "pnpm install"
+sources = ["package.json", "pnpm-lock.yaml"]
+outputs = ["node_modules/.modules.yaml"]
+
+[tasks."build:web"]
+description = "Build the admin and public web assets"
+depends = ["web:install"]
+dir = "web"
+run = "pnpm build"
+sources = [
+  "src/**",
+  "index.html",
+  "package.json",
+  "pnpm-lock.yaml",
+  "svelte.config.js",
+  "tsconfig.json",
+  "vite.config.ts",
+  "vite.public.config.ts",
+]
+outputs = [
+  "../internal/admin/dist/index.html",
+  "../internal/site/dist/public.js",
+]
+
+[tasks.build]
+description = "Build bin/prm with embedded web assets"
+depends = ["build:web"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+version="${VERSION:-$(tr -d '[:space:]' < version/VERSION)}"
+commit="${COMMIT:-$(git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)}"
+build_date="${BUILD_DATE:-$(git show -s --format=%cI HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}"
+pkg=github.com/fl0w1nd/proxy-rule-manager/version
+go build -trimpath \
+  -ldflags "-s -w -X $pkg.Version=$version -X $pkg.Commit=$commit -X $pkg.Date=$build_date" \
+  -o bin/prm ./cmd/prm
+'''
+
+[tasks.test]
+description = "Run Go tests in random order with coverage"
+depends = ["build:web"]
+run = "go test -shuffle=on -coverprofile=coverage.out ./..."
+
+[tasks."test:race"]
+description = "Run Go tests with the race detector and coverage"
+depends = ["build:web"]
+run = "go test -race -shuffle=on -covermode=atomic -coverprofile=coverage.out ./..."
+
+[tasks."test:web"]
+description = "Type-check and test the web apps"
+depends = ["web:install"]
+dir = "web"
+run = ["pnpm check", "pnpm test --run"]
+
+[tasks."lint:fmt"]
+description = "Check Go formatting"
+run = 'unformatted="$(gofmt -l .)"; [ -z "$unformatted" ] || { echo "$unformatted"; exit 1; }'
+
+[tasks."lint:vet"]
+description = "Run go vet"
+depends = ["build:web"]
+run = "go vet ./..."
+
+[tasks."lint:golangci"]
+description = "Run golangci-lint"
+depends = ["build:web"]
+run = "golangci-lint run ./..."
+
+[tasks.lint]
+description = "Run all Go lint checks"
+depends = ["lint:*"]
+
+[tasks.ci]
+description = "Run the local CI quality gate"
+depends = ["check:versions", "lint", "test:race", "test:web"]
+
+[tasks.dev]
+description = "Live-reload the Go server and the admin Vite app"
+usage = '''
+flag "-c --config <file>" help="Config file; config.dev.yaml is created from the template when missing" default="config.dev.yaml"
+flag "--data-dir <dir>" help="Runtime data directory" default="./data"
+'''
+depends = [
+  { task = "dev:server", args = [
+    "--config",
+    "{{ usage.config }}",
+    "--data-dir",
+    "{{ usage.data_dir }}",
+  ] },
+  "dev:web",
+]
+
+[tasks."dev:server"]
+description = "Live-reload the Go server with air"
+hide = true
+depends = ["build:web"]
+env = { PRM_DEV = "1" }
+usage = '''
+flag "-c --config <file>" default="config.dev.yaml"
+flag "--data-dir <dir>" default="./data"
+'''
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+config="$usage_config"
+if [[ ! -f "$config" ]]; then
+  if [[ "$config" == "config.dev.yaml" ]]; then
+    cp config.template.yaml config.dev.yaml
+    echo "created config.dev.yaml from config.template.yaml"
+  else
+    echo "error: config file not found: $config" >&2
+    exit 1
+  fi
+fi
+echo "==> admin  http://127.0.0.1:5173/admin/"
+echo "==> server http://127.0.0.1:3001/"
+exec air -c .air.toml -- serve -c "$config" --data-dir "$usage_data_dir"
+'''
+
+[tasks."dev:web"]
+description = "Run the admin Vite dev server"
+hide = true
+depends = ["web:install"]
+dir = "web"
+run = "pnpm dev"
+
+[tasks.serve]
+description = "Build and run prm serve"
+depends = ["build"]
+run = "./bin/prm serve"
+
+[tasks.update]
+description = "Build and run prm update"
+depends = ["build"]
+run = "./bin/prm update"
+
+[tasks.validate]
+description = "Build and validate the config"
+depends = ["build"]
+run = "./bin/prm validate"
+
+[tasks.proto]
+description = "Regenerate protobuf Go code"
+run = "protoc --go_out=. --go_opt=paths=source_relative internal/geosite/geosite.proto internal/geoip/geoip.proto"
+
+[tasks."docker:build"]
+description = "Build the Docker image"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+version="${VERSION:-$(tr -d '[:space:]' < version/VERSION)}"
+docker build \
+  --build-arg VERSION="$version" \
+  --build-arg COMMIT="${COMMIT:-$(git rev-parse --short=12 HEAD 2>/dev/null || printf unknown)}" \
+  --build-arg BUILD_DATE="${BUILD_DATE:-$(git show -s --format=%cI HEAD 2>/dev/null || date -u +%Y-%m-%dT%H:%M:%SZ)}" \
+  -t "fl0w1nd/prm:$version" .
+'''
+
+[tasks."docker:run"]
+description = "Build and run the Docker container with ./data"
+depends = ["docker:build"]
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+version="${VERSION:-$(tr -d '[:space:]' < version/VERSION)}"
+docker run --rm -e PRM_ADMIN_TOKEN -v "$PWD/data:/data" -p 3001:3001 "fl0w1nd/prm:$version"
+'''
+
+[tasks.clean]
+description = "Remove build artifacts"
+run = "rm -rf bin/ tmp/"
+
+[tasks.distclean]
+description = "Remove build artifacts and all generated data"
+depends = ["clean"]
+run = "rm -rf data/"

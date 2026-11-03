@@ -1,0 +1,53 @@
+name: Set up toolchain
+description: Install the mise toolchain and restore Go and pnpm caches.
+
+inputs:
+  go-cache:
+    description: Restore the Go module and build caches.
+    default: "true"
+  pnpm-cache:
+    description: Restore the pnpm store.
+    default: "false"
+
+runs:
+  using: composite
+  steps:
+    - name: Install mise tools
+      uses: jdx/mise-action@v5
+      with:
+        install_args: --locked
+
+    - name: Locate Go caches
+      if: inputs.go-cache == 'true'
+      id: go-paths
+      shell: bash
+      run: |
+        echo "mod=$(go env GOMODCACHE)" >> "$GITHUB_OUTPUT"
+        echo "build=$(go env GOCACHE)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore Go caches
+      if: inputs.go-cache == 'true'
+      uses: actions/cache@v6
+      with:
+        path: |
+          ${{ steps.go-paths.outputs.mod }}
+          ${{ steps.go-paths.outputs.build }}
+        key: go-${{ runner.os }}-${{ github.job }}-${{ hashFiles('go.sum') }}
+        restore-keys: |
+          go-${{ runner.os }}-${{ github.job }}-
+
+    - name: Locate pnpm store
+      if: inputs.pnpm-cache == 'true'
+      id: pnpm-paths
+      shell: bash
+      working-directory: web
+      run: echo "store=$(pnpm store path)" >> "$GITHUB_OUTPUT"
+
+    - name: Restore pnpm store
+      if: inputs.pnpm-cache == 'true'
+      uses: actions/cache@v6
+      with:
+        path: ${{ steps.pnpm-paths.outputs.store }}
+        key: pnpm-${{ runner.os }}-${{ hashFiles('web/pnpm-lock.yaml') }}
+        restore-keys: |
+          pnpm-${{ runner.os }}-

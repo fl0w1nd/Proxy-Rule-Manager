@@ -29,76 +29,99 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  lint:
-    name: Lint
+  web:
+    name: Web assets
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: mise.toml
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.33.0
-
-      - name: Install web dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: web
+          go-cache: "false"
+          pnpm-cache: "true"
 
       - name: Build web assets
-        run: make build-web
+        run: mise run build:web
+
+      - name: Upload web assets
+        uses: actions/upload-artifact@v7
+        with:
+          name: web-dist
+          path: |
+            internal/admin/dist
+            internal/site/dist
+          if-no-files-found: error
+          retention-days: 1
+
+  web-test:
+    name: Web checks and component tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
+        with:
+          go-cache: "false"
+          pnpm-cache: "true"
+
+      - name: Check web types and run component tests
+        run: mise run test:web
+
+  lint:
+    name: Lint
+    needs: web
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
+
+      - name: Download web assets
+        uses: actions/download-artifact@v8
+        with:
+          name: web-dist
+          path: internal
+
+      - name: Check pinned tool versions
+        run: mise run check:versions
 
       - name: Check formatting
-        run: test -z "$(gofmt -l .)"
+        run: mise run lint:fmt
 
       - name: Run go vet
-        run: go vet ./...
+        run: mise run --skip-deps lint:vet
 
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
+          install-mode: none
           args: ./...
 
   test:
     name: Unit tests and race detector
+    needs: web
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
+
+      - name: Download web assets
+        uses: actions/download-artifact@v8
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: mise.toml
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.33.0
-
-      - name: Install web dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: web
-
-      - name: Build web assets
-        run: make build-web
+          name: web-dist
+          path: internal
 
       - name: Run tests
-        run: go test -race -shuffle=on -covermode=atomic -coverprofile=coverage.out ./...
+        run: mise run --skip-deps test:race
 
       - name: Report coverage
         run: go tool cover -func=coverage.out | tail -1
@@ -116,39 +139,23 @@ jobs:
     needs:
       - lint
       - test
+      - web-test
     runs-on: ubuntu-latest
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
+
+      - name: Download web assets
+        uses: actions/download-artifact@v8
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: mise.toml
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.33.0
-
-      - name: Install web dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: web
-
-      - name: Check web types
-        run: pnpm check
-        working-directory: web
-
-      - name: Run web component tests
-        run: pnpm test --run
-        working-directory: web
+          name: web-dist
+          path: internal
 
       - name: Build binary
-        run: make build
+        run: mise run --skip-deps build
 
       - name: Verify binary version
         shell: bash
@@ -156,7 +163,6 @@ jobs:
           expected="$(tr -d '[:space:]' < version/VERSION)"
           actual="$(./bin/prm --version)"
           test "$actual" = "prm version $expected"
-
   container:
     name: Container validation
     needs:

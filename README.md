@@ -99,7 +99,7 @@ rules:
 
 ## 快速开始
 
-1. **获取程序**。从 [Releases 页面](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载最新发布；或 `make build` 后用 `bin/prm`。用 Docker 就执行 `make docker-build`。
+1. **获取程序**。从 [Releases 页面](https://github.com/fl0w1nd/Proxy-Rule-Manager/releases) 下载最新发布；或 `mise run build` 后用 `bin/prm`。用 Docker 就执行 `mise run docker:build`。
 2. **生成配置**。`prm init` 写出一个最小可运行的 `config.yaml`，已有文件时拒绝覆盖。
 3. **编辑配置**。`config.yaml` 里声明你的客户端（clients）和规则（rules）。
 4. **校验配置**。`prm validate` 通过则继续，报错带 YAML 行号和配置路径。
@@ -199,25 +199,29 @@ data/
 
 ## 开发
 
-环境要求：Go 1.26.10、Node.js 26.13.0、pnpm 10、make。
+工具链由 [mise](https://mise.jdx.dev) 管理，版本固定在 `mise.toml` 和 `mise.lock`。安装 mise 后，在仓库根目录执行 `mise install`，即可装好 Go、Node.js、pnpm、golangci-lint、air、protoc 等工具。`mise tasks` 列出全部任务。
 
 | 命令 | 作用 |
 | --- | --- |
-| `make dev` | 本地开发：Go 热重载 + 管理看板 Vite |
-| `make build` | 构建 `bin/prm` |
-| `make test` | 运行全部测试（随机顺序 + 覆盖率） |
-| `make test-race` | 带竞态检测运行测试 |
-| `make lint` | 运行 gofmt、go vet、golangci-lint |
-| `make ci` | 本地质量门禁（lint + 竞态测试） |
-| `make proto` | 重新生成 geosite/geoip 的 protobuf 代码（需要 protoc） |
-| `make docker-build` | 构建容器镜像 |
-| `make docker-run` | 用 `./data` 和 `config.yaml` 运行容器 |
-| `make clean` | 清理 `bin/` 和 `tmp/` |
+| `mise run dev` | 本地开发：Go 热重载 + 管理看板 Vite |
+| `mise run build` | 构建 `bin/prm` |
+| `mise run test` | 运行全部测试（随机顺序 + 覆盖率） |
+| `mise run test:race` | 带竞态检测运行测试 |
+| `mise run test:web` | 前端类型检查与组件测试 |
+| `mise run lint` | 运行 gofmt、go vet、golangci-lint |
+| `mise run ci` | 本地质量门禁（版本一致性 + lint + 竞态测试 + 前端测试，并行执行） |
+| `mise run proto` | 重新生成 geosite/geoip 的 protobuf 代码 |
+| `mise run docker:build` | 构建容器镜像 |
+| `mise run docker:run` | 用 `./data` 运行容器 |
+| `mise run clean` | 清理 `bin/` 和 `tmp/` |
 
-`make dev` 默认使用 `config.dev.yaml`（不存在时从 `config.template.yaml` 复制），数据目录为 `./data`，并设置 `PRM_DEV=1` 跳过管理令牌。自定义配置：`make dev CONFIG=path.yaml`。管理看板走 Vite：http://127.0.0.1:5173/admin/ ；HTTP 服务在 http://127.0.0.1:3001/ 。
+前端依赖和前端产物按源文件变化增量处理：`package.json` 与 `pnpm-lock.yaml` 未变时跳过 `pnpm install`，`web/` 源码未变时跳过前端构建。需要强制重跑时加 `--force`。
 
-CI 依次跑 lint、测试、发布二进制构建、容器构建。发布用 goreleaser，容器推送到 `ghcr.io/fl0w1nd/prm`。
+`mise run dev` 默认使用 `config.dev.yaml`（不存在时从 `config.template.yaml` 复制），数据目录为 `./data`，并设置 `PRM_DEV=1` 跳过管理令牌。自定义配置：`mise run dev -c path.yaml`，数据目录：`--data-dir`。管理看板走 Vite：http://127.0.0.1:5173/admin/ ；HTTP 服务在 http://127.0.0.1:3001/ 。
 
+升级工具时修改 `mise.toml` 后执行 `mise install` 更新 `mise.lock`。`Dockerfile`、`go.mod` 和 `web/package.json` 里的 Go、Node.js、pnpm 版本需要同步修改，`mise run check:versions` 会检查它们是否一致。
+
+CI 先构建一次前端产物，再并行跑 lint、Go 测试和前端测试，最后做二进制构建和容器构建。发布用 goreleaser，容器推送到 `ghcr.io/fl0w1nd/prm`。
 ## 文档
 
 - [docs/configuration.md](docs/configuration.md)：配置友好教程。

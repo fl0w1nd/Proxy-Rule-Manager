@@ -169,33 +169,16 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v6
+      - name: Set up toolchain
+        uses: ./.github/actions/setup-tools
         with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version-file: mise.toml
-
-      - name: Install pnpm
-        run: npm install -g pnpm@10.33.0
-
-      - name: Install web dependencies
-        run: pnpm install --frozen-lockfile
-        working-directory: web
+          pnpm-cache: "true"
 
       - name: Build web assets
-        run: make build-web
+        run: mise run build:web
 
       - name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v7
-        with:
-          distribution: goreleaser
-          version: v2.17.1
-          args: release --clean
+        run: goreleaser release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           IS_LATEST: ${{ needs.prepare.outputs.is_latest }}
